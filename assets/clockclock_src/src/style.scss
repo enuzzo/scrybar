@@ -1,0 +1,282 @@
+*,
+*:after,
+*:before {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+:root {
+	--padding-vertical: 5vh;
+	--padding-horizontal: 5vw;
+	--clock-size: 50px; /* Default, will be overridden by JS */
+	--clock-gap: 8px; /* Default, will be overridden by JS */
+	--hand-width: 0.32em;
+	--hand-height: calc((var(--clock-size) / 2) - 2px);
+	--default-hand-pos: 2.6; /* Posizione "spenta" o neutra */
+	--hand-transition-duration: 6s; /* Durata totale dell'evento di cambio minuto - AUMENTATA */
+	--hand-tip-radius: 0px;
+	--hand-base-radius: 20px;
+}
+
+body {
+	height: 100vh;
+	width: 100vw;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	background-color: #e6e3df;
+	padding-top: var(--padding-vertical);
+	padding-bottom: var(--padding-vertical);
+	padding-left: var(--padding-horizontal);
+	padding-right: var(--padding-horizontal);
+	overflow: hidden;
+	font-family: "Inter", sans-serif;
+}
+
+.container {
+	display: flex;
+	gap: var(--clock-gap);
+}
+
+.digit {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--clock-gap);
+	width: calc((var(--clock-size) * 2) + var(--clock-gap));
+	/* Default hand positions, will be overridden by data-digit attribute */
+	--r1c1-a: var(--default-hand-pos);
+	--r1c1-b: var(--default-hand-pos);
+	--r1c2-a: var(--default-hand-pos);
+	--r1c2-b: var(--default-hand-pos);
+	--r2c1-a: var(--default-hand-pos);
+	--r2c1-b: var(--default-hand-pos);
+	--r2c2-a: var(--default-hand-pos);
+	--r2c2-b: var(--default-hand-pos);
+	--r3c1-a: var(--default-hand-pos);
+	--r3c1-b: var(--default-hand-pos);
+	--r3c2-a: var(--default-hand-pos);
+	--r3c2-b: var(--default-hand-pos);
+}
+
+/* Digit definitions using CSS variables */
+.digit[data-digit="0"] {
+	--r1c1-a: 2;
+	--r1c1-b: 1;
+	--r1c2-a: 2;
+	--r1c2-b: 3;
+	--r2c1-a: 0;
+	--r2c1-b: 2;
+	--r2c2-a: 0;
+	--r2c2-b: 2;
+	--r3c1-a: 0;
+	--r3c1-b: 1;
+	--r3c2-a: 0;
+	--r3c2-b: 3;
+}
+.digit[data-digit="1"] {
+	--r1c1-a: 2.6;
+	--r1c1-b: 2.6;
+	--r1c2-a: 2;
+	--r1c2-b: 2;
+	--r2c1-a: 2.6;
+	--r2c1-b: 2.6;
+	--r2c2-a: 0;
+	--r2c2-b: 2;
+	--r3c1-a: 2.6;
+	--r3c1-b: 2.6;
+	--r3c2-a: 0;
+	--r3c2-b: 0;
+}
+.digit[data-digit="2"] {
+	--r1c1-a: 1;
+	--r1c1-b: 1;
+	--r1c2-a: 2;
+	--r1c2-b: 3;
+	--r2c1-a: 1;
+	--r2c1-b: 2;
+	--r2c2-a: 0;
+	--r2c2-b: 3;
+	--r3c1-a: 0;
+	--r3c1-b: 1;
+	--r3c2-a: 3;
+	--r3c2-b: 3;
+}
+.digit[data-digit="3"] {
+	--r1c1-a: 1;
+	--r1c1-b: 1;
+	--r1c2-a: 2;
+	--r1c2-b: 3;
+	--r2c1-a: 1;
+	--r2c1-b: 1;
+	--r2c2-a: 0;
+	--r2c2-b: 3;
+	--r3c1-a: 1;
+	--r3c1-b: 1;
+	--r3c2-a: 0;
+	--r3c2-b: 3;
+}
+.digit[data-digit="4"] {
+	--r1c1-a: 2;
+	--r1c1-b: 2;
+	--r1c2-a: 2;
+	--r1c2-b: 2;
+	--r2c1-a: 0;
+	--r2c1-b: 1;
+	--r2c2-a: 0;
+	--r2c2-b: 2;
+	--r3c1-a: 2.6;
+	--r3c1-b: 2.6;
+	--r3c2-a: 0;
+	--r3c2-b: 0;
+}
+.digit[data-digit="5"] {
+	--r1c1-a: 1;
+	--r1c1-b: 2;
+	--r1c2-a: 3;
+	--r1c2-b: 3;
+	--r2c1-a: 0;
+	--r2c1-b: 1;
+	--r2c2-a: 3;
+	--r2c2-b: 2;
+	--r3c1-a: 1;
+	--r3c1-b: 1;
+	--r3c2-a: 0;
+	--r3c2-b: 3;
+}
+.digit[data-digit="6"] {
+	--r1c1-a: 1;
+	--r1c1-b: 2;
+	--r1c2-a: 3;
+	--r1c2-b: 3;
+	--r2c1-a: 0;
+	--r2c1-b: 2;
+	--r2c2-a: 3;
+	--r2c2-b: 2;
+	--r3c1-a: 0;
+	--r3c1-b: 1;
+	--r3c2-a: 0;
+	--r3c2-b: 3;
+}
+.digit[data-digit="7"] {
+	--r1c1-a: 1;
+	--r1c1-b: 1;
+	--r1c2-a: 3;
+	--r1c2-b: 2;
+	--r2c1-a: 2.6;
+	--r2c1-b: 2.6;
+	--r2c2-a: 0;
+	--r2c2-b: 2;
+	--r3c1-a: 2.6;
+	--r3c1-b: 2.6;
+	--r3c2-a: 0;
+	--r3c2-b: 0;
+}
+.digit[data-digit="8"] {
+	--r1c1-a: 2;
+	--r1c1-b: 1;
+	--r1c2-a: 2;
+	--r1c2-b: 3;
+	--r2c1-a: 2;
+	--r2c1-b: 1;
+	--r2c2-a: 2;
+	--r2c2-b: 3;
+	--r3c1-a: 0;
+	--r3c1-b: 1;
+	--r3c2-a: 0;
+	--r3c2-b: 3;
+}
+.digit[data-digit="9"] {
+	--r1c1-a: 2;
+	--r1c1-b: 1;
+	--r1c2-a: 2;
+	--r1c2-b: 3;
+	--r2c1-a: 0;
+	--r2c1-b: 1;
+	--r2c2-a: 0;
+	--r2c2-b: 2;
+	--r3c1-a: 1;
+	--r3c1-b: 1;
+	--r3c2-a: 0;
+	--r3c2-b: 3;
+}
+
+.clock {
+	width: var(--clock-size);
+	aspect-ratio: 1/1;
+	border-radius: 50%;
+	box-shadow: inset 2px 2px 5px rgba(154, 147, 140, 0.5), 1px 1px 5px #fff;
+	position: relative;
+}
+
+/* Clock hand styling and rotation based on CSS variables */
+.clock:nth-child(1):after {
+	transform: rotate(calc(var(--r1c1-a) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(1):before {
+	transform: rotate(calc(var(--r1c1-b) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(2):after {
+	transform: rotate(calc(var(--r1c2-a) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(2):before {
+	transform: rotate(calc(var(--r1c2-b) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(3):after {
+	transform: rotate(calc(var(--r2c1-a) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(3):before {
+	transform: rotate(calc(var(--r2c1-b) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(4):after {
+	transform: rotate(calc(var(--r2c2-a) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(4):before {
+	transform: rotate(calc(var(--r2c2-b) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(5):after {
+	transform: rotate(calc(var(--r3c1-a) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(5):before {
+	transform: rotate(calc(var(--r3c1-b) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(6):after {
+	transform: rotate(calc(var(--r3c2-a) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+.clock:nth-child(6):before {
+	transform: rotate(calc(var(--r3c2-b) * 90deg));
+	transition: transform var(--hand-transition-duration) linear;
+}
+
+.clock:after,
+.clock:before {
+	content: "";
+	background: #000;
+	position: absolute;
+	width: var(--hand-width);
+	height: var(--hand-height);
+	left: calc(50% - (var(--hand-width) / 2));
+	top: calc(var(--hand-width) / 2);
+	transform-origin: center bottom;
+	border-top-left-radius: var(--hand-tip-radius);
+	border-top-right-radius: var(--hand-tip-radius);
+	border-bottom-left-radius: var(--hand-base-radius);
+	border-bottom-right-radius: var(--hand-base-radius);
+}
+
+/* Nuova regola per dimezzare la durata della transizione per le animazioni in due fasi */
+.digit.digit-animating-two-phase .clock::before,
+.digit.digit-animating-two-phase .clock::after {
+	transition-duration: calc(var(--hand-transition-duration) / 2);
+}

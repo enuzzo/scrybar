@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScryBar Design System</title>
+  <link rel="stylesheet" href="scrybar.css">
+  <style>
+    /* ===== SHOWCASE-ONLY STYLES ===== */
+    .showcase {
+      padding: 48px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .showcase__hero {
+      text-align: center;
+      padding: 80px 24px 64px;
+      position: relative;
+    }
+    .showcase__hero::before {
+      content: '';
+      position: absolute;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(117,81,255,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .showcase__logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      background: var(--gradient-brand);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+      font-size: 28px;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 0 60px rgba(117,81,255,0.3);
+    }
+    .showcase__version {
+      display: inline-block;
+      background: var(--accent-primary-subtle);
+      color: var(--accent-primary);
+      padding: 4px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+    .showcase-section {
+      margin-bottom: 64px;
+    }
+    .showcase-section__title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent-primary);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .showcase-section__heading {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 32px;
+    }
+    .showcase-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+    .showcase-col {
+      flex: 1;
+      min-width: 280px;
+    }
+    .showcase-swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .showcase-swatch {
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: var(--border-subtle);
+    }
+    .showcase-swatch__color {
+      height: 64px;
+    }
+    .showcase-swatch__info {
+      padding: 10px 12px;
+      background: var(--bg-surface);
+    }
+    .showcase-swatch__name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .showcase-swatch__hex {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+    .showcase-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+    .showcase-box {
+      background: var(--bg-surface);
+      border: var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .showcase-grid-demo {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 8px;
+    }
+    .showcase-grid-demo > div {
+      background: var(--accent-primary-subtle);
+      border: 1px solid rgba(117,81,255,0.2);
+      border-radius: 6px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent-primary);
+    }
+    .showcase-spacing-demo {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .showcase-spacing-block {
+      background: var(--accent-primary);
+      border-radius: 4px;
+      opacity: 0.6;
+      position: relative;
+    }
+    .showcase-spacing-label {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      text-align: center;
+      margin-top: 6px;
+      font-family: var(--font-mono);
+    }
+    .showcase-radius-demo {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .showcase-radius-item {
+      width: 64px;
+      height: 64px;
+      background: var(--accent-primary-subtle);
+      border: 2px solid var(--accent-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent-primary);
+    }
+    .showcase-shadow-demo {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .showcase-shadow-item {
+      width: 120px;
+      height: 80px;
+      background: var(--bg-surface);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+    .type-stack > * {
+      margin-bottom: 12px;
+    }
+    .sidebar-demo {
+      display: flex;
+      gap: 24px;
+    }
+    .sidebar-demo-container {
+      background: var(--bg-deep);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      border: var(--border-subtle);
+    }
+    @media (max-width: 768px) {
+      .showcase { padding: 24px 16px; }
+      .showcase__hero { padding: 40px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="showcase">
+
+  <!-- ========== HERO ========== -->
+  <div class="showcase__hero">
+    <img src="https://netmi.lk/wp-content/uploads/2024/10/netmilk.svg" alt="Netmilk Studio" style="height:48px;margin-bottom:20px;filter:brightness(1.1);">
+    <div><span class="showcase__version">v1.0</span></div>
+    <h1 class="text-display-lg" style="margin-bottom:8px;">ScryBar Design System</h1>
+    <p class="text-body-lg" style="color:var(--text-tertiary); max-width:560px; margin:0 auto;">
+      A comprehensive dark-themed design system for ESP32 web configuration interfaces.
+      Every token, component, and pattern — live &amp; interactive.
+    </p>
+    <p class="text-caption" style="color:var(--text-muted);margin-top:16px;">© 2026 Netmilk Studio sagl — Monteggio Plains</p>
+  </div>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 1. COLOR PALETTE ========== -->
+  <section class="showcase-section">
+    <div class="showcase-section__title">01 — Foundations</div>
+    <h2 class="showcase-section__heading">Color Palette</h2>
+
+    <div class="showcase-label">Core Backgrounds</div>
+    <div class="showcase-swatch-grid mb-6">
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#070D2D;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Deepest</div><div class="showcase-swatch__hex">#070D2D</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#0B1437;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Deep</div><div class="showcase-swatch__hex">#0B1437</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#111C44;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Surface</div><div class="showcase-swatch__hex">#111C44</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#162052;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Surface Hover</div><div class="showcase-swatch__hex">#162052</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#1A2558;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Elevated</div><div class="showcase-swatch__hex">#1A2558</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#1E2D66;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Elevated Hover</div><div class="showcase-swatch__hex">#1E2D66</div></div>
+      </div>
+    </div>
+
+    <div class="showcase-label mt-6">Accent Colors</div>
+    <div class="showcase-swatch-grid mb-6">
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#7551FF;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Primary (Violet)</div><div class="showcase-swatch__hex">#7551FF</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#8B6FFF;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Primary Hover</div><div class="showcase-swatch__hex">#8B6FFF</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#39B8FF;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Secondary (Cyan)</div><div class="showcase-swatch__hex">#39B8FF</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:rgba(117,81,255,0.12);border:1px solid rgba(117,81,255,0.3);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Primary Subtle</div><div class="showcase-swatch__hex">rgba(117,81,255,.12)</div></div>
+      </div>
+    </div>
+
+    <div class="showcase-label mt-6">Semantic Colors</div>
+    <div class="showcase-swatch-grid mb-6">
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#01B574;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Success</div><div class="showcase-swatch__hex">#01B574</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#FFB547;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Warning</div><div class="showcase-swatch__hex">#FFB547</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#EE5D50;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Danger</div><div class="showcase-swatch__hex">#EE5D50</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#39B8FF;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Info</div><div class="showcase-swatch__hex">#39B8FF</div></div>
+      </div>
+    </div>
+
+    <div class="showcase-label mt-6">Text Colors</div>
+    <div class="showcase-swatch-grid">
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#FFFFFF;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Primary</div><div class="showcase-swatch__hex">#FFFFFF</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#A3AED0;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Secondary</div><div class="showcase-swatch__hex">#A3AED0</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#707EAE;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Tertiary</div><div class="showcase-swatch__hex">#707EAE</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:#4A5568;"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Muted</div><div class="showcase-swatch__hex">#4A5568</div></div>
+      </div>
+    </div>
+
+    <div class="showcase-label mt-8">Gradients</div>
+    <div class="showcase-swatch-grid">
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:linear-gradient(135deg, #868CFF 0%, #4318FF 100%);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Brand</div><div class="showcase-swatch__hex">--gradient-brand</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:linear-gradient(135deg, #7551FF 0%, #39B8FF 100%);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Card</div><div class="showcase-swatch__hex">--gradient-card</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:linear-gradient(135deg, #01B574 0%, #39B8FF 100%);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Success</div><div class="showcase-swatch__hex">--gradient-success</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:linear-gradient(135deg, #FFB547 0%, #EE5D50 100%);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Warm</div><div class="showcase-swatch__hex">--gradient-warm</div></div>
+      </div>
+      <div class="showcase-swatch">
+        <div class="showcase-swatch__color" style="background:linear-gradient(135deg, #111C44 0%, #1A2558 100%);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Surface</div><div class="showcase-swatch__hex">--gradient-surface</div></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 2. TYPOGRAPHY ========== -->
+  <section class="showcase-section">
+    <div class="showcase-section__title">02 — Typography</div>
+    <h2 class="showcase-section__heading">Type Scale</h2>
+
+    <div class="showcase-box">
+      <div class="type-stack">
+        <div class="text-display-xl">Display XL — 36px / 800</div>
+        <div class="text-display-lg">Display LG — 28px / 700</div>
+        <div class="text-heading-xl">Heading XL — 24px / 700</div>
+        <div class="text-heading-lg">Heading LG — 20px / 600</div>
+        <div class="text-heading-md">Heading MD — 18px / 600</div>
+        <div class="text-heading-sm">Heading SM — 16px / 600</div>
+        <div class="text-body-lg">Body LG — 16px / 500</div>
+        <div class="text-body-md">Body MD — 14px / 400 — Default body text for descriptions and content</div>
+        <div class="text-body-sm">Body SM — 13px / 400 — Secondary information and metadata</div>
+        <div class="text-caption">Caption — 12px / 500 — Labels, badges, timestamps</div>
+        <div class="text-overline">Overline — 11px / 600 — Category labels</div>
+        <div class="text-micro">Micro — 10px / 500 — Tiny status labels</div>
+      </div>
+    </div>
+
+    <div class="showcase-label mt-6">Gradient Text</div>
+    <div class="showcase-box">
+      <span class="text-display-xl text-gradient">ScryBar Gradient Text</span>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 3. SPACING ========== -->
+  <section class="showcase-section">
+    <div class="showcase-section__title">03 — Spacing</div>
+    <h2 class="showcase-section__heading">Spacing Scale (4px grid)</h2>
+
+    <div class="showcase-box">
+      <div class="showcase-spacing-demo">
+        <div style="text-align:center;">
+          <div class="showcase-spacing-block" style="width:4px;height:32px;"></div>
+          <div class="showcase-spacing-label">4</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="showcase-spacing-block" style="width:8px;height:32px;"></div>
+          <div class="showcase-spacing-label">8</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="showcase-spacing-block" style="width:12px;height:32px;"></div>
+          <div class="showcase-spacing-label">12</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="showcase-spacing-block" style="width:16px;height:32px;"></div>
+          <div class="showcase-spacing-label">16</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="showcase-spacing-block" style="width:20px;height:32px;"></div>
+          <div class="showcase-spacing-label">20</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="showcase-spacing-block" style="width:24px;height:32px;"></div>
+          <div class="showcase-spacing-label">24</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="showcase-spacing-block" style="width:32px;height:32px;"></div>
+          <div class="showcase-spacing-label">32</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="showcase-spacing-block" style="width:40px;height:32px;"></div>
+          <div class="showcase-spacing-label">40</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="showcase-spacing-block" style="width:48px;height:32px;"></div>
+          <div class="showcase-spacing-label">48</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="showcase-spacing-block" style="width:64px;height:32px;"></div>
+          <div class="showcase-spacing-label">64</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 4. BORDER RADIUS ========== -->
+  <section class="showcase-section">
+    <div class="showcase-section__title">04 — Border Radius</div>
+    <h2 class="showcase-section__heading">Radius Scale</h2>
+
+    <div class="showcase-box">
+      <div class="showcase-radius-demo">
+        <div>
+          <div class="showcase-radius-item" style="border-radius:4px;">4px</div>
+          <div class="showcase-spacing-label">xs</div>
+        </div>
+        <div>
+          <div class="showcase-radius-item" style="border-radius:8px;">8px</div>
+          <div class="showcase-spacing-label">sm</div>
+        </div>
+        <div>
+          <div class="showcase-radius-item" style="border-radius:12px;">12px</div>
+          <div class="showcase-spacing-label">md</div>
+        </div>
+        <div>
+          <div class="showcase-radius-item" style="border-radius:16px;">16px</div>
+          <div class="showcase-spacing-label">lg</div>
+        </div>
+        <div>
+          <div class="showcase-radius-item" style="border-radius:20px;">20px</div>
+          <div class="showcase-spacing-label">xl</div>
+        </div>
+        <div>
+          <div class="showcase-radius-item" style="border-radius:24px;">24px</div>
+          <div class="showcase-spacing-label">2xl</div>
+        </div>
+        <div>
+          <div class="showcase-radius-item" style="border-radius:9999px;">full</div>
+          <div class="showcase-spacing-label">full</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 5. SHADOWS ========== -->
+  <section class="showcase-section">
+    <div class="showcase-section__title">05 — Shadows &amp; Elevation</div>
+    <h2 class="showcase-section__heading">Shadow Scale</h2>
+
+    <div class="showcase-box">
+      <div class="showcase-shadow-demo">
+        <div class="showcase-shadow-item" style="box-shadow:var(--shadow-sm);">shadow-sm</div>
+        <div class="showcase-shadow-item" style="box-shadow:var(--shadow-md);">shadow-md</div>
+        <div class="showcase-shadow-item" style="box-shadow:var(--shadow-lg);">shadow-lg</div>
+        <div class="showcase-shadow-item" style="box-shadow:var(--shadow-xl);">shadow-xl</div>
+        <div class="showcase-shadow-item" style="box-shadow:var(--shadow-glow-sm);">glow-sm</div>
+        <div class="showcase-shadow-item" style="box-shadow:var(--shadow-glow-md);">glow-md</div>
+        <div class="showcase-shadow-item" style="box-shadow:var(--shadow-glow-blue);">glow-blue</div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 6. GRID ========== -->
+  <section class="showcase-section">
+    <div class="showcase-section__title">06 — Layout</div>
+    <h2 class="showcase-section__heading">12-Column Grid</h2>
+
+    <div class="showcase-box">
+      <div class="showcase-grid-demo mb-4">
+        <div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div>
+        <div>7</div><div>8</div><div>9</div><div>10</div><div>11</div><div>12</div>
+      </div>
+      <div class="showcase-grid-demo mb-4" style="margin-top:12px;">
+        <div style="grid-column:span 6;">6 col</div>
+        <div style="grid-column:span 6;">6 col</div>
+      </div>
+      <div class="showcase-grid-demo mb-4" style="margin-top:12px;">
+        <div style="grid-column:span 4;">4 col</div>
+        <div style="grid-column:span 4;">4 col</div>
+        <div style="grid-column:span 4;">4 col</div>
+      </div>
+      <div class="showcase-grid-demo" style="margin-top:12px;">
+        <div style="grid-column:span 3;">3 col</div>
+        <div style="grid-column:span 6;">6 col</div>
+        <div style="grid-column:span 3;">3 col</div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 7. BUTTONS ========== -->
+  <section class="showcase-section">
+    <div class="showcase-section__title">07 — Components</div>
+    <h2 class="showcase-section__heading">Buttons</h2>
+
+    <div class="showcase-label">Variants</div>
+    <div class="showcase-box">
+      <div class="showcase-row">
+        <button class="scry-btn scry-btn--md scry-btn--primary">Primary</button>
+        <button class="scry-btn scry-btn--md scry-btn--secondary">Secondary</button>
+        <button class="scry-btn scry-btn--md scry-btn--ghost">Ghost</button>
+        <button class="scry-btn scry-btn--md scry-btn--outline">Outline</button>
+        <button class="scry-btn scry-btn--md scry-btn--success">Success</button>
+        <button class="scry-btn scry-btn--md scry-btn--danger">Danger</button>
+        <button class="scry-btn scry-btn--md scry-btn--warning">Warning</button>
+        <button class="scry-btn scry-btn--md scry-btn--gradient">Gradient</button>
+      </div>
+    </div>
+
+    <div class="showcase-label mt-5">Sizes</div>
+    <div class="showcase-box">
+      <div class="showcase-row" style="align-items:center;">
+        <button class="scry-btn scry-btn--xs scry-btn--primary">Extra Small</button>
+        <button class="scry-btn scry-btn--sm scry-btn--primary">Small</button>
+        <button class="scry-btn scry-btn--md scry-btn--primary">Medium</button>
+        <button class="scry-btn scry-btn--lg scry-btn--primary">Large</button>
+        <button class="scry-btn scry-btn--xl scry-btn--primary">Extra Large</button>
+      </div>
+    </div>
+
+    <div class="showcase-label mt-5">States</div>
+    <div class="showcase-box">
+      <div class="showcase-row" style="align-items:center;">
+        <button class="scry-btn scry-btn--md scry-btn--primary">Normal</button>
+        <button class="scry-btn scry-btn--md scry-btn--primary" disabled>Disabled</button>
+        <button class="scry-btn scry-btn--md scry-btn--primary scry-btn--loading">Loading</button>
+        <button class="scry-btn scry-btn--md scry-btn--primary scry-btn--icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
+        <button class="scry-btn scry-btn--md scry-btn--secondary scry-btn--icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="showcase-label mt-5">Full Width</div>
+    <div class="showcase-box" style="max-width:400px;">
+      <button class="scry-btn scry-btn--lg scry-btn--gradient scry-btn--block">Save Configuration</button>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 8. FORM ELEMENTS ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Form Elements</h2>
+
+    <div class="showcase-row">
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Text Inputs</div>
+          <div class="scry-form-group">
+            <label class="scry-label">City Name</label>
+            <input type="text" class="scry-input" placeholder="e.g. Lugano">
+            <span class="scry-help-text">Enter the city for weather data</span>
+          </div>
+          <div class="scry-form-group">
+            <label class="scry-label scry-label--required">Latitude</label>
+            <input type="text" class="scry-input scry-input--sm" placeholder="46.0037" value="46.0037">
+          </div>
+          <div class="scry-form-group">
+            <label class="scry-label">API Key (error state)</label>
+            <input type="text" class="scry-input scry-input--error" value="invalid-key">
+            <span class="scry-error-text">Invalid API key format</span>
+          </div>
+          <div class="scry-form-group">
+            <label class="scry-label">Disabled Field</label>
+            <input type="text" class="scry-input" disabled value="Read-only value">
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Other Inputs</div>
+          <div class="scry-form-group">
+            <label class="scry-label">Update Interval</label>
+            <select class="scry-select">
+              <option>Every 5 minutes</option>
+              <option>Every 15 minutes</option>
+              <option>Every 30 minutes</option>
+              <option>Every hour</option>
+            </select>
+          </div>
+          <div class="scry-form-group">
+            <label class="scry-label">RSS Feed URLs</label>
+            <textarea class="scry-textarea" placeholder="Enter RSS feed URLs, one per line...&#10;https://feeds.example.com/rss&#10;https://news.example.com/feed"></textarea>
+          </div>
+          <div class="scry-form-group">
+            <label class="scry-label">Display Brightness</label>
+            <input type="range" class="scry-range" min="0" max="100" value="70">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="showcase-row">
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Checkboxes</div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <label class="scry-checkbox">
+              <input type="checkbox" checked>
+              <span class="scry-checkbox__box"></span>
+              Enable weather module
+            </label>
+            <label class="scry-checkbox">
+              <input type="checkbox" checked>
+              <span class="scry-checkbox__box"></span>
+              Show RSS feed ticker
+            </label>
+            <label class="scry-checkbox">
+              <input type="checkbox">
+              <span class="scry-checkbox__box"></span>
+              Auto-brightness adjustment
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Radio Buttons</div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <label class="scry-radio">
+              <input type="radio" name="theme" checked>
+              <span class="scry-radio__circle"></span>
+              Dark theme
+            </label>
+            <label class="scry-radio">
+              <input type="radio" name="theme">
+              <span class="scry-radio__circle"></span>
+              Light theme
+            </label>
+            <label class="scry-radio">
+              <input type="radio" name="theme">
+              <span class="scry-radio__circle"></span>
+              Auto (follow system)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Toggle Switches</div>
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <label class="scry-toggle">
+              <input type="checkbox" checked>
+              <span class="scry-toggle__track"></span>
+              <span class="scry-toggle__label">WiFi enabled</span>
+            </label>
+            <label class="scry-toggle">
+              <input type="checkbox">
+              <span class="scry-toggle__track"></span>
+              <span class="scry-toggle__label">Bluetooth LE</span>
+            </label>
+            <label class="scry-toggle">
+              <input type="checkbox" checked>
+              <span class="scry-toggle__track"></span>
+              <span class="scry-toggle__label">NTP Sync</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 9. CARDS ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Cards</h2>
+
+    <div class="scry-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+      <!-- Default card -->
+      <div class="scry-card">
+        <div class="scry-card__header">
+          <div class="scry-card__title">Default Card</div>
+        </div>
+        <div class="scry-card__body">
+          <p class="text-body-md">Standard card with subtle border. Used for most content containers in the interface.</p>
+        </div>
+        <div class="scry-card__footer">
+          <button class="scry-btn scry-btn--sm scry-btn--ghost">Cancel</button>
+          <button class="scry-btn scry-btn--sm scry-btn--primary">Save</button>
+        </div>
+      </div>
+
+      <!-- Elevated card -->
+      <div class="scry-card scry-card--elevated">
+        <div class="scry-card__header">
+          <div class="scry-card__title">Elevated Card</div>
+          <span class="scry-badge scry-badge--brand">New</span>
+        </div>
+        <div class="scry-card__body">
+          <p class="text-body-md">Card with shadow elevation. Use for important content that needs visual prominence.</p>
+        </div>
+      </div>
+
+      <!-- Interactive card -->
+      <div class="scry-card scry-card--interactive scry-card--elevated">
+        <div class="scry-card__header">
+          <div class="scry-card__title">Interactive Card</div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </div>
+        <div class="scry-card__body">
+          <p class="text-body-md">Clickable card with hover lift effect. Use for navigational items or selectable options.</p>
+        </div>
+      </div>
+
+      <!-- Glow card -->
+      <div class="scry-card scry-card--glow" style="border-color: rgba(117,81,255,0.2);">
+        <div class="scry-card__header">
+          <div class="scry-card__title">Glow Card</div>
+        </div>
+        <div class="scry-card__body">
+          <p class="text-body-md">Card with purple glow shadow. Use for featured content or premium-feel sections.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 10. STAT CARDS ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Stat Cards</h2>
+
+    <div class="scry-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+      <div class="scry-stat">
+        <div class="scry-stat__header">
+          <span class="scry-stat__label">Free Heap</span>
+          <div class="scry-stat__icon scry-stat__icon--brand">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M7 10h10M7 14h6"/></svg>
+          </div>
+        </div>
+        <div class="scry-stat__value">187 KB</div>
+        <div>
+          <span class="scry-stat__trend scry-stat__trend--up">↑ 12%</span>
+          <span class="scry-stat__trend-label"> since boot</span>
+        </div>
+      </div>
+
+      <div class="scry-stat">
+        <div class="scry-stat__header">
+          <span class="scry-stat__label">WiFi RSSI</span>
+          <div class="scry-stat__icon scry-stat__icon--success">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
+          </div>
+        </div>
+        <div class="scry-stat__value">-42 dBm</div>
+        <div>
+          <span class="scry-stat__trend scry-stat__trend--up">Strong</span>
+          <span class="scry-stat__trend-label"> signal</span>
+        </div>
+      </div>
+
+      <div class="scry-stat">
+        <div class="scry-stat__header">
+          <span class="scry-stat__label">Uptime</span>
+          <div class="scry-stat__icon scry-stat__icon--info">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+        </div>
+        <div class="scry-stat__value">3d 14h</div>
+        <div>
+          <span class="scry-stat__trend-label">Since last reboot</span>
+        </div>
+      </div>
+
+      <div class="scry-stat">
+        <div class="scry-stat__header">
+          <span class="scry-stat__label">CPU Temp</span>
+          <div class="scry-stat__icon scry-stat__icon--warning">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+          </div>
+        </div>
+        <div class="scry-stat__value">52.3°C</div>
+        <div>
+          <span class="scry-stat__trend scry-stat__trend--down">↓ 3%</span>
+          <span class="scry-stat__trend-label"> vs avg</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 11. BADGES ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Badges &amp; Status</h2>
+
+    <div class="showcase-row">
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Badges</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span class="scry-badge scry-badge--default">Default</span>
+            <span class="scry-badge scry-badge--brand">Brand</span>
+            <span class="scry-badge scry-badge--success">Success</span>
+            <span class="scry-badge scry-badge--warning">Warning</span>
+            <span class="scry-badge scry-badge--danger">Danger</span>
+            <span class="scry-badge scry-badge--info">Info</span>
+          </div>
+
+          <div class="showcase-label mt-5">With Icons</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span class="scry-badge scry-badge--success"><span class="scry-dot scry-dot--success"></span> Online</span>
+            <span class="scry-badge scry-badge--warning"><span class="scry-dot scry-dot--warning"></span> Reconnecting</span>
+            <span class="scry-badge scry-badge--danger"><span class="scry-dot scry-dot--danger"></span> Offline</span>
+            <span class="scry-badge scry-badge--info"><span class="scry-dot scry-dot--info scry-dot--pulse"></span> Syncing</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Status Indicators</div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div class="scry-status scry-status--online">
+              <span class="scry-status__dot"></span>
+              <span class="scry-status__label">WiFi Connected</span>
+            </div>
+            <div class="scry-status scry-status--connecting">
+              <span class="scry-status__dot"></span>
+              <span class="scry-status__label">MQTT Connecting...</span>
+            </div>
+            <div class="scry-status scry-status--warning">
+              <span class="scry-status__dot"></span>
+              <span class="scry-status__label">Low Memory Warning</span>
+            </div>
+            <div class="scry-status scry-status--offline">
+              <span class="scry-status__dot"></span>
+              <span class="scry-status__label">Bluetooth Disabled</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 12. TABS ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Tabs</h2>
+
+    <div class="showcase-row">
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Pill Tabs</div>
+          <div class="scry-tabs">
+            <button class="scry-tab active">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              Weekly
+            </button>
+            <button class="scry-tab">Monthly</button>
+            <button class="scry-tab">Last Year</button>
+          </div>
+        </div>
+      </div>
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Underline Tabs</div>
+          <div class="scry-tabs scry-tabs--underline">
+            <button class="scry-tab active">Weather</button>
+            <button class="scry-tab">RSS Feeds</button>
+            <button class="scry-tab">Display</button>
+            <button class="scry-tab">System</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 13. TABLE ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Table</h2>
+
+    <div class="scry-card scry-card--flush">
+      <div style="padding: var(--space-5) var(--space-5) 0;">
+        <div class="text-heading-lg" style="margin-bottom:4px;">RSS Feed Manager</div>
+        <div class="text-body-sm">Manage your active RSS feed subscriptions</div>
+      </div>
+      <div class="scry-table-wrapper" style="padding:var(--space-4);">
+        <table class="scry-table">
+          <thead>
+            <tr>
+              <th>Feed Name</th>
+              <th>URL</th>
+              <th>Status</th>
+              <th>Last Fetch</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="text-white" style="font-weight:600;">Hacker News</span></td>
+              <td><span class="text-caption" style="font-family:var(--font-mono);">news.ycombinator.com/rss</span></td>
+              <td><span class="scry-badge scry-badge--success">Active</span></td>
+              <td>2 min ago</td>
+              <td>
+                <button class="scry-btn scry-btn--xs scry-btn--ghost">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="scry-btn scry-btn--xs scry-btn--ghost text-danger">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="text-white" style="font-weight:600;">BBC World</span></td>
+              <td><span class="text-caption" style="font-family:var(--font-mono);">feeds.bbci.co.uk/news/rss.xml</span></td>
+              <td><span class="scry-badge scry-badge--success">Active</span></td>
+              <td>5 min ago</td>
+              <td>
+                <button class="scry-btn scry-btn--xs scry-btn--ghost">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="scry-btn scry-btn--xs scry-btn--ghost text-danger">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="text-white" style="font-weight:600;">Arduino Blog</span></td>
+              <td><span class="text-caption" style="font-family:var(--font-mono);">blog.arduino.cc/feed</span></td>
+              <td><span class="scry-badge scry-badge--warning">Slow</span></td>
+              <td>1h ago</td>
+              <td>
+                <button class="scry-btn scry-btn--xs scry-btn--ghost">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="scry-btn scry-btn--xs scry-btn--ghost text-danger">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="text-white" style="font-weight:600;">ESP32 Forums</span></td>
+              <td><span class="text-caption" style="font-family:var(--font-mono);">esp32.com/rss</span></td>
+              <td><span class="scry-badge scry-badge--danger">Error</span></td>
+              <td>3h ago</td>
+              <td>
+                <button class="scry-btn scry-btn--xs scry-btn--ghost">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="scry-btn scry-btn--xs scry-btn--ghost text-danger">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 14. PROGRESS BAR ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Progress Bars</h2>
+
+    <div class="showcase-box" style="display:flex;flex-direction:column;gap:20px;">
+      <div>
+        <div class="flex justify-between mb-2">
+          <span class="text-body-sm text-white">Flash Usage</span>
+          <span class="text-caption">72%</span>
+        </div>
+        <div class="scry-progress">
+          <div class="scry-progress__fill" style="width:72%;"></div>
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between mb-2">
+          <span class="text-body-sm text-white">RAM Usage</span>
+          <span class="text-caption">45%</span>
+        </div>
+        <div class="scry-progress scry-progress--md">
+          <div class="scry-progress__fill scry-progress__fill--success" style="width:45%;"></div>
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between mb-2">
+          <span class="text-body-sm text-white">CPU Load</span>
+          <span class="text-caption">89%</span>
+        </div>
+        <div class="scry-progress scry-progress--md">
+          <div class="scry-progress__fill scry-progress__fill--warning" style="width:89%;"></div>
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between mb-2">
+          <span class="text-body-sm text-white">Temperature Critical</span>
+          <span class="text-caption">95%</span>
+        </div>
+        <div class="scry-progress scry-progress--lg">
+          <div class="scry-progress__fill scry-progress__fill--danger" style="width:95%;"></div>
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between mb-2">
+          <span class="text-body-sm text-white">OTA Update</span>
+          <span class="text-caption">34%</span>
+        </div>
+        <div class="scry-progress scry-progress--md">
+          <div class="scry-progress__fill scry-progress__fill--gradient" style="width:34%;"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 15. ALERTS ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Alerts &amp; Banners</h2>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="scry-alert scry-alert--info">
+        <div class="scry-alert__icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        </div>
+        <div class="scry-alert__content">
+          <div class="scry-alert__title">Firmware Update Available</div>
+          <div class="scry-alert__text">Version 2.4.1 is ready to install. New features include improved RSS parsing and weather widget.</div>
+        </div>
+      </div>
+
+      <div class="scry-alert scry-alert--success">
+        <div class="scry-alert__icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <div class="scry-alert__content">
+          <div class="scry-alert__title">Configuration Saved</div>
+          <div class="scry-alert__text">Your weather settings have been saved and the device will restart in 5 seconds.</div>
+        </div>
+      </div>
+
+      <div class="scry-alert scry-alert--warning">
+        <div class="scry-alert__icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="scry-alert__content">
+          <div class="scry-alert__title">Low Memory Warning</div>
+          <div class="scry-alert__text">Free heap is below 50KB. Consider reducing active RSS feeds or disabling unused modules.</div>
+        </div>
+      </div>
+
+      <div class="scry-alert scry-alert--danger">
+        <div class="scry-alert__icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <div class="scry-alert__content">
+          <div class="scry-alert__title">Connection Failed</div>
+          <div class="scry-alert__text">Unable to reach weather API. Check your network settings and API key configuration.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 16. LIST / FEED ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">List Items / Feed</h2>
+
+    <div class="scry-card scry-card--flush" style="max-width:480px;">
+      <div style="padding: var(--space-5) var(--space-5) 0;">
+        <div class="text-heading-lg">Activity Feed</div>
+      </div>
+      <div class="scry-list" style="padding: var(--space-2) 0;">
+        <div class="scry-list-item">
+          <div class="scry-avatar scry-avatar--sm" style="background:var(--gradient-success);">W</div>
+          <div class="scry-list-item__content">
+            <div class="scry-list-item__title">Weather Updated</div>
+            <div class="scry-list-item__subtitle">Fetched new data for Lugano</div>
+          </div>
+          <span class="scry-list-item__meta">30s ago</span>
+        </div>
+        <div class="scry-list-item">
+          <div class="scry-avatar scry-avatar--sm" style="background:var(--gradient-warm);">R</div>
+          <div class="scry-list-item__content">
+            <div class="scry-list-item__title">RSS Feed Refreshed</div>
+            <div class="scry-list-item__subtitle">12 new articles from Hacker News</div>
+          </div>
+          <span class="scry-list-item__meta">5m ago</span>
+        </div>
+        <div class="scry-list-item">
+          <div class="scry-avatar scry-avatar--sm" style="background:var(--gradient-card);">S</div>
+          <div class="scry-list-item__content">
+            <div class="scry-list-item__title">System Restarted</div>
+            <div class="scry-list-item__subtitle">Uptime counter reset</div>
+          </div>
+          <span class="scry-list-item__meta">2h ago</span>
+        </div>
+        <div class="scry-list-item">
+          <div class="scry-avatar scry-avatar--sm" style="background:linear-gradient(135deg, #EE5D50, #FFB547);">E</div>
+          <div class="scry-list-item__content">
+            <div class="scry-list-item__title">API Error</div>
+            <div class="scry-list-item__subtitle">RSS feed esp32.com/rss returned 503</div>
+          </div>
+          <span class="scry-list-item__meta">3h ago</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 17. AVATARS ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Avatars</h2>
+
+    <div class="showcase-row" style="align-items:center;">
+      <div class="showcase-box">
+        <div class="showcase-label">Sizes</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="scry-avatar scry-avatar--xs">S</div>
+          <div class="scry-avatar scry-avatar--sm">SM</div>
+          <div class="scry-avatar scry-avatar--md">MD</div>
+          <div class="scry-avatar scry-avatar--lg">LG</div>
+          <div class="scry-avatar scry-avatar--xl">XL</div>
+        </div>
+      </div>
+      <div class="showcase-box">
+        <div class="showcase-label">Avatar Group</div>
+        <div class="scry-avatar-group">
+          <div class="scry-avatar scry-avatar--sm" style="background:var(--gradient-brand);">A</div>
+          <div class="scry-avatar scry-avatar--sm" style="background:var(--gradient-success);">B</div>
+          <div class="scry-avatar scry-avatar--sm" style="background:var(--gradient-warm);">C</div>
+          <div class="scry-avatar scry-avatar--sm" style="background:var(--gradient-card);">D</div>
+          <div class="scry-avatar scry-avatar--sm" style="background:var(--bg-elevated);color:var(--text-tertiary);">+3</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 18. TOOLTIPS ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Tooltips</h2>
+
+    <div class="showcase-box">
+      <div style="display:flex;gap:24px;flex-wrap:wrap;padding:32px 0 8px;">
+        <div class="scry-tooltip-wrapper">
+          <button class="scry-btn scry-btn--md scry-btn--secondary">Hover me</button>
+          <div class="scry-tooltip">This is a tooltip</div>
+        </div>
+        <div class="scry-tooltip-wrapper">
+          <button class="scry-btn scry-btn--md scry-btn--outline scry-btn--icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </button>
+          <div class="scry-tooltip">System information</div>
+        </div>
+        <div class="scry-tooltip-wrapper">
+          <div class="scry-dot scry-dot--success scry-dot--pulse" style="width:12px;height:12px;cursor:help;"></div>
+          <div class="scry-tooltip">WiFi Connected: -42 dBm</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 19. MODAL ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Modal / Dialog</h2>
+
+    <div style="position:relative;padding:24px;background:var(--bg-deep);border-radius:var(--radius-xl);border:var(--border-subtle);min-height:400px;display:flex;align-items:center;justify-content:center;">
+      <!-- Simulated modal (not fixed) -->
+      <div style="background:rgba(7,13,45,0.6);position:absolute;inset:0;border-radius:var(--radius-xl);"></div>
+      <div class="scry-modal" style="position:relative;animation:none;">
+        <div class="scry-modal__header">
+          <span class="text-heading-lg">Add RSS Feed</span>
+          <button class="scry-btn scry-btn--sm scry-btn--ghost scry-btn--icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="scry-modal__body">
+          <div class="scry-form-group">
+            <label class="scry-label scry-label--required">Feed Name</label>
+            <input type="text" class="scry-input" placeholder="e.g. Hacker News">
+          </div>
+          <div class="scry-form-group">
+            <label class="scry-label scry-label--required">Feed URL</label>
+            <input type="text" class="scry-input" placeholder="https://example.com/rss">
+            <span class="scry-help-text">Enter the full RSS or Atom feed URL</span>
+          </div>
+          <div class="scry-form-group">
+            <label class="scry-label">Refresh Interval</label>
+            <select class="scry-select">
+              <option>Every 5 minutes</option>
+              <option>Every 15 minutes</option>
+              <option>Every 30 minutes</option>
+            </select>
+          </div>
+        </div>
+        <div class="scry-modal__footer">
+          <button class="scry-btn scry-btn--md scry-btn--secondary">Cancel</button>
+          <button class="scry-btn scry-btn--md scry-btn--primary">Add Feed</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 20. TOAST ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Toast Notifications</h2>
+
+    <div style="display:flex;flex-direction:column;gap:12px;max-width:420px;">
+      <div class="scry-toast" style="animation:none;">
+        <div style="flex-shrink:0;color:var(--accent-primary);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        </div>
+        <div>
+          <div class="text-body-sm text-white" style="font-weight:600;">Settings Updated</div>
+          <div class="text-caption">Weather location changed to Lugano</div>
+        </div>
+      </div>
+      <div class="scry-toast scry-toast--success" style="animation:none;">
+        <div style="flex-shrink:0;color:var(--color-success);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <div>
+          <div class="text-body-sm text-white" style="font-weight:600;">Feed Added</div>
+          <div class="text-caption">Hacker News RSS is now active</div>
+        </div>
+      </div>
+      <div class="scry-toast scry-toast--danger" style="animation:none;">
+        <div style="flex-shrink:0;color:var(--color-danger);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <div>
+          <div class="text-body-sm text-white" style="font-weight:600;">Connection Lost</div>
+          <div class="text-caption">Attempting to reconnect...</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 21. LOADING / SKELETON ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Loading &amp; Skeleton States</h2>
+
+    <div class="showcase-row">
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Skeleton Card</div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div class="scry-skeleton scry-skeleton--heading" style="width:40%;"></div>
+            <div class="scry-skeleton scry-skeleton--text" style="width:100%;"></div>
+            <div class="scry-skeleton scry-skeleton--text" style="width:85%;"></div>
+            <div class="scry-skeleton scry-skeleton--text" style="width:60%;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Skeleton List</div>
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div style="display:flex;gap:12px;align-items:center;">
+              <div class="scry-skeleton scry-skeleton--circle" style="width:36px;height:36px;flex-shrink:0;"></div>
+              <div style="flex:1;">
+                <div class="scry-skeleton scry-skeleton--text" style="width:60%;margin-bottom:8px;"></div>
+                <div class="scry-skeleton scry-skeleton--text" style="width:40%;height:10px;"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;">
+              <div class="scry-skeleton scry-skeleton--circle" style="width:36px;height:36px;flex-shrink:0;"></div>
+              <div style="flex:1;">
+                <div class="scry-skeleton scry-skeleton--text" style="width:50%;margin-bottom:8px;"></div>
+                <div class="scry-skeleton scry-skeleton--text" style="width:35%;height:10px;"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;">
+              <div class="scry-skeleton scry-skeleton--circle" style="width:36px;height:36px;flex-shrink:0;"></div>
+              <div style="flex:1;">
+                <div class="scry-skeleton scry-skeleton--text" style="width:70%;margin-bottom:8px;"></div>
+                <div class="scry-skeleton scry-skeleton--text" style="width:45%;height:10px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 22. BREADCRUMB ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Breadcrumb &amp; Navigation</h2>
+
+    <div class="showcase-box">
+      <div class="scry-breadcrumb">
+        <a href="#" class="scry-breadcrumb__item">Dashboard</a>
+        <span class="scry-breadcrumb__sep">›</span>
+        <a href="#" class="scry-breadcrumb__item">Settings</a>
+        <span class="scry-breadcrumb__sep">›</span>
+        <span class="scry-breadcrumb__item active">Weather Configuration</span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 23. CODE / LOGS ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Code / Log Display</h2>
+
+    <div class="showcase-box">
+      <div class="showcase-label">System Log Output</div>
+      <pre class="scry-code">[12:34:56] INFO  WiFi connected: <DEVICE_IP> (RSSI: -42 dBm)
+[12:34:57] INFO  NTP sync: 2026-02-12T12:34:57+01:00
+[12:34:58] INFO  Weather API: fetching data for Lugano (46.0037, 8.9511)
+[12:34:59] OK    Weather data cached (next refresh: 300s)
+[12:35:00] INFO  RSS: refreshing 4 feeds...
+[12:35:02] OK    RSS: Hacker News - 30 items
+[12:35:03] OK    RSS: BBC World - 25 items
+[12:35:04] WARN  RSS: Arduino Blog - timeout (retrying in 60s)
+[12:35:05] ERR   RSS: ESP32 Forums - HTTP 503 Service Unavailable</pre>
+    </div>
+
+    <div class="showcase-box mt-4">
+      <div class="showcase-label">Inline Code</div>
+      <p class="text-body-md">
+        Set the WiFi SSID with <code class="scry-code scry-code--inline">wifi.ssid = "MyNetwork"</code> and the password with <code class="scry-code scry-code--inline">wifi.password = "***"</code> in the config.
+      </p>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 24. EMPTY STATE ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Empty State</h2>
+
+    <div class="scry-card" style="max-width:480px;">
+      <div class="scry-empty">
+        <div class="scry-empty__icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+        </div>
+        <div class="scry-empty__title">No RSS Feeds Yet</div>
+        <div class="scry-empty__text">Add your first RSS feed to start displaying news headlines on your ESP32 display.</div>
+        <button class="scry-btn scry-btn--md scry-btn--primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add First Feed
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 25. SIDEBAR DEMO ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Sidebar Navigation</h2>
+
+    <div class="sidebar-demo">
+      <!-- Collapsed -->
+      <div class="sidebar-demo-container">
+        <div class="showcase-label" style="padding:16px 16px 0;text-align:center;">Collapsed</div>
+        <div style="width:100px;padding:16px 0;display:flex;flex-direction:column;align-items:center;gap:4px;">
+          <div style="width:40px;height:40px;border-radius:12px;background:var(--gradient-brand);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:14px;margin-bottom:24px;">S</div>
+
+          <button class="scry-sidebar__item active" style="position:relative;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </button>
+          <button class="scry-sidebar__item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <button class="scry-sidebar__item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+          </button>
+          <button class="scry-sidebar__item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </button>
+          <button class="scry-sidebar__item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Expanded -->
+      <div class="sidebar-demo-container" style="width:260px;">
+        <div class="showcase-label" style="padding:16px 20px 0;">Expanded</div>
+        <div style="padding:16px 16px 20px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:28px;padding:0 4px;">
+            <div style="width:40px;height:40px;border-radius:12px;background:var(--gradient-brand);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:14px;flex-shrink:0;">S</div>
+            <div>
+              <div class="text-heading-sm" style="font-size:15px;">ScryBar</div>
+              <div class="text-micro">ESP32-S3 Control</div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div style="height:44px;border-radius:10px;background:var(--accent-primary-subtle);display:flex;align-items:center;gap:12px;padding:0 14px;color:var(--text-primary);font-size:14px;font-weight:600;border-left:3px solid var(--accent-primary);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              Dashboard
+            </div>
+            <div style="height:44px;border-radius:10px;display:flex;align-items:center;gap:12px;padding:0 14px;color:var(--text-tertiary);font-size:14px;font-weight:500;cursor:pointer;border-left:3px solid transparent;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Settings
+            </div>
+            <div style="height:44px;border-radius:10px;display:flex;align-items:center;gap:12px;padding:0 14px;color:var(--text-tertiary);font-size:14px;font-weight:500;cursor:pointer;border-left:3px solid transparent;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+              RSS Feeds
+            </div>
+            <div style="height:44px;border-radius:10px;display:flex;align-items:center;gap:12px;padding:0 14px;color:var(--text-tertiary);font-size:14px;font-weight:500;cursor:pointer;border-left:3px solid transparent;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              Display
+            </div>
+            <div style="height:44px;border-radius:10px;display:flex;align-items:center;gap:12px;padding:0 14px;color:var(--text-tertiary);font-size:14px;font-weight:500;cursor:pointer;border-left:3px solid transparent;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+              Sensors
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 26. ANIMATIONS ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Animations</h2>
+
+    <div class="showcase-box">
+      <div class="showcase-label">Staggered Fade-In (click to replay)</div>
+      <div id="animDemo" style="display:flex;gap:12px;flex-wrap:wrap;padding-top:8px;">
+        <div class="scry-stat animate-fade-in-up delay-1" style="min-width:140px;">
+          <div class="scry-stat__label">Card 1</div>
+          <div class="scry-stat__value">fade-in-up</div>
+        </div>
+        <div class="scry-stat animate-fade-in-up delay-2" style="min-width:140px;">
+          <div class="scry-stat__label">Card 2</div>
+          <div class="scry-stat__value">delay-2</div>
+        </div>
+        <div class="scry-stat animate-fade-in-up delay-3" style="min-width:140px;">
+          <div class="scry-stat__label">Card 3</div>
+          <div class="scry-stat__value">delay-3</div>
+        </div>
+        <div class="scry-stat animate-fade-in-up delay-4" style="min-width:140px;">
+          <div class="scry-stat__label">Card 4</div>
+          <div class="scry-stat__value">delay-4</div>
+        </div>
+      </div>
+      <button class="scry-btn scry-btn--sm scry-btn--secondary mt-4" onclick="replayAnimation()">↻ Replay Animation</button>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 27. STATS FOR NERDS ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Stats for Nerds (ESP32 System Panel)</h2>
+
+    <div class="scry-nerds" style="max-width:520px;">
+      <div class="scry-nerds__ascii-logo">
+ ___  ___ _ __ _   _| |__   __ _ _ __
+/ __|/ __| '__| | | | '_ \ / _` | '__|
+\__ \ (__| |  | |_| | |_) | (_| | |
+|___/\___|_|   \__, |_.__/ \__,_|_|
+               |___/
+      </div>
+      <div class="scry-nerds__header">═══ SYSTEM STATS ═══</div>
+
+      <div class="scry-nerds__section-title">⬡ Hardware</div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">Board</span>
+        <span class="scry-nerds__value">ESP32-S3-WROOM-1 N16R8</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">CPU Freq</span>
+        <span class="scry-nerds__value">240 MHz</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">CPU Temp</span>
+        <span class="scry-nerds__value scry-nerds__value--warn">52.3°C</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">Firmware</span>
+        <span class="scry-nerds__value scry-nerds__value--muted">v2.4.1-rc3 (espidf 5.1.2)</span>
+      </div>
+
+      <div class="scry-nerds__divider">── ── ── ── ── ── ── ── ──</div>
+
+      <div class="scry-nerds__section-title">⬡ Memory</div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">Free Heap</span>
+        <span class="scry-nerds__value scry-nerds__value--good">187,432 B</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">Min Heap</span>
+        <span class="scry-nerds__value">142,108 B</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">PSRAM</span>
+        <span class="scry-nerds__value">4,194,304 B free</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">Flash</span>
+        <span class="scry-nerds__bar"><span class="scry-nerds__bar-fill--warn">[████████░░]</span> 78%</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">RAM</span>
+        <span class="scry-nerds__bar"><span class="scry-nerds__bar-fill--good">[████░░░░░░]</span> 42%</span>
+      </div>
+
+      <div class="scry-nerds__divider">── ── ── ── ── ── ── ── ──</div>
+
+      <div class="scry-nerds__section-title">⬡ Network</div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">WiFi SSID</span>
+        <span class="scry-nerds__value">&lt;WIFI_SSID&gt;</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">RSSI</span>
+        <span class="scry-nerds__value scry-nerds__value--good">-42 dBm (Excellent)</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">IPv4</span>
+        <span class="scry-nerds__value scry-nerds__value--info">&lt;DEVICE_IP&gt;</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">MAC</span>
+        <span class="scry-nerds__value scry-nerds__value--muted">&lt;MAC_ADDR&gt;</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">MQTT</span>
+        <span class="scry-nerds__value scry-nerds__value--good">● connected</span>
+      </div>
+
+      <div class="scry-nerds__divider">── ── ── ── ── ── ── ── ──</div>
+
+      <div class="scry-nerds__section-title">⬡ Sensors</div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">BMP280</span>
+        <span class="scry-nerds__value scry-nerds__value--good">OK  23.4°C  1013.2hPa</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">APDS9960</span>
+        <span class="scry-nerds__value scry-nerds__value--good">OK  prox:12  lux:340</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">Rotary Enc</span>
+        <span class="scry-nerds__value scry-nerds__value--good">OK  pos:127  btn:0</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">WS2812B</span>
+        <span class="scry-nerds__value scry-nerds__value--info">60 LEDs  @5V 1.2A</span>
+      </div>
+
+      <div class="scry-nerds__divider">── ── ── ── ── ── ── ── ──</div>
+
+      <div class="scry-nerds__section-title">⬡ Tasks &amp; Fetch</div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">Uptime</span>
+        <span class="scry-nerds__value">3d 14h 22m 08s</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">NTP Sync</span>
+        <span class="scry-nerds__value scry-nerds__value--good">2026-02-12 12:34:57 CET</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">Weather</span>
+        <span class="scry-nerds__value scry-nerds__value--muted">2m ago  → next in 13m</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">RSS Fetch</span>
+        <span class="scry-nerds__value scry-nerds__value--muted">5m ago  4/4 feeds OK</span>
+      </div>
+      <div class="scry-nerds__row">
+        <span class="scry-nerds__label">HA Socket</span>
+        <span class="scry-nerds__value scry-nerds__value--good">ws://ha.local:8123 ● live</span>
+      </div>
+
+      <div class="scry-nerds__footer">refreshed 0.4s ago · pid 1 · loop() 847μs avg</div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 28. COMPLETE FORM EXAMPLE ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Example: Weather Configuration Panel</h2>
+
+    <div class="scry-card" style="max-width:640px;">
+      <div class="scry-card__header">
+        <div>
+          <div class="scry-card__title">Weather Settings</div>
+          <div class="scry-card__subtitle">Configure the weather data source for your display</div>
+        </div>
+        <span class="scry-badge scry-badge--success"><span class="scry-dot scry-dot--success"></span> Connected</span>
+      </div>
+
+      <div class="scry-card__body">
+        <div class="scry-form-group">
+          <label class="scry-label scry-label--required">City Name</label>
+          <input type="text" class="scry-input" value="Lugano">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="scry-form-group">
+            <label class="scry-label scry-label--required">Latitude</label>
+            <input type="text" class="scry-input" value="46.0037">
+          </div>
+          <div class="scry-form-group">
+            <label class="scry-label scry-label--required">Longitude</label>
+            <input type="text" class="scry-input" value="8.9511">
+          </div>
+        </div>
+
+        <div class="scry-form-group">
+          <label class="scry-label">API Provider</label>
+          <select class="scry-select">
+            <option>OpenWeatherMap</option>
+            <option>WeatherAPI</option>
+            <option>Open-Meteo (no key required)</option>
+          </select>
+        </div>
+
+        <div class="scry-form-group">
+          <label class="scry-label">API Key</label>
+          <input type="password" class="scry-input" placeholder="Enter your API key">
+          <span class="scry-help-text">Required for OpenWeatherMap and WeatherAPI</span>
+        </div>
+
+        <div class="scry-form-group">
+          <label class="scry-label">Update Frequency</label>
+          <select class="scry-select">
+            <option>Every 5 minutes</option>
+            <option selected>Every 15 minutes</option>
+            <option>Every 30 minutes</option>
+            <option>Every hour</option>
+          </select>
+        </div>
+
+        <hr class="scry-divider">
+
+        <div class="showcase-label">Display Options</div>
+        <div style="display:flex;flex-direction:column;gap:14px;margin-top:8px;">
+          <label class="scry-toggle">
+            <input type="checkbox" checked>
+            <span class="scry-toggle__track"></span>
+            <span class="scry-toggle__label">Show temperature</span>
+          </label>
+          <label class="scry-toggle">
+            <input type="checkbox" checked>
+            <span class="scry-toggle__track"></span>
+            <span class="scry-toggle__label">Show humidity</span>
+          </label>
+          <label class="scry-toggle">
+            <input type="checkbox">
+            <span class="scry-toggle__track"></span>
+            <span class="scry-toggle__label">Show wind speed</span>
+          </label>
+          <label class="scry-toggle">
+            <input type="checkbox" checked>
+            <span class="scry-toggle__track"></span>
+            <span class="scry-toggle__label">Show weather icon</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="scry-card__footer">
+        <button class="scry-btn scry-btn--md scry-btn--ghost">Reset Defaults</button>
+        <button class="scry-btn scry-btn--md scry-btn--secondary">Test Connection</button>
+        <button class="scry-btn scry-btn--md scry-btn--primary">Save &amp; Apply</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <div style="text-align:center;padding:48px 0 24px;">
+    <img src="https://netmi.lk/wp-content/uploads/2024/10/netmilk.svg" alt="Netmilk Studio" style="height:24px;margin-bottom:16px;opacity:0.6;">
+    <div class="text-overline mb-2">ScryBar Design System</div>
+    <p class="text-caption" style="margin-bottom:4px;">Built for ESP32-S3 web interfaces &mdash; Dark theme, Montserrat, full component library</p>
+    <p class="text-micro" style="color:var(--text-muted);">A project by Netmilk Studio sagl &mdash; 2026 &mdash; Monteggio Plains</p>
+    <p class="text-micro" style="color:var(--text-muted);margin-top:2px;">&copy; 2026 Netmilk Studio sagl. All rights reserved.</p>
+  </div>
+
+</div>
+
+<script>
+function replayAnimation() {
+  const demo = document.getElementById('animDemo');
+  const cards = demo.querySelectorAll('.scry-stat');
+  cards.forEach(card => {
+    card.style.animation = 'none';
+    card.offsetHeight; // trigger reflow
+    card.style.animation = '';
+  });
+}
+</script>
+
+</body>
+</html>

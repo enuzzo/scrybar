@@ -1,0 +1,50 @@
+# Sensitive/local configuration
+secrets.h
+**/secrets.h
+**/secrets.local.h
+**/secrets.private.h
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local Codex state (non-project metadata)
+.codex/
+
+# Local assets/documents not meant for sharing
+documents/
+assets/weather_icons/
+assets/weather_icons_min/
+screenshots/
+
+# OS / editor files
+.DS_Store
+/.vscode/
+**/.vscode/
+/.idea/
+**/.idea/
+*.swp
+*.swo
+**/.component_hash
+
+# Build and temporary artifacts
+build/
+dist/
+*.log
+*.tmp
+*.bak
+*.elf
+*.bin
+*.map
+*.hex
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Redundant local archives
+assets/weather_demo/weather_images.zip
