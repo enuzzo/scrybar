@@ -3,6 +3,7 @@
 #include <math.h>
 #include <ctype.h>
 #include <string.h>
+#include "src/ui_strings.h"
 #include "esp_system.h"
 #include "esp_sleep.h"
 #include "config.h"
@@ -2027,7 +2028,7 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += F("</p>");
   }
   html += F("<form id='cfg_form' method='post' action='/config'>");
-  // Word Clock Language section
+  // System Language section
   {
     // Helper macro-style: emit one <option> with runtime selected check
     struct { const char *code; const char *label; } kLangs[] = {
@@ -2042,7 +2043,7 @@ static String buildWebConfigPage(const char *statusMsg) {
       {"nap", "Napoletano"},
       {"tlh", "tlhIngan Hol (Klingon)"},
     };
-    html += F("<div class='sec'><h2><i class='fa-solid fa-language'></i>Word Clock Language</h2><div class='key'>LANGUAGE</div><select name='wc_lang'>");
+    html += F("<div class='sec'><h2><i class='fa-solid fa-language'></i>System Language</h2><div class='key'>LANGUAGE</div><select name='wc_lang'>");
     for (unsigned i = 0; i < sizeof(kLangs)/sizeof(kLangs[0]); ++i) {
       html += F("<option value='");
       html += kLangs[i].code;
@@ -2052,7 +2053,7 @@ static String buildWebConfigPage(const char *statusMsg) {
       html += kLangs[i].label;
       html += F("</option>");
     }
-    html += F("</select><p class='hint'><i class='fa-solid fa-circle-info'></i> Saved to NVS, persists across reboots. Klingon uses ASCII transliteration (pIqaD not covered by the device font).</p></div>");
+    html += F("</select><p class='hint'><i class='fa-solid fa-circle-info'></i> Controls the language of the entire display UI: word clock, weather labels, RSS status, GPT overlay and touch hints. Saved to NVS, persists across reboots. Klingon uses ASCII transliteration (pIqaD not covered by the device font).</p></div>");
   }
   html += F("<div class='sec'><h2><i class='fa-solid fa-location-dot'></i>Weather & Location</h2><div class='grid2'><div><div class='key'>PLACE SEARCH</div><input id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='key'>CITY LABEL</div><input id='weather_city' name='weather_city' maxlength='31' value='");
   appendHtmlEscaped(html, runtimeWeatherCityLabel());
@@ -2706,6 +2707,412 @@ static const char* weatherCodeUiLabelIt(int code) {
   return "N/D";
 }
 
+// ---------------------------------------------------------------------------
+// English weather labels
+// ---------------------------------------------------------------------------
+static const char* weatherCodeShortEn(int code) {
+  if (code == 0 || code == 1) return "Clear";
+  if (code == 2) return "Cloudy";
+  if (code == 3) return "Overcast";
+  if (code == 45 || code == 48) return "Fog";
+  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Rain";
+  if (code >= 71 && code <= 77) return "Snow";
+  if (code >= 95) return "Storm";
+  return "N/A";
+}
+
+static const char* weatherCodeUiLabelEn(int code) {
+  if (code == 0) return "Clear";
+  if (code == 1) return "Mainly clear";
+  if (code == 2) return "Partly cloudy";
+  if (code == 3) return "Overcast";
+  if (code == 45) return "Fog";
+  if (code == 48) return "Icy fog";
+  if (code == 51) return "Light drizzle";
+  if (code == 53) return "Mod. drizzle";
+  if (code == 55) return "Heavy drizzle";
+  if (code == 56 || code == 57) return "Freezing drizzle";
+  if (code == 61) return "Light rain";
+  if (code == 63) return "Moderate rain";
+  if (code == 65) return "Heavy rain";
+  if (code == 66 || code == 67) return "Freezing rain";
+  if (code == 71) return "Light snow";
+  if (code == 73) return "Moderate snow";
+  if (code == 75) return "Heavy snow";
+  if (code == 77) return "Snow grains";
+  if (code == 80) return "Light showers";
+  if (code == 81) return "Mod. showers";
+  if (code == 82) return "Heavy showers";
+  if (code == 85 || code == 86) return "Snow showers";
+  if (code == 95) return "Thunderstorm";
+  if (code == 96 || code == 99) return "Storm w/ hail";
+  return "N/A";
+}
+
+// ---------------------------------------------------------------------------
+// French weather labels
+// ---------------------------------------------------------------------------
+static const char* weatherCodeShortFr(int code) {
+  if (code == 0 || code == 1) return "Clair";
+  if (code == 2) return "Nuageux";
+  if (code == 3) return "Couvert";
+  if (code == 45 || code == 48) return "Brouillard";
+  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Pluie";
+  if (code >= 71 && code <= 77) return "Neige";
+  if (code >= 95) return "Orage";
+  return "N/D";
+}
+
+static const char* weatherCodeUiLabelFr(int code) {
+  if (code == 0) return "Clair";
+  if (code == 1) return "Principalement clair";
+  if (code == 2) return "Part. nuageux";
+  if (code == 3) return "Couvert";
+  if (code == 45) return "Brouillard";
+  if (code == 48) return "Brouillard glac.";
+  if (code == 51) return "Bruine legere";
+  if (code == 53) return "Bruine mod.";
+  if (code == 55) return "Bruine forte";
+  if (code == 56 || code == 57) return "Bruine verglac.";
+  if (code == 61) return "Pluie faible";
+  if (code == 63) return "Pluie mod.";
+  if (code == 65) return "Pluie forte";
+  if (code == 66 || code == 67) return "Pluie verglac.";
+  if (code == 71) return "Neige faible";
+  if (code == 73) return "Neige mod.";
+  if (code == 75) return "Neige forte";
+  if (code == 77) return "Grains de neige";
+  if (code == 80) return "Averses faibles";
+  if (code == 81) return "Averses mod.";
+  if (code == 82) return "Averses fortes";
+  if (code == 85 || code == 86) return "Averses de neige";
+  if (code == 95) return "Orage";
+  if (code == 96 || code == 99) return "Orage avec grele";
+  return "N/D";
+}
+
+// ---------------------------------------------------------------------------
+// German weather labels
+// ---------------------------------------------------------------------------
+static const char* weatherCodeShortDe(int code) {
+  if (code == 0 || code == 1) return "Klar";
+  if (code == 2) return "Bewoelkt";
+  if (code == 3) return "Bedeckt";
+  if (code == 45 || code == 48) return "Nebel";
+  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Regen";
+  if (code >= 71 && code <= 77) return "Schnee";
+  if (code >= 95) return "Gewitter";
+  return "N/V";
+}
+
+static const char* weatherCodeUiLabelDe(int code) {
+  if (code == 0) return "Klar";
+  if (code == 1) return "Ueberwiegend klar";
+  if (code == 2) return "Teils bewoelkt";
+  if (code == 3) return "Bedeckt";
+  if (code == 45) return "Nebel";
+  if (code == 48) return "Eisnebel";
+  if (code == 51) return "Leichter Nieseln";
+  if (code == 53) return "Maess. Nieseln";
+  if (code == 55) return "Starkes Nieseln";
+  if (code == 56 || code == 57) return "Gefrierender Niesel";
+  if (code == 61) return "Leichter Regen";
+  if (code == 63) return "Maess. Regen";
+  if (code == 65) return "Starker Regen";
+  if (code == 66 || code == 67) return "Gefrierender Regen";
+  if (code == 71) return "Leichter Schnee";
+  if (code == 73) return "Maess. Schnee";
+  if (code == 75) return "Starker Schnee";
+  if (code == 77) return "Schneekristalle";
+  if (code == 80) return "Leichte Schauer";
+  if (code == 81) return "Maess. Schauer";
+  if (code == 82) return "Starke Schauer";
+  if (code == 85 || code == 86) return "Schneeschauer";
+  if (code == 95) return "Gewitter";
+  if (code == 96 || code == 99) return "Gewitter m. Hagel";
+  return "N/V";
+}
+
+// ---------------------------------------------------------------------------
+// Spanish weather labels
+// ---------------------------------------------------------------------------
+static const char* weatherCodeShortEs(int code) {
+  if (code == 0 || code == 1) return "Despejado";
+  if (code == 2) return "Nublado";
+  if (code == 3) return "Cubierto";
+  if (code == 45 || code == 48) return "Niebla";
+  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Lluvia";
+  if (code >= 71 && code <= 77) return "Nieve";
+  if (code >= 95) return "Tormenta";
+  return "N/D";
+}
+
+static const char* weatherCodeUiLabelEs(int code) {
+  if (code == 0) return "Despejado";
+  if (code == 1) return "Mainly despejado";
+  if (code == 2) return "Parc. nublado";
+  if (code == 3) return "Cubierto";
+  if (code == 45) return "Niebla";
+  if (code == 48) return "Niebla helada";
+  if (code == 51) return "Llovizna leve";
+  if (code == 53) return "Llovizna mod.";
+  if (code == 55) return "Llovizna fuerte";
+  if (code == 56 || code == 57) return "Llovizna helada";
+  if (code == 61) return "Lluvia leve";
+  if (code == 63) return "Lluvia mod.";
+  if (code == 65) return "Lluvia fuerte";
+  if (code == 66 || code == 67) return "Lluvia helada";
+  if (code == 71) return "Nieve leve";
+  if (code == 73) return "Nieve mod.";
+  if (code == 75) return "Nieve fuerte";
+  if (code == 77) return "Granulos nieve";
+  if (code == 80) return "Chubascos leves";
+  if (code == 81) return "Chubascos mod.";
+  if (code == 82) return "Chubascos fuertes";
+  if (code == 85 || code == 86) return "Chubascos nieve";
+  if (code == 95) return "Tormenta";
+  if (code == 96 || code == 99) return "Torm. con granizo";
+  return "N/D";
+}
+
+// ---------------------------------------------------------------------------
+// Portuguese weather labels
+// ---------------------------------------------------------------------------
+static const char* weatherCodeShortPt(int code) {
+  if (code == 0 || code == 1) return "Limpo";
+  if (code == 2) return "Nublado";
+  if (code == 3) return "Encoberto";
+  if (code == 45 || code == 48) return "Nevoeiro";
+  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Chuva";
+  if (code >= 71 && code <= 77) return "Neve";
+  if (code >= 95) return "Temporal";
+  return "N/D";
+}
+
+static const char* weatherCodeUiLabelPt(int code) {
+  if (code == 0) return "Limpo";
+  if (code == 1) return "Principalmente limpo";
+  if (code == 2) return "Parc. nublado";
+  if (code == 3) return "Encoberto";
+  if (code == 45) return "Nevoeiro";
+  if (code == 48) return "Nevoeiro gelado";
+  if (code == 51) return "Chuvisco fraco";
+  if (code == 53) return "Chuvisco mod.";
+  if (code == 55) return "Chuvisco forte";
+  if (code == 56 || code == 57) return "Chuvisco gelado";
+  if (code == 61) return "Chuva fraca";
+  if (code == 63) return "Chuva mod.";
+  if (code == 65) return "Chuva forte";
+  if (code == 66 || code == 67) return "Chuva gelada";
+  if (code == 71) return "Neve fraca";
+  if (code == 73) return "Neve mod.";
+  if (code == 75) return "Neve forte";
+  if (code == 77) return "Graos de neve";
+  if (code == 80) return "Aguaceiros fracos";
+  if (code == 81) return "Aguaceiros mod.";
+  if (code == 82) return "Aguaceiros fortes";
+  if (code == 85 || code == 86) return "Aguaceiros neve";
+  if (code == 95) return "Temporal";
+  if (code == 96 || code == 99) return "Temp. com granizo";
+  return "N/D";
+}
+
+// ---------------------------------------------------------------------------
+// Latin weather labels
+// ---------------------------------------------------------------------------
+static const char* weatherCodeShortLa(int code) {
+  if (code == 0 || code == 1) return "Serenum";
+  if (code == 2) return "Nubilum";
+  if (code == 3) return "Opertum";
+  if (code == 45 || code == 48) return "Nebula";
+  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Imber";
+  if (code >= 71 && code <= 77) return "Nix";
+  if (code >= 95) return "Procella";
+  return "N/D";
+}
+
+static const char* weatherCodeUiLabelLa(int code) {
+  if (code == 0) return "Serenum";
+  if (code == 1) return "Fere serenum";
+  if (code == 2) return "Part. nubilum";
+  if (code == 3) return "Opertum";
+  if (code == 45) return "Nebula";
+  if (code == 48) return "Nebula glacialis";
+  if (code == 51) return "Pluvia levis";
+  if (code == 53) return "Pluvia mod.";
+  if (code == 55) return "Pluvia magna";
+  if (code == 56 || code == 57) return "Pluvia glacialis";
+  if (code == 61) return "Imber levis";
+  if (code == 63) return "Imber mod.";
+  if (code == 65) return "Imber magnus";
+  if (code == 66 || code == 67) return "Imber glacialis";
+  if (code == 71) return "Nix levis";
+  if (code == 73) return "Nix mod.";
+  if (code == 75) return "Nix magna";
+  if (code == 77) return "Grana nivis";
+  if (code == 80) return "Imbres leves";
+  if (code == 81) return "Imbres mod.";
+  if (code == 82) return "Imbres magni";
+  if (code == 85 || code == 86) return "Imbres nivis";
+  if (code == 95) return "Procella";
+  if (code == 96 || code == 99) return "Proc. cum grandine";
+  return "N/D";
+}
+
+// ---------------------------------------------------------------------------
+// Esperanto weather labels
+// ---------------------------------------------------------------------------
+static const char* weatherCodeShortEo(int code) {
+  if (code == 0 || code == 1) return "Klara";
+  if (code == 2) return "Nuba";
+  if (code == 3) return "Kovrita";
+  if (code == 45 || code == 48) return "Nebulo";
+  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Pluvo";
+  if (code >= 71 && code <= 77) return "Nego";
+  if (code >= 95) return "Fulmotondro";
+  return "N/D";
+}
+
+static const char* weatherCodeUiLabelEo(int code) {
+  if (code == 0) return "Klara";
+  if (code == 1) return "Cefe klara";
+  if (code == 2) return "Part. nuba";
+  if (code == 3) return "Kovrita";
+  if (code == 45) return "Nebulo";
+  if (code == 48) return "Glacia nebulo";
+  if (code == 51) return "Malpeza drizzle";
+  if (code == 53) return "Mod. drizzle";
+  if (code == 55) return "Peza drizzle";
+  if (code == 56 || code == 57) return "Glacia drizzle";
+  if (code == 61) return "Malpeza pluvo";
+  if (code == 63) return "Mod. pluvo";
+  if (code == 65) return "Peza pluvo";
+  if (code == 66 || code == 67) return "Glacia pluvo";
+  if (code == 71) return "Malpeza nego";
+  if (code == 73) return "Mod. nego";
+  if (code == 75) return "Peza nego";
+  if (code == 77) return "Negaj grenoj";
+  if (code == 80) return "Malpezaj soversoj";
+  if (code == 81) return "Mod. soversoj";
+  if (code == 82) return "Pezaj soversoj";
+  if (code == 85 || code == 86) return "Negaj soversoj";
+  if (code == 95) return "Fulmotondro";
+  if (code == 96 || code == 99) return "Fulmont. kun hajlo";
+  return "N/D";
+}
+
+// ---------------------------------------------------------------------------
+// Neapolitan weather labels
+// ---------------------------------------------------------------------------
+static const char* weatherCodeShortNap(int code) {
+  if (code == 0 || code == 1) return "Sereno";
+  if (code == 2) return "Annuvolato";
+  if (code == 3) return "Coperto";
+  if (code == 45 || code == 48) return "Nebbia";
+  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Chiove";
+  if (code >= 71 && code <= 77) return "Neve";
+  if (code >= 95) return "Temporale";
+  return "N/D";
+}
+
+static const char* weatherCodeUiLabelNap(int code) {
+  if (code == 0) return "Sereno";
+  if (code == 1) return "Bello assaje";
+  if (code == 2) return "N po' annuvolato";
+  if (code == 3) return "Coperto";
+  if (code == 45) return "Nebbia";
+  if (code == 48) return "Nebbia gelata";
+  if (code == 51) return "Chiuviccella";
+  if (code == 53) return "Chiuvea mod.";
+  if (code == 55) return "Chiuvea forte";
+  if (code == 56 || code == 57) return "Chiuvea gelata";
+  if (code == 61) return "Pioggia leggera";
+  if (code == 63) return "Pioggia mod.";
+  if (code == 65) return "Pioggia forte";
+  if (code == 66 || code == 67) return "Pioggia gelata";
+  if (code == 71) return "Neve leggera";
+  if (code == 73) return "Neve mod.";
+  if (code == 75) return "Neve forte";
+  if (code == 77) return "Granuli neve";
+  if (code == 80) return "Rovesci deboli";
+  if (code == 81) return "Rovesci mod.";
+  if (code == 82) return "Rovesci forti";
+  if (code == 85 || code == 86) return "Rovesci neve";
+  if (code == 95) return "Temporale";
+  if (code == 96 || code == 99) return "Temp. e grandine";
+  return "N/D";
+}
+
+// ---------------------------------------------------------------------------
+// Klingon weather labels
+// ---------------------------------------------------------------------------
+static const char* weatherCodeShortTlh(int code) {
+  if (code == 0 || code == 1) return "muD QaQ";
+  if (code == 2 || code == 3) return "muD Hurgh";
+  if (code == 45 || code == 48) return "muD Duj";
+  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "SIS";
+  if (code >= 71 && code <= 77) return "chuch";
+  if (code >= 95) return "muD QeH";
+  return "Duj";
+}
+
+static const char* weatherCodeUiLabelTlh(int code) {
+  if (code == 0) return "muD QaQ";
+  if (code == 1) return "muD QaQ law'";
+  if (code == 2) return "muD Hurgh";
+  if (code == 3) return "muD Hurgh HoS";
+  if (code == 45) return "muD Duj";
+  if (code == 48) return "muD chuch Duj";
+  if (code == 51) return "SIS mach";
+  if (code == 53) return "SIS mod.";
+  if (code == 55) return "SIS HoS";
+  if (code == 56 || code == 57) return "SIS chuch";
+  if (code == 61) return "bIQ mach";
+  if (code == 63) return "bIQ mod.";
+  if (code == 65) return "bIQ HoS";
+  if (code == 66 || code == 67) return "bIQ chuch";
+  if (code == 71) return "chuch mach";
+  if (code == 73) return "chuch mod.";
+  if (code == 75) return "chuch HoS";
+  if (code == 77) return "chuch Hap";
+  if (code == 80) return "SIS mach bIQ";
+  if (code == 81) return "SIS mod. bIQ";
+  if (code == 82) return "SIS HoS bIQ";
+  if (code == 85 || code == 86) return "SIS chuch bIQ";
+  if (code == 95) return "muD QeH";
+  if (code == 96 || code == 99) return "muD QeH begh";
+  return "Duj";
+}
+
+// ---------------------------------------------------------------------------
+// Language dispatchers
+// ---------------------------------------------------------------------------
+static const char* weatherCodeUiLabel(int code) {
+  if (strcmp(g_wordClockLang, "en")  == 0) return weatherCodeUiLabelEn(code);
+  if (strcmp(g_wordClockLang, "fr")  == 0) return weatherCodeUiLabelFr(code);
+  if (strcmp(g_wordClockLang, "de")  == 0) return weatherCodeUiLabelDe(code);
+  if (strcmp(g_wordClockLang, "es")  == 0) return weatherCodeUiLabelEs(code);
+  if (strcmp(g_wordClockLang, "pt")  == 0) return weatherCodeUiLabelPt(code);
+  if (strcmp(g_wordClockLang, "la")  == 0) return weatherCodeUiLabelLa(code);
+  if (strcmp(g_wordClockLang, "eo")  == 0) return weatherCodeUiLabelEo(code);
+  if (strcmp(g_wordClockLang, "nap") == 0) return weatherCodeUiLabelNap(code);
+  if (strcmp(g_wordClockLang, "tlh") == 0) return weatherCodeUiLabelTlh(code);
+  return weatherCodeUiLabelIt(code);
+}
+
+static const char* weatherCodeShort(int code) {
+  if (strcmp(g_wordClockLang, "en")  == 0) return weatherCodeShortEn(code);
+  if (strcmp(g_wordClockLang, "fr")  == 0) return weatherCodeShortFr(code);
+  if (strcmp(g_wordClockLang, "de")  == 0) return weatherCodeShortDe(code);
+  if (strcmp(g_wordClockLang, "es")  == 0) return weatherCodeShortEs(code);
+  if (strcmp(g_wordClockLang, "pt")  == 0) return weatherCodeShortPt(code);
+  if (strcmp(g_wordClockLang, "la")  == 0) return weatherCodeShortLa(code);
+  if (strcmp(g_wordClockLang, "eo")  == 0) return weatherCodeShortEo(code);
+  if (strcmp(g_wordClockLang, "nap") == 0) return weatherCodeShortNap(code);
+  if (strcmp(g_wordClockLang, "tlh") == 0) return weatherCodeShortTlh(code);
+  return weatherCodeShortIt(code);
+}
+
 #if RSS_ENABLED
 static void normalizeRssText(String &text) {
   text.replace("&amp;", "&");
@@ -3004,7 +3411,9 @@ static bool runOpenAiChatPrompt(const String &prompt, String &outText, int &http
   body += "\",\"temperature\":0.8,";
   body += isGpt5Family ? "\"max_completion_tokens\":90," : "\"max_tokens\":90,";
   body += "\"messages\":[";
-  body += "{\"role\":\"system\",\"content\":\"Rispondi in italiano naturale. Se richiesto un numero random, scegline uno diverso. Citazioni brevi, non troncare frasi.\"},";
+  body += "{\"role\":\"system\",\"content\":\"";
+  body += activeUiStrings()->gptSystemPrompt;
+  body += "\"},";
   body += "{\"role\":\"user\",\"content\":\"";
   body += jsonEscape(q);
   body += "\"}]}";
@@ -7022,6 +7431,19 @@ static void composeWordClockSentenceActive(const tm &timeinfo, char *out, size_t
   else                                           composeWordClockSentenceIt (timeinfo, out, outLen);
 }
 
+static const UiStrings* activeUiStrings() {
+  if (strcmp(g_wordClockLang, "en")  == 0) return &kUiLang_en;
+  if (strcmp(g_wordClockLang, "fr")  == 0) return &kUiLang_fr;
+  if (strcmp(g_wordClockLang, "de")  == 0) return &kUiLang_de;
+  if (strcmp(g_wordClockLang, "es")  == 0) return &kUiLang_es;
+  if (strcmp(g_wordClockLang, "pt")  == 0) return &kUiLang_pt;
+  if (strcmp(g_wordClockLang, "la")  == 0) return &kUiLang_la;
+  if (strcmp(g_wordClockLang, "eo")  == 0) return &kUiLang_eo;
+  if (strcmp(g_wordClockLang, "nap") == 0) return &kUiLang_nap;
+  if (strcmp(g_wordClockLang, "tlh") == 0) return &kUiLang_tlh;
+  return &kUiLang_it;
+}
+
 static void drawWordClockInRect(int16_t ox, int16_t oy, int16_t ow, int16_t oh, const tm &timeinfo) {
   fillRectCanvas(ox, oy, ow, oh, DB_COLOR_BLACK);
   char l1[20], l2[20], l3[28];
@@ -7540,7 +7962,7 @@ static void lvglUpdateAuxRss(bool force) {
 
 #if TEST_WIFI && RSS_ENABLED
   if (!g_wifiConnected) {
-    strncpy(title3, "RSS offline.\nConnettiti al WiFi\ne riprova.", sizeof(title3) - 1);
+    strncpy(title3, activeUiStrings()->rssOffline, sizeof(title3) - 1);
     title3[sizeof(title3) - 1] = '\0';
     strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
     whenLine[sizeof(whenLine) - 1] = '\0';
@@ -7574,14 +7996,14 @@ static void lvglUpdateAuxRss(bool force) {
       siteTextHex = 0x1B3C86;
     }
   } else if (g_rss.lastHttpCode != 0) {
-    strncpy(title3, "Feed non disponibile.\nRiprovo automaticamente\ntra poco.", sizeof(title3) - 1);
+    strncpy(title3, activeUiStrings()->rssFeedError, sizeof(title3) - 1);
     title3[sizeof(title3) - 1] = '\0';
     strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
     whenLine[sizeof(whenLine) - 1] = '\0';
     snprintf(status, sizeof(status), "ERR %d", g_rss.lastHttpCode);
     snprintf(meta, sizeof(meta), "Fetch %s", g_rss.lastFetchMs ? g_rss.fetchedAt : "--/-- --:--");
   } else {
-    strncpy(title3, "Sincronizzo il feed RSS...\nAttendi qualche secondo.\n", sizeof(title3) - 1);
+    strncpy(title3, activeUiStrings()->rssSyncing, sizeof(title3) - 1);
     title3[sizeof(title3) - 1] = '\0';
     strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
     whenLine[sizeof(whenLine) - 1] = '\0';
@@ -7589,7 +8011,7 @@ static void lvglUpdateAuxRss(bool force) {
     snprintf(meta, sizeof(meta), "Fetch --/-- --:--");
   }
 #elif TEST_WIFI
-  strncpy(title3, "RSS disabilitato in config.", sizeof(title3) - 1);
+  strncpy(title3, activeUiStrings()->rssDisabled, sizeof(title3) - 1);
   title3[sizeof(title3) - 1] = '\0';
   strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
   whenLine[sizeof(whenLine) - 1] = '\0';
@@ -7685,11 +8107,11 @@ static void lvglUpdateAuxRss(bool force) {
             else Serial.printf("[RSS] qr fallback -> %s\n", url);
           }
           lv_obj_clear_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
-          if (g_lvglAuxQrHint) lv_label_set_text(g_lvglAuxQrHint, "Tocca ovunque per chiudere");
+          if (g_lvglAuxQrHint) lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->touchToCloseAnywhere);
           if (g_lvglAuxStatus) lv_label_set_text(g_lvglAuxStatus, status);
         } else {
           lv_obj_add_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
-          if (g_lvglAuxQrHint) lv_label_set_text(g_lvglAuxQrHint, "Genero QR...");
+          if (g_lvglAuxQrHint) lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->generatingQr);
           if (g_lvglAuxStatus) lv_label_set_text(g_lvglAuxStatus, "QR...");
         }
       }
@@ -7806,6 +8228,110 @@ static void formatDateIt(const tm &timeinfo, char *out, size_t outLen) {
   const char* wd = (timeinfo.tm_wday >= 0 && timeinfo.tm_wday < 7) ? kWeekday[timeinfo.tm_wday] : "";
   const char* mo = (timeinfo.tm_mon >= 0 && timeinfo.tm_mon < 12) ? kMonth[timeinfo.tm_mon] : "";
   snprintf(out, outLen, "%s %d %s %d", wd, timeinfo.tm_mday, mo, timeinfo.tm_year + 1900);
+}
+
+static void formatDateEn(const tm &timeinfo, char *out, size_t outLen) {
+  static const char* kWeekday[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
+  static const char* kMonth[] = {"January","February","March","April","May","June","July","August","September","October","November","December"};
+  snprintf(out, outLen, "%s %d %s %d",
+    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
+    timeinfo.tm_mday,
+    (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
+    timeinfo.tm_year+1900);
+}
+
+static void formatDateFr(const tm &timeinfo, char *out, size_t outLen) {
+  static const char* kWeekday[] = {"Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"};
+  static const char* kMonth[] = {"Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet","Aout","Septembre","Octobre","Novembre","Decembre"};
+  snprintf(out, outLen, "%s %d %s %d",
+    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
+    timeinfo.tm_mday,
+    (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
+    timeinfo.tm_year+1900);
+}
+
+static void formatDateDe(const tm &timeinfo, char *out, size_t outLen) {
+  static const char* kWeekday[] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"};
+  static const char* kMonth[] = {"Januar","Februar","Maerz","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"};
+  snprintf(out, outLen, "%s, %d. %s %d",
+    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
+    timeinfo.tm_mday,
+    (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
+    timeinfo.tm_year+1900);
+}
+
+static void formatDateEs(const tm &timeinfo, char *out, size_t outLen) {
+  static const char* kWeekday[] = {"Domingo","Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"};
+  static const char* kMonth[] = {"Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"};
+  snprintf(out, outLen, "%s %d %s %d",
+    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
+    timeinfo.tm_mday,
+    (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
+    timeinfo.tm_year+1900);
+}
+
+static void formatDatePt(const tm &timeinfo, char *out, size_t outLen) {
+  static const char* kWeekday[] = {"Domingo","Segunda","Terca","Quarta","Quinta","Sexta","Sabado"};
+  static const char* kMonth[] = {"Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"};
+  snprintf(out, outLen, "%s %d %s %d",
+    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
+    timeinfo.tm_mday,
+    (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
+    timeinfo.tm_year+1900);
+}
+
+static void formatDateLa(const tm &timeinfo, char *out, size_t outLen) {
+  static const char* kWeekday[] = {"Dies Solis","Dies Lunae","Dies Martis","Dies Mercurii","Dies Iovis","Dies Veneris","Dies Saturni"};
+  static const char* kMonth[] = {"Ianuarius","Februarius","Martius","Aprilis","Maius","Iunius","Iulius","Augustus","September","October","November","December"};
+  snprintf(out, outLen, "%s %d %s %d",
+    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
+    timeinfo.tm_mday,
+    (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
+    timeinfo.tm_year+1900);
+}
+
+static void formatDateEo(const tm &timeinfo, char *out, size_t outLen) {
+  static const char* kWeekday[] = {"Dimanco","Lundo","Mardo","Merkredo","Jaudo","Vendredo","Sabato"};
+  static const char* kMonth[] = {"Januaro","Februaro","Marto","Aprilo","Majo","Junio","Julio","Auxgusto","Septembro","Oktobro","Novembro","Decembro"};
+  snprintf(out, outLen, "%s %d %s %d",
+    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
+    timeinfo.tm_mday,
+    (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
+    timeinfo.tm_year+1900);
+}
+
+static void formatDateNap(const tm &timeinfo, char *out, size_t outLen) {
+  static const char* kWeekday[] = {"Dummeneca","Lunedi","Martedi","Miercuri","Giovedi","Venneri","Sabbato"};
+  static const char* kMonth[] = {"Jennaro","Frevaro","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Uttombre","Novembre","Dicembre"};
+  snprintf(out, outLen, "%s %d %s %d",
+    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
+    timeinfo.tm_mday,
+    (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
+    timeinfo.tm_year+1900);
+}
+
+static void formatDateTlh(const tm &timeinfo, char *out, size_t outLen) {
+  // Klingon: "jaj N jar M, DIS Y" (day N month M, year Y)
+  // Fan-made weekday names in ASCII transliteration
+  static const char* kWeekday[] = {"jaj wa'","jaj cha'","jaj wej","jaj loS","jaj vagh","jaj jav","jaj Soch"};
+  snprintf(out, outLen, "%s, jaj %d jar %d, DIS %d",
+    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
+    timeinfo.tm_mday,
+    timeinfo.tm_mon+1,
+    timeinfo.tm_year+1900);
+}
+
+static void formatDateActive(const tm &timeinfo, char *out, size_t outLen) {
+  if      (strcmp(g_wordClockLang, "en")  == 0) formatDateEn (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "fr")  == 0) formatDateFr (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "de")  == 0) formatDateDe (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "es")  == 0) formatDateEs (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "pt")  == 0) formatDatePt (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "la")  == 0) formatDateLa (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "eo")  == 0) formatDateEo (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "nap") == 0) formatDateNap(timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "tlh") == 0) formatDateTlh(timeinfo, out, outLen);
+  else                                           formatDateIt (timeinfo, out, outLen);
 }
 
 static void formatCityLabelCore(const char *src, char *out, size_t outLen, size_t maxCodepoints, bool withEllipsis) {
@@ -7994,37 +8520,39 @@ static void lvglUpdateInfoPanel(bool force) {
 
   char leftCol[512];
   snprintf(leftCol, sizeof(leftCol),
-           "[ #66E3FF net# ]\n"
-           "\n"
            "wifi: %s\n"
            "ssid: %s\n"
            "bat: %s\n"
            "pwr: %s\n"
            "src: %s\n"
            "dns: %s\n"
-            "mac: %s",
-            wifiBuf,
-            ssidBuf,
-            battVizBuf,
-            pwrBuf,
-            pwrSourceBuf,
-            dnsCompactBuf,
-            macBuf);
+           "mac: %s",
+           wifiBuf,
+           ssidBuf,
+           battVizBuf,
+           pwrBuf,
+           pwrSourceBuf,
+           dnsCompactBuf,
+           macBuf);
 
   char rightCol[640];
   snprintf(rightCol, sizeof(rightCol),
            "[ #FF5CCF system# ]\n"
            "\n"
            "fw: %s\n"
-           "flash: %s\n"
+           "date: %s\n"
+           "lang: %s\n"
            "uptime: %lus\n"
            "ntp: %s",
            FW_BUILD_TAG,
            FW_RELEASE_DATE,
+           g_wordClockLang,
            (unsigned long)(millis() / 1000UL),
            ntpBuf);
 
-  lv_label_set_text(g_lvglInfoTitle, "ScryBar Stats");
+  char infoTitleBuf[48];
+  snprintf(infoTitleBuf, sizeof(infoTitleBuf), "ScryBar Stats  %s", FW_BUILD_TAG);
+  lv_label_set_text(g_lvglInfoTitle, infoTitleBuf);
   lv_label_set_text(g_lvglInfoEndpoint, endpointBuf);
   lv_label_set_text(g_lvglInfoBodyLeft, leftCol);
   lv_label_set_text(g_lvglInfoBodyRight, rightCol);
@@ -8106,7 +8634,7 @@ static void lvglUpdateGptPanel(bool force) {
       lv_obj_invalidate(g_lvglGptRecOverlayIcon);
     }
     if (g_lvglGptRecOverlayText) {
-      lv_label_set_text(g_lvglGptRecOverlayText, "Registrazione in corso...\nTocca per fermare.");
+      lv_label_set_text(g_lvglGptRecOverlayText, activeUiStrings()->gptRecording);
       lv_obj_invalidate(g_lvglGptRecOverlayText);
     }
   } else if (g_gptMicPipelineRunning) {
@@ -8122,7 +8650,7 @@ static void lvglUpdateGptPanel(bool force) {
       lv_obj_invalidate(g_lvglGptRecOverlayIcon);
     }
     if (g_lvglGptRecOverlayText) {
-      lv_label_set_text(g_lvglGptRecOverlayText, "Elaboro la richiesta...\nAttendi un attimo.");
+      lv_label_set_text(g_lvglGptRecOverlayText, activeUiStrings()->gptProcessing);
       lv_obj_invalidate(g_lvglGptRecOverlayText);
     }
   } else if (lvglGptRecOverlayIsOpen()) {
@@ -8295,9 +8823,9 @@ static bool initLvglUi() {
   lv_obj_set_style_text_font(g_lvglInfoTitle, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_lvglInfoTitle, lv_color_hex(0xEAF0FF), 0);
   lv_label_set_long_mode(g_lvglInfoTitle, LV_LABEL_LONG_CLIP);
-  lv_obj_set_width(g_lvglInfoTitle, cW / 2);
+  lv_obj_set_width(g_lvglInfoTitle, cW * 3 / 5);
   lv_obj_align(g_lvglInfoTitle, LV_ALIGN_LEFT_MID, 12, -1);
-  lv_label_set_text(g_lvglInfoTitle, "ScryBar Stats");
+  lv_label_set_text(g_lvglInfoTitle, "ScryBar Stats  " FW_BUILD_TAG);
   lvglForceLabelVisible(g_lvglInfoTitle);
 
   g_lvglInfoEndpoint = lv_label_create(g_lvglInfoHeader);
@@ -8313,19 +8841,20 @@ static bool initLvglUi() {
   const int16_t infoColsY = infoHeaderH + 4;
   const int16_t infoColsH = cH - infoColsY - 4;
   const int16_t infoColW = (cW - 30) / 2;
-  const int16_t infoQrSize = 96;
-  const int16_t infoQrPad = 6;
+  const int16_t infoQrPad = 12;
+  // QR: adaptive — at most 130 px, but never more than half the column height
+  const int16_t infoQrSize = ((infoColsH / 2) < 130) ? (infoColsH / 2) : 130;
+  const int16_t infoQrAreaH = infoQrSize + infoQrPad * 2;
+  const int16_t infoTextRightH = infoColsH - infoQrAreaH - 8;
 
   lv_obj_t *infoColLeft = lv_obj_create(g_lvglInfoCard);
   lv_obj_set_size(infoColLeft, infoColW, infoColsH);
   lv_obj_set_pos(infoColLeft, 10, infoColsY);
   lv_obj_set_style_bg_color(infoColLeft, lv_color_hex(0x000000), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(infoColLeft, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_color(infoColLeft, kInfoAccentCyan, LV_PART_MAIN);
-  lv_obj_set_style_border_opa(infoColLeft, LV_OPA_60, LV_PART_MAIN);
-  lv_obj_set_style_border_width(infoColLeft, 2, LV_PART_MAIN);
+  lv_obj_set_style_border_width(infoColLeft, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(infoColLeft, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(infoColLeft, 6, LV_PART_MAIN);
+  lv_obj_set_style_radius(infoColLeft, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_all(infoColLeft, 0, LV_PART_MAIN);
   lv_obj_clear_flag(infoColLeft, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(infoColLeft, LV_SCROLLBAR_MODE_OFF);
@@ -8335,42 +8864,64 @@ static bool initLvglUi() {
   lv_obj_set_pos(infoColRight, 20 + infoColW, infoColsY);
   lv_obj_set_style_bg_color(infoColRight, lv_color_hex(0x000000), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(infoColRight, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_color(infoColRight, kInfoAccentMagenta, LV_PART_MAIN);
-  lv_obj_set_style_border_opa(infoColRight, LV_OPA_60, LV_PART_MAIN);
-  lv_obj_set_style_border_width(infoColRight, 2, LV_PART_MAIN);
+  lv_obj_set_style_border_width(infoColRight, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(infoColRight, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(infoColRight, 6, LV_PART_MAIN);
+  lv_obj_set_style_radius(infoColRight, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_all(infoColRight, 0, LV_PART_MAIN);
   lv_obj_clear_flag(infoColRight, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(infoColRight, LV_SCROLLBAR_MODE_OFF);
 
+  // Thin 1px vertical divider between columns
+  lv_obj_t *infoColDiv = lv_obj_create(g_lvglInfoCard);
+  lv_obj_set_size(infoColDiv, 1, infoColsH);
+  lv_obj_set_pos(infoColDiv, 10 + infoColW + 4, infoColsY);
+  lv_obj_set_style_bg_color(infoColDiv, lv_color_hex(0x2A3040), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(infoColDiv, LV_OPA_60, LV_PART_MAIN);
+  lv_obj_set_style_border_width(infoColDiv, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(infoColDiv, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(infoColDiv, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(infoColDiv, LV_OBJ_FLAG_SCROLLABLE);
+
   g_lvglInfoBodyLeft = lv_label_create(infoColLeft);
   lv_obj_set_style_text_font(g_lvglInfoBodyLeft, lvglFontInfoBody(), 0);
   lv_obj_set_style_text_color(g_lvglInfoBodyLeft, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_line_space(g_lvglInfoBodyLeft, 0, 0);
+  lv_obj_set_style_text_line_space(g_lvglInfoBodyLeft, 1, 0);
   lv_label_set_recolor(g_lvglInfoBodyLeft, true);
   lv_label_set_long_mode(g_lvglInfoBodyLeft, LV_LABEL_LONG_WRAP);
   lv_obj_set_size(g_lvglInfoBodyLeft, infoColW - 10, infoColsH - 10);
   lv_obj_set_pos(g_lvglInfoBodyLeft, 5, 5);
   lv_obj_set_style_text_align(g_lvglInfoBodyLeft, LV_TEXT_ALIGN_LEFT, 0);
-  lv_label_set_text(g_lvglInfoBodyLeft, "[ net ]");
+  lv_label_set_text(g_lvglInfoBodyLeft, "...");
   lvglForceLabelVisible(g_lvglInfoBodyLeft);
 
+  // Right column: system text top, QR anchored to bottom via alignment
   g_lvglInfoBodyRight = lv_label_create(infoColRight);
   lv_obj_set_style_text_font(g_lvglInfoBodyRight, lvglFontInfoBody(), 0);
   lv_obj_set_style_text_color(g_lvglInfoBodyRight, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_line_space(g_lvglInfoBodyRight, 0, 0);
+  lv_obj_set_style_text_line_space(g_lvglInfoBodyRight, 1, 0);
   lv_label_set_recolor(g_lvglInfoBodyRight, true);
   lv_label_set_long_mode(g_lvglInfoBodyRight, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(g_lvglInfoBodyRight, infoColW - infoQrSize - (infoQrPad * 3), infoColsH - 10);
+  lv_obj_set_size(g_lvglInfoBodyRight, infoColW - 10, infoTextRightH);
   lv_obj_set_pos(g_lvglInfoBodyRight, 5, 5);
   lv_obj_set_style_text_align(g_lvglInfoBodyRight, LV_TEXT_ALIGN_LEFT, 0);
   lv_label_set_text(g_lvglInfoBodyRight, "[ system ]");
   lvglForceLabelVisible(g_lvglInfoBodyRight);
 
+  // Thin horizontal separator above QR area — anchored to bottom like the QR
+  lv_obj_t *infoQrDivider = lv_obj_create(infoColRight);
+  lv_obj_set_size(infoQrDivider, infoColW - 20, 1);
+  lv_obj_align(infoQrDivider, LV_ALIGN_BOTTOM_MID, 0, -(infoQrSize + infoQrPad * 2 + 2));
+  lv_obj_set_style_bg_color(infoQrDivider, lv_color_hex(0x2A3040), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(infoQrDivider, LV_OPA_60, LV_PART_MAIN);
+  lv_obj_set_style_border_width(infoQrDivider, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(infoQrDivider, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(infoQrDivider, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(infoQrDivider, LV_OBJ_FLAG_SCROLLABLE);
+
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
+  // QR: BOTTOM_MID alignment — always equidistant from bottom regardless of display height
   g_lvglInfoWebQr = lv_qrcode_create(infoColRight, infoQrSize, lv_color_hex(0xF6FBFF), lv_color_hex(0x0D173C));
-  lv_obj_set_pos(g_lvglInfoWebQr, infoColW - infoQrSize - infoQrPad, infoQrPad);
+  lv_obj_align(g_lvglInfoWebQr, LV_ALIGN_BOTTOM_MID, 0, -infoQrPad);
   lv_qrcode_update(g_lvglInfoWebQr, "http://--:8080", strlen("http://--:8080"));
 #endif
 
@@ -8531,7 +9082,7 @@ static bool initLvglUi() {
   const int16_t clockDateW = (clockWiFiStartX > 28) ? (clockWiFiStartX - 20) : (clockBlockW - 24);
   lv_obj_set_width(g_lvglClockDate, clockDateW);
   lv_obj_align(g_lvglClockDate, LV_ALIGN_LEFT_MID, 12, -1);
-  lv_label_set_text(g_lvglClockDate, "Data...");
+  lv_label_set_text(g_lvglClockDate, "...");
   lvglForceLabelVisible(g_lvglClockDate);
 
   g_lvglClockL1 = lv_label_create(g_lvglClockBlock);
@@ -8652,7 +9203,7 @@ static bool initLvglUi() {
   lv_obj_set_style_text_color(g_lvglHumidity, kWeatherTextDark, 0);
   lv_obj_set_width(g_lvglHumidity, weatherTopTextW);
   lv_obj_align(g_lvglHumidity, LV_ALIGN_TOP_LEFT, 12, 77);
-  lv_label_set_text(g_lvglHumidity, "Vento -- km/h");
+  lv_label_set_text(g_lvglHumidity, activeUiStrings()->windNa);
   lvglForceLabelVisible(g_lvglHumidity);
 
   g_lvglWind = lv_label_create(g_lvglWeatherBody);
@@ -8704,7 +9255,7 @@ static bool initLvglUi() {
   lv_obj_set_width(g_lvglForecastNow, weatherCardW - 65);
   lv_obj_set_pos(g_lvglForecastNow, 52, 6);
   lv_label_set_long_mode(g_lvglForecastNow, LV_LABEL_LONG_DOT);
-  lv_label_set_text(g_lvglForecastNow, "Tra 3h: --");
+  lv_label_set_text(g_lvglForecastNow, activeUiStrings()->forecastNa);
   lvglForceLabelVisible(g_lvglForecastNow);
 
   g_lvglForecastTomorrow = lv_label_create(g_lvglWeatherBody);
@@ -8910,7 +9461,7 @@ static bool initLvglUi() {
   lv_obj_set_size(g_lvglAuxNews, leftPaneW, newsH);
   lv_obj_set_pos(g_lvglAuxNews, leftPaneX, newsY);
   lv_obj_set_style_text_align(g_lvglAuxNews, LV_TEXT_ALIGN_LEFT, 0);
-  lv_label_set_text(g_lvglAuxNews, "RSS: in attesa del feed...");
+  lv_label_set_text(g_lvglAuxNews, activeUiStrings()->rssSyncing);
   lvglForceLabelVisible(g_lvglAuxNews);
 
   g_lvglAuxMeta = lv_label_create(g_lvglAuxHeader);
@@ -8948,7 +9499,7 @@ static bool initLvglUi() {
   g_lvglAuxQrHint = lv_label_create(g_lvglAuxQrOverlay);
   lv_obj_set_style_text_font(g_lvglAuxQrHint, lvglFontTiny(), 0);
   lv_obj_set_style_text_color(g_lvglAuxQrHint, lv_color_hex(0xEAF2FF), 0);
-  lv_label_set_text(g_lvglAuxQrHint, "Tocca per chiudere");
+  lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->touchToClose);
   lv_obj_align(g_lvglAuxQrHint, LV_ALIGN_BOTTOM_MID, 0, -8);
   lv_obj_add_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
 #endif
@@ -9163,7 +9714,7 @@ static bool initLvglUi() {
   lv_obj_set_width(g_lvglGptRecOverlayText, gptCardW - 30);
   lv_obj_align(g_lvglGptRecOverlayText, LV_ALIGN_CENTER, 0, 42);
   lv_obj_set_style_text_align(g_lvglGptRecOverlayText, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_text(g_lvglGptRecOverlayText, "Registrazione in corso...\nTocca per fermare.");
+  lv_label_set_text(g_lvglGptRecOverlayText, activeUiStrings()->gptRecording);
   lvglForceLabelVisible(g_lvglGptRecOverlayText);
 
 #if SCREENSAVER_ENABLED
@@ -9346,7 +9897,7 @@ static void updateLvglUi(bool force) {
   lvglForceLabelVisible(g_lvglClockL1);
   lv_label_set_text(g_lvglClockL2, "");
   lv_label_set_text(g_lvglClockL3, "");
-  formatDateIt(timeinfo, d1, sizeof(d1));
+  formatDateActive(timeinfo, d1, sizeof(d1));
   lv_label_set_text(g_lvglClockDate, d1);
   lvglForceLabelVisible(g_lvglClockDate);
 #if TEST_WIFI
@@ -9372,11 +9923,11 @@ static void updateLvglUi(bool force) {
       lv_label_set_text(g_lvglGlyph, weatherGlyphText(g_weather.weatherCode, g_weather.isDay));
       lvglForceLabelVisible(g_lvglGlyph);
     }
-    lv_label_set_text(g_lvglDesc, weatherCodeUiLabelIt(g_weather.weatherCode));
+    lv_label_set_text(g_lvglDesc, weatherCodeUiLabel(g_weather.weatherCode));
     lvglForceLabelVisible(g_lvglDesc);
 
     char wind[28];
-    snprintf(wind, sizeof(wind), "Vento %.0f km/h", g_weather.windKmh);
+    snprintf(wind, sizeof(wind), activeUiStrings()->windFmt, g_weather.windKmh);
     lv_label_set_text(g_lvglHumidity, wind);
     lvglForceLabelVisible(g_lvglHumidity);
 
@@ -9400,11 +9951,11 @@ static void updateLvglUi(bool force) {
 
     char forecast[64];
     if (fIdx == 1) {
-      snprintf(forecast, sizeof(forecast), "Tra 3h: %s", weatherCodeShortIt(fCode));
+      snprintf(forecast, sizeof(forecast), activeUiStrings()->forecast3h, weatherCodeShort(fCode));
     } else if (fIdx == 0) {
-      snprintf(forecast, sizeof(forecast), "Ora: %s", weatherCodeShortIt(fCode));
+      snprintf(forecast, sizeof(forecast), activeUiStrings()->forecastNow, weatherCodeShort(fCode));
     } else {
-      snprintf(forecast, sizeof(forecast), "Tra 3h: --");
+      snprintf(forecast, sizeof(forecast), "%s", activeUiStrings()->forecastNa);
     }
     lv_label_set_text(g_lvglForecastNow, forecast);
     lvglForceLabelVisible(g_lvglForecastNow);
@@ -9415,14 +9966,14 @@ static void updateLvglUi(bool force) {
   } else {
     lv_label_set_text(g_lvglTemp, "--\xC2\xB0, --%");
     lvglForceLabelVisible(g_lvglTemp);
-    lv_label_set_text(g_lvglDesc, "Meteo offline");
+    lv_label_set_text(g_lvglDesc, activeUiStrings()->weatherOffline);
     lvglForceLabelVisible(g_lvglDesc);
-    lv_label_set_text(g_lvglHumidity, "Vento -- km/h");
+    lv_label_set_text(g_lvglHumidity, activeUiStrings()->windNa);
     lvglForceLabelVisible(g_lvglHumidity);
     lv_label_set_text(g_lvglSun, "--:-- / --:--");
     lvglForceLabelVisible(g_lvglSun);
 
-    lv_label_set_text(g_lvglForecastNow, "Tra 3h: --");
+    lv_label_set_text(g_lvglForecastNow, activeUiStrings()->forecastNa);
     lvglForceLabelVisible(g_lvglForecastNow);
 
     const lv_img_dsc_t *iconDsc = weatherImageFromCode(2, true);
@@ -9451,13 +10002,13 @@ static void updateLvglUi(bool force) {
 #else
   lv_label_set_text(g_lvglTemp, "--\xC2\xB0, --%");
   lvglForceLabelVisible(g_lvglTemp);
-  lv_label_set_text(g_lvglDesc, "WiFi off");
+  lv_label_set_text(g_lvglDesc, activeUiStrings()->wifiOff);
   lvglForceLabelVisible(g_lvglDesc);
-  lv_label_set_text(g_lvglHumidity, "Vento -- km/h");
+  lv_label_set_text(g_lvglHumidity, activeUiStrings()->windNa);
   lvglForceLabelVisible(g_lvglHumidity);
   lv_label_set_text(g_lvglSun, "--:-- / --:--");
   lvglForceLabelVisible(g_lvglSun);
-  lv_label_set_text(g_lvglForecastNow, "Tra 3h: --");
+  lv_label_set_text(g_lvglForecastNow, activeUiStrings()->forecastNa);
   lvglForceLabelVisible(g_lvglForecastNow);
 
   const lv_img_dsc_t *iconDsc = weatherImageFromCode(2, true);

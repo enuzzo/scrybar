@@ -56,11 +56,26 @@ arduino-cli upload -p <PORT> \
 - `secrets.h.example` is versioned and must contain placeholders only.
 - `config.h` and docs must remain secret-free.
 
+## Firmware Versioning
+
+Two constants in `config.h` — **must be incremented on every firmware change before compile+upload**:
+
+```cpp
+#define FW_BUILD_TAG     "DB-M0-rNNN"   // bump r-number each release
+#define FW_RELEASE_DATE  "YYYY-MM-DD"   // today's date
+```
+
+Both values are visible:
+- **Web UI** — hero card top-right, under the logo (`version` + `last release`)
+- **Physical device** — INFO panel (`ScryBar Stats`), right column under `[ system ]`
+
+Use these to confirm a flash landed: serial monitor logs `[FW] Build=DB-M0-rNNN` at boot, and the web UI shows the new tag immediately after connecting.
+
 ## Current Product Behaviors (High Level)
 
 - Multi-SSID Wi-Fi fallback with non-blocking retry cycle.
 - Touch-driven page navigation (HOME/AUX/GPT/INFO views).
-- Weather + RSS + word clock integrated UX.
+- Weather + RSS + word clock integrated UX — full display UI localizable via `g_wordClockLang`.
 - Power/battery diagnostics visible in INFO panel.
 
 ## LVGL Configuration
