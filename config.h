@@ -139,6 +139,9 @@
 #define RSS_FAVICON_MAX_BYTES 8192
 #define RSS_FAVICON_RETRY_MS 300000UL
 
+// --- Word Clock ---
+#define WORD_CLOCK_LANG_DEFAULT "it"   // "it" | "tlh" | future codes
+
 // --- Local Web Config (foundation) ---
 // Lightweight HTTP server to configure weather/RSS at runtime from LAN.
 #define WEB_CONFIG_ENABLED 1

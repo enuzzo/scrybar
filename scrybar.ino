@@ -245,6 +245,7 @@ struct RuntimeNetConfig {
 };
 static RuntimeNetConfig g_runtimeNetConfig = {};
 static bool g_runtimeNetConfigNvsLoaded = false;
+static char g_wordClockLang[8] = WORD_CLOCK_LANG_DEFAULT;
 #if WEB_CONFIG_ENABLED
 static WebServer g_webConfigServer(WEB_CONFIG_PORT);
 static bool g_webConfigServerStarted = false;
@@ -1782,6 +1783,13 @@ static void loadRuntimeNetConfigFromNvs() {
       loadedAny = true;
     }
   }
+  if (prefs.isKey("wc_lang")) {
+    const String lang = prefs.getString("wc_lang", WORD_CLOCK_LANG_DEFAULT);
+    if (lang.length() > 0 && lang.length() < sizeof(g_wordClockLang)) {
+      strncpy(g_wordClockLang, lang.c_str(), sizeof(g_wordClockLang) - 1);
+      g_wordClockLang[sizeof(g_wordClockLang) - 1] = '\0';
+    }
+  }
   prefs.end();
 
   normalizeRuntimeRssFeeds(g_runtimeNetConfig);
@@ -1822,6 +1830,7 @@ static bool saveRuntimeNetConfigToNvs() {
     nFeedMax += prefs.putUChar(key, g_runtimeNetConfig.rssFeeds[i].maxItems);
   }
   const size_t n5 = prefs.putString("logo_url", g_runtimeNetConfig.logoUrl);
+  prefs.putString("wc_lang", g_wordClockLang);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
   Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u)\n",
@@ -1953,7 +1962,7 @@ static String buildWebConfigPage(const char *statusMsg) {
 
   String html;
   html.reserve(28000);
-  html += F("<!doctype html><html lang='it'><head><meta charset='utf-8'>");
+  html += F("<!doctype html><html lang='en'><head><meta charset='utf-8'>");
   html += F("<meta name='viewport' content='width=device-width,initial-scale=1'>");
   html += F("<title>ScryBar Control Surface</title>");
   html += F("<link rel='preconnect' href='https://fonts.googleapis.com'>");
@@ -1962,7 +1971,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css'>");
   html += F("<style>");
   // Tron-grid animated background; tuned to stay visible on mobile while keeping form readability.
-  html += F(":root{--bg-deepest:#070D2D;--bg-deep:#0B1437;--bg-surface:#111C44;--line:rgba(255,255,255,.11);--line-soft:rgba(255,255,255,.07);--txt:#FFFFFF;--txt2:#A3AED0;--txt3:#707EAE;--acc1:#7551FF;--acc2:#39B8FF;--okbg:rgba(1,181,116,.14)}");
+  html += F(":root{--bg-deepest:#070D2D;--bg-deep:#0B1437;--bg-surface:#111C44;--line:rgba(255,255,255,.11);--line-soft:rgba(255,255,255,.07);--txt:#FFFFFF;--txt2:#A3AED0;--txt3:#707EAE;--acc1:#7551FF;--acc2:#39B8FF;--okbg:rgba(1,181,116,.14);--radius:10px;--gap:1.5rem;--sec-bg:rgba(11,20,55,0.72);--border:rgba(57,184,255,0.18)}");
   html += F("*{box-sizing:border-box}html,body{margin:0}body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg-deepest);color:var(--txt);overflow-x:hidden}");
   html += F(".fx-grid{position:fixed;inset:0;z-index:0;overflow:hidden;perspective:600px;pointer-events:none}");
   html += F(".fx-grid__plane{position:absolute;bottom:-8vh;left:-35%;width:170%;height:62vh;transform:rotateX(62deg);transform-origin:center bottom;background-image:linear-gradient(rgba(117,81,255,0.20) 1px,transparent 1px),linear-gradient(90deg,rgba(57,184,255,0.18) 1px,transparent 1px);background-size:36px 36px;opacity:.95;animation:gridScroll 5s linear infinite;will-change:background-position}");
@@ -1974,7 +1983,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F(".fx-grid__vline:nth-child(6){left:50%;background:linear-gradient(to bottom,transparent,rgba(57,184,255,0.18),transparent);animation-delay:-1.8s}");
   html += F(".fx-grid__vline:nth-child(7){left:80%;background:linear-gradient(to bottom,transparent,rgba(117,81,255,0.20),transparent);animation-delay:-3.5s}");
   html += F(".fx-grid__vignette{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(7,13,45,0.54) 100%)}");
-  html += F("@keyframes gridScroll{0%{background-position:0 0}100%{background-position:0 36px}}@keyframes gridGlowPulse{0%,100%{opacity:0.78}50%{opacity:1}}@keyframes scanMove{0%,100%{transform:translateY(100vh);opacity:0}5%{opacity:1}95%{opacity:1}99%{transform:translateY(0);opacity:0}}@keyframes vlinePulse{0%,100%{opacity:0}50%{opacity:1}}");
+  html += F("@keyframes gridScroll{0%{background-position:0 0}100%{background-position:0 36px}}@keyframes gridGlowPulse{0%,100%{opacity:0.78}50%{opacity:1}}@keyframes scanMove{0%,100%{transform:translateY(100vh);opacity:0}5%{opacity:1}95%{opacity:1}99%{transform:translateY(0);opacity:0}}@keyframes vlinePulse{0%,100%{opacity:0}50%{opacity:1}}@keyframes savePulse{0%,100%{box-shadow:0 0 14px rgba(117,81,255,.32),0 0 0 0 rgba(57,184,255,0)}55%{box-shadow:0 0 28px rgba(117,81,255,.70),0 0 18px rgba(57,184,255,.38),0 0 0 4px rgba(57,184,255,.12)}}");
   html += F(".wrap{position:relative;z-index:1;max-width:1140px;margin:0 auto;padding:18px 14px 26px}.hero{background:transparent;border:0;border-radius:0;padding:0;margin-bottom:14px;backdrop-filter:none;-webkit-backdrop-filter:none}");
   html += F(".hero-top-card{border:1px solid rgba(117,81,255,.34);border-radius:14px;padding:12px;background:rgba(11,20,55,.30);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}.hero-left{min-width:290px;flex:1 1 560px}.logo{height:62px;display:block;object-fit:contain;filter:brightness(1.08)}");
   html += F(".hero-copy{margin-top:10px;border:1px solid rgba(57,184,255,.22);border-radius:14px;padding:12px;background:rgba(9,16,44,.36)}.lede{margin:0;color:#c5d2f4;font-size:13px;line-height:1.46;max-width:none}.hero-right{display:grid;gap:8px;justify-items:end}");
@@ -1989,9 +1998,11 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F(".key{font-size:11px;color:var(--txt3);font-weight:700;margin:0 0 4px;letter-spacing:.04em}");
   html += F("input{width:100%;padding:11px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(17,28,68,.76);color:var(--txt);outline:none;font:500 14px 'Montserrat',sans-serif;margin:0 0 9px}");
   html += F("input:focus{border-color:var(--acc2);box-shadow:0 0 0 2px rgba(57,184,255,.18)}");
+  html += F("select{width:100%;padding:11px 12px;border-radius:var(--radius);border:1px solid rgba(255,255,255,.16);background:rgba(17,28,68,.76);color:var(--txt);outline:none;font:500 14px 'Montserrat',sans-serif;margin:0 0 9px;cursor:pointer}select:focus{border-color:var(--acc2);box-shadow:0 0 0 2px var(--border)}");
+  html += F(".badge-soon{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:rgba(117,81,255,.22);color:#b8a8ff;font-size:10px;font-weight:700;vertical-align:middle;letter-spacing:.04em}");
   html += F(".hint{margin:4px 0 14px;color:var(--txt2);font-size:12px}.geo-status{margin:2px 0 8px;color:#9bb3ee;font-size:12px;min-height:16px}");
   html += F(".btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:11px;padding:11px 15px;font:700 13px 'Montserrat',sans-serif;cursor:pointer;transition:all .18s ease}");
-  html += F(".btn.primary{background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;box-shadow:0 0 18px rgba(117,81,255,.32)}.btn.ghost{background:#1A2558;color:#d9e4ff;border:1px solid rgba(255,255,255,.14)}.btn:hover{transform:translateY(-1px)}");
+  html += F(".btn.primary{background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;box-shadow:0 0 14px rgba(117,81,255,.32);animation:savePulse 2.6s ease-in-out infinite}.btn.ghost{background:#1A2558;color:#d9e4ff;border:1px solid rgba(255,255,255,.14)}.btn:hover{transform:translateY(-1px)}");
   html += F(".btn.sm{padding:8px 11px;border-radius:9px;font-size:12px}.btn.warn{background:rgba(117,81,255,.18);color:#decfff;border:1px solid rgba(117,81,255,.5)}");
   html += F(".btn.danger{background:rgba(238,93,80,.18);color:#ffccc7;border:1px solid rgba(238,93,80,.5)}");
   html += F(".rss-composer{display:grid;grid-template-columns:1fr 1.9fr .55fr auto auto;gap:10px;align-items:end;margin-top:4px}");
@@ -2000,7 +2011,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F(".rss-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rss-status{margin:6px 0 2px;color:#9bb3ee;font-size:12px;min-height:16px}.rss-empty{padding:12px;border:1px dashed rgba(255,255,255,.2);border-radius:12px;color:#8ea2cf;font-size:12px;background:rgba(10,18,50,.35)}.hidden{display:none}");
   html += F(".api-note{margin-top:12px;padding:8px 10px;border-radius:10px;background:rgba(57,184,255,.10);border:1px solid rgba(57,184,255,.28)}");
   html += F(".site-footer{margin-top:18px;padding:12px 2px 4px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#8fa4d2;line-height:1.5}.site-footer strong{color:#dbe7ff}.site-footer a{color:#9fd9ff;text-decoration:none}.site-footer a:hover{color:#c7ebff;text-decoration:underline}");
-  html += F("small{color:var(--txt2)}code{color:#d2ddff}@media(prefers-reduced-motion:reduce){.fx-grid *{animation-duration:0.01ms !important;transition-duration:0.01ms !important}}@media(max-width:980px){.grid2,.rss-composer{grid-template-columns:1fr}.fx-grid__plane{height:68vh;bottom:-4vh;background-size:32px 32px;opacity:1}.fx-grid__glow{height:66%;background:linear-gradient(to top,rgba(117,81,255,0.24) 0%,rgba(57,184,255,0.11) 45%,transparent 100%)}.fx-grid__horizon{bottom:58%}.hero-top{flex-wrap:nowrap;align-items:center}.hero-left{min-width:0;flex:1 1 auto}.logo{height:54px}.hero-right{justify-items:end;flex:0 0 auto}.release-box{width:auto}.hero-copy{padding:10px}}@media(max-width:420px){.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}}");
+  html += F("small{color:var(--txt2)}code{color:#d2ddff}@media(prefers-reduced-motion:reduce){.fx-grid *{animation-duration:0.01ms !important;transition-duration:0.01ms !important}}@media(max-width:980px){.grid2,.rss-composer{grid-template-columns:1fr}.fx-grid__plane{height:68vh;bottom:-4vh;background-size:32px 32px;opacity:1}.fx-grid__glow{height:66%;background:linear-gradient(to top,rgba(117,81,255,0.24) 0%,rgba(57,184,255,0.11) 45%,transparent 100%)}.fx-grid__horizon{bottom:58%}.hero-top{flex-wrap:nowrap;align-items:center}.hero-left{min-width:0;flex:1 1 auto}.logo{height:54px}.hero-right{justify-items:end;flex:0 0 auto}.release-box{width:auto}.hero-copy{padding:10px}}@media(max-width:420px){.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}}@media(max-width:480px){.btns{flex-direction:column}.btn.primary{width:100%;justify-content:center}}");
   html += F("</style></head><body><div class='fx-grid'><div class='fx-grid__plane'></div><div class='fx-grid__glow'></div><div class='fx-grid__horizon'></div><div class='fx-grid__scanline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vignette'></div></div><main class='wrap'>");
   html += F("<section class='hero'><div class='hero-top-card'><div class='hero-top'><div class='hero-left'><img class='logo' alt='Netmilk Studio' src='");
   appendHtmlEscaped(html, runtimeLogoUrl());
@@ -2016,7 +2027,34 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += F("</p>");
   }
   html += F("<form id='cfg_form' method='post' action='/config'>");
-  html += F("<div class='sec'><h2><i class='fa-solid fa-location-dot'></i>Meteo & Location</h2><div class='grid2'><div><div class='key'>PLACE SEARCH</div><input id='geo_query' type='search' list='geo_hits' placeholder='Cerca citta o luogo'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='key'>CITY LABEL</div><input id='weather_city' name='weather_city' maxlength='31' value='");
+  // Word Clock Language section
+  {
+    // Helper macro-style: emit one <option> with runtime selected check
+    struct { const char *code; const char *label; } kLangs[] = {
+      {"it",  "Italiano"},
+      {"en",  "English"},
+      {"fr",  "Fran\xC3\xA7" "ais"},
+      {"de",  "Deutsch"},
+      {"es",  "Espa\xC3\xB1" "ol"},
+      {"pt",  "Portugu\xC3\xAA" "s"},
+      {"la",  "Latina"},
+      {"eo",  "Esperanto"},
+      {"nap", "Napoletano"},
+      {"tlh", "tlhIngan Hol (Klingon)"},
+    };
+    html += F("<div class='sec'><h2><i class='fa-solid fa-language'></i>Word Clock Language</h2><div class='key'>LANGUAGE</div><select name='wc_lang'>");
+    for (unsigned i = 0; i < sizeof(kLangs)/sizeof(kLangs[0]); ++i) {
+      html += F("<option value='");
+      html += kLangs[i].code;
+      html += '\'';
+      if (strcmp(g_wordClockLang, kLangs[i].code) == 0) html += F(" selected");
+      html += '>';
+      html += kLangs[i].label;
+      html += F("</option>");
+    }
+    html += F("</select><p class='hint'><i class='fa-solid fa-circle-info'></i> Saved to NVS, persists across reboots. Klingon uses ASCII transliteration (pIqaD not covered by the device font).</p></div>");
+  }
+  html += F("<div class='sec'><h2><i class='fa-solid fa-location-dot'></i>Weather & Location</h2><div class='grid2'><div><div class='key'>PLACE SEARCH</div><input id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='key'>CITY LABEL</div><input id='weather_city' name='weather_city' maxlength='31' value='");
   appendHtmlEscaped(html, runtimeWeatherCityLabel());
   html += F("'></div><div class='grid2'><div><div class='key'>LATITUDE</div><input id='weather_lat' name='weather_lat' value='");
   appendHtmlEscaped(html, latBuf);
@@ -2025,18 +2063,19 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("'></div></div></div></div>");
   html += F("<div class='sec'><h2><i class='fa-solid fa-square-rss'></i>RSS Feed Builder <span id='rss_count_pill' class='pill'><i class='fa-solid fa-rss'></i> RSS feeds ");
   html += configuredFeeds;
-  html += F("/5</span></h2><p class='hint'>Un solo composer con nome, URL e max post. Premi + per aggiungere nella lista (max 5 feed).</p>");
+  html += F("/5</span></h2><p class='hint'>One composer for name, URL and max posts. Press + to add to the list (max 5 feeds).</p>");
   html += F("<div class='card'><div class='rss-composer'><div><div class='key'>FRIENDLY NAME</div><input id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='key'>FEED URL</div><input id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='key'>MAX POSTS</div><input id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='btn primary' type='button'><i class='fa-solid fa-circle-plus'></i>Add</button><button id='rss_reset' class='btn ghost' type='button'><i class='fa-solid fa-broom'></i>Reset</button></div><p id='rss_status' class='rss-status'></p></div>");
-  html += F("<div id='rss_list' class='rss-list'></div><p id='rss_empty' class='rss-empty'>Nessun feed configurato.</p><div id='rss_hidden_inputs' class='hidden'></div></div>");
+  html += F("<div id='rss_list' class='rss-list'></div><p id='rss_empty' class='rss-empty'>No feeds configured.</p><div id='rss_hidden_inputs' class='hidden'></div></div>");
   html += F("<div class='btns'><button class='btn primary' type='submit'><i class='fa-solid fa-floppy-disk'></i>Save Config</button><button class='btn ghost' type='submit' formaction='/reload' formmethod='post'><i class='fa-solid fa-rotate-right'></i>Force Weather + RSS Reload</button></div></form>");
   html += F("<p class='api-note'><small><i class='fa-solid fa-terminal'></i> API ready: <code>GET /api/config</code>, <code>POST /api/config</code>, <code>GET /api/audio/clip.wav</code>.</small></p>");
   html += F("<footer class='site-footer'><strong>A project by Netmilk Studio sagl</strong> | Copyright 2026<br>Open Source under the <a href='https://opensource.org/license/mit' target='_blank' rel='noopener noreferrer'>MIT License</a> | Feel free to steal, fork, remix, and ship. \xF0\x9F\x96\x96</footer>");
   html += F("<script>(function(){");
+  html += F("(function(){const t=document.querySelector('.msg.fixed-top');if(t){setTimeout(function(){t.style.transition='opacity .6s';t.style.opacity='0';setTimeout(function(){t.style.display='none';},650);},4200);}})();");
   html += F("const q=document.getElementById('geo_query');const dl=document.getElementById('geo_hits');const st=document.getElementById('geo_status');const city=document.getElementById('weather_city');const lat=document.getElementById('weather_lat');const lon=document.getElementById('weather_lon');");
   html += F("if(!q||!dl||!city||!lat||!lon)return;let t=0;let map={};function setStatus(msg){if(st)st.textContent=msg||'';}function clearHits(){dl.innerHTML='';map={};}");
-  html += F("function applyPick(key){const r=map[key];if(!r)return false;city.value=r.name||city.value;lat.value=Number(r.latitude).toFixed(4);lon.value=Number(r.longitude).toFixed(4);setStatus('Coordinate compilate automaticamente.');return true;}");
+  html += F("function applyPick(key){const r=map[key];if(!r)return false;city.value=r.name||city.value;lat.value=Number(r.latitude).toFixed(4);lon.value=Number(r.longitude).toFixed(4);setStatus('Coordinates filled in automatically.');return true;}");
   html += F("q.addEventListener('change',function(){applyPick(q.value);});q.addEventListener('blur',function(){applyPick(q.value);});");
-  html += F("q.addEventListener('input',function(){const term=q.value.trim();if(term.length<2){clearHits();setStatus('');return;}clearTimeout(t);t=setTimeout(async function(){try{setStatus('Cerco localita...');const u='https://geocoding-api.open-meteo.com/v1/search?count=6&language=it&format=json&name='+encodeURIComponent(term);const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);const data=await r.json();const rows=(data&&data.results)?data.results:[];clearHits();if(!rows.length){setStatus('Nessun risultato.');return;}rows.forEach(function(it){const label=[it.name,it.admin1,it.country].filter(Boolean).join(', ');const opt=document.createElement('option');opt.value=label;opt.label=(Number(it.latitude).toFixed(4)+', '+Number(it.longitude).toFixed(4));dl.appendChild(opt);map[label]=it;});setStatus('Seleziona un risultato per compilare city/lat/lon.');if(rows.length===1){const one=[rows[0].name,rows[0].admin1,rows[0].country].filter(Boolean).join(', ');q.value=one;applyPick(one);}}catch(e){clearHits();setStatus('Ricerca non disponibile al momento.');}} ,280);});");
+  html += F("q.addEventListener('input',function(){const term=q.value.trim();if(term.length<2){clearHits();setStatus('');return;}clearTimeout(t);t=setTimeout(async function(){try{setStatus('Searching...');const u='https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name='+encodeURIComponent(term);const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);const data=await r.json();const rows=(data&&data.results)?data.results:[];clearHits();if(!rows.length){setStatus('No results found.');return;}rows.forEach(function(it){const label=[it.name,it.admin1,it.country].filter(Boolean).join(', ');const opt=document.createElement('option');opt.value=label;opt.label=(Number(it.latitude).toFixed(4)+', '+Number(it.longitude).toFixed(4));dl.appendChild(opt);map[label]=it;});setStatus('Select a result to fill city / lat / lon.');if(rows.length===1){const one=[rows[0].name,rows[0].admin1,rows[0].country].filter(Boolean).join(', ');q.value=one;applyPick(one);}}catch(e){clearHits();setStatus('Search unavailable, try again later.');}} ,280);});");
   html += F("const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');");
   html += F("const maxSlots=5;const minPosts=1;const maxPosts=8;let editIndex=-1;");
   html += F("const initialFeeds=[");
@@ -2056,10 +2095,10 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("function clampPosts(n){n=parseInt(n,10);if(isNaN(n))n=maxPosts;if(n<minPosts)n=minPosts;if(n>maxPosts)n=maxPosts;return n;}function startsHttp(v){return /^https?:\\/\\//i.test((v||'').trim());}");
   html += F("function defName(i){return 'Feed '+(i+1);}function setRssStatus(m){if(rssStatus)rssStatus.textContent=m||'';}");
   html += F("function clearComposer(){editIndex=-1;rssName.value='';rssUrl.value='';rssMax.value='8';rssAdd.innerHTML=\"<i class='fa-solid fa-circle-plus'></i>Add\";setRssStatus('');}");
-  html += F("function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML=\"<i class='fa-solid fa-rss'></i> RSS feeds \"+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.innerHTML=\"<i class='fa-solid fa-signal'></i>\";t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='btn sm warn';bEdit.innerHTML=\"<i class='fa-solid fa-pen-to-square'></i>Edit\";bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.innerHTML=\"<i class='fa-solid fa-floppy-disk'></i>Update\";setRssStatus('Modifica feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='btn sm danger';bDel.innerHTML=\"<i class='fa-solid fa-trash-can'></i>Delete\";bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed rimosso.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}");
-  html += F("function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Inserisci URL feed.');return;}if(!startsHttp(url)){setRssStatus('URL deve iniziare con http:// o https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed aggiornato.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Limite massimo: 5 feed.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed aggiunto.');}");
+  html += F("function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML=\"<i class='fa-solid fa-rss'></i> RSS feeds \"+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.innerHTML=\"<i class='fa-solid fa-signal'></i>\";t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='btn sm warn';bEdit.innerHTML=\"<i class='fa-solid fa-pen-to-square'></i>Edit\";bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.innerHTML=\"<i class='fa-solid fa-floppy-disk'></i>Update\";setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='btn sm danger';bDel.innerHTML=\"<i class='fa-solid fa-trash-can'></i>Delete\";bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}");
+  html += F("function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}");
   html += F("function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}");
-  html += F("if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer ripulito.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();});renderFeeds();");
+  html += F("if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();});renderFeeds();");
   html += F("})();</script>");
   html += F("</section></main></body></html>");
   return html;
@@ -2109,6 +2148,8 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   }
   out += F("]},\"branding\":{\"logo_url\":\"");
   appendJsonEscaped(out, runtimeLogoUrl());
+  out += F("\"},\"word_clock\":{\"lang\":\"");
+  out += g_wordClockLang;
   out += F("\"}}");
   g_webConfigServer.send(code, "application/json", out);
 }
@@ -2246,6 +2287,18 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     copyStringSafe(next.logoUrl, sizeof(next.logoUrl), logo.c_str());
   }
 
+  if (g_webConfigServer.hasArg("wc_lang")) {
+    hasInput = true;
+    const String lang = g_webConfigServer.arg("wc_lang");
+    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "nap", nullptr};
+    bool valid = false;
+    for (int i = 0; kAllowed[i]; i++) { if (lang == kAllowed[i]) { valid = true; break; } }
+    if (valid) {
+      strncpy(g_wordClockLang, lang.c_str(), sizeof(g_wordClockLang) - 1);
+      g_wordClockLang[sizeof(g_wordClockLang) - 1] = '\0';
+    }
+  }
+
   if (!hasInput) {
     errorOut = "nessun parametro";
     return false;
@@ -2296,9 +2349,9 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
 }
 
 static const char *statusMessageFromCode(const String &status) {
-  if (status == "saved") return "Configurazione aggiornata e salvata su NVS.";
-  if (status == "reloaded") return "Reload Meteo/RSS completato.";
-  if (status == "invalid") return "Richiesta non valida: controlla i campi.";
+  if (status == "saved") return "Configuration saved to NVS.";
+  if (status == "reloaded") return "Weather / RSS reload complete.";
+  if (status == "invalid") return "Invalid request: please check the fields.";
   return "";
 }
 
@@ -6641,6 +6694,334 @@ static void composeWordClockSentenceIt(const tm &timeinfo, char *out, size_t out
   }
 }
 
+// --- Klingon (tlhIngan Hol) word clock ---
+// Uses ASCII transliteration; pIqaD has no coverage in Montserrat 38.
+// Format: "DaH [hour] rep [minutes] tup"  e.g. "DaH wej rep wa'maH vagh tup" = 3:15
+
+static const char* wordHourTlh(int h12) {
+  switch (h12) {
+    case 1:  return "wa'";
+    case 2:  return "cha'";
+    case 3:  return "wej";
+    case 4:  return "loS";
+    case 5:  return "vagh";
+    case 6:  return "jav";
+    case 7:  return "Soch";
+    case 8:  return "chorgh";
+    case 9:  return "Hut";
+    case 10: return "wa'maH";
+    case 11: return "wa'maH wa'";
+    default: return "cha'maH";
+  }
+}
+
+static const char* wordMinuteTlh(int m5) {
+  switch (m5) {
+    case 0:  return "";
+    case 5:  return "vagh";
+    case 10: return "wa'maH";
+    case 15: return "wa'maH vagh";
+    case 20: return "cha'maH";
+    case 25: return "cha'maH vagh";
+    case 30: return "wejmaH";
+    case 35: return "wejmaH vagh";
+    case 40: return "loSmaH";
+    case 45: return "loSmaH vagh";
+    case 50: return "vaghmaH";
+    default: return "vaghmaH vagh";
+  }
+}
+
+static void composeWordClockSentenceTlh(const tm &timeinfo, char *out, size_t outLen) {
+  int h12 = timeinfo.tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
+  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
+  const char* minStr = wordMinuteTlh(m5);
+  if (m5 == 0) {
+    snprintf(out, outLen, "DaH %s rep", wordHourTlh(h12));
+  } else {
+    snprintf(out, outLen, "DaH %s rep %s tup", wordHourTlh(h12), minStr);
+  }
+}
+
+// --- English (EN) ---
+
+static const char* wordHourEn(int h12) {
+  switch (h12) {
+    case 1:  return "one";
+    case 2:  return "two";
+    case 3:  return "three";
+    case 4:  return "four";
+    case 5:  return "five";
+    case 6:  return "six";
+    case 7:  return "seven";
+    case 8:  return "eight";
+    case 9:  return "nine";
+    case 10: return "ten";
+    case 11: return "eleven";
+    default: return "twelve";
+  }
+}
+
+static void composeWordClockSentenceEn(const tm &timeinfo, char *out, size_t outLen) {
+  int h12 = timeinfo.tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
+  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
+  if (m5 == 0)       snprintf(out, outLen, "It's %s o'clock", wordHourEn(h12));
+  else if (m5 == 15) snprintf(out, outLen, "It's quarter past %s", wordHourEn(h12));
+  else if (m5 == 30) snprintf(out, outLen, "It's half past %s", wordHourEn(h12));
+  else if (m5 == 45) { int nh = (h12 % 12) + 1; snprintf(out, outLen, "It's quarter to %s", wordHourEn(nh)); }
+  else if (m5 < 30)  snprintf(out, outLen, "It's %d past %s", m5, wordHourEn(h12));
+  else               { int nh = (h12 % 12) + 1; snprintf(out, outLen, "It's %d to %s", 60 - m5, wordHourEn(nh)); }
+}
+
+// --- Français (FR) ---
+
+static const char* wordHourFr(int h12) {
+  switch (h12) {
+    case 1:  return "une";
+    case 2:  return "deux";
+    case 3:  return "trois";
+    case 4:  return "quatre";
+    case 5:  return "cinq";
+    case 6:  return "six";
+    case 7:  return "sept";
+    case 8:  return "huit";
+    case 9:  return "neuf";
+    case 10: return "dix";
+    case 11: return "onze";
+    default: return "douze";
+  }
+}
+
+static void composeWordClockSentenceFr(const tm &timeinfo, char *out, size_t outLen) {
+  int h12 = timeinfo.tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
+  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
+  if (m5 == 0)       snprintf(out, outLen, "Il est %s heure%s", wordHourFr(h12), h12 == 1 ? "" : "s");
+  else if (m5 == 15) snprintf(out, outLen, "Il est %s heure%s et quart", wordHourFr(h12), h12 == 1 ? "" : "s");
+  else if (m5 == 30) snprintf(out, outLen, "Il est %s heure%s et demie", wordHourFr(h12), h12 == 1 ? "" : "s");
+  else if (m5 == 45) { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Il est %s heure%s moins le quart", wordHourFr(nh), nh == 1 ? "" : "s"); }
+  else if (m5 < 30)  snprintf(out, outLen, "Il est %s heure%s %d", wordHourFr(h12), h12 == 1 ? "" : "s", m5);
+  else               { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Il est %s heure%s moins %d", wordHourFr(nh), nh == 1 ? "" : "s", 60 - m5); }
+}
+
+// --- Deutsch (DE) — native halb style ---
+
+static const char* wordHourDe(int h12) {
+  switch (h12) {
+    case 1:  return "ein";
+    case 2:  return "zwei";
+    case 3:  return "drei";
+    case 4:  return "vier";
+    case 5:  return "f\xC3\xBC" "nf";
+    case 6:  return "sechs";
+    case 7:  return "sieben";
+    case 8:  return "acht";
+    case 9:  return "neun";
+    case 10: return "zehn";
+    case 11: return "elf";
+    default: return "zw\xC3\xB6" "lf";
+  }
+}
+
+static void composeWordClockSentenceDe(const tm &timeinfo, char *out, size_t outLen) {
+  int h12 = timeinfo.tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
+  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
+  int nh = (h12 % 12) + 1;  // next hour for "vor" and "halb"
+  if (m5 == 0)       snprintf(out, outLen, "Es ist %s Uhr", wordHourDe(h12));
+  else if (m5 == 15) snprintf(out, outLen, "Es ist Viertel nach %s", wordHourDe(h12));
+  else if (m5 == 30) snprintf(out, outLen, "Es ist halb %s", wordHourDe(nh));
+  else if (m5 == 45) snprintf(out, outLen, "Es ist Viertel vor %s", wordHourDe(nh));
+  else if (m5 == 20) snprintf(out, outLen, "Es ist zwanzig nach %s", wordHourDe(h12));
+  else if (m5 == 40) snprintf(out, outLen, "Es ist zwanzig vor %s", wordHourDe(nh));
+  else if (m5 < 30)  snprintf(out, outLen, "Es ist %d nach %s", m5, wordHourDe(h12));
+  else               snprintf(out, outLen, "Es ist %d vor %s", 60 - m5, wordHourDe(nh));
+}
+
+// --- Español (ES) ---
+
+static const char* wordHourEs(int h12) {
+  switch (h12) {
+    case 1:  return "la una";
+    case 2:  return "las dos";
+    case 3:  return "las tres";
+    case 4:  return "las cuatro";
+    case 5:  return "las cinco";
+    case 6:  return "las seis";
+    case 7:  return "las siete";
+    case 8:  return "las ocho";
+    case 9:  return "las nueve";
+    case 10: return "las diez";
+    case 11: return "las once";
+    default: return "las doce";
+  }
+}
+
+static void composeWordClockSentenceEs(const tm &timeinfo, char *out, size_t outLen) {
+  int h12 = timeinfo.tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
+  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
+  if (m5 == 0)       snprintf(out, outLen, "Son %s en punto", wordHourEs(h12));
+  else if (m5 == 15) snprintf(out, outLen, "Son %s y cuarto", wordHourEs(h12));
+  else if (m5 == 30) snprintf(out, outLen, "Son %s y media", wordHourEs(h12));
+  else if (m5 == 45) { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Son %s menos cuarto", wordHourEs(nh)); }
+  else if (m5 < 30)  snprintf(out, outLen, "Son %s y %d", wordHourEs(h12), m5);
+  else               { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Son %s menos %d", wordHourEs(nh), 60 - m5); }
+}
+
+// --- Português (PT) ---
+
+static const char* wordHourPt(int h12) {
+  switch (h12) {
+    case 1:  return "uma";
+    case 2:  return "duas";
+    case 3:  return "tr\xC3\xAA" "s";
+    case 4:  return "quatro";
+    case 5:  return "cinco";
+    case 6:  return "seis";
+    case 7:  return "sete";
+    case 8:  return "oito";
+    case 9:  return "nove";
+    case 10: return "dez";
+    case 11: return "onze";
+    default: return "doze";
+  }
+}
+
+static void composeWordClockSentencePt(const tm &timeinfo, char *out, size_t outLen) {
+  int h12 = timeinfo.tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
+  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
+  const char* verb = (h12 == 1) ? "\xC3\x89" : "S\xC3\xA3o";
+  if (m5 == 0)       snprintf(out, outLen, "%s %s", verb, wordHourPt(h12));
+  else if (m5 == 15) snprintf(out, outLen, "%s %s e um quarto", verb, wordHourPt(h12));
+  else if (m5 == 30) snprintf(out, outLen, "%s %s e meia", verb, wordHourPt(h12));
+  else if (m5 == 45) { int nh = (h12 % 12) + 1; const char* v2 = (nh == 1) ? "\xC3\x89" : "S\xC3\xA3o"; snprintf(out, outLen, "%s %s menos um quarto", v2, wordHourPt(nh)); }
+  else if (m5 < 30)  snprintf(out, outLen, "%s %s e %d", verb, wordHourPt(h12), m5);
+  else               { int nh = (h12 % 12) + 1; const char* v2 = (nh == 1) ? "\xC3\x89" : "S\xC3\xA3o"; snprintf(out, outLen, "%s %s menos %d", v2, wordHourPt(nh), 60 - m5); }
+}
+
+// --- Latina (LA) — hora romana classica ---
+// Frazioni: quadrans = 1/4, semis = 1/2, dodrante = 3/4 (= minus quadrans)
+
+static const char* wordHourLa(int h12) {
+  switch (h12) {
+    case 1:  return "prima";
+    case 2:  return "secunda";
+    case 3:  return "tertia";
+    case 4:  return "quarta";
+    case 5:  return "quinta";
+    case 6:  return "sexta";
+    case 7:  return "septima";
+    case 8:  return "octava";
+    case 9:  return "nona";
+    case 10: return "decima";
+    case 11: return "undecima";
+    default: return "duodecima";
+  }
+}
+
+static void composeWordClockSentenceLa(const tm &timeinfo, char *out, size_t outLen) {
+  int h12 = timeinfo.tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
+  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
+  int nh = (h12 % 12) + 1;
+  if (m5 == 0)       snprintf(out, outLen, "hora %s est", wordHourLa(h12));
+  else if (m5 == 15) snprintf(out, outLen, "hora %s et quadrans", wordHourLa(h12));
+  else if (m5 == 30) snprintf(out, outLen, "hora %s et semis", wordHourLa(h12));
+  else if (m5 == 45) snprintf(out, outLen, "hora %s minus quadrans", wordHourLa(nh));
+  else if (m5 < 30)  snprintf(out, outLen, "hora %s et %d minuta", wordHourLa(h12), m5);
+  else               snprintf(out, outLen, "hora %s minus %d minuta", wordHourLa(nh), 60 - m5);
+}
+
+// --- Esperanto (EO) ---
+
+static const char* wordHourEo(int h12) {
+  switch (h12) {
+    case 1:  return "unu";
+    case 2:  return "du";
+    case 3:  return "tri";
+    case 4:  return "kvar";
+    case 5:  return "kvin";
+    case 6:  return "ses";
+    case 7:  return "sep";
+    case 8:  return "ok";
+    case 9:  return "na\xC5\xAD";
+    case 10: return "dek";
+    case 11: return "dek unu";
+    default: return "dek du";
+  }
+}
+
+static void composeWordClockSentenceEo(const tm &timeinfo, char *out, size_t outLen) {
+  int h12 = timeinfo.tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
+  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
+  if (m5 == 0)       snprintf(out, outLen, "Estas la %s horo", wordHourEo(h12));
+  else if (m5 == 15) snprintf(out, outLen, "Estas kvarono post la %s", wordHourEo(h12));
+  else if (m5 == 30) snprintf(out, outLen, "Estas duono post la %s", wordHourEo(h12));
+  else if (m5 == 45) { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Estas kvarono al la %s", wordHourEo(nh)); }
+  else if (m5 < 30)  snprintf(out, outLen, "Estas %d minutoj post la %s", m5, wordHourEo(h12));
+  else               { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Estas %d minutoj al la %s", 60 - m5, wordHourEo(nh)); }
+}
+
+// --- Napoletano (NAP) — best-effort ---
+
+static const char* wordHourNap(int h12) {
+  switch (h12) {
+    case 1:  return "l'una";
+    case 2:  return "'e ddoje";
+    case 3:  return "'e tre";
+    case 4:  return "'e quatto";
+    case 5:  return "'e cinche";
+    case 6:  return "'e sei";
+    case 7:  return "'e sette";
+    case 8:  return "'e otto";
+    case 9:  return "'e nove";
+    case 10: return "'e diece";
+    case 11: return "'e undice";
+    default: return "'e ddodice";
+  }
+}
+
+static void composeWordClockSentenceNap(const tm &timeinfo, char *out, size_t outLen) {
+  int h12 = timeinfo.tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
+  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
+  if (m5 == 0)       snprintf(out, outLen, "So' %s", wordHourNap(h12));
+  else if (m5 == 15) snprintf(out, outLen, "So' %s e nu quarto", wordHourNap(h12));
+  else if (m5 == 30) snprintf(out, outLen, "So' %s e mmeza", wordHourNap(h12));
+  else if (m5 == 45) { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Mancano nu quarto a %s", wordHourNap(nh)); }
+  else if (m5 < 30)  snprintf(out, outLen, "So' %s e %d", wordHourNap(h12), m5);
+  else               { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Mancano %d minuti a %s", 60 - m5, wordHourNap(nh)); }
+}
+
+// --- Language dispatcher ---
+
+static void composeWordClockSentenceActive(const tm &timeinfo, char *out, size_t outLen) {
+  if      (strcmp(g_wordClockLang, "tlh") == 0) composeWordClockSentenceTlh(timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "en")  == 0) composeWordClockSentenceEn (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "fr")  == 0) composeWordClockSentenceFr (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "de")  == 0) composeWordClockSentenceDe (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "es")  == 0) composeWordClockSentenceEs (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "pt")  == 0) composeWordClockSentencePt (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "la")  == 0) composeWordClockSentenceLa (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "eo")  == 0) composeWordClockSentenceEo (timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "nap") == 0) composeWordClockSentenceNap(timeinfo, out, outLen);
+  else                                           composeWordClockSentenceIt (timeinfo, out, outLen);
+}
+
 static void drawWordClockInRect(int16_t ox, int16_t oy, int16_t ow, int16_t oh, const tm &timeinfo) {
   fillRectCanvas(ox, oy, ow, oh, DB_COLOR_BLACK);
   char l1[20], l2[20], l3[28];
@@ -8956,7 +9337,7 @@ static void updateLvglUi(bool force) {
   }
 
   char sentence[96], d1[48];
-  composeWordClockSentenceIt(timeinfo, sentence, sizeof(sentence));
+  composeWordClockSentenceActive(timeinfo, sentence, sizeof(sentence));
   if (sentence[0] >= 'a' && sentence[0] <= 'z') {
     sentence[0] = (char)toupper((unsigned char)sentence[0]);
   }
