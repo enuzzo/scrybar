@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
 > A mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture.
-> It tells time in Italian like it's poetry, checks weather you could learn by opening a window,
+> It tells time in Italian (and soon more languages too, let's start with Klingon. No, really.) like it's poetry, checks weather you could learn by opening a window,
 > scrolls news you've already read, and answers spoken questions like a pocket deity with latency and trust issues.
 > All of this on an ESP32 that didn't ask for this life.
 
@@ -71,8 +71,8 @@ Four views, navigated by swipe. Left or right, like flipping pages. There is no 
 ```
           swipe right          swipe left           swipe left
   ┌──────────────────────────────────────────────────────────────┐
-  │   INFO   ◄── HOME (clock+weather) ──► AUX (RSS) ──► GPT    │
-  │ (tech)        (default boot)          (headlines)  (oracle) │
+  │   INFO   ◄── HOME (clock+weather) ──► AUX (RSS) ──► GPT      │
+  │ (tech)        (default boot)          (headlines)  (oracle)  │
   └──────────────────────────────────────────────────────────────┘
 ```
 
