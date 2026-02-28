@@ -34,6 +34,8 @@ Use placeholders:
 - `<DEVICE_IP>`
 - `<WIFI_SSID>`
 - `<API_KEY>`
+- `<USERNAME>`
+- `<SERIAL_PORT>`
 
 ## Writing Rules
 
