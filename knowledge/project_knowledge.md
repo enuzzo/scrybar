@@ -4,7 +4,7 @@ Stable technical context for all AI assistants.
 
 ## Repository Layout
 
-- `ScryBar.ino`: main firmware sketch in repository root.
+- `scrybar.ino`: main firmware sketch in repository root.
 - `assets/`, `src/`, `tools/`: firmware resources, drivers, and utilities.
 - `lvgl_validation/`: isolated validation sketch for touch/UI experiments.
 - `knowledge/`: shared, sanitized cross-assistant knowledge (public, versioned).
@@ -12,7 +12,7 @@ Stable technical context for all AI assistants.
 
 ## Core Stack
 
-- Firmware: Arduino sketch (`ScryBar.ino`)
+- Firmware: Arduino sketch (`scrybar.ino`)
 - MCU: ESP32-S3
 - Display/touch target: Waveshare ESP32-S3-Touch-LCD-3.49
 - LVGL path available for UI validation and production features.

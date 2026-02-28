@@ -13,7 +13,7 @@ Minimal firmware sketch for incremental smoke testing on Waveshare ESP32-S3-Touc
    - `GFX Library for Arduino` (Library Manager)
    - `SensorLib` (for QMI8658 IMU tests)
 5. Open:
-   - `ScryBar.ino`
+   - `scrybar.ino`
 6. Configure `Tools`:
    - `Board`: `ESP32S3 Dev Module`
    - `Port`: board USB serial port

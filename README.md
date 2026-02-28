@@ -35,7 +35,7 @@ Built to be shared, remixed, and improved in public.
 
 ## Project Structure
 
-- `ScryBar.ino`: main firmware sketch (Arduino root sketch)
+- `scrybar.ino`: main firmware sketch (Arduino root sketch)
 - `assets/`, `src/`, `tools/`: firmware resources, drivers, utilities
 - `lvgl_validation/`: isolated validation sketch for UI/touch experiments
 - `firmware_readme.md`: firmware setup/flash notes
