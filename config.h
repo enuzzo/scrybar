@@ -28,7 +28,7 @@
 #define AUDIO_SAMPLE_RATE 24000
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "DB-M0-r136"
+#define FW_BUILD_TAG "DB-M0-r138"
 #define FW_RELEASE_DATE "2026-02-28"
 
 // --- M0.2 Backlight test config ---

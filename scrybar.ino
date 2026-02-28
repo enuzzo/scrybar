@@ -2068,6 +2068,64 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("<div class='card'><div class='rss-composer'><div><div class='key'>FRIENDLY NAME</div><input id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='key'>FEED URL</div><input id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='key'>MAX POSTS</div><input id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='btn primary' type='button'><i class='fa-solid fa-circle-plus'></i>Add</button><button id='rss_reset' class='btn ghost' type='button'><i class='fa-solid fa-broom'></i>Reset</button></div><p id='rss_status' class='rss-status'></p></div>");
   html += F("<div id='rss_list' class='rss-list'></div><p id='rss_empty' class='rss-empty'>No feeds configured.</p><div id='rss_hidden_inputs' class='hidden'></div></div>");
   html += F("<div class='btns'><button class='btn primary' type='submit'><i class='fa-solid fa-floppy-disk'></i>Save Config</button><button class='btn ghost' type='submit' formaction='/reload' formmethod='post'><i class='fa-solid fa-rotate-right'></i>Force Weather + RSS Reload</button></div></form>");
+  // System Info section — built at request time from live globals
+  {
+    char siBuf[48];
+    html += F("<div class='sec'><h2><i class='fa-solid fa-microchip'></i>System Info</h2><div class='grid2'>");
+    // Network card
+    html += F("<div class='card'><div class='key'>NETWORK</div>");
+#if TEST_WIFI
+    {
+      const bool wOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
+      html += F("<small>ip: </small><code>");
+      html += wOk ? WiFi.localIP().toString() : "--";
+      html += F("</code><br><small>ssid: </small><code>");
+      if (wOk) {
+        appendHtmlEscaped(html, WiFi.SSID().c_str());
+      } else {
+        html += F("--");
+      }
+      html += F("</code><br><small>rssi: </small><code>");
+      if (wOk) { snprintf(siBuf, sizeof(siBuf), "%d dBm", WiFi.RSSI()); html += siBuf; }
+      else { html += F("--"); }
+      html += F("</code><br><small>mac: </small><code>");
+      html += wOk ? WiFi.macAddress() : "--";
+      html += F("</code><br><small>dns: </small><code>");
+      if (wOk) {
+        html += WiFi.dnsIP(0).toString();
+        html += F(" / ");
+        html += WiFi.dnsIP(1).toString();
+      } else { html += F("--"); }
+      html += F("</code>");
+    }
+#else
+    html += F("<code>wifi disabled</code>");
+#endif
+    html += F("</div>");
+    // Firmware / runtime card
+    html += F("<div class='card'><div class='key'>FIRMWARE &amp; RUNTIME</div>");
+    html += F("<small>fw: </small><code>"); appendHtmlEscaped(html, FW_BUILD_TAG); html += F("</code><br>");
+    html += F("<small>date: </small><code>"); appendHtmlEscaped(html, FW_RELEASE_DATE); html += F("</code><br>");
+    html += F("<small>lang: </small><code>"); appendHtmlEscaped(html, g_wordClockLang); html += F("</code><br>");
+    snprintf(siBuf, sizeof(siBuf), "%lus", (unsigned long)(millis() / 1000UL));
+    html += F("<small>uptime: </small><code>"); html += siBuf; html += F("</code><br>");
+#if TEST_NTP
+    html += F("<small>ntp: </small><code>"); html += g_ntpSynced ? "SYNCED" : "WAIT"; html += F("</code><br>");
+#endif
+    snprintf(siBuf, sizeof(siBuf), "%u KB", (unsigned)(ESP.getFreeHeap() / 1024));
+    html += F("<small>free heap: </small><code>"); html += siBuf; html += F("</code>");
+#if TEST_BATTERY
+    html += F("<br><small>battery: </small><code>");
+    if (g_battHasSample) {
+      snprintf(siBuf, sizeof(siBuf), "%d%%", g_battPercent);
+      html += siBuf;
+      if (g_battChargingLikely) html += F(" +CHG");
+    } else { html += F("N/A"); }
+    html += F("</code>");
+#endif
+    html += F("</div>");
+    html += F("</div></div>");
+  }
   html += F("<p class='api-note'><small><i class='fa-solid fa-terminal'></i> API ready: <code>GET /api/config</code>, <code>POST /api/config</code>, <code>GET /api/audio/clip.wav</code>.</small></p>");
   html += F("<footer class='site-footer'><strong>A project by Netmilk Studio sagl</strong> | Copyright 2026<br>Open Source under the <a href='https://opensource.org/license/mit' target='_blank' rel='noopener noreferrer'>MIT License</a> | Feel free to steal, fork, remix, and ship. \xF0\x9F\x96\x96</footer>");
   html += F("<script>(function(){");
@@ -8453,9 +8511,6 @@ static void lvglUpdateInfoPanel(bool force) {
   if (!g_lvglInfoTitle || !g_lvglInfoEndpoint || !g_lvglInfoBodyLeft || !g_lvglInfoBodyRight) return;
 
   char ipBuf[32] = "--";
-  char dns1Buf[20] = "--";
-  char dns2Buf[20] = "--";
-  char dnsCompactBuf[44] = "--";
   char macBuf[20] = "--";
   char wifiBuf[48] = "OFFLINE";
   char ssidBuf[40] = "--";
@@ -8471,8 +8526,6 @@ static void lvglUpdateInfoPanel(bool force) {
   snprintf(wifiBuf, sizeof(wifiBuf), "%s", wlStatusToStr(st));
   if (wifiOk) {
     snprintf(ipBuf, sizeof(ipBuf), "%s", WiFi.localIP().toString().c_str());
-    snprintf(dns1Buf, sizeof(dns1Buf), "%s", WiFi.dnsIP(0).toString().c_str());
-    snprintf(dns2Buf, sizeof(dns2Buf), "%s", WiFi.dnsIP(1).toString().c_str());
     snprintf(macBuf, sizeof(macBuf), "%s", WiFi.macAddress().c_str());
     snprintf(wifiBuf, sizeof(wifiBuf), "OK %ddBm", WiFi.RSSI());
     copyStringSafe(ssidBuf, sizeof(ssidBuf), WiFi.SSID().c_str());
@@ -8509,8 +8562,6 @@ static void lvglUpdateInfoPanel(bool force) {
   snprintf(battVizBuf, sizeof(battVizBuf), "OFF");
 #endif
 
-  snprintf(dnsCompactBuf, sizeof(dnsCompactBuf), "%s-%s", dns1Buf, dns2Buf);
-
   char ntpBuf[16] = "OFF";
 #if TEST_NTP
   snprintf(ntpBuf, sizeof(ntpBuf), "%s", g_ntpSynced ? "SYNCED" : "WAIT");
@@ -8525,29 +8576,16 @@ static void lvglUpdateInfoPanel(bool force) {
            "bat: %s\n"
            "pwr: %s\n"
            "src: %s\n"
-           "dns: %s\n"
-           "mac: %s",
+           "mac: %s\n"
+           "fw: %s\n"
+           "ntp: %s",
            wifiBuf,
            ssidBuf,
            battVizBuf,
            pwrBuf,
            pwrSourceBuf,
-           dnsCompactBuf,
-           macBuf);
-
-  char rightCol[640];
-  snprintf(rightCol, sizeof(rightCol),
-           "[ #FF5CCF system# ]\n"
-           "\n"
-           "fw: %s\n"
-           "date: %s\n"
-           "lang: %s\n"
-           "uptime: %lus\n"
-           "ntp: %s",
+           macBuf,
            FW_BUILD_TAG,
-           FW_RELEASE_DATE,
-           g_wordClockLang,
-           (unsigned long)(millis() / 1000UL),
            ntpBuf);
 
   char infoTitleBuf[48];
@@ -8555,7 +8593,6 @@ static void lvglUpdateInfoPanel(bool force) {
   lv_label_set_text(g_lvglInfoTitle, infoTitleBuf);
   lv_label_set_text(g_lvglInfoEndpoint, endpointBuf);
   lv_label_set_text(g_lvglInfoBodyLeft, leftCol);
-  lv_label_set_text(g_lvglInfoBodyRight, rightCol);
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   if (g_lvglInfoWebQr) {
     if (strncmp(g_lvglInfoLastQrPayload, webUrlBuf, sizeof(g_lvglInfoLastQrPayload) - 1) != 0) {
@@ -8568,7 +8605,6 @@ static void lvglUpdateInfoPanel(bool force) {
   lvglForceLabelVisible(g_lvglInfoTitle);
   lvglForceLabelVisible(g_lvglInfoEndpoint);
   lvglForceLabelVisible(g_lvglInfoBodyLeft);
-  lvglForceLabelVisible(g_lvglInfoBodyRight);
 }
 
 static void lvglUpdateGptPanel(bool force) {
@@ -8840,16 +8876,15 @@ static bool initLvglUi() {
 
   const int16_t infoColsY = infoHeaderH + 4;
   const int16_t infoColsH = cH - infoColsY - 4;
-  const int16_t infoColW = (cW - 30) / 2;
-  const int16_t infoQrPad = 12;
-  // QR: adaptive — at most 130 px, but never more than half the column height
-  const int16_t infoQrSize = ((infoColsH / 2) < 130) ? (infoColsH / 2) : 130;
-  const int16_t infoQrAreaH = infoQrSize + infoQrPad * 2;
-  const int16_t infoTextRightH = infoColsH - infoQrAreaH - 8;
+  const int16_t infoQrPad = 5;
+  // QR: fill the right column height, maximising the code size
+  const int16_t infoQrSize = infoColsH - infoQrPad * 2;
+  const int16_t infoQrAreaW = infoQrSize + infoQrPad * 2;
+  const int16_t infoTextColW = cW - infoQrAreaW - 16;
 
   lv_obj_t *infoColLeft = lv_obj_create(g_lvglInfoCard);
-  lv_obj_set_size(infoColLeft, infoColW, infoColsH);
-  lv_obj_set_pos(infoColLeft, 10, infoColsY);
+  lv_obj_set_size(infoColLeft, infoTextColW, infoColsH);
+  lv_obj_set_pos(infoColLeft, 8, infoColsY);
   lv_obj_set_style_bg_color(infoColLeft, lv_color_hex(0x000000), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(infoColLeft, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(infoColLeft, 0, LV_PART_MAIN);
@@ -8860,8 +8895,8 @@ static bool initLvglUi() {
   lv_obj_set_scrollbar_mode(infoColLeft, LV_SCROLLBAR_MODE_OFF);
 
   lv_obj_t *infoColRight = lv_obj_create(g_lvglInfoCard);
-  lv_obj_set_size(infoColRight, infoColW, infoColsH);
-  lv_obj_set_pos(infoColRight, 20 + infoColW, infoColsY);
+  lv_obj_set_size(infoColRight, infoQrAreaW, infoColsH);
+  lv_obj_set_pos(infoColRight, cW - infoQrAreaW - 8, infoColsY);
   lv_obj_set_style_bg_color(infoColRight, lv_color_hex(0x000000), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(infoColRight, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(infoColRight, 0, LV_PART_MAIN);
@@ -8871,57 +8906,27 @@ static bool initLvglUi() {
   lv_obj_clear_flag(infoColRight, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(infoColRight, LV_SCROLLBAR_MODE_OFF);
 
-  // Thin 1px vertical divider between columns
-  lv_obj_t *infoColDiv = lv_obj_create(g_lvglInfoCard);
-  lv_obj_set_size(infoColDiv, 1, infoColsH);
-  lv_obj_set_pos(infoColDiv, 10 + infoColW + 4, infoColsY);
-  lv_obj_set_style_bg_color(infoColDiv, lv_color_hex(0x2A3040), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(infoColDiv, LV_OPA_60, LV_PART_MAIN);
-  lv_obj_set_style_border_width(infoColDiv, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(infoColDiv, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(infoColDiv, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(infoColDiv, LV_OBJ_FLAG_SCROLLABLE);
-
   g_lvglInfoBodyLeft = lv_label_create(infoColLeft);
   lv_obj_set_style_text_font(g_lvglInfoBodyLeft, lvglFontInfoBody(), 0);
   lv_obj_set_style_text_color(g_lvglInfoBodyLeft, lv_color_hex(0xFFFFFF), 0);
   lv_obj_set_style_text_line_space(g_lvglInfoBodyLeft, 1, 0);
   lv_label_set_recolor(g_lvglInfoBodyLeft, true);
   lv_label_set_long_mode(g_lvglInfoBodyLeft, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(g_lvglInfoBodyLeft, infoColW - 10, infoColsH - 10);
-  lv_obj_set_pos(g_lvglInfoBodyLeft, 5, 5);
+  lv_obj_set_size(g_lvglInfoBodyLeft, infoTextColW - 8, infoColsH - 8);
+  lv_obj_set_pos(g_lvglInfoBodyLeft, 4, 4);
   lv_obj_set_style_text_align(g_lvglInfoBodyLeft, LV_TEXT_ALIGN_LEFT, 0);
   lv_label_set_text(g_lvglInfoBodyLeft, "...");
   lvglForceLabelVisible(g_lvglInfoBodyLeft);
 
-  // Right column: system text top, QR anchored to bottom via alignment
+  // Right column is QR-only; keep the body label as a hidden placeholder
   g_lvglInfoBodyRight = lv_label_create(infoColRight);
-  lv_obj_set_style_text_font(g_lvglInfoBodyRight, lvglFontInfoBody(), 0);
-  lv_obj_set_style_text_color(g_lvglInfoBodyRight, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_line_space(g_lvglInfoBodyRight, 1, 0);
-  lv_label_set_recolor(g_lvglInfoBodyRight, true);
-  lv_label_set_long_mode(g_lvglInfoBodyRight, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(g_lvglInfoBodyRight, infoColW - 10, infoTextRightH);
-  lv_obj_set_pos(g_lvglInfoBodyRight, 5, 5);
-  lv_obj_set_style_text_align(g_lvglInfoBodyRight, LV_TEXT_ALIGN_LEFT, 0);
-  lv_label_set_text(g_lvglInfoBodyRight, "[ system ]");
-  lvglForceLabelVisible(g_lvglInfoBodyRight);
-
-  // Thin horizontal separator above QR area — anchored to bottom like the QR
-  lv_obj_t *infoQrDivider = lv_obj_create(infoColRight);
-  lv_obj_set_size(infoQrDivider, infoColW - 20, 1);
-  lv_obj_align(infoQrDivider, LV_ALIGN_BOTTOM_MID, 0, -(infoQrSize + infoQrPad * 2 + 2));
-  lv_obj_set_style_bg_color(infoQrDivider, lv_color_hex(0x2A3040), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(infoQrDivider, LV_OPA_60, LV_PART_MAIN);
-  lv_obj_set_style_border_width(infoQrDivider, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(infoQrDivider, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(infoQrDivider, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(infoQrDivider, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(g_lvglInfoBodyRight, LV_OBJ_FLAG_HIDDEN);
+  lv_label_set_text(g_lvglInfoBodyRight, "");
 
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
-  // QR: BOTTOM_MID alignment — always equidistant from bottom regardless of display height
-  g_lvglInfoWebQr = lv_qrcode_create(infoColRight, infoQrSize, lv_color_hex(0xF6FBFF), lv_color_hex(0x0D173C));
-  lv_obj_align(g_lvglInfoWebQr, LV_ALIGN_BOTTOM_MID, 0, -infoQrPad);
+  // QR: centred in the right column
+  g_lvglInfoWebQr = lv_qrcode_create(infoColRight, infoQrSize, lv_color_hex(0xF6FBFF), lv_color_hex(0x000000));
+  lv_obj_align(g_lvglInfoWebQr, LV_ALIGN_CENTER, 0, 0);
   lv_qrcode_update(g_lvglInfoWebQr, "http://--:8080", strlen("http://--:8080"));
 #endif
 
