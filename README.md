@@ -3,15 +3,15 @@
 [![Arduino](https://img.shields.io/badge/Arduino-Firmware-00979D?style=for-the-badge&logo=arduino&logoColor=white)](https://arduino.cc/)
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
-[![Views](https://img.shields.io/badge/Views-4_swipeable-3B82F6?style=for-the-badge)](#views)
+[![Views](https://img.shields.io/badge/Views-3_swipeable-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
 > A mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture.
 > It tells time in Italian (and soon more languages too, let's start with Klingon. No, really.) like it's poetry, checks weather you could learn by opening a window,
-> scrolls news you've already read, and answers spoken questions like a pocket deity with latency and trust issues.
+> and scrolls news you've already read.
 > All of this on an ESP32 that didn't ask for this life.
 
-**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, four swipeable views, and a word clock that composes real Italian sentences — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
+**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, three swipeable views, and a word clock that composes real Italian sentences — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
 
 The name comes from *scrying*: the practice of seeing what matters from afar. That is what ScryBar does from your desk.
 
@@ -28,7 +28,7 @@ Then you add a display because a blinking LED isn't really telling you anything.
 
 By the time you stop, you've built something that tells time in Italian like it's dictating verse, shows a weather summary with an icon, scrolls headlines from three feeds in rotation, and opens a web config UI on your LAN when you can't find the USB cable.
 
-We gave it four swipeable views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there. But reflashing firmware at 2 AM because a glyph is three pixels off and literally nobody will ever notice is not a hobby — it's a clinical condition. ScryBar exists so the rest of your devices don't have to suffer.
+We gave it three swipeable views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there. But reflashing firmware at 2 AM because a glyph is three pixels off and literally nobody will ever notice is not a hobby — it's a clinical condition. ScryBar exists so the rest of your devices don't have to suffer.
 
 ---
 
@@ -60,27 +60,25 @@ We gave it four swipeable views, a QR code generator, and an existential purpose
 | **Touch** | AXS15231B integrated | Single-point touch. Carefully filtered for ghost frames and sentinel coordinates. |
 | **Power** | USB-C + optional LiPo | Charging and battery fallback managed via TCA9554 GPIO expander. Always re-asserted at boot. |
 
-The physical profile: a horizontal bar that sits flat on your desk. Wide enough to hold four views of information. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
+The physical profile: a horizontal bar that sits flat on your desk. Wide enough to hold three views of information. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
 
 ---
 
 ## Views
 
-Four views, navigated by swipe. Left or right, like flipping pages. There is no tap-to-navigate because tapping is for widgets.
+Three views, navigated by swipe. Left or right, like flipping pages. There is no tap-to-navigate because tapping is for widgets.
 
 ```
-          swipe right          swipe left           swipe left
-  ┌──────────────────────────────────────────────────────────────┐
-  │   INFO   ◄── HOME (clock+weather) ──► AUX (RSS) ──► GPT      │
-  │ (tech)        (default boot)          (headlines)  (oracle)  │
-  └──────────────────────────────────────────────────────────────┘
+          swipe right          swipe left
+  ┌────────────────────────────────────────────────┐
+  │   INFO   ◄── HOME (clock+weather) ──► AUX (RSS) │
+  │ (tech)        (default boot)          (headlines) │
+  └────────────────────────────────────────────────┘
 ```
 
 **HOME** — Word clock in natural Italian sentence form (`composeWordClockSentenceIt`) plus weather icon, temperature, and humidity. The clock renders with `Montserrat 38` because that is the size where it stops being a "clock" and starts being a statement.
 
 **AUX** — RSS rotation. Up to 5 configurable feeds. Each headline cycles with source name and a QR code that deep-links to the article. You won't scan it most of the time. It is there when you want it.
-
-**GPT** — Reserved. The slot is held for an oracle experience. Currently it waits. Oracles take their time.
 
 **INFO** — Diagnostics panel. Wi-Fi state, SSID, IP, DNS, MAC, power mode (`CHARGING/BATTERY`), and battery percentage. Placed before HOME in the swipe order — left of boot — like an iPhone widget page you only visit when something feels wrong.
 
@@ -205,7 +203,6 @@ Commands sent over Serial at 115200 baud.
 | `VIEW0` / `VIEWINFO` | Force INFO page |
 | `VIEW1` / `VIEWHOME` | Force HOME page |
 | `VIEW2` / `VIEWAUX` | Force AUX page |
-| `VIEW3` / `VIEWGPT` | Force GPT page |
 | `BATSTAT` | Print battery status |
 | `SAVERON` | Force screensaver on |
 | `PWROFFHARD` | Hard power-off — **requires a hardware power cycle to recover. Not mapped to the physical button by design.** |
@@ -262,7 +259,6 @@ If you fork ScryBar, make it yours:
 - swap feeds and weather locations,
 - redesign views or add new ones,
 - replace the word clock language — the function is `composeWordClockSentenceIt` and the `It` is a hint,
-- add voice or oracle experiences to the GPT slot,
 - publish your variant and share improvements back.
 
 Small screen. Wide horizon.

@@ -67,14 +67,14 @@ Two constants in `config.h` — **must be incremented on every firmware change b
 
 Both values are visible:
 - **Web UI** — hero card top-right, under the logo (`version` + `last release`)
-- **Physical device** — INFO panel (`ScryBar Stats`), right column under `[ system ]`
+- **Physical device** — INFO panel (`ScryBar Stats`), left column `fw:` row
 
 Use these to confirm a flash landed: serial monitor logs `[FW] Build=DB-M0-rNNN` at boot, and the web UI shows the new tag immediately after connecting.
 
 ## Current Product Behaviors (High Level)
 
 - Multi-SSID Wi-Fi fallback with non-blocking retry cycle.
-- Touch-driven page navigation (HOME/AUX/GPT/INFO views).
+- Touch-driven page navigation (INFO/HOME/AUX views, 3 pages).
 - Weather + RSS + word clock integrated UX — full display UI localizable via `g_wordClockLang`.
 - Power/battery diagnostics visible in INFO panel.
 
