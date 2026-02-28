@@ -11,8 +11,6 @@
 #define TEST_WIFI 1
 #define TEST_NTP 1
 #define TEST_BATTERY 1
-#define TEST_AUDIO 1
-
 // Global runtime config
 #define SERIAL_BAUDRATE 115200
 #define HEARTBEAT_INTERVAL_MS 5000
@@ -24,11 +22,9 @@
 #define SCREENSAVER_IDLE_USB_MS 10800000UL
 #define SCREENSAVER_IDLE_BATTERY_MS 5400000UL
 #define SCREENSAVER_STEP_MS 55UL
-#define AUDIO_RECORD_SECONDS 20
-#define AUDIO_SAMPLE_RATE 24000
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "DB-M0-r138"
+#define FW_BUILD_TAG "DB-M0-r139"
 #define FW_RELEASE_DATE "2026-02-28"
 
 // --- M0.2 Backlight test config ---

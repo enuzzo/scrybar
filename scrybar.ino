@@ -33,14 +33,6 @@
 #include <Preferences.h>
 #endif
 
-#if TEST_AUDIO
-extern "C" {
-#include "src/audio/codec_board/codec_board.h"
-#include "src/audio/codec_board/codec_init.h"
-#include "src/audio/codec_board/drv/tca9554.h"
-}
-#endif
-
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
 #include <lvgl.h>
 #if __has_include("assets/weather_icons_min/generated/weather_icons_lvgl_min.h")
@@ -144,40 +136,6 @@ extern "C" {
 #ifndef RSS_FAVICON_RETRY_MS
 #define RSS_FAVICON_RETRY_MS 300000UL
 #endif
-#ifndef OPENAI_ENDPOINT_CHAT
-#define OPENAI_ENDPOINT_CHAT "https://api.openai.com/v1/chat/completions"
-#endif
-#ifndef OPENAI_ENDPOINT_TTS
-#define OPENAI_ENDPOINT_TTS "https://api.openai.com/v1/audio/speech"
-#endif
-#ifndef OPENAI_ENDPOINT_STT
-#define OPENAI_ENDPOINT_STT "https://api.openai.com/v1/audio/transcriptions"
-#endif
-#ifndef OPENAI_MODEL
-#define OPENAI_MODEL "gpt-5.1"
-#endif
-#ifndef OPENAI_TTS_MODEL
-#define OPENAI_TTS_MODEL "gpt-4o-mini-tts"
-#endif
-#ifndef OPENAI_STT_MODEL
-#define OPENAI_STT_MODEL "gpt-4o-transcribe"
-#endif
-#ifndef OPENAI_TTS_VOICE
-#define OPENAI_TTS_VOICE "nova"
-#endif
-#ifndef OPENAI_TTS_INSTRUCTIONS
-#define OPENAI_TTS_INSTRUCTIONS "Parla in italiano naturale, dizione chiara. Leggi i numeri in italiano."
-#endif
-#ifndef OPENAI_TTS_MAX_CHARS
-#define OPENAI_TTS_MAX_CHARS 420
-#endif
-#ifndef OPENAI_CONNECT_TIMEOUT_MS
-#define OPENAI_CONNECT_TIMEOUT_MS 15000
-#endif
-#ifndef OPENAI_HTTP_TIMEOUT_MS
-#define OPENAI_HTTP_TIMEOUT_MS 20000
-#endif
-
 static TwoWire I2C_MAIN(0);
 static TwoWire I2C_ALT(1);
 static bool g_backlightReady = false;
@@ -256,16 +214,6 @@ static bool g_webConfigRoutesRegistered = false;
 static bool updateRssFromFeed(bool force);
 static bool updateWeatherFromApi(bool force);
 static void formatCityLabel(const char *src, char *out, size_t outLen);
-static bool runGptSayFlow(const String &prompt, const char *originTag);
-#if TEST_AUDIO
-static void audioSetStatus(const char *msg);
-static bool initAudioFeature();
-static bool triggerAudioPlay();
-static void audioSetOutputVolumePercent(uint8_t percent, bool persist);
-static bool triggerAudioRecordStop();
-static bool openAiTranscribeAudioClip(String &outText, int &httpCode, String &errOut);
-static bool triggerGptMicPipeline();
-#endif
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
 static void markUserInteraction(uint32_t nowMs);
 static void lvglSetScreenSaverActive(bool on);
@@ -356,35 +304,9 @@ enum UiPageMode : uint8_t {
   UI_PAGE_INFO = 0,
   UI_PAGE_HOME = 1,
   UI_PAGE_AUX = 2,
-  UI_PAGE_GPT = 3,
 };
 static UiPageMode g_uiPageMode = UI_PAGE_HOME;
 static bool g_uiNeedsRedraw = true;
-static char g_gptPanelStatus[32] = "IDLE";
-static char g_gptPanelText[1400] = "No probe yet. Use serial command GPTTEST.";
-static char g_gptLastQuestion[360] = "No prompt yet";
-static uint32_t g_gptLastProbeMs = 0;
-static int g_gptLastProbeHttp = 0;
-#if TEST_AUDIO
-static esp_codec_dev_handle_t g_audioPlayback = nullptr;
-static esp_codec_dev_handle_t g_audioRecord = nullptr;
-static uint8_t *g_audioPcmBuf = nullptr;
-static size_t g_audioPcmBytes = 0;
-static size_t g_audioClipValidBytes = 0;
-static bool g_audioReady = false;
-static bool g_audioAmpEnabled = false;
-static bool g_audioHasClip = false;
-static bool g_audioBusy = false;
-static bool g_audioRecording = false;
-static bool g_audioPlaying = false;
-static uint32_t g_audioOpStartMs = 0;
-static char g_audioStatusLine[96] = "audio: not initialized";
-static uint8_t g_audioOutVolPercent = 88;
-static bool g_audioVolLoadedFromNvs = false;
-static volatile bool g_audioRecordStopRequested = false;
-static volatile bool g_gptMicPipelineRunning = false;
-static volatile bool g_gptMicPipelinePending = false;
-#endif
 #endif
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
@@ -460,26 +382,6 @@ static lv_obj_t *g_lvglAuxQr = nullptr;
 static int16_t g_lvglAuxLastItemShown = -1;
 static char g_lvglAuxLastQrPayload[280] = {0};
 static bool g_lvglAuxQrModalOpen = false;
-static lv_obj_t *g_lvglGptRoot = nullptr;
-static lv_obj_t *g_lvglGptCard = nullptr;
-static lv_obj_t *g_lvglGptHeader = nullptr;
-static lv_obj_t *g_lvglGptTitle = nullptr;
-static lv_obj_t *g_lvglGptStatus = nullptr;
-static lv_obj_t *g_lvglGptBody = nullptr;
-static lv_obj_t *g_lvglGptAskBtn = nullptr;
-static lv_obj_t *g_lvglGptAskBtnText = nullptr;
-static lv_obj_t *g_lvglGptRecBtn = nullptr;
-static lv_obj_t *g_lvglGptRecBtnText = nullptr;
-static lv_obj_t *g_lvglGptPlayBtn = nullptr;
-static lv_obj_t *g_lvglGptPlayBtnText = nullptr;
-static lv_obj_t *g_lvglGptVolTrack = nullptr;
-static lv_obj_t *g_lvglGptVolFill = nullptr;
-static lv_obj_t *g_lvglGptVolLabel = nullptr;
-static lv_obj_t *g_lvglGptRecOverlay = nullptr;
-static lv_obj_t *g_lvglGptRecOverlayIcon = nullptr;
-static lv_obj_t *g_lvglGptRecOverlayDot = nullptr;
-static lv_obj_t *g_lvglGptRecOverlayText = nullptr;
-static bool g_lvglGptRecOverlayOpen = false;
 static lv_img_dsc_t g_rssFaviconDsc[RSS_FAVICON_CACHE_SIZE];
 static uint8_t g_rssFaviconPreloadIndex = 0;
 static uint32_t g_rssFaviconPreloadLastMs = 0;
@@ -538,10 +440,6 @@ enum TouchAuxButton : uint8_t {
   TOUCH_AUX_BTN_QR = 1,
   TOUCH_AUX_BTN_REFRESH = 2,
   TOUCH_AUX_BTN_NEXT = 3,
-  TOUCH_AUX_BTN_GPT_ASK = 4,
-  TOUCH_AUX_BTN_GPT_REC = 5,
-  TOUCH_AUX_BTN_GPT_PLAY = 6,
-  TOUCH_AUX_BTN_GPT_VOL = 7,
 };
 static TouchAuxButton g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
 static uint32_t g_lastSwipeToggleMs = 0;
@@ -2053,7 +1951,7 @@ static String buildWebConfigPage(const char *statusMsg) {
       html += kLangs[i].label;
       html += F("</option>");
     }
-    html += F("</select><p class='hint'><i class='fa-solid fa-circle-info'></i> Controls the language of the entire display UI: word clock, weather labels, RSS status, GPT overlay and touch hints. Saved to NVS, persists across reboots. Klingon uses ASCII transliteration (pIqaD not covered by the device font).</p></div>");
+    html += F("</select><p class='hint'><i class='fa-solid fa-circle-info'></i> Controls the language of the entire display UI: word clock, weather labels, RSS status and touch hints. Saved to NVS, persists across reboots. Klingon uses ASCII transliteration (pIqaD not covered by the device font).</p></div>");
   }
   html += F("<div class='sec'><h2><i class='fa-solid fa-location-dot'></i>Weather & Location</h2><div class='grid2'><div><div class='key'>PLACE SEARCH</div><input id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='key'>CITY LABEL</div><input id='weather_city' name='weather_city' maxlength='31' value='");
   appendHtmlEscaped(html, runtimeWeatherCityLabel());
@@ -2126,7 +2024,7 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += F("</div>");
     html += F("</div></div>");
   }
-  html += F("<p class='api-note'><small><i class='fa-solid fa-terminal'></i> API ready: <code>GET /api/config</code>, <code>POST /api/config</code>, <code>GET /api/audio/clip.wav</code>.</small></p>");
+  html += F("<p class='api-note'><small><i class='fa-solid fa-terminal'></i> API ready: <code>GET /api/config</code>, <code>POST /api/config</code>.</small></p>");
   html += F("<footer class='site-footer'><strong>A project by Netmilk Studio sagl</strong> | Copyright 2026<br>Open Source under the <a href='https://opensource.org/license/mit' target='_blank' rel='noopener noreferrer'>MIT License</a> | Feel free to steal, fork, remix, and ship. \xF0\x9F\x96\x96</footer>");
   html += F("<script>(function(){");
   html += F("(function(){const t=document.querySelector('.msg.fixed-top');if(t){setTimeout(function(){t.style.transition='opacity .6s';t.style.opacity='0';setTimeout(function(){t.style.display='none';},650);},4200);}})();");
@@ -2490,87 +2388,6 @@ static void handleWebReloadApi() {
   sendWebConfigJson((wOk || rOk) ? 200 : 503, (wOk || rOk), msg.c_str());
 }
 
-static void buildWavHeader(uint8_t *hdr,
-                           uint32_t dataBytes,
-                           uint32_t sampleRate,
-                           uint16_t channels,
-                           uint16_t bitsPerSample) {
-  if (!hdr) return;
-  const uint32_t byteRate = sampleRate * (uint32_t)channels * (uint32_t)bitsPerSample / 8U;
-  const uint16_t blockAlign = (uint16_t)(channels * (bitsPerSample / 8U));
-  const uint32_t riffSize = 36U + dataBytes;
-  memcpy(hdr + 0, "RIFF", 4);
-  hdr[4] = (uint8_t)(riffSize & 0xFF);
-  hdr[5] = (uint8_t)((riffSize >> 8) & 0xFF);
-  hdr[6] = (uint8_t)((riffSize >> 16) & 0xFF);
-  hdr[7] = (uint8_t)((riffSize >> 24) & 0xFF);
-  memcpy(hdr + 8, "WAVE", 4);
-  memcpy(hdr + 12, "fmt ", 4);
-  hdr[16] = 16;
-  hdr[17] = 0;
-  hdr[18] = 0;
-  hdr[19] = 0;
-  hdr[20] = 1;
-  hdr[21] = 0;
-  hdr[22] = (uint8_t)(channels & 0xFF);
-  hdr[23] = (uint8_t)((channels >> 8) & 0xFF);
-  hdr[24] = (uint8_t)(sampleRate & 0xFF);
-  hdr[25] = (uint8_t)((sampleRate >> 8) & 0xFF);
-  hdr[26] = (uint8_t)((sampleRate >> 16) & 0xFF);
-  hdr[27] = (uint8_t)((sampleRate >> 24) & 0xFF);
-  hdr[28] = (uint8_t)(byteRate & 0xFF);
-  hdr[29] = (uint8_t)((byteRate >> 8) & 0xFF);
-  hdr[30] = (uint8_t)((byteRate >> 16) & 0xFF);
-  hdr[31] = (uint8_t)((byteRate >> 24) & 0xFF);
-  hdr[32] = (uint8_t)(blockAlign & 0xFF);
-  hdr[33] = (uint8_t)((blockAlign >> 8) & 0xFF);
-  hdr[34] = (uint8_t)(bitsPerSample & 0xFF);
-  hdr[35] = (uint8_t)((bitsPerSample >> 8) & 0xFF);
-  memcpy(hdr + 36, "data", 4);
-  hdr[40] = (uint8_t)(dataBytes & 0xFF);
-  hdr[41] = (uint8_t)((dataBytes >> 8) & 0xFF);
-  hdr[42] = (uint8_t)((dataBytes >> 16) & 0xFF);
-  hdr[43] = (uint8_t)((dataBytes >> 24) & 0xFF);
-}
-
-static void handleWebAudioClipWav() {
-#if TEST_AUDIO
-  if (!g_audioReady || !g_audioPcmBuf || g_audioPcmBytes == 0U) {
-    g_webConfigServer.send(503, "application/json", "{\"ok\":false,\"error\":\"audio_not_ready\"}");
-    return;
-  }
-  if (g_audioBusy) {
-    g_webConfigServer.send(429, "application/json", "{\"ok\":false,\"error\":\"audio_busy\"}");
-    return;
-  }
-  if (!g_audioHasClip) {
-    g_webConfigServer.send(409, "application/json", "{\"ok\":false,\"error\":\"audio_no_clip\"}");
-    return;
-  }
-  const size_t clipBytes = (g_audioClipValidBytes > 0U && g_audioClipValidBytes <= g_audioPcmBytes)
-                               ? g_audioClipValidBytes
-                               : g_audioPcmBytes;
-
-  uint8_t wavHdr[44];
-  buildWavHeader(wavHdr, (uint32_t)clipBytes, (uint32_t)AUDIO_SAMPLE_RATE, 2, 16);
-
-  g_webConfigServer.sendHeader("Cache-Control", "no-store");
-  g_webConfigServer.sendHeader("Content-Disposition", "attachment; filename=\"scrybar_clip.wav\"");
-  g_webConfigServer.setContentLength((size_t)44 + clipBytes);
-  g_webConfigServer.send(200, "audio/wav", "");
-
-  WiFiClient client = g_webConfigServer.client();
-  const size_t h = client.write(wavHdr, sizeof(wavHdr));
-  const size_t b = client.write(g_audioPcmBuf, clipBytes);
-  Serial.printf("[AUDIO] wav dump bytes=%u/%u hdr=%u\n",
-                (unsigned)b,
-                (unsigned)clipBytes,
-                (unsigned)h);
-#else
-  g_webConfigServer.send(501, "application/json", "{\"ok\":false,\"error\":\"audio_disabled\"}");
-#endif
-}
-
 static void ensureWebConfigServerStarted() {
   ensureRuntimeNetConfig();
   if (g_webConfigServerStarted) return;
@@ -2583,7 +2400,6 @@ static void ensureWebConfigServerStarted() {
     g_webConfigServer.on("/api/config", HTTP_GET, handleWebConfigGet);
     g_webConfigServer.on("/api/config", HTTP_POST, handleWebConfigApplyApi);
     g_webConfigServer.on("/api/reload", HTTP_POST, handleWebReloadApi);
-    g_webConfigServer.on("/api/audio/clip.wav", HTTP_GET, handleWebAudioClipWav);
     g_webConfigServer.onNotFound([]() {
       g_webConfigServer.send(404, "text/plain", "Not found");
     });
@@ -3392,800 +3208,6 @@ static bool parseShortenerResponse(String resp, String &shortUrl) {
   shortUrl.trim();
   return shortUrl.startsWith("http");
 }
-
-static bool openAiKeyLooksConfigured() {
-#if defined(OPENAI_API_KEY)
-  const char *k = OPENAI_API_KEY;
-  if (!k || !k[0]) return false;
-  if (strcmp(k, "YOUR_OPENAI_API_KEY") == 0) return false;
-  return strlen(k) > 16;
-#else
-  return false;
-#endif
-}
-
-static bool openAiExtractChatText(const String &resp, String &out) {
-  out = "";
-  if (extractJsonStringFieldLoose(resp, "\"content\"", out)) {
-    out.trim();
-    return out.length() > 0;
-  }
-  return false;
-}
-
-static const char* kGptProbeQuestion = "dammi un numero random da 1 a 100 e una quote random breve";
-static const char* kGptSpeakDefaultQuestion = "Dammi un numero random da 1 a 1000 e una citazione random breve in italiano, diversa ogni volta.";
-
-static bool runOpenAiChatPrompt(const String &prompt, String &outText, int &httpCode, String &errOut) {
-  outText = "";
-  errOut = "";
-  httpCode = 0;
-
-#if !TEST_WIFI
-  errOut = "WiFi disabled (TEST_WIFI=0)";
-  return false;
-#else
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) {
-    errOut = "WiFi not connected";
-    return false;
-  }
-  if (!openAiKeyLooksConfigured()) {
-    errOut = "OPENAI_API_KEY missing";
-    return false;
-  }
-
-  WiFiClientSecure tls;
-  tls.setInsecure();
-  tls.setTimeout((OPENAI_HTTP_TIMEOUT_MS + 999U) / 1000U);
-
-  HTTPClient http;
-  http.setConnectTimeout(OPENAI_CONNECT_TIMEOUT_MS);
-  http.setTimeout(OPENAI_HTTP_TIMEOUT_MS);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.useHTTP10(true);
-  if (!http.begin(tls, OPENAI_ENDPOINT_CHAT)) {
-    errOut = "http.begin failed";
-    return false;
-  }
-
-  http.addHeader("Accept", "application/json");
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("User-Agent", "ScryBar/esp32");
-  http.addHeader("Connection", "close");
-  String auth = String("Bearer ") + OPENAI_API_KEY;
-  http.addHeader("Authorization", auth);
-
-  String q = prompt;
-  q.trim();
-  if (q.length() == 0) q = kGptProbeQuestion;
-
-  String body;
-  body.reserve(640);
-  const bool isGpt5Family =
-      String(OPENAI_MODEL).startsWith("gpt-5") ||
-      String(OPENAI_MODEL).startsWith("gpt-5.");
-  body += "{\"model\":\"";
-  body += OPENAI_MODEL;
-  body += "\",\"temperature\":0.8,";
-  body += isGpt5Family ? "\"max_completion_tokens\":90," : "\"max_tokens\":90,";
-  body += "\"messages\":[";
-  body += "{\"role\":\"system\",\"content\":\"";
-  body += activeUiStrings()->gptSystemPrompt;
-  body += "\"},";
-  body += "{\"role\":\"user\",\"content\":\"";
-  body += jsonEscape(q);
-  body += "\"}]}";
-
-  httpCode = http.POST((uint8_t *)body.c_str(), body.length());
-  String resp;
-  if (httpCode > 0) resp = http.getString();
-  http.end();
-
-  if (httpCode != HTTP_CODE_OK) {
-    errOut = (httpCode > 0) ? resp : HTTPClient::errorToString(httpCode);
-    errOut.replace('\n', ' ');
-    errOut.replace('\r', ' ');
-    if (errOut.length() > 180) errOut = errOut.substring(0, 180) + "...";
-    return false;
-  }
-
-  if (!openAiExtractChatText(resp, outText)) {
-    errOut = "Unable to parse chat content";
-    return false;
-  }
-  return true;
-#endif
-}
-
-static bool runOpenAiProbe(String &outText, int &httpCode, String &errOut) {
-  return runOpenAiChatPrompt(String(kGptProbeQuestion), outText, httpCode, errOut);
-}
-
-static String openAiPrepareTtsText(const String &in) {
-  String t = in;
-  t.replace('\n', ' ');
-  t.replace('\r', ' ');
-  t.trim();
-  if (t.length() > OPENAI_TTS_MAX_CHARS) t = t.substring(0, OPENAI_TTS_MAX_CHARS);
-  return t;
-}
-
-static bool openAiFetchTtsPcmClip(const String &inputText, size_t &clipBytes, int &httpCode, String &errOut) {
-  clipBytes = 0;
-  errOut = "";
-  httpCode = 0;
-
-#if !TEST_WIFI || !TEST_AUDIO
-  errOut = "WiFi/audio disabled by build flags";
-  return false;
-#else
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) {
-    errOut = "WiFi not connected";
-    return false;
-  }
-  if (!openAiKeyLooksConfigured()) {
-    errOut = "OPENAI_API_KEY missing";
-    return false;
-  }
-  if (!g_audioReady && !initAudioFeature()) {
-    errOut = "audio init failed";
-    return false;
-  }
-  if (!g_audioPcmBuf || g_audioPcmBytes < 8U) {
-    errOut = "audio buffer not ready";
-    return false;
-  }
-  if (g_audioBusy) {
-    errOut = "audio busy";
-    return false;
-  }
-
-  const String ttsText = openAiPrepareTtsText(inputText);
-  if (ttsText.length() == 0) {
-    errOut = "empty tts text";
-    return false;
-  }
-
-  WiFiClientSecure tls;
-  tls.setInsecure();
-  tls.setTimeout((OPENAI_HTTP_TIMEOUT_MS + 999U) / 1000U);
-
-  HTTPClient http;
-  http.setConnectTimeout(OPENAI_CONNECT_TIMEOUT_MS);
-  http.setTimeout(OPENAI_HTTP_TIMEOUT_MS);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.useHTTP10(true);
-  if (!http.begin(tls, OPENAI_ENDPOINT_TTS)) {
-    errOut = "http.begin tts failed";
-    return false;
-  }
-
-  http.addHeader("Accept", "application/octet-stream");
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("User-Agent", "ScryBar/esp32");
-  http.addHeader("Connection", "close");
-  String auth = String("Bearer ") + OPENAI_API_KEY;
-  http.addHeader("Authorization", auth);
-
-  String body;
-  body.reserve(560);
-  body += "{\"model\":\"";
-  body += OPENAI_TTS_MODEL;
-  body += "\",\"voice\":\"";
-  body += OPENAI_TTS_VOICE;
-  body += "\",\"response_format\":\"pcm\"";
-  if (String(OPENAI_TTS_MODEL).startsWith("gpt-4o")) {
-    body += ",\"instructions\":\"";
-    body += jsonEscape(String(OPENAI_TTS_INSTRUCTIONS));
-    body += "\"";
-  }
-  body += ",\"input\":\"";
-  body += jsonEscape(ttsText);
-  body += "\"}";
-
-  httpCode = http.POST((uint8_t *)body.c_str(), body.length());
-  if (httpCode != HTTP_CODE_OK) {
-    errOut = (httpCode > 0) ? http.getString() : HTTPClient::errorToString(httpCode);
-    errOut.replace('\n', ' ');
-    errOut.replace('\r', ' ');
-    if (errOut.length() > 180) errOut = errOut.substring(0, 180) + "...";
-    http.end();
-    return false;
-  }
-
-  WiFiClient *stream = http.getStreamPtr();
-  if (!stream) {
-    errOut = "tts stream unavailable";
-    http.end();
-    return false;
-  }
-
-  size_t written = 0;
-  bool haveLo = false;
-  uint8_t lo = 0;
-  uint32_t lastDataMs = millis();
-  while ((http.connected() || stream->available() > 0) &&
-         (millis() - lastDataMs) < (OPENAI_HTTP_TIMEOUT_MS + 4000U)) {
-    int avail = stream->available();
-    if (avail <= 0) {
-      delay(2);
-      continue;
-    }
-
-    uint8_t chunk[1024];
-    const int want = min((int)sizeof(chunk), avail);
-    const int n = stream->readBytes(chunk, want);
-    if (n <= 0) {
-      delay(1);
-      continue;
-    }
-    lastDataMs = millis();
-
-    for (int i = 0; i < n; ++i) {
-      const uint8_t b = chunk[i];
-      if (!haveLo) {
-        lo = b;
-        haveLo = true;
-        continue;
-      }
-      haveLo = false;
-      if (written + 4U > g_audioPcmBytes) {
-        break;
-      }
-      g_audioPcmBuf[written++] = lo;
-      g_audioPcmBuf[written++] = b;
-      g_audioPcmBuf[written++] = lo;
-      g_audioPcmBuf[written++] = b;
-    }
-    if (written + 4U > g_audioPcmBytes) break;
-  }
-  http.end();
-
-  if (written < 8U) {
-    errOut = "tts empty audio";
-    return false;
-  }
-
-  clipBytes = written;
-  g_audioClipValidBytes = clipBytes;
-  g_audioHasClip = true;
-  char msg[64];
-  const uint32_t ms = (uint32_t)((clipBytes / 4U) * 1000U / (uint32_t)AUDIO_SAMPLE_RATE);
-  snprintf(msg, sizeof(msg), "audio: tts clip %lums", (unsigned long)ms);
-  audioSetStatus(msg);
-  Serial.printf("[GPT][TTS] ok bytes=%u ms=%lu text_len=%u model=%s voice=%s\n",
-                (unsigned)clipBytes,
-                (unsigned long)ms,
-                (unsigned)ttsText.length(),
-                OPENAI_TTS_MODEL,
-                OPENAI_TTS_VOICE);
-  return true;
-#endif
-}
-
-#if TEST_AUDIO
-static void audioSetStatus(const char *msg) {
-  copyStringSafe(g_audioStatusLine, sizeof(g_audioStatusLine), msg ? msg : "audio: -");
-  g_uiNeedsRedraw = true;
-}
-
-static uint8_t audioClampVolumePercent(int v) {
-  if (v < 0) return 0;
-  if (v > 100) return 100;
-  return (uint8_t)v;
-}
-
-static void audioLoadVolumeFromNvsIfNeeded() {
-  if (g_audioVolLoadedFromNvs) return;
-  g_audioVolLoadedFromNvs = true;
-  Preferences prefs;
-  if (!prefs.begin("scrybar_cfg", true)) return;
-  const uint8_t v = prefs.getUChar("aud_vol", g_audioOutVolPercent);
-  prefs.end();
-  g_audioOutVolPercent = audioClampVolumePercent((int)v);
-}
-
-static void audioPersistVolumeToNvs() {
-  Preferences prefs;
-  if (!prefs.begin("scrybar_cfg", false)) {
-    Serial.println("[AUDIO][NVS] begin(rw) failed");
-    return;
-  }
-  prefs.putUChar("aud_vol", g_audioOutVolPercent);
-  prefs.end();
-  Serial.printf("[AUDIO][NVS] volume=%u%%\n", (unsigned)g_audioOutVolPercent);
-}
-
-static void audioApplyOutputVolume() {
-  if (!g_audioPlayback) return;
-  const float vol = (float)g_audioOutVolPercent;
-  esp_codec_dev_set_out_vol(g_audioPlayback, vol);
-}
-
-static void audioSetOutputVolumePercent(uint8_t percent, bool persist) {
-  const uint8_t v = audioClampVolumePercent((int)percent);
-  if (v == g_audioOutVolPercent && !persist) return;
-  g_audioOutVolPercent = v;
-  audioApplyOutputVolume();
-  char msg[64];
-  snprintf(msg, sizeof(msg), "audio: volume %u%%", (unsigned)g_audioOutVolPercent);
-  audioSetStatus(msg);
-  if (persist) audioPersistVolumeToNvs();
-}
-
-static size_t audioClipTargetBytes() {
-  const size_t bytesPerSec = (size_t)AUDIO_SAMPLE_RATE * 2U * 2U;
-  return bytesPerSec * (size_t)AUDIO_RECORD_SECONDS;
-}
-
-static bool audioEnableSpeakerAmp() {
-  if (g_audioAmpEnabled) return true;
-  const esp_err_t initRes = tca9554_init(0);
-  if (initRes != ESP_OK) {
-    Serial.printf("[AUDIO][ERR] tca9554_init failed: %d\n", (int)initRes);
-    return false;
-  }
-  const esp_err_t cfgRes = tca9554_set_io_config(TCA9554_GPIO_NUM_7, TCA9554_IO_OUTPUT);
-  const esp_err_t lvlRes = tca9554_set_output_state(TCA9554_GPIO_NUM_7, TCA9554_IO_HIGH);
-  if (cfgRes != ESP_OK || lvlRes != ESP_OK) {
-    Serial.printf("[AUDIO][ERR] amp pin set failed: cfg=%d lvl=%d\n", (int)cfgRes, (int)lvlRes);
-    return false;
-  }
-  g_audioAmpEnabled = true;
-  Serial.println("[AUDIO] speaker amp enabled (TCA9554 pin7=HIGH)");
-  return true;
-}
-
-static int audioCodecReadFull(void *dst, size_t bytes) {
-  uint8_t *ptr = (uint8_t *)dst;
-  size_t done = 0;
-  while (done < bytes) {
-    const size_t chunk = min((size_t)4096U, bytes - done);
-    const int r = esp_codec_dev_read(g_audioRecord, ptr + done, (int)chunk);
-    if (r != ESP_CODEC_DEV_OK) return r;
-    done += chunk;
-  }
-  return ESP_CODEC_DEV_OK;
-}
-
-static int audioCodecWriteFull(const void *src, size_t bytes) {
-  const uint8_t *ptr = (const uint8_t *)src;
-  size_t done = 0;
-  while (done < bytes) {
-    const size_t chunk = min((size_t)2048U, bytes - done);
-    const int w = esp_codec_dev_write(g_audioPlayback, (void *)(ptr + done), (int)chunk);
-    if (w != ESP_CODEC_DEV_OK) return w;
-    done += chunk;
-  }
-  return ESP_CODEC_DEV_OK;
-}
-
-static bool audioPrepareToneClip(float freqHz, float amp) {
-  if (!g_audioReady && !initAudioFeature()) return false;
-  if (!g_audioPcmBuf || g_audioPcmBytes < sizeof(int16_t) * 4U) return false;
-  if (freqHz < 80.0f) freqHz = 80.0f;
-  if (freqHz > 2400.0f) freqHz = 2400.0f;
-  if (amp < 2000.0f) amp = 2000.0f;
-  if (amp > 26000.0f) amp = 26000.0f;
-
-  int16_t *samples = (int16_t *)g_audioPcmBuf;
-  const size_t frames = g_audioPcmBytes / (sizeof(int16_t) * 2U);
-  const float phaseStep = (2.0f * 3.14159265f * freqHz) / (float)AUDIO_SAMPLE_RATE;
-  float phase = 0.0f;
-  for (size_t i = 0; i < frames; ++i) {
-    const int16_t v = (int16_t)roundf(sinf(phase) * amp);
-    samples[i * 2U + 0U] = v;
-    samples[i * 2U + 1U] = v;
-    phase += phaseStep;
-    if (phase > (2.0f * 3.14159265f)) phase -= (2.0f * 3.14159265f);
-  }
-  g_audioClipValidBytes = g_audioPcmBytes;
-  g_audioHasClip = true;
-  audioSetStatus("audio: tone clip ready");
-  Serial.printf("[AUDIO] tone prepared f=%.1fHz amp=%.0f frames=%u\n",
-                (double)freqHz, (double)amp, (unsigned)frames);
-  return true;
-}
-
-static void audioBoostClipForPlayback() {
-  const size_t clipBytes = (g_audioClipValidBytes > 0U && g_audioClipValidBytes <= g_audioPcmBytes)
-                               ? g_audioClipValidBytes
-                               : g_audioPcmBytes;
-  if (!g_audioPcmBuf || clipBytes < sizeof(int16_t) * 2U) return;
-  int16_t *samples = (int16_t *)g_audioPcmBuf;
-  const size_t count = clipBytes / sizeof(int16_t);
-  int32_t peak = 1;
-  for (size_t i = 0; i < count; ++i) {
-    const int32_t v = abs((int32_t)samples[i]);
-    if (v > peak) peak = v;
-  }
-
-  float gain = 26000.0f / (float)peak;
-  if (gain < 1.0f) gain = 1.0f;
-  if (gain > 4.0f) gain = 4.0f;
-  if (gain <= 1.01f) {
-    Serial.printf("[AUDIO] boost skip peak=%ld gain=%.2f\n", (long)peak, (double)gain);
-    return;
-  }
-
-  for (size_t i = 0; i < count; ++i) {
-    int32_t v = (int32_t)roundf((float)samples[i] * gain);
-    if (v > 32767) v = 32767;
-    else if (v < -32768) v = -32768;
-    samples[i] = (int16_t)v;
-  }
-  Serial.printf("[AUDIO] boost applied peak=%ld gain=%.2f\n", (long)peak, (double)gain);
-}
-
-static bool initAudioFeature() {
-  if (g_audioReady) return true;
-  audioLoadVolumeFromNvsIfNeeded();
-  g_audioPcmBytes = audioClipTargetBytes();
-  if (g_audioPcmBytes < 4096U) g_audioPcmBytes = 4096U;
-  g_audioPcmBuf = (uint8_t *)heap_caps_malloc(g_audioPcmBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!g_audioPcmBuf) g_audioPcmBuf = (uint8_t *)malloc(g_audioPcmBytes);
-  if (!g_audioPcmBuf) {
-    audioSetStatus("audio: buffer alloc failed");
-    return false;
-  }
-  memset(g_audioPcmBuf, 0, g_audioPcmBytes);
-
-  set_codec_board_type("S3_LCD_3_49");
-  codec_init_cfg_t cfg = {
-      .in_mode = CODEC_I2S_MODE_TDM,
-      .out_mode = CODEC_I2S_MODE_TDM,
-      .in_use_tdm = false,
-      .reuse_dev = false,
-  };
-  if (init_codec(&cfg) != 0) {
-    audioSetStatus("audio: init_codec failed");
-    return false;
-  }
-
-  g_audioPlayback = get_playback_handle();
-  g_audioRecord = get_record_handle();
-  if (!g_audioPlayback || !g_audioRecord) {
-    audioSetStatus("audio: codec handles unavailable");
-    return false;
-  }
-
-  if (!audioEnableSpeakerAmp()) {
-    Serial.println("[AUDIO][WARN] speaker amp setup not confirmed");
-  }
-  esp_codec_dev_sample_info_t fs = {};
-  fs.sample_rate = AUDIO_SAMPLE_RATE;
-  fs.channel = 2;
-  fs.bits_per_sample = 16;
-  if (esp_codec_dev_open(g_audioPlayback, &fs) != ESP_CODEC_DEV_OK ||
-      esp_codec_dev_open(g_audioRecord, &fs) != ESP_CODEC_DEV_OK) {
-    audioSetStatus("audio: open failed");
-    return false;
-  }
-
-  audioApplyOutputVolume();
-  esp_codec_dev_set_in_gain(g_audioRecord, 35.0f);
-  esp_codec_dev_set_out_mute(g_audioPlayback, false);
-  esp_codec_dev_set_in_mute(g_audioRecord, false);
-
-  g_audioReady = true;
-  g_audioHasClip = false;
-  g_audioClipValidBytes = 0;
-  char readyMsg[72];
-  snprintf(readyMsg, sizeof(readyMsg), "audio: ready (REC/REPLAY) vol %u%%", (unsigned)g_audioOutVolPercent);
-  audioSetStatus(readyMsg);
-  return true;
-}
-
-typedef struct {
-  bool record;
-} AudioTaskArgs;
-
-static void audioOpTask(void *arg) {
-  AudioTaskArgs *a = (AudioTaskArgs *)arg;
-  const bool doRecord = (a && a->record);
-  if (a) free(a);
-
-  if (!g_audioReady || !g_audioPcmBuf) {
-    g_audioBusy = false;
-    g_audioRecording = false;
-    g_audioPlaying = false;
-    audioSetStatus("audio: not ready");
-    vTaskDelete(nullptr);
-    return;
-  }
-
-  g_audioOpStartMs = millis();
-  if (doRecord) {
-    g_audioRecording = true;
-    g_audioPlaying = false;
-    g_audioRecordStopRequested = false;
-    audioSetStatus("audio: recording...");
-    const uint32_t t0 = millis();
-    Serial.printf("[AUDIO] rec start bytes=%u\n", (unsigned)g_audioPcmBytes);
-    size_t written = 0;
-    int r = ESP_CODEC_DEV_OK;
-    while (written < g_audioPcmBytes) {
-      if (g_audioRecordStopRequested) break;
-      const size_t chunk = min((size_t)4096U, g_audioPcmBytes - written);
-      r = esp_codec_dev_read(g_audioRecord, g_audioPcmBuf + written, (int)chunk);
-      if (r != ESP_CODEC_DEV_OK) break;
-      written += chunk;
-    }
-    Serial.printf("[AUDIO] rec done ret=%d dt=%lu ms\n", r, (unsigned long)(millis() - t0));
-    g_audioRecording = false;
-    // esp_codec_dev_* may return 0 on success (ESP_OK-style) instead of byte count.
-    if (r == ESP_CODEC_DEV_OK && written >= 4096U) {
-      g_audioHasClip = true;
-      g_audioClipValidBytes = written;
-      char okMsg[64];
-      const uint32_t ms = (uint32_t)((written / 4U) * 1000U / (uint32_t)AUDIO_SAMPLE_RATE);
-      snprintf(okMsg, sizeof(okMsg), "audio: rec done (%lums)", (unsigned long)ms);
-      audioSetStatus(okMsg);
-      g_gptMicPipelinePending = true;
-      Serial.printf("[AUDIO] rec clip valid=%u stop_req=%d\n", (unsigned)written, g_audioRecordStopRequested ? 1 : 0);
-    } else {
-      g_audioHasClip = false;
-      g_audioClipValidBytes = 0;
-      char err[64];
-      snprintf(err, sizeof(err), "audio: rec err %d", r);
-      audioSetStatus(err);
-    }
-  } else {
-    g_audioRecording = false;
-    g_audioPlaying = true;
-    if (!g_audioHasClip) {
-      g_audioPlaying = false;
-      g_audioBusy = false;
-      audioSetStatus("audio: no clip");
-      vTaskDelete(nullptr);
-      return;
-    }
-    if (!audioEnableSpeakerAmp()) {
-      Serial.println("[AUDIO][WARN] play requested but speaker amp setup failed");
-    }
-    audioBoostClipForPlayback();
-    esp_codec_dev_set_out_mute(g_audioPlayback, false);
-    audioApplyOutputVolume();
-    audioSetStatus("audio: playing...");
-    const size_t clipBytes = (g_audioClipValidBytes > 0U && g_audioClipValidBytes <= g_audioPcmBytes)
-                                 ? g_audioClipValidBytes
-                                 : g_audioPcmBytes;
-    const uint32_t t0 = millis();
-    Serial.printf("[AUDIO] play start bytes=%u amp=%d\n", (unsigned)clipBytes, g_audioAmpEnabled ? 1 : 0);
-    const int w = audioCodecWriteFull(g_audioPcmBuf, clipBytes);
-    Serial.printf("[AUDIO] play done ret=%d dt=%lu ms\n", w, (unsigned long)(millis() - t0));
-    g_audioPlaying = false;
-    if (w == ESP_CODEC_DEV_OK) {
-      audioSetStatus("audio: play done");
-    } else {
-      char err[64];
-      snprintf(err, sizeof(err), "audio: play err %d", w);
-      audioSetStatus(err);
-    }
-  }
-  g_audioBusy = false;
-  vTaskDelete(nullptr);
-}
-
-static bool triggerAudioRecord() {
-  if (!g_audioReady && !initAudioFeature()) return false;
-  if (g_audioBusy) return false;
-  g_gptMicPipelinePending = false;
-  AudioTaskArgs *args = (AudioTaskArgs *)malloc(sizeof(AudioTaskArgs));
-  if (!args) {
-    audioSetStatus("audio: task alloc failed");
-    return false;
-  }
-  args->record = true;
-  g_audioBusy = true;
-  if (xTaskCreatePinnedToCore(audioOpTask, "audioRecTask", 6144, args, 2, nullptr, 1) != pdPASS) {
-    free(args);
-    g_audioBusy = false;
-    audioSetStatus("audio: rec task failed");
-    return false;
-  }
-  return true;
-}
-
-static bool triggerAudioRecordStop() {
-  if (!g_audioRecording) return false;
-  g_audioRecordStopRequested = true;
-  audioSetStatus("audio: stopping...");
-  return true;
-}
-
-static bool triggerAudioPlay() {
-  if (!g_audioReady && !initAudioFeature()) return false;
-  if (g_audioBusy) return false;
-  AudioTaskArgs *args = (AudioTaskArgs *)malloc(sizeof(AudioTaskArgs));
-  if (!args) {
-    audioSetStatus("audio: task alloc failed");
-    return false;
-  }
-  args->record = false;
-  g_audioBusy = true;
-  if (xTaskCreatePinnedToCore(audioOpTask, "audioPlayTask", 6144, args, 2, nullptr, 1) != pdPASS) {
-    free(args);
-    g_audioBusy = false;
-    audioSetStatus("audio: play task failed");
-    return false;
-  }
-  return true;
-}
-
-static bool openAiTranscribeAudioClip(String &outText, int &httpCode, String &errOut) {
-  outText = "";
-  errOut = "";
-  httpCode = 0;
-
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) {
-    errOut = "WiFi not connected";
-    return false;
-  }
-  if (!openAiKeyLooksConfigured()) {
-    errOut = "OPENAI_API_KEY missing";
-    return false;
-  }
-  if (!g_audioHasClip || !g_audioPcmBuf || g_audioClipValidBytes < 4096U) {
-    errOut = "audio clip not ready";
-    return false;
-  }
-
-  const size_t clipBytes = (g_audioClipValidBytes <= g_audioPcmBytes) ? g_audioClipValidBytes : g_audioPcmBytes;
-  uint8_t wavHdr[44];
-  buildWavHeader(wavHdr, (uint32_t)clipBytes, (uint32_t)AUDIO_SAMPLE_RATE, 2, 16);
-
-  const String boundary = "----ScryBarBoundary7MA4YWxkTrZu0gW";
-  String pre;
-  pre.reserve(360);
-  pre += "--" + boundary + "\r\n";
-  pre += "Content-Disposition: form-data; name=\"model\"\r\n\r\n";
-  pre += OPENAI_STT_MODEL;
-  pre += "\r\n";
-  pre += "--" + boundary + "\r\n";
-  pre += "Content-Disposition: form-data; name=\"language\"\r\n\r\nit\r\n";
-  pre += "--" + boundary + "\r\n";
-  pre += "Content-Disposition: form-data; name=\"prompt\"\r\n\r\n";
-  pre += "Trascrivi in italiano naturale. Mantieni i numeri in cifre quando chiari.";
-  pre += "\r\n";
-  pre += "--" + boundary + "\r\n";
-  pre += "Content-Disposition: form-data; name=\"file\"; filename=\"clip.wav\"\r\n";
-  pre += "Content-Type: audio/wav\r\n\r\n";
-  String post;
-  post.reserve(64);
-  post += "\r\n--" + boundary + "--\r\n";
-
-  const size_t total = pre.length() + sizeof(wavHdr) + clipBytes + post.length();
-  uint8_t *body = (uint8_t *)heap_caps_malloc(total, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!body) body = (uint8_t *)malloc(total);
-  if (!body) {
-    errOut = "stt body alloc failed";
-    return false;
-  }
-
-  size_t off = 0;
-  memcpy(body + off, pre.c_str(), pre.length());
-  off += pre.length();
-  memcpy(body + off, wavHdr, sizeof(wavHdr));
-  off += sizeof(wavHdr);
-  memcpy(body + off, g_audioPcmBuf, clipBytes);
-  off += clipBytes;
-  memcpy(body + off, post.c_str(), post.length());
-  off += post.length();
-
-  WiFiClientSecure tls;
-  tls.setInsecure();
-  tls.setTimeout((OPENAI_HTTP_TIMEOUT_MS + 999U) / 1000U);
-
-  HTTPClient http;
-  http.setConnectTimeout(OPENAI_CONNECT_TIMEOUT_MS);
-  http.setTimeout(OPENAI_HTTP_TIMEOUT_MS + 15000);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.useHTTP10(true);
-  if (!http.begin(tls, OPENAI_ENDPOINT_STT)) {
-    free(body);
-    errOut = "http.begin stt failed";
-    return false;
-  }
-
-  http.addHeader("Accept", "application/json");
-  http.addHeader("Content-Type", String("multipart/form-data; boundary=") + boundary);
-  http.addHeader("User-Agent", "ScryBar/esp32");
-  http.addHeader("Connection", "close");
-  String auth = String("Bearer ") + OPENAI_API_KEY;
-  http.addHeader("Authorization", auth);
-
-  httpCode = http.POST(body, total);
-  free(body);
-  String resp = (httpCode > 0) ? http.getString() : HTTPClient::errorToString(httpCode);
-  http.end();
-  if (httpCode != HTTP_CODE_OK) {
-    errOut = resp;
-    errOut.replace('\n', ' ');
-    errOut.replace('\r', ' ');
-    if (errOut.length() > 180) errOut = errOut.substring(0, 180) + "...";
-    return false;
-  }
-  if (!extractJsonStringFieldLoose(resp, "\"text\"", outText) &&
-      !extractJsonStringFieldLoose(resp, "\"transcript\"", outText)) {
-    String plain = resp;
-    plain.trim();
-    if (plain.indexOf("\"text\":\"\"") >= 0) {
-      errOut = "Non ho capito l'audio. Riprova parlando piu vicino al microfono.";
-      return false;
-    }
-    if (plain.length() > 0 && !plain.startsWith("{")) {
-      if (plain.startsWith("\"") && plain.endsWith("\"") && plain.length() > 1) {
-        plain = plain.substring(1, plain.length() - 1);
-      }
-      plain.replace("\\n", " ");
-      plain.replace("\\r", " ");
-      plain.replace("\\\"", "\"");
-      outText = plain;
-    } else {
-      String preview = resp;
-      preview.replace('\n', ' ');
-      preview.replace('\r', ' ');
-      if (preview.length() > 200) preview = preview.substring(0, 200) + "...";
-      Serial.printf("[GPT][MIC][STT] parse-fail body=%s\n", preview.c_str());
-      errOut = "Unable to parse transcript";
-      return false;
-    }
-  }
-  outText.trim();
-  if (outText.length() == 0) {
-    errOut = "Transcript empty";
-    return false;
-  }
-  return true;
-}
-
-static bool triggerGptMicPipeline() {
-  if (g_gptMicPipelineRunning) return false;
-  if (!g_audioHasClip || g_audioClipValidBytes < 4096U) return false;
-  g_gptMicPipelineRunning = true;
-  g_gptMicPipelinePending = true;
-  return true;
-}
-
-static void runGptMicPipelineNow() {
-  if (!g_gptMicPipelineRunning || !g_gptMicPipelinePending) return;
-  g_gptMicPipelinePending = false;
-
-  g_uiPageMode = UI_PAGE_GPT;
-  g_uiNeedsRedraw = true;
-  copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "STT");
-  copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), "Trascrivo audio...");
-  updateLvglUi(true);
-  lv_timer_handler();
-
-  String transcript;
-  String err;
-  int sttCode = 0;
-  const bool okStt = openAiTranscribeAudioClip(transcript, sttCode, err);
-  g_gptLastProbeMs = millis();
-  g_gptLastProbeHttp = sttCode;
-  if (!okStt) {
-    copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "ERR");
-    copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), err.c_str());
-    Serial.printf("[GPT][MIC][ERR] stt http=%d detail=%s\n", sttCode, err.c_str());
-    g_uiNeedsRedraw = true;
-    g_gptMicPipelineRunning = false;
-    return;
-  }
-
-  copyStringSafe(g_gptLastQuestion, sizeof(g_gptLastQuestion), transcript.c_str());
-  copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "ASK");
-  copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), transcript.c_str());
-  g_uiNeedsRedraw = true;
-  updateLvglUi(true);
-  lv_timer_handler();
-
-  const bool okSay = runGptSayFlow(transcript, "MIC");
-  Serial.printf("[GPT][MIC] done stt_http=%d say=%d\n", sttCode, okSay ? 1 : 0);
-  g_gptMicPipelineRunning = false;
-}
-#endif
 
 static bool urlStartsWith(const char *url, const char *prefix) {
   if (!url || !prefix) return false;
@@ -5561,14 +4583,10 @@ static bool lvglAuxQrButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxRefreshButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxNextFeedButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y);
-static bool lvglGptRecButtonContainsPoint(int16_t x, int16_t y);
-static bool lvglGptPlayButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxQrModalIsOpen();
 static void lvglSetAuxQrButtonPressed(bool pressed);
 static void lvglSetAuxRefreshButtonPressed(bool pressed);
 static void lvglSetAuxNextFeedButtonPressed(bool pressed);
-static void lvglSetGptRecButtonPressed(bool pressed);
-static void lvglSetGptPlayButtonPressed(bool pressed);
 static void lvglSetAuxQrModalOpen(bool open);
 #endif
 
@@ -5578,8 +4596,6 @@ static const char* uiPageName(UiPageMode mode) {
       return "INFO";
     case UI_PAGE_AUX:
       return "AUX";
-    case UI_PAGE_GPT:
-      return "GPT";
     case UI_PAGE_HOME:
     default:
       return "HOME";
@@ -5591,7 +4607,6 @@ static int8_t uiPageOrdinal(UiPageMode mode) {
     case UI_PAGE_INFO: return 0;
     case UI_PAGE_HOME: return 1;
     case UI_PAGE_AUX: return 2;
-    case UI_PAGE_GPT: return 3;
     default: return 1;
   }
 }
@@ -5599,8 +4614,7 @@ static int8_t uiPageOrdinal(UiPageMode mode) {
 static UiPageMode uiPageFromOrdinal(int8_t ord) {
   if (ord <= 0) return UI_PAGE_INFO;
   if (ord == 1) return UI_PAGE_HOME;
-  if (ord == 2) return UI_PAGE_AUX;
-  return UI_PAGE_GPT;
+  return UI_PAGE_AUX;
 }
 
 static void setUiPage(UiPageMode mode);
@@ -5608,7 +4622,7 @@ static void setUiPage(UiPageMode mode);
 static bool stepUiPage(int8_t delta, bool wrap) {
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
   int8_t next = (int8_t)(cur + delta);
-  constexpr int8_t kMaxPageOrd = 3;
+  constexpr int8_t kMaxPageOrd = 2;
   if (wrap) {
     if (next < 0) next = kMaxPageOrd;
     if (next > kMaxPageOrd) next = 0;
@@ -5652,74 +4666,6 @@ static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y) {
   return lvglContainsPoint(g_lvglAuxNews, x, y);
 }
 
-static bool lvglGptAskButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_lvglGptAskBtn, x, y, 8);
-}
-
-static bool lvglGptRecButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_lvglGptRecBtn, x, y, 8);
-}
-
-static bool lvglGptPlayButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_lvglGptPlayBtn, x, y, 8);
-}
-
-static bool lvglGptVolTrackContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_lvglGptVolTrack, x, y, 8);
-}
-
-static bool lvglGptRecOverlayIsOpen() {
-  return g_lvglGptRecOverlayOpen;
-}
-
-static void lvglSetGptRecOverlayOpen(bool open) {
-  if (!g_lvglGptRecOverlay) return;
-  g_lvglGptRecOverlayOpen = open;
-  if (open) {
-    lv_obj_clear_flag(g_lvglGptRecOverlay, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(g_lvglGptRecOverlay);
-  } else {
-    lv_obj_add_flag(g_lvglGptRecOverlay, LV_OBJ_FLAG_HIDDEN);
-  }
-  lv_obj_invalidate(g_lvglGptRecOverlay);
-}
-
-static void lvglSyncGptVolumeUi() {
-  if (!g_lvglGptVolTrack || !g_lvglGptVolFill || !g_lvglGptVolLabel) return;
-#if TEST_AUDIO
-  const uint8_t volPct = g_audioOutVolPercent;
-#else
-  const uint8_t volPct = 0;
-#endif
-  const int16_t trackW = lv_obj_get_width(g_lvglGptVolTrack);
-  const int16_t trackH = lv_obj_get_height(g_lvglGptVolTrack);
-  const int16_t fillW = (int16_t)((trackW * (int32_t)volPct) / 100);
-  lv_obj_set_size(g_lvglGptVolFill, fillW, trackH);
-  char txt[16];
-  snprintf(txt, sizeof(txt), "VOL %u%%", (unsigned)volPct);
-  lv_label_set_text(g_lvglGptVolLabel, txt);
-  lv_obj_invalidate(g_lvglGptVolTrack);
-}
-
-static void lvglSetGptVolumeFromTouchX(int16_t x, bool persist) {
-  if (!g_lvglGptVolTrack) return;
-  lv_area_t a;
-  lv_obj_get_coords(g_lvglGptVolTrack, &a);
-  if (a.x2 <= a.x1) return;
-  int32_t rel = (int32_t)x - (int32_t)a.x1;
-  if (rel < 0) rel = 0;
-  const int32_t w = (int32_t)a.x2 - (int32_t)a.x1;
-  if (rel > w) rel = w;
-  const uint8_t percent = (uint8_t)((rel * 100L) / (w > 0 ? w : 1));
-#if TEST_AUDIO
-  audioSetOutputVolumePercent(percent, persist);
-#else
-  (void)percent;
-  (void)persist;
-#endif
-  lvglSyncGptVolumeUi();
-}
-
 static bool lvglAuxQrModalIsOpen() {
   return g_lvglAuxQrModalOpen;
 }
@@ -5753,27 +4699,6 @@ static void lvglSetAuxNextFeedButtonPressed(bool pressed) {
     lv_obj_set_style_text_color(g_lvglAuxNextFeedBtnText, lv_color_hex(0xF7F2FF), 0);
   }
   lv_obj_invalidate(g_lvglAuxNextFeedBtn);
-}
-
-static void lvglSetGptAskButtonPressed(bool pressed) {
-  if (!g_lvglGptAskBtn) return;
-  const lv_color_t bg = pressed ? lv_color_hex(0x8FE7FF) : lv_color_hex(0x49C8F2);
-  lv_obj_set_style_bg_color(g_lvglGptAskBtn, bg, LV_PART_MAIN);
-  lv_obj_invalidate(g_lvglGptAskBtn);
-}
-
-static void lvglSetGptRecButtonPressed(bool pressed) {
-  if (!g_lvglGptRecBtn) return;
-  const lv_color_t bg = pressed ? lv_color_hex(0xFF86A9) : lv_color_hex(0xFF5C8A);
-  lv_obj_set_style_bg_color(g_lvglGptRecBtn, bg, LV_PART_MAIN);
-  lv_obj_invalidate(g_lvglGptRecBtn);
-}
-
-static void lvglSetGptPlayButtonPressed(bool pressed) {
-  if (!g_lvglGptPlayBtn) return;
-  const lv_color_t bg = pressed ? lv_color_hex(0xB9ECFF) : lv_color_hex(0x6FD8FF);
-  lv_obj_set_style_bg_color(g_lvglGptPlayBtn, bg, LV_PART_MAIN);
-  lv_obj_invalidate(g_lvglGptPlayBtn);
 }
 
 static void lvglSetAuxQrModalOpen(bool open) {
@@ -5812,40 +4737,10 @@ static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y) {
   (void)y;
   return false;
 }
-static bool lvglGptAskButtonContainsPoint(int16_t x, int16_t y) {
-  (void)x;
-  (void)y;
-  return false;
-}
-static bool lvglGptRecButtonContainsPoint(int16_t x, int16_t y) {
-  (void)x;
-  (void)y;
-  return false;
-}
-static bool lvglGptPlayButtonContainsPoint(int16_t x, int16_t y) {
-  (void)x;
-  (void)y;
-  return false;
-}
-static bool lvglGptVolTrackContainsPoint(int16_t x, int16_t y) {
-  (void)x;
-  (void)y;
-  return false;
-}
-static bool lvglGptRecOverlayIsOpen() { return false; }
-static void lvglSetGptRecOverlayOpen(bool open) { (void)open; }
-static void lvglSyncGptVolumeUi() {}
-static void lvglSetGptVolumeFromTouchX(int16_t x, bool persist) {
-  (void)x;
-  (void)persist;
-}
 static bool lvglAuxQrModalIsOpen() { return false; }
 static void lvglSetAuxQrButtonPressed(bool pressed) { (void)pressed; }
 static void lvglSetAuxRefreshButtonPressed(bool pressed) { (void)pressed; }
 static void lvglSetAuxNextFeedButtonPressed(bool pressed) { (void)pressed; }
-static void lvglSetGptAskButtonPressed(bool pressed) { (void)pressed; }
-static void lvglSetGptRecButtonPressed(bool pressed) { (void)pressed; }
-static void lvglSetGptPlayButtonPressed(bool pressed) { (void)pressed; }
 static void lvglSetAuxQrModalOpen(bool open) {
   (void)open;
 }
@@ -5854,7 +4749,6 @@ static void lvglSetAuxQrModalOpen(bool open) {
 static void setUiPage(UiPageMode mode) {
   if (g_uiPageMode == mode) return;
   if (mode != UI_PAGE_AUX) lvglSetAuxQrModalOpen(false);
-  if (mode != UI_PAGE_GPT) lvglSetGptRecOverlayOpen(false);
   g_uiPageMode = mode;
   g_uiNeedsRedraw = true;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
@@ -5863,7 +4757,6 @@ static void setUiPage(UiPageMode mode) {
     if (g_lvglInfoRoot) lv_obj_invalidate(g_lvglInfoRoot);
     if (g_lvglHomeRoot) lv_obj_invalidate(g_lvglHomeRoot);
     if (g_lvglAuxRoot) lv_obj_invalidate(g_lvglAuxRoot);
-    if (g_lvglGptRoot) lv_obj_invalidate(g_lvglGptRoot);
     lv_timer_handler();
   }
 #endif
@@ -6498,38 +5391,6 @@ static void handleTouchSwipeInput() {
     return;
   }
 
-  if (g_uiPageMode == UI_PAGE_GPT && lvglGptRecOverlayIsOpen()) {
-    if (touched) {
-      if (!g_touchDown) {
-        g_touchDown = true;
-        g_touchStartX = x;
-        g_touchStartY = y;
-        g_touchStartMs = now;
-      }
-      g_touchLastX = x;
-      g_touchLastY = y;
-      return;
-    }
-    if (g_touchDown) {
-      g_touchDown = false;
-      const uint32_t durMs = millis() - g_touchStartMs;
-      const int16_t dx = g_touchLastX - g_touchStartX;
-      const int16_t dy = g_touchLastY - g_touchStartY;
-      const bool isTap = (durMs <= 1200 && abs(dx) <= 36 && abs(dy) <= 36);
-      if (isTap) {
-#if TEST_AUDIO
-        const bool stopOk = triggerAudioRecordStop();
-        Serial.printf("[TOUCH] rec-overlay-stop ok=%d\n", stopOk ? 1 : 0);
-#else
-        Serial.println("[TOUCH] rec-overlay-stop disabled");
-#endif
-      }
-      g_touchAwaitRelease = true;
-      g_touchReleaseStartMs = 0;
-      return;
-    }
-  }
-
   if (touched) {
     if (!g_touchDown) {
       g_touchDown = true;
@@ -6542,14 +5403,6 @@ static void handleTouchSwipeInput() {
         if (lvglAuxQrButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_QR;
         else if (lvglAuxRefreshButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_REFRESH;
         else if (lvglAuxNextFeedButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_NEXT;
-      } else if (g_uiPageMode == UI_PAGE_GPT) {
-        if (lvglGptAskButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_GPT_ASK;
-        else if (lvglGptRecButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_GPT_REC;
-        else if (lvglGptPlayButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_GPT_PLAY;
-        else if (lvglGptVolTrackContainsPoint(x, y)) {
-          g_touchAuxBtnDown = TOUCH_AUX_BTN_GPT_VOL;
-          lvglSetGptVolumeFromTouchX(x, false);
-        }
       }
       if (g_touchAuxBtnDown == TOUCH_AUX_BTN_QR) {
         lvglSetAuxQrButtonPressed(true);
@@ -6560,17 +5413,6 @@ static void handleTouchSwipeInput() {
       } else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) {
         lvglSetAuxNextFeedButtonPressed(true);
         Serial.printf("[TOUCH] btn-down NXT x=%d y=%d\n", x, y);
-      } else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_GPT_REC) {
-        lvglSetGptRecButtonPressed(true);
-        Serial.printf("[TOUCH] btn-down REC x=%d y=%d\n", x, y);
-      } else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_GPT_ASK) {
-        lvglSetGptAskButtonPressed(true);
-        Serial.printf("[TOUCH] btn-down ASK x=%d y=%d\n", x, y);
-      } else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_GPT_PLAY) {
-        lvglSetGptPlayButtonPressed(true);
-        Serial.printf("[TOUCH] btn-down REPLAY x=%d y=%d\n", x, y);
-      } else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_GPT_VOL) {
-        Serial.printf("[TOUCH] btn-down VOL x=%d y=%d\n", x, y);
       }
     }
     g_touchLastX = x;
@@ -6578,9 +5420,6 @@ static void handleTouchSwipeInput() {
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
     if (g_lvglReady) {
       if (g_touchAuxBtnDown != TOUCH_AUX_BTN_NONE) {
-        if (g_touchAuxBtnDown == TOUCH_AUX_BTN_GPT_VOL && g_uiPageMode == UI_PAGE_GPT) {
-          lvglSetGptVolumeFromTouchX(x, false);
-        }
         return;
       }
       const int16_t liveDx = g_touchLastX - g_touchStartX;
@@ -6620,10 +5459,6 @@ static void handleTouchSwipeInput() {
   if (touchAuxBtnDown == TOUCH_AUX_BTN_QR) lvglSetAuxQrButtonPressed(false);
   else if (touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) lvglSetAuxRefreshButtonPressed(false);
   else if (touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) lvglSetAuxNextFeedButtonPressed(false);
-  else if (touchAuxBtnDown == TOUCH_AUX_BTN_GPT_ASK) lvglSetGptAskButtonPressed(false);
-  else if (touchAuxBtnDown == TOUCH_AUX_BTN_GPT_REC) lvglSetGptRecButtonPressed(false);
-  else if (touchAuxBtnDown == TOUCH_AUX_BTN_GPT_PLAY) lvglSetGptPlayButtonPressed(false);
-  else if (touchAuxBtnDown == TOUCH_AUX_BTN_GPT_VOL) lvglSetGptVolumeFromTouchX(g_touchLastX, true);
 
   if (touchAuxBtnDown != TOUCH_AUX_BTN_NONE) {
     Serial.printf("[TOUCH] btn-up kind=%u tap=%d dx=%d dy=%d dur=%lums\n",
@@ -6666,44 +5501,6 @@ static void handleTouchSwipeInput() {
                       moved ? 1 : 0,
                       (unsigned)(g_rss.currentIndex + 1),
                       (unsigned)g_rss.itemCount);
-#endif
-      }
-    } else if (isBtnTap && g_uiPageMode == UI_PAGE_GPT) {
-      if (touchAuxBtnDown == TOUCH_AUX_BTN_GPT_ASK) {
-        char askPrompt[220];
-        const uint32_t seed = esp_random();
-        snprintf(askPrompt, sizeof(askPrompt),
-                 "Dammi un numero random 1-1000 e una citazione random breve in italiano. "
-                 "Deve essere diversa ogni volta. Seed:%lu",
-                 (unsigned long)seed);
-        const bool ok = runGptSayFlow(String(askPrompt), "TOUCH");
-        Serial.printf("[TOUCH] gpt-ask ok=%d\n", ok ? 1 : 0);
-      } else if (touchAuxBtnDown == TOUCH_AUX_BTN_GPT_REC) {
-#if TEST_AUDIO
-        bool ok = false;
-        if (g_audioRecording) {
-          ok = triggerAudioRecordStop();
-          Serial.printf("[TOUCH] gpt-rec-stop ok=%d\n", ok ? 1 : 0);
-        } else {
-          ok = triggerAudioRecord();
-          Serial.printf("[TOUCH] gpt-rec-start ok=%d\n", ok ? 1 : 0);
-        }
-#else
-        Serial.println("[TOUCH] gpt-rec disabled");
-#endif
-      } else if (touchAuxBtnDown == TOUCH_AUX_BTN_GPT_PLAY) {
-#if TEST_AUDIO
-        const bool ok = triggerAudioPlay();
-        Serial.printf("[TOUCH] gpt-replay ok=%d\n", ok ? 1 : 0);
-#else
-        Serial.println("[TOUCH] gpt-play disabled");
-#endif
-      } else if (touchAuxBtnDown == TOUCH_AUX_BTN_GPT_VOL) {
-        lvglSetGptVolumeFromTouchX(g_touchLastX, true);
-#if TEST_AUDIO
-        Serial.printf("[TOUCH] gpt-vol=%u%%\n", (unsigned)g_audioOutVolPercent);
-#else
-        Serial.println("[TOUCH] gpt-vol disabled");
 #endif
       }
     }
@@ -8188,7 +6985,7 @@ static void lvglSetObjXAnim(void *obj, int32_t x) {
 }
 
 static bool lvglApplyPageDrag(int16_t dragDx) {
-  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglGptRoot) return false;
+  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot) return false;
 
   int32_t dx = dragDx;
   const int16_t w = canvasWidth();
@@ -8197,24 +6994,21 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   if (dx < -w) dx = -w;
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
   // Edge damping when dragging past first/last page.
-  if ((cur == 0 && dx > 0) || (cur == 3 && dx < 0)) dx /= 3;
+  if ((cur == 0 && dx > 0) || (cur == 2 && dx < 0)) dx /= 3;
 
   lv_anim_del(g_lvglInfoRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
-  lv_anim_del(g_lvglGptRoot, lvglSetObjXAnim);
   g_lvglPageAnimUntilMs = 0;
   g_lvglPageDragActive = true;
 
   lv_obj_clear_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglGptRoot, LV_OBJ_FLAG_HIDDEN);
 
   lv_obj_set_pos(g_lvglInfoRoot, (lv_coord_t)(((0 - cur) * w) + dx), 0);
   lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)(((1 - cur) * w) + dx), 0);
   lv_obj_set_pos(g_lvglAuxRoot, (lv_coord_t)(((2 - cur) * w) + dx), 0);
-  lv_obj_set_pos(g_lvglGptRoot, (lv_coord_t)(((3 - cur) * w) + dx), 0);
   return true;
 }
 
@@ -8232,20 +7026,18 @@ static void lvglStartSlideAnim(lv_obj_t *obj, int32_t fromX, int32_t toX, uint16
 }
 
 static void lvglApplyPageVisibility(bool animate) {
-  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglGptRoot) return;
+  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot) return;
 
   const int16_t w = canvasWidth();
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
   const int32_t infoTargetX = (0 - cur) * w;
   const int32_t homeTargetX = (1 - cur) * w;
   const int32_t auxTargetX = (2 - cur) * w;
-  const int32_t gptTargetX = (3 - cur) * w;
   const uint32_t now = millis();
 
   lv_obj_clear_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglGptRoot, LV_OBJ_FLAG_HIDDEN);
 
   if (!animate) {
     if (g_lvglPageDragActive) return;
@@ -8253,15 +7045,12 @@ static void lvglApplyPageVisibility(bool animate) {
     lv_anim_del(g_lvglInfoRoot, lvglSetObjXAnim);
     lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
     lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
-    lv_anim_del(g_lvglGptRoot, lvglSetObjXAnim);
     lv_obj_set_pos(g_lvglInfoRoot, (lv_coord_t)infoTargetX, 0);
     lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)homeTargetX, 0);
     lv_obj_set_pos(g_lvglAuxRoot, (lv_coord_t)auxTargetX, 0);
-    lv_obj_set_pos(g_lvglGptRoot, (lv_coord_t)gptTargetX, 0);
     if (abs(infoTargetX) > w) lv_obj_add_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
     if (abs(homeTargetX) > w) lv_obj_add_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
     if (abs(auxTargetX) > w) lv_obj_add_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
-    if (abs(gptTargetX) > w) lv_obj_add_flag(g_lvglGptRoot, LV_OBJ_FLAG_HIDDEN);
     g_lvglPageDragActive = false;
     return;
   }
@@ -8270,11 +7059,9 @@ static void lvglApplyPageVisibility(bool animate) {
   const int32_t infoFromX = lv_obj_get_x(g_lvglInfoRoot);
   const int32_t homeFromX = lv_obj_get_x(g_lvglHomeRoot);
   const int32_t auxFromX = lv_obj_get_x(g_lvglAuxRoot);
-  const int32_t gptFromX = lv_obj_get_x(g_lvglGptRoot);
   lvglStartSlideAnim(g_lvglInfoRoot, infoFromX, infoTargetX, kSlideMs);
   lvglStartSlideAnim(g_lvglHomeRoot, homeFromX, homeTargetX, kSlideMs);
   lvglStartSlideAnim(g_lvglAuxRoot, auxFromX, auxTargetX, kSlideMs);
-  lvglStartSlideAnim(g_lvglGptRoot, gptFromX, gptTargetX, kSlideMs);
   g_lvglPageDragActive = false;
   g_lvglPageAnimUntilMs = now + kSlideMs + 30;
 }
@@ -8605,98 +7392,6 @@ static void lvglUpdateInfoPanel(bool force) {
   lvglForceLabelVisible(g_lvglInfoTitle);
   lvglForceLabelVisible(g_lvglInfoEndpoint);
   lvglForceLabelVisible(g_lvglInfoBodyLeft);
-}
-
-static void lvglUpdateGptPanel(bool force) {
-  (void)force;
-  if (!g_lvglGptTitle || !g_lvglGptStatus || !g_lvglGptBody) return;
-
-  char meta[48];
-  const uint32_t ageSec = (g_gptLastProbeMs > 0) ? ((millis() - g_gptLastProbeMs) / 1000UL) : 0UL;
-  if (g_gptLastProbeMs > 0) {
-    snprintf(meta, sizeof(meta), "HTTP %d • %lus fa", g_gptLastProbeHttp, (unsigned long)ageSec);
-  } else {
-    snprintf(meta, sizeof(meta), "No probe yet");
-  }
-
-  char audioLine[96];
-#if TEST_AUDIO
-  if (g_audioRecording || g_audioPlaying) {
-    const uint32_t elapsed = (millis() - g_audioOpStartMs) / 1000UL;
-    const uint32_t remain = (elapsed >= (uint32_t)AUDIO_RECORD_SECONDS) ? 0UL : ((uint32_t)AUDIO_RECORD_SECONDS - elapsed);
-    snprintf(audioLine, sizeof(audioLine), "%s %lus",
-             g_audioRecording ? "audio: REC -" : "audio: PLAY -",
-             (unsigned long)remain);
-  } else {
-    snprintf(audioLine, sizeof(audioLine), "%s", g_audioStatusLine);
-  }
-#else
-  snprintf(audioLine, sizeof(audioLine), "audio: disabled");
-#endif
-
-  char body[1400];
-  snprintf(body, sizeof(body),
-           "Q: %s\n"
-           "S: %s  |  %s\n"
-            "AUDIO: %s\n"
-            "\n"
-           "A:\n"
-           "%s\n"
-            "\n"
-           "Touch: ASK / REC / REPLAY + VOL\n"
-           "Cmd: GPTTEST / GPTSAY [txt] / GPTREC / GPTPLAY / GPTVOL [0..100]",
-           g_gptLastQuestion,
-           g_gptPanelStatus,
-           meta,
-           audioLine,
-           g_gptPanelText);
-
-  lv_label_set_text(g_lvglGptTitle, "ScryBar GPT");
-  lv_label_set_text(g_lvglGptStatus, g_gptPanelStatus);
-  lv_label_set_text(g_lvglGptBody, body);
-  lvglSyncGptVolumeUi();
-
-#if TEST_AUDIO
-  if (g_audioRecording) {
-    lvglSetGptRecOverlayOpen(true);
-    const bool blinkOn = ((millis() / 350UL) % 2UL) == 0UL;
-    if (g_lvglGptRecOverlayDot) {
-      lv_obj_set_style_text_color(g_lvglGptRecOverlayDot, blinkOn ? lv_color_hex(0xFF5151) : lv_color_hex(0x792222), 0);
-      lv_label_set_text(g_lvglGptRecOverlayDot, blinkOn ? "REC ●" : "REC ○");
-      lv_obj_invalidate(g_lvglGptRecOverlayDot);
-    }
-    if (g_lvglGptRecOverlayIcon) {
-      lv_obj_set_style_text_color(g_lvglGptRecOverlayIcon, blinkOn ? lv_color_hex(0x72FF95) : lv_color_hex(0x2A7D42), 0);
-      lv_obj_invalidate(g_lvglGptRecOverlayIcon);
-    }
-    if (g_lvglGptRecOverlayText) {
-      lv_label_set_text(g_lvglGptRecOverlayText, activeUiStrings()->gptRecording);
-      lv_obj_invalidate(g_lvglGptRecOverlayText);
-    }
-  } else if (g_gptMicPipelineRunning) {
-    lvglSetGptRecOverlayOpen(true);
-    if (g_lvglGptRecOverlayDot) {
-      lv_obj_set_style_text_color(g_lvglGptRecOverlayDot, lv_color_hex(0x49C8F2), 0);
-      lv_label_set_text(g_lvglGptRecOverlayDot, "WAIT");
-      lv_obj_invalidate(g_lvglGptRecOverlayDot);
-    }
-    if (g_lvglGptRecOverlayIcon) {
-      lv_obj_set_style_text_color(g_lvglGptRecOverlayIcon, lv_color_hex(0x49C8F2), 0);
-      lv_label_set_text(g_lvglGptRecOverlayIcon, "...");
-      lv_obj_invalidate(g_lvglGptRecOverlayIcon);
-    }
-    if (g_lvglGptRecOverlayText) {
-      lv_label_set_text(g_lvglGptRecOverlayText, activeUiStrings()->gptProcessing);
-      lv_obj_invalidate(g_lvglGptRecOverlayText);
-    }
-  } else if (lvglGptRecOverlayIsOpen()) {
-    lvglSetGptRecOverlayOpen(false);
-  }
-#endif
-
-  lvglForceLabelVisible(g_lvglGptTitle);
-  lvglForceLabelVisible(g_lvglGptStatus);
-  lvglForceLabelVisible(g_lvglGptBody);
 }
 
 static void lvglDisplayFlushCb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
@@ -9509,219 +8204,6 @@ static bool initLvglUi() {
   lv_obj_add_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
 #endif
 
-  g_lvglGptRoot = lv_obj_create(scr);
-  lv_obj_set_size(g_lvglGptRoot, cW, cH);
-  lv_obj_set_pos(g_lvglGptRoot, 0, 0);
-  lv_obj_set_style_radius(g_lvglGptRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglGptRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglGptRoot, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglGptRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglGptRoot, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglGptRoot, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglGptRoot, LV_SCROLLBAR_MODE_OFF);
-
-  g_lvglGptCard = lv_obj_create(g_lvglGptRoot);
-  lv_obj_set_size(g_lvglGptCard, cW - (outerPadX * 2), cH - (outerPadY * 2));
-  lv_obj_set_pos(g_lvglGptCard, outerPadX, outerPadY);
-  lv_obj_set_style_radius(g_lvglGptCard, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_lvglGptCard, lv_color_hex(0x101B44), LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglGptCard, lv_color_hex(0x101B44), LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglGptCard, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglGptCard, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglGptCard, 0, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglGptCard, false, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglGptCard, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglGptCard, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglGptCard, LV_OBJ_FLAG_SCROLLABLE);
-
-  constexpr int16_t gptHeaderH = 30;
-  const int16_t gptCardW = cW - (outerPadX * 2);
-  const int16_t gptCardH = cH - (outerPadY * 2);
-  g_lvglGptHeader = lv_obj_create(g_lvglGptCard);
-  lv_obj_set_size(g_lvglGptHeader, gptCardW, gptHeaderH);
-  lv_obj_set_pos(g_lvglGptHeader, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglGptHeader, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglGptHeader, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglGptHeader, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglGptHeader, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglGptHeader, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglGptHeader, false, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglGptHeader, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglGptHeader, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglGptHeader, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglGptHeader, LV_SCROLLBAR_MODE_OFF);
-
-  lv_obj_t *gptHeaderFill = lv_obj_create(g_lvglGptHeader);
-  lv_obj_set_size(gptHeaderFill, gptCardW, 10);
-  lv_obj_set_pos(gptHeaderFill, 0, gptHeaderH - 10);
-  lv_obj_set_style_bg_color(gptHeaderFill, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(gptHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(gptHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(gptHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(gptHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(gptHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(gptHeaderFill, LV_SCROLLBAR_MODE_OFF);
-
-  g_lvglGptTitle = lv_label_create(g_lvglGptHeader);
-  lv_obj_set_style_text_font(g_lvglGptTitle, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglGptTitle, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_align(g_lvglGptTitle, LV_ALIGN_LEFT_MID, 12, -1);
-  lv_label_set_text(g_lvglGptTitle, "ScryBar GPT");
-  lvglForceLabelVisible(g_lvglGptTitle);
-
-  g_lvglGptStatus = lv_label_create(g_lvglGptHeader);
-  lv_obj_set_style_text_font(g_lvglGptStatus, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglGptStatus, lv_color_hex(0xAFC2F5), 0);
-  lv_obj_align(g_lvglGptStatus, LV_ALIGN_RIGHT_MID, -10, 0);
-  lv_label_set_text(g_lvglGptStatus, "BETA");
-  lvglForceLabelVisible(g_lvglGptStatus);
-
-  g_lvglGptBody = lv_label_create(g_lvglGptCard);
-  lv_obj_set_style_text_font(g_lvglGptBody, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglGptBody, lv_color_hex(0xEAF0FF), 0);
-  lv_obj_set_style_text_line_space(g_lvglGptBody, 3, 0);
-  lv_label_set_long_mode(g_lvglGptBody, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(g_lvglGptBody, gptCardW - 24, gptCardH - gptHeaderH - 74);
-  lv_obj_set_pos(g_lvglGptBody, 12, gptHeaderH + 8);
-  lv_label_set_text(g_lvglGptBody, "Initializing GPT panel...");
-  lvglForceLabelVisible(g_lvglGptBody);
-
-  const int16_t gptBtnW = 58;
-  const int16_t gptBtnH = 28;
-  const int16_t gptBtnGap = 8;
-  const int16_t gptBtnY = gptCardH - gptBtnH - 8;
-  const int16_t gptPlayX = gptCardW - gptBtnW - 8;
-  const int16_t gptRecX = gptPlayX - gptBtnW - gptBtnGap;
-  const int16_t gptAskX = gptRecX - gptBtnW - gptBtnGap;
-  const int16_t volTrackX = 12;
-  const int16_t volTrackY = gptBtnY + 8;
-  const int16_t volTrackW = gptAskX - 24;
-  const int16_t volTrackH = 12;
-
-  g_lvglGptVolTrack = lv_obj_create(g_lvglGptCard);
-  lv_obj_set_size(g_lvglGptVolTrack, volTrackW, volTrackH);
-  lv_obj_set_pos(g_lvglGptVolTrack, volTrackX, volTrackY);
-  lv_obj_set_style_bg_color(g_lvglGptVolTrack, lv_color_hex(0x1D2A5B), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglGptVolTrack, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglGptVolTrack, 1, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_lvglGptVolTrack, lv_color_hex(0x5DA7FF), LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglGptVolTrack, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglGptVolTrack, 4, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglGptVolTrack, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglGptVolTrack, LV_OBJ_FLAG_SCROLLABLE);
-
-  g_lvglGptVolFill = lv_obj_create(g_lvglGptVolTrack);
-#if TEST_AUDIO
-  const int16_t volFillInitW = (volTrackW * (int16_t)g_audioOutVolPercent) / 100;
-#else
-  const int16_t volFillInitW = 0;
-#endif
-  lv_obj_set_size(g_lvglGptVolFill, volFillInitW, volTrackH);
-  lv_obj_set_pos(g_lvglGptVolFill, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglGptVolFill, lv_color_hex(0x49C8F2), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglGptVolFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglGptVolFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglGptVolFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglGptVolFill, 4, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglGptVolFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglGptVolFill, LV_OBJ_FLAG_SCROLLABLE);
-
-  g_lvglGptVolLabel = lv_label_create(g_lvglGptCard);
-  lv_obj_set_style_text_font(g_lvglGptVolLabel, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglGptVolLabel, lv_color_hex(0xAFC2F5), 0);
-  lv_obj_set_pos(g_lvglGptVolLabel, volTrackX, volTrackY - 14);
-  lv_label_set_text(g_lvglGptVolLabel, "VOL 88%");
-  lvglForceLabelVisible(g_lvglGptVolLabel);
-
-  g_lvglGptAskBtn = lv_obj_create(g_lvglGptCard);
-  lv_obj_set_size(g_lvglGptAskBtn, gptBtnW, gptBtnH);
-  lv_obj_set_pos(g_lvglGptAskBtn, gptAskX, gptBtnY);
-  lv_obj_set_style_bg_color(g_lvglGptAskBtn, lv_color_hex(0x49C8F2), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglGptAskBtn, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglGptAskBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglGptAskBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglGptAskBtn, 5, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglGptAskBtn, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglGptAskBtn, LV_OBJ_FLAG_SCROLLABLE);
-  g_lvglGptAskBtnText = lv_label_create(g_lvglGptAskBtn);
-  lv_obj_set_style_text_font(g_lvglGptAskBtnText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglGptAskBtnText, lv_color_hex(0x0F2B56), 0);
-  lv_label_set_text(g_lvglGptAskBtnText, "ASK");
-  lv_obj_center(g_lvglGptAskBtnText);
-  lvglForceLabelVisible(g_lvglGptAskBtnText);
-
-  g_lvglGptRecBtn = lv_obj_create(g_lvglGptCard);
-  lv_obj_set_size(g_lvglGptRecBtn, gptBtnW, gptBtnH);
-  lv_obj_set_pos(g_lvglGptRecBtn, gptRecX, gptBtnY);
-  lv_obj_set_style_bg_color(g_lvglGptRecBtn, lv_color_hex(0xFF5C8A), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglGptRecBtn, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglGptRecBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglGptRecBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglGptRecBtn, 5, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglGptRecBtn, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglGptRecBtn, LV_OBJ_FLAG_SCROLLABLE);
-  g_lvglGptRecBtnText = lv_label_create(g_lvglGptRecBtn);
-  lv_obj_set_style_text_font(g_lvglGptRecBtnText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglGptRecBtnText, lv_color_hex(0xFFF5FA), 0);
-  lv_label_set_text(g_lvglGptRecBtnText, "REC");
-  lv_obj_center(g_lvglGptRecBtnText);
-  lvglForceLabelVisible(g_lvglGptRecBtnText);
-
-  g_lvglGptPlayBtn = lv_obj_create(g_lvglGptCard);
-  lv_obj_set_size(g_lvglGptPlayBtn, gptBtnW, gptBtnH);
-  lv_obj_set_pos(g_lvglGptPlayBtn, gptPlayX, gptBtnY);
-  lv_obj_set_style_bg_color(g_lvglGptPlayBtn, lv_color_hex(0x6FD8FF), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglGptPlayBtn, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglGptPlayBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglGptPlayBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglGptPlayBtn, 5, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglGptPlayBtn, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglGptPlayBtn, LV_OBJ_FLAG_SCROLLABLE);
-  g_lvglGptPlayBtnText = lv_label_create(g_lvglGptPlayBtn);
-  lv_obj_set_style_text_font(g_lvglGptPlayBtnText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglGptPlayBtnText, lv_color_hex(0x113063), 0);
-  lv_label_set_text(g_lvglGptPlayBtnText, "RPLY");
-  lv_obj_center(g_lvglGptPlayBtnText);
-  lvglForceLabelVisible(g_lvglGptPlayBtnText);
-
-  g_lvglGptRecOverlay = lv_obj_create(g_lvglGptCard);
-  lv_obj_set_size(g_lvglGptRecOverlay, gptCardW, gptCardH);
-  lv_obj_set_pos(g_lvglGptRecOverlay, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglGptRecOverlay, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglGptRecOverlay, LV_OPA_80, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglGptRecOverlay, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglGptRecOverlay, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglGptRecOverlay, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglGptRecOverlay, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglGptRecOverlay, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglGptRecOverlay, LV_SCROLLBAR_MODE_OFF);
-  lv_obj_add_flag(g_lvglGptRecOverlay, LV_OBJ_FLAG_HIDDEN);
-
-  g_lvglGptRecOverlayIcon = lv_label_create(g_lvglGptRecOverlay);
-  lv_obj_set_style_text_font(g_lvglGptRecOverlayIcon, lvglFontBig(), 0);
-  lv_obj_set_style_text_color(g_lvglGptRecOverlayIcon, lv_color_hex(0x5EFF86), 0);
-  lv_label_set_text(g_lvglGptRecOverlayIcon, "MIC");
-  lv_obj_align(g_lvglGptRecOverlayIcon, LV_ALIGN_CENTER, 0, -20);
-  lvglForceLabelVisible(g_lvglGptRecOverlayIcon);
-
-  g_lvglGptRecOverlayDot = lv_label_create(g_lvglGptRecOverlay);
-  lv_obj_set_style_text_font(g_lvglGptRecOverlayDot, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglGptRecOverlayDot, lv_color_hex(0xFF4343), 0);
-  lv_label_set_text(g_lvglGptRecOverlayDot, "REC ●");
-  lv_obj_align(g_lvglGptRecOverlayDot, LV_ALIGN_CENTER, 0, 12);
-  lvglForceLabelVisible(g_lvglGptRecOverlayDot);
-
-  g_lvglGptRecOverlayText = lv_label_create(g_lvglGptRecOverlay);
-  lv_obj_set_style_text_font(g_lvglGptRecOverlayText, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglGptRecOverlayText, lv_color_hex(0xEAF0FF), 0);
-  lv_obj_set_style_text_line_space(g_lvglGptRecOverlayText, 2, 0);
-  lv_label_set_long_mode(g_lvglGptRecOverlayText, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(g_lvglGptRecOverlayText, gptCardW - 30);
-  lv_obj_align(g_lvglGptRecOverlayText, LV_ALIGN_CENTER, 0, 42);
-  lv_obj_set_style_text_align(g_lvglGptRecOverlayText, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_text(g_lvglGptRecOverlayText, activeUiStrings()->gptRecording);
-  lvglForceLabelVisible(g_lvglGptRecOverlayText);
-
 #if SCREENSAVER_ENABLED
   g_lvglScreenSaverRoot = lv_obj_create(scr);
   lv_obj_set_size(g_lvglScreenSaverRoot, cW, cH);
@@ -9873,25 +8355,6 @@ static void updateLvglUi(bool force) {
     if (g_lvglAuxStatus) lv_obj_invalidate(g_lvglAuxStatus);
     return;
   }
-  if (g_uiPageMode == UI_PAGE_GPT) {
-    lvglUpdateGptPanel(force);
-    g_lastClockSecond = timeinfo.tm_sec;
-    g_lastDateKey = dateKey;
-    g_uiNeedsRedraw = false;
-    if (g_lvglGptCard) lv_obj_invalidate(g_lvglGptCard);
-    if (g_lvglGptHeader) lv_obj_invalidate(g_lvglGptHeader);
-    if (g_lvglGptTitle) lv_obj_invalidate(g_lvglGptTitle);
-    if (g_lvglGptStatus) lv_obj_invalidate(g_lvglGptStatus);
-    if (g_lvglGptBody) lv_obj_invalidate(g_lvglGptBody);
-    if (g_lvglGptAskBtn) lv_obj_invalidate(g_lvglGptAskBtn);
-    if (g_lvglGptRecBtn) lv_obj_invalidate(g_lvglGptRecBtn);
-    if (g_lvglGptPlayBtn) lv_obj_invalidate(g_lvglGptPlayBtn);
-    if (g_lvglGptVolTrack) lv_obj_invalidate(g_lvglGptVolTrack);
-    if (g_lvglGptVolLabel) lv_obj_invalidate(g_lvglGptVolLabel);
-    if (g_lvglGptRecOverlay) lv_obj_invalidate(g_lvglGptRecOverlay);
-    return;
-  }
-
   char sentence[96], d1[48];
   composeWordClockSentenceActive(timeinfo, sentence, sizeof(sentence));
   if (sentence[0] >= 'a' && sentence[0] <= 'z') {
@@ -10487,87 +8950,6 @@ static bool emitSnapshotOverSerial() {
 }
 #endif
 
-static bool runGptSayFlow(const String &prompt, const char *originTag) {
-  const char *tag = (originTag && originTag[0]) ? originTag : "SYS";
-  setUiPage(UI_PAGE_GPT);
-
-  String userPrompt = prompt;
-  userPrompt.trim();
-  if (userPrompt.length() == 0) userPrompt = kGptSpeakDefaultQuestion;
-  copyStringSafe(g_gptLastQuestion, sizeof(g_gptLastQuestion), userPrompt.c_str());
-
-  g_gptLastProbeMs = millis();
-  g_gptLastProbeHttp = 0;
-  copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "RUNNING");
-  copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), "Calling OpenAI text...");
-  g_uiNeedsRedraw = true;
-  updateLvglUi(true);
-  lv_timer_handler();
-
-  String reply;
-  String err;
-  int textHttpCode = 0;
-  const bool okText = runOpenAiChatPrompt(userPrompt, reply, textHttpCode, err);
-  g_gptLastProbeMs = millis();
-  g_gptLastProbeHttp = textHttpCode;
-  if (!okText) {
-    copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "ERR");
-    copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), err.c_str());
-    Serial.printf("[GPT][SAY][%s][ERR] text http=%d detail=%s\n", tag, textHttpCode, err.c_str());
-    g_uiNeedsRedraw = true;
-    updateLvglUi(true);
-    lv_timer_handler();
-    return false;
-  }
-
-  copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "TTS");
-  copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), reply.c_str());
-  g_uiNeedsRedraw = true;
-  updateLvglUi(true);
-  lv_timer_handler();
-
-#if TEST_AUDIO
-  size_t clipBytes = 0;
-  int ttsCode = 0;
-  String ttsErr;
-  const bool okTts = openAiFetchTtsPcmClip(reply, clipBytes, ttsCode, ttsErr);
-  g_gptLastProbeMs = millis();
-  g_gptLastProbeHttp = ttsCode;
-  if (!okTts) {
-    copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "ERR");
-    copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), ttsErr.c_str());
-    Serial.printf("[GPT][SAY][%s][ERR] tts http=%d detail=%s\n", tag, ttsCode, ttsErr.c_str());
-    g_uiNeedsRedraw = true;
-    updateLvglUi(true);
-    lv_timer_handler();
-    return false;
-  }
-
-  const bool playOk = triggerAudioPlay();
-  copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), playOk ? "SPEAK" : "ERR");
-  if (!playOk) {
-    copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), "TTS ok, ma playback non partito.");
-    Serial.printf("[GPT][SAY][%s][ERR] playback start failed bytes=%u\n", tag, (unsigned)clipBytes);
-  } else {
-    copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), reply.c_str());
-    Serial.printf("[GPT][SAY][%s] OK text_http=%d tts_http=%d bytes=%u\n",
-                  tag, textHttpCode, ttsCode, (unsigned)clipBytes);
-  }
-  g_uiNeedsRedraw = true;
-  updateLvglUi(true);
-  lv_timer_handler();
-  return playOk;
-#else
-  copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "OK");
-  copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), reply.c_str());
-  Serial.printf("[GPT][SAY][%s] OK text_http=%d (audio disabled)\n", tag, textHttpCode);
-  g_uiNeedsRedraw = true;
-  updateLvglUi(true);
-  lv_timer_handler();
-  return true;
-#endif
-}
-
 static void handleSerialCommand(const char *line) {
   if (!line || !*line) return;
   String raw(line);
@@ -10577,7 +8959,7 @@ static void handleSerialCommand(const char *line) {
   cmd.toUpperCase();
 
   if (cmd == "HELP") {
-    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEW0, VIEW1, VIEW2, VIEW3, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, VIEWGPT, GPTTEST, GPTSAY [txt], GPTREC, GPTPLAY, GPTVOL [0..100], QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG");
+    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEW0, VIEW1, VIEW2, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG");
     return;
   }
 
@@ -10611,95 +8993,6 @@ static void handleSerialCommand(const char *line) {
   if (cmd == "VIEW2" || cmd == "VIEWAUX" || cmd == "VIEWRSS") {
     setUiPage(UI_PAGE_AUX);
     Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-  if (cmd == "VIEW3" || cmd == "VIEWGPT") {
-    setUiPage(UI_PAGE_GPT);
-    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-  if (cmd == "GPTTEST" || cmd == "GPTPING") {
-    setUiPage(UI_PAGE_GPT);
-    copyStringSafe(g_gptLastQuestion, sizeof(g_gptLastQuestion), kGptProbeQuestion);
-    g_gptLastProbeMs = millis();
-    g_gptLastProbeHttp = 0;
-    copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "RUNNING");
-    copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), "Calling OpenAI...");
-    g_uiNeedsRedraw = true;
-    updateLvglUi(true);
-    lv_timer_handler();
-
-    String reply;
-    String err;
-    int httpCode = 0;
-    const bool ok = runOpenAiProbe(reply, httpCode, err);
-    g_gptLastProbeMs = millis();
-    g_gptLastProbeHttp = httpCode;
-    if (ok) {
-      copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "OK");
-      copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), reply.c_str());
-      Serial.printf("[GPT] OK http=%d text=%s\n", httpCode, reply.c_str());
-    } else {
-      copyStringSafe(g_gptPanelStatus, sizeof(g_gptPanelStatus), "ERR");
-      copyStringSafe(g_gptPanelText, sizeof(g_gptPanelText), err.c_str());
-      Serial.printf("[GPT][ERR] http=%d detail=%s\n", httpCode, err.c_str());
-    }
-    g_uiNeedsRedraw = true;
-    updateLvglUi(true);
-    lv_timer_handler();
-    return;
-  }
-  if (cmd == "GPTSAY" || cmd.startsWith("GPTSAY ")) {
-    String prompt;
-    if (raw.length() > 6) {
-      prompt = raw.substring(6);
-      prompt.trim();
-    }
-    const bool ok = runGptSayFlow(prompt, "SER");
-    Serial.printf("[CMD] GPTSAY ok=%d\n", ok ? 1 : 0);
-    return;
-  }
-  if (cmd == "GPTREC") {
-    setUiPage(UI_PAGE_GPT);
-#if TEST_AUDIO
-    bool ok = false;
-    if (g_audioRecording) {
-      ok = triggerAudioRecordStop();
-      Serial.printf("[AUDIO] GPTREC stop=%d\n", ok ? 1 : 0);
-    } else {
-      ok = triggerAudioRecord();
-      Serial.printf("[AUDIO] GPTREC start=%d\n", ok ? 1 : 0);
-    }
-#else
-    Serial.println("[AUDIO] disabled (TEST_AUDIO=0)");
-#endif
-    return;
-  }
-  if (cmd == "GPTPLAY") {
-    setUiPage(UI_PAGE_GPT);
-#if TEST_AUDIO
-    const bool ok = triggerAudioPlay();
-    Serial.printf("[AUDIO] GPTREPLAY ok=%d\n", ok ? 1 : 0);
-#else
-    Serial.println("[AUDIO] disabled (TEST_AUDIO=0)");
-#endif
-    return;
-  }
-  if (cmd == "GPTVOL" || cmd.startsWith("GPTVOL ")) {
-    setUiPage(UI_PAGE_GPT);
-#if TEST_AUDIO
-    int vol = (int)g_audioOutVolPercent;
-    if (raw.length() > 7) {
-      String v = raw.substring(7);
-      v.trim();
-      if (v.length() > 0) vol = v.toInt();
-    }
-    audioSetOutputVolumePercent(audioClampVolumePercent(vol), true);
-    lvglSyncGptVolumeUi();
-    Serial.printf("[AUDIO] GPTVOL=%u%%\n", (unsigned)g_audioOutVolPercent);
-#else
-    Serial.println("[AUDIO] disabled (TEST_AUDIO=0)");
-#endif
     return;
   }
   if (cmd == "QRON") {
@@ -11002,19 +9295,6 @@ void setup() {
   Serial.println("[SKIP] TEST_WIFI=0");
 #endif
 
-#if TEST_AUDIO
-  if (initAudioFeature()) {
-    Serial.printf("[AUDIO] init ok clip=%u bytes (%us @%dHz)\n",
-                  (unsigned)g_audioPcmBytes,
-                  (unsigned)AUDIO_RECORD_SECONDS,
-                  (unsigned)AUDIO_SAMPLE_RATE);
-  } else {
-    Serial.printf("[AUDIO][ERR] init failed: %s\n", g_audioStatusLine);
-  }
-#else
-  Serial.println("[SKIP] TEST_AUDIO=0");
-#endif
-
 #if TEST_LVGL_UI && TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
   if (initLvglUi()) {
     updateLvglUi(true);
@@ -11059,16 +9339,6 @@ void loop() {
   sampleBatteryNow(now, false);
 #endif
   applyEnergyPolicy(now, false);
-#if TEST_AUDIO
-  if (g_gptMicPipelinePending && !g_audioRecording && !g_gptMicPipelineRunning) {
-    const bool kicked = triggerGptMicPipeline();
-    if (!kicked) g_gptMicPipelinePending = false;
-  }
-  if (!g_audioRecording && g_gptMicPipelineRunning && g_gptMicPipelinePending) {
-    runGptMicPipelineNow();
-  }
-#endif
-
 #if TEST_NTP
   if (!g_ntpSynced && wifiIsConnectedNow()) {
     if (g_lastNtpAttemptMs == 0 || (now - g_lastNtpAttemptMs) >= 10000UL) {
