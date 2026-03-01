@@ -76,6 +76,7 @@ Use these to confirm a flash landed: serial monitor logs `[FW] Build=DB-M0-rNNN`
 - Multi-SSID Wi-Fi fallback with non-blocking retry cycle.
 - Touch-driven page navigation (INFO/HOME/AUX views, 3 pages).
 - Weather + RSS + word clock integrated UX — full display UI localizable via `g_wordClockLang`.
+- 10 built-in word clock languages: `it` Italiano (default), `en` English, `fr` Français, `de` Deutsch, `es` Español, `pt` Português, `la` Latina, `eo` Esperanto, `nap` Napoletano, `tlh` Klingon. Selectable from web UI, persisted to NVS.
 - Power/battery diagnostics visible in INFO panel.
 
 ## LVGL Configuration
@@ -116,8 +117,9 @@ Real idle ghost observed: `points=117` with spurious coordinates.
 | Command | Effect |
 |---|---|
 | `VIEW` | Toggle HOME ↔ AUX page |
-| `VIEW0` / `VIEWHOME` | Force HOME page |
-| `VIEW1` / `VIEWAUX` | Force AUX page |
+| `VIEW0` / `VIEWINFO` | Force INFO page |
+| `VIEW1` / `VIEWHOME` | Force HOME page |
+| `VIEW2` / `VIEWAUX` | Force AUX page |
 | `BATSTAT` | Print battery status |
 | `SAVERON` | Force screensaver on |
 | `PWROFFHARD` | Hard power-off (requires power cycle to recover) |
