@@ -7,11 +7,11 @@
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
 > A mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture.
-> It tells time in Italian (and soon more languages too, let's start with Klingon. No, really.) like it's poetry, checks weather you could learn by opening a window,
-> and scrolls news you've already read.
+> It tells time in ten languages — Italian, English, French, German, Spanish, Portuguese, Latin, Esperanto, Neapolitan, and Klingon — like it's poetry,
+> checks weather you could learn by opening a window, and scrolls news you've already read.
 > All of this on an ESP32 that didn't ask for this life.
 
-**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, three swipeable views, and a word clock that composes real Italian sentences — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
+**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, three swipeable views, and a word clock that composes real sentences in ten languages — Italian, English, French, German, Spanish, Portuguese, Latin, Esperanto, Neapolitan, and Klingon — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
 
 The name comes from *scrying*: the practice of seeing what matters from afar. That is what ScryBar does from your desk.
 
@@ -36,6 +36,7 @@ We gave it three swipeable views, a QR code generator, and an existential purpos
 
 - [Hardware](#hardware)
 - [Views](#views)
+- [Word Clock Languages](#word-clock-languages)
 - [How It Works](#how-it-works)
 - [Quick Start](#quick-start)
 - [Secrets](#secrets)
@@ -76,11 +77,32 @@ Three views, navigated by swipe. Left or right, like flipping pages. There is no
   └────────────────────────────────────────────────┘
 ```
 
-**HOME** — Word clock in natural Italian sentence form (`composeWordClockSentenceIt`) plus weather icon, temperature, and humidity. The clock renders with `Montserrat 38` because that is the size where it stops being a "clock" and starts being a statement.
+**HOME** — Word clock in natural sentence form, switchable across 10 languages: Italiano, English, Français, Deutsch, Español, Português, Latina, Esperanto, Napoletano, and tlhIngan Hol (Klingon). Not uppercase tiles — actual grammar, composed at runtime. Plus weather icon, temperature, and humidity. Renders with `Montserrat 38` because that is the size where it stops being a "clock" and starts being a statement.
 
 **AUX** — RSS rotation. Up to 5 configurable feeds. Each headline cycles with source name and a QR code that deep-links to the article. You won't scan it most of the time. It is there when you want it.
 
 **INFO** — Diagnostics panel. Wi-Fi state, SSID, IP, DNS, MAC, power mode (`CHARGING/BATTERY`), and battery percentage. Placed before HOME in the swipe order — left of boot — like an iPhone widget page you only visit when something feels wrong.
+
+---
+
+## Word Clock Languages
+
+The word clock composes time as a real sentence, not a grid of lit tiles. All 10 languages are built-in and selectable from the LAN web UI without reflashing.
+
+| Code | Language | Example |
+|---|---|---|
+| `it` | Italiano *(default)* | *sono le tre e un quarto* |
+| `en` | English | *it's quarter past three* |
+| `fr` | Français | *il est trois heures et quart* |
+| `de` | Deutsch | *es ist viertel nach drei* |
+| `es` | Español | *son las tres y cuarto* |
+| `pt` | Português | *são três e quinze* |
+| `la` | Latina | *hora tertia et quadrans est* |
+| `eo` | Esperanto | *estas kvarono post la tria* |
+| `nap` | Napoletano | *so' 'e tre e nu quarto* |
+| `tlh` | tlhIngan Hol (Klingon) | *wej rep ret* |
+
+Language setting persists to NVS — survives power cycles. The full UI (weather labels, status strings) follows the selected language.
 
 ---
 
@@ -258,7 +280,7 @@ If you fork ScryBar, make it yours:
 
 - swap feeds and weather locations,
 - redesign views or add new ones,
-- replace the word clock language — the function is `composeWordClockSentenceIt` and the `It` is a hint,
+- switch the word clock language from the web UI — 10 already built-in (see the `composeWordClockSentence*` family), or add your own,
 - publish your variant and share improvements back.
 
 Small screen. Wide horizon.
@@ -275,6 +297,6 @@ Keep the copyright notice. No warranty. No liability. No hard feelings.
 <div align="center">
 
 *Built with Arduino, LVGL, too many filter constants, and the unwavering belief*
-*that a word clock in Italian is objectively better than a word clock in anything else.*
+*that a word clock in Klingon on an ESP32 is objectively better than anything else on your desk.*
 
 </div>
