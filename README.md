@@ -90,29 +90,29 @@ Three views, navigated by swipe. Left or right, like flipping pages. There is no
 
 The word clock composes time as a real sentence, not a grid of lit tiles. All 14 languages are built-in and selectable from the LAN web UI without reflashing. The web UI separates them into two groups.
 
-**Standard languages:**
+**Creative & Constructed** (shown first in the web UI selector):
 
 | Code | Language | Example (3:15) |
 |---|---|---|
-| `it` | Italiano *(default)* | *sono le tre e un quarto* |
-| `en` | English | *it's quarter past three* |
-| `fr` | Français | *il est trois heures et quart* |
-| `de` | Deutsch | *es ist viertel nach drei* |
-| `es` | Español | *son las tres y cuarto* |
-| `pt` | Português | *são três e quinze* |
-| `la` | Latina | *hora tertia et quadrans* |
-| `eo` | Esperanto | *estas kvarono post la tri* |
-| `nap` | Napoletano | *so' 'e tre e nu quarto* |
-| `tlh` | tlhIngan Hol (Klingon) | *wej rep wa'maH vagh tup* |
-
-**Fun & Creative:**
-
-| Code | Language | Example (3:15) |
-|---|---|---|
+| `genz` | Italiano Gen Z | *tipo le tre e un quarto* |
+| `val` | Valley Girl | *It's like quarter past three, totally* |
 | `l33t` | 1337 Speak | *1T'5 QU4R73R P457 7HR33* |
 | `sha` | Shakespearean English | *Verily, 'tis quarter past three* |
-| `val` | Valley Girl | *It's like quarter past three, totally* |
-| `genz` | Italiano Gen Z | *tipo le tre e un quarto* |
+| `nap` | Napoletano | *so' 'e tre e nu quarto* |
+| `eo` | Esperanto | *estas kvarono post la tri* |
+| `la` | Latina | *hora tertia et quadrans* |
+| `tlh` | tlhIngan Hol (Klingon) | *wej rep wa'maH vagh tup* |
+
+**Modern Languages:**
+
+| Code | Language | Example (3:15) |
+|---|---|---|
+| `en` | English | *it's quarter past three* |
+| `it` | Italiano *(default)* | *sono le tre e un quarto* |
+| `es` | Español | *son las tres y cuarto* |
+| `fr` | Français | *il est trois heures et quart* |
+| `de` | Deutsch | *es ist viertel nach drei* |
+| `pt` | Português | *são três e quinze* |
 
 Language setting persists to NVS — survives power cycles. The full UI (weather labels, status strings, RSS panel) follows the selected language.
 

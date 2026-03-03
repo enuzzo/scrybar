@@ -1929,36 +1929,26 @@ static String buildWebConfigPage(const char *statusMsg) {
   // System Language section
   {
     // Helper macro-style: emit one <option> with runtime selected check
-    struct { const char *code; const char *label; } kLangsNormal[] = {
-      {"it",  "Italiano"},
-      {"en",  "English"},
-      {"fr",  "Fran\xC3\xA7" "ais"},
-      {"de",  "Deutsch"},
-      {"es",  "Espa\xC3\xB1" "ol"},
-      {"pt",  "Portugu\xC3\xAA" "s"},
-      {"la",  "Latina"},
-      {"eo",  "Esperanto"},
-      {"nap", "Napoletano"},
-      {"tlh", "tlhIngan Hol (Klingon)"},
-    };
     struct { const char *code; const char *label; } kLangsFun[] = {
+      {"genz", "Italiano Gen Z"},
+      {"val",  "Valley Girl"},
       {"l33t", "1337 5P34K"},
       {"sha",  "Shakespearean English"},
-      {"val",  "Valley Girl"},
-      {"genz", "Italiano Gen Z"},
+      {"nap",  "Napoletano"},
+      {"eo",   "Esperanto"},
+      {"la",   "Latina"},
+      {"tlh",  "tlhIngan Hol (Klingon)"},
+    };
+    struct { const char *code; const char *label; } kLangsStd[] = {
+      {"en",  "English"},
+      {"it",  "Italiano"},
+      {"es",  "Espa\xC3\xB1" "ol"},
+      {"fr",  "Fran\xC3\xA7" "ais"},
+      {"de",  "Deutsch"},
+      {"pt",  "Portugu\xC3\xAA" "s"},
     };
     html += F("<div class='sec'><h2><i class='fa-solid fa-language'></i>System Language</h2><div class='key'>LANGUAGE</div><select name='wc_lang'>");
-    html += F("<optgroup label='Languages'>");
-    for (unsigned i = 0; i < sizeof(kLangsNormal)/sizeof(kLangsNormal[0]); ++i) {
-      html += F("<option value='");
-      html += kLangsNormal[i].code;
-      html += '\'';
-      if (strcmp(g_wordClockLang, kLangsNormal[i].code) == 0) html += F(" selected");
-      html += '>';
-      html += kLangsNormal[i].label;
-      html += F("</option>");
-    }
-    html += F("</optgroup><optgroup label='Fun &amp; Creative'>");
+    html += F("<optgroup label='Creative &amp; Constructed'>");
     for (unsigned i = 0; i < sizeof(kLangsFun)/sizeof(kLangsFun[0]); ++i) {
       html += F("<option value='");
       html += kLangsFun[i].code;
@@ -1966,6 +1956,16 @@ static String buildWebConfigPage(const char *statusMsg) {
       if (strcmp(g_wordClockLang, kLangsFun[i].code) == 0) html += F(" selected");
       html += '>';
       html += kLangsFun[i].label;
+      html += F("</option>");
+    }
+    html += F("</optgroup><optgroup label='Modern Languages'>");
+    for (unsigned i = 0; i < sizeof(kLangsStd)/sizeof(kLangsStd[0]); ++i) {
+      html += F("<option value='");
+      html += kLangsStd[i].code;
+      html += '\'';
+      if (strcmp(g_wordClockLang, kLangsStd[i].code) == 0) html += F(" selected");
+      html += '>';
+      html += kLangsStd[i].label;
       html += F("</option>");
     }
     html += F("</optgroup></select><p class='hint'><i class='fa-solid fa-circle-info'></i> Controls the language of the entire display UI: word clock, weather labels, RSS status and touch hints. Saved to NVS, persists across reboots.</p></div>");
