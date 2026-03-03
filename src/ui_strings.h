@@ -204,6 +204,86 @@ static const UiStrings kUiLang_nap = {
 };
 
 // ---------------------------------------------------------------------------
+// 1337 Speak (l33t)
+// ---------------------------------------------------------------------------
+static const UiStrings kUiLang_l33t = {
+    /* windFmt              */ "W1ND %.0f km/h",
+    /* windNa               */ "W1ND -- km/h",
+    /* forecast3h           */ "1N 3H: %s",
+    /* forecastNow          */ "N0W: %s",
+    /* forecastNa           */ "1N 3H: --",
+    /* weatherOffline       */ "W347H3R 0FF",
+    /* wifiOff              */ "W1F1 0FF",
+    /* rssOffline           */ "R55 0FFL1N3.\nC0NN3C7 70 W1F1\n4ND R37RY.",
+    /* rssFeedError         */ "F33D N/4.\nR37RY1N9\n50 0N.",
+    /* rssSyncing           */ "5YNC1N9 R55...\nPL3453 W417.\n",
+    /* rssDisabled          */ "R55 D154BL3D.",
+    /* touchToClose         */ "74P 70 CL053",
+    /* touchToCloseAnywhere */ "74P 4NYwH3R3 70 CL053",
+    /* generatingQr         */ "93N3R471N9 QR...",
+};
+
+// ---------------------------------------------------------------------------
+// Shakespearean English (sha)
+// ---------------------------------------------------------------------------
+static const UiStrings kUiLang_sha = {
+    /* windFmt              */ "Wind %.0f km/h",
+    /* windNa               */ "Wind -- km/h",
+    /* forecast3h           */ "In 3h: %s",
+    /* forecastNow          */ "Presently: %s",
+    /* forecastNa           */ "In 3h: --",
+    /* weatherOffline       */ "Weather absent",
+    /* wifiOff              */ "WiFi absent",
+    /* rssOffline           */ "RSS hath gone.\nPrithee connect\nto WiFi.",
+    /* rssFeedError         */ "Feed unavail.\nShall retry\nanon.",
+    /* rssSyncing           */ "Hark, syncing...\nPrithee wait.\n",
+    /* rssDisabled          */ "RSS disabled.",
+    /* touchToClose         */ "Touch to close",
+    /* touchToCloseAnywhere */ "Touch anywhere to close",
+    /* generatingQr         */ "Generating QR...",
+};
+
+// ---------------------------------------------------------------------------
+// Valley Girl (val)
+// ---------------------------------------------------------------------------
+static const UiStrings kUiLang_val = {
+    /* windFmt              */ "Wind %.0f km/h",
+    /* windNa               */ "Wind like none",
+    /* forecast3h           */ "Like in 3h: %s",
+    /* forecastNow          */ "Right now: %s",
+    /* forecastNa           */ "In 3h: --",
+    /* weatherOffline       */ "Weather offline",
+    /* wifiOff              */ "WiFi is like off",
+    /* rssOffline           */ "RSS is offline.\nConnect to WiFi\nand retry!",
+    /* rssFeedError         */ "Feed unavail!\nLike retrying\nsoon, ugh.",
+    /* rssSyncing           */ "Syncing RSS...\nLike wait a sec!\n",
+    /* rssDisabled          */ "RSS is like off.",
+    /* touchToClose         */ "Tap to close",
+    /* touchToCloseAnywhere */ "Tap anywhere, like",
+    /* generatingQr         */ "Making QR...",
+};
+
+// ---------------------------------------------------------------------------
+// Italian Gen Z scazzata (genz)
+// ---------------------------------------------------------------------------
+static const UiStrings kUiLang_genz = {
+    /* windFmt              */ "Vento %.0f km/h",
+    /* windNa               */ "Vento boh",
+    /* forecast3h           */ "Fra 3h tipo: %s",
+    /* forecastNow          */ "Ora tipo: %s",
+    /* forecastNa           */ "Fra 3h: --",
+    /* weatherOffline       */ "Meteo offline",
+    /* wifiOff              */ "WiFi skippato",
+    /* rssOffline           */ "RSS offline boh.\nConnettiti\nal WiFi ngl.",
+    /* rssFeedError         */ "Feed non disp.\nRiprovo tipo\ntra poco.",
+    /* rssSyncing           */ "Tipo sto sincro...\nAspetta un sec.\n",
+    /* rssDisabled          */ "RSS skippato.",
+    /* touchToClose         */ "Tocca per chiudere",
+    /* touchToCloseAnywhere */ "Tocca ovunque, slay",
+    /* generatingQr         */ "Genero QR...",
+};
+
+// ---------------------------------------------------------------------------
 // Klingon (tlh) — ASCII transliteration, no pIqaD font needed
 // ---------------------------------------------------------------------------
 static const UiStrings kUiLang_tlh = {

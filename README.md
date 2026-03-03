@@ -3,15 +3,16 @@
 [![Arduino](https://img.shields.io/badge/Arduino-Firmware-00979D?style=for-the-badge&logo=arduino&logoColor=white)](https://arduino.cc/)
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
+[![Languages](https://img.shields.io/badge/Word_Clock-14_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
 [![Views](https://img.shields.io/badge/Views-3_swipeable-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
 > A mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture.
-> It tells time in ten languages — Italian, English, French, German, Spanish, Portuguese, Latin, Esperanto, Neapolitan, and Klingon — like it's poetry,
+> It tells time in fourteen languages — Italian, English, French, German, Spanish, Portuguese, Latin, Esperanto, Neapolitan, Klingon, 1337, Shakespearean, Valley Girl, and Italian Gen Z — like it's poetry,
 > checks weather you could learn by opening a window, and scrolls news you've already read.
 > All of this on an ESP32 that didn't ask for this life.
 
-**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, three swipeable views, and a word clock that composes real sentences in ten languages — Italian, English, French, German, Spanish, Portuguese, Latin, Esperanto, Neapolitan, and Klingon — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
+**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, three swipeable views, and a word clock that composes real sentences in fourteen languages — from Italian and Latin to Klingon, 1337 Speak, Shakespearean English, and Italian Gen Z — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
 
 The name comes from *scrying*: the practice of seeing what matters from afar. That is what ScryBar does from your desk.
 
@@ -77,7 +78,7 @@ Three views, navigated by swipe. Left or right, like flipping pages. There is no
   └────────────────────────────────────────────────┘
 ```
 
-**HOME** — Word clock in natural sentence form, switchable across 10 languages: Italiano, English, Français, Deutsch, Español, Português, Latina, Esperanto, Napoletano, and tlhIngan Hol (Klingon). Not uppercase tiles — actual grammar, composed at runtime. Plus weather icon, temperature, and humidity. Renders with `Montserrat 38` because that is the size where it stops being a "clock" and starts being a statement.
+**HOME** — Word clock in natural sentence form, switchable across 14 languages: Italiano, English, Français, Deutsch, Español, Português, Latina, Esperanto, Napoletano, tlhIngan Hol (Klingon), 1337 Speak, Shakespearean English, Valley Girl, and Italiano Gen Z. Not uppercase tiles — actual grammar, composed at runtime. Plus weather icon, temperature, and humidity. Renders with `Montserrat 38` because that is the size where it stops being a "clock" and starts being a statement.
 
 **AUX** — RSS rotation. Up to 5 configurable feeds. Each headline cycles with source name and a QR code that deep-links to the article. You won't scan it most of the time. It is there when you want it.
 
@@ -87,9 +88,11 @@ Three views, navigated by swipe. Left or right, like flipping pages. There is no
 
 ## Word Clock Languages
 
-The word clock composes time as a real sentence, not a grid of lit tiles. All 10 languages are built-in and selectable from the LAN web UI without reflashing.
+The word clock composes time as a real sentence, not a grid of lit tiles. All 14 languages are built-in and selectable from the LAN web UI without reflashing. The web UI separates them into two groups.
 
-| Code | Language | Example |
+**Standard languages:**
+
+| Code | Language | Example (3:15) |
 |---|---|---|
 | `it` | Italiano *(default)* | *sono le tre e un quarto* |
 | `en` | English | *it's quarter past three* |
@@ -97,12 +100,21 @@ The word clock composes time as a real sentence, not a grid of lit tiles. All 10
 | `de` | Deutsch | *es ist viertel nach drei* |
 | `es` | Español | *son las tres y cuarto* |
 | `pt` | Português | *são três e quinze* |
-| `la` | Latina | *hora tertia et quadrans est* |
-| `eo` | Esperanto | *estas kvarono post la tria* |
+| `la` | Latina | *hora tertia et quadrans* |
+| `eo` | Esperanto | *estas kvarono post la tri* |
 | `nap` | Napoletano | *so' 'e tre e nu quarto* |
-| `tlh` | tlhIngan Hol (Klingon) | *wej rep ret* |
+| `tlh` | tlhIngan Hol (Klingon) | *wej rep wa'maH vagh tup* |
 
-Language setting persists to NVS — survives power cycles. The full UI (weather labels, status strings) follows the selected language.
+**Fun & Creative:**
+
+| Code | Language | Example (3:15) |
+|---|---|---|
+| `l33t` | 1337 Speak | *1T'5 QU4R73R P457 7HR33* |
+| `sha` | Shakespearean English | *Verily, 'tis quarter past three* |
+| `val` | Valley Girl | *It's like quarter past three, totally* |
+| `genz` | Italiano Gen Z | *tipo le tre e un quarto* |
+
+Language setting persists to NVS — survives power cycles. The full UI (weather labels, status strings, RSS panel) follows the selected language.
 
 ---
 
@@ -280,7 +292,7 @@ If you fork ScryBar, make it yours:
 
 - swap feeds and weather locations,
 - redesign views or add new ones,
-- switch the word clock language from the web UI — 10 already built-in (see the `composeWordClockSentence*` family), or add your own,
+- switch the word clock language from the web UI — 14 already built-in (see the `composeWordClockSentence*` family), or add your own,
 - publish your variant and share improvements back.
 
 Small screen. Wide horizon.
