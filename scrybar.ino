@@ -2893,44 +2893,46 @@ static const char* weatherCodeUiLabelEo(int code) {
 }
 
 // ---------------------------------------------------------------------------
-// Neapolitan weather labels
+// Neapolitan weather labels — da wikibooks.org/wiki/Napoletano/Tempo
+// Sole: "ce sta 'o sole / assulato"; pioggia: "chiove / schizzechea";
+// neva: napoletano per "neve"; gragnola: grandine.
 // ---------------------------------------------------------------------------
 static const char* weatherCodeShortNap(int code) {
-  if (code == 0 || code == 1) return "Sereno";
-  if (code == 2) return "Annuvolato";
-  if (code == 3) return "Coperto";
+  if (code == 0 || code == 1) return "'O sole";
+  if (code == 2) return "Nuvuluso";
+  if (code == 3) return "Cuviert'";
   if (code == 45 || code == 48) return "Nebbia";
   if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Chiove";
-  if (code >= 71 && code <= 77) return "Neve";
-  if (code >= 95) return "Temporale";
+  if (code >= 71 && code <= 77) return "'A neva";
+  if (code >= 95) return "Tempurale";
   return "N/D";
 }
 
 static const char* weatherCodeUiLabelNap(int code) {
-  if (code == 0) return "Sereno";
-  if (code == 1) return "Bello assaje";
-  if (code == 2) return "N po' annuvolato";
-  if (code == 3) return "Coperto";
+  if (code == 0) return "Assulato";          // "assulato" = soleggiato
+  if (code == 1) return "Ce sta 'o sole";    // "ce sta 'o sole" = è soleggiato
+  if (code == 2) return "Nuvuluso";
+  if (code == 3) return "Cuviert'";
   if (code == 45) return "Nebbia";
   if (code == 48) return "Nebbia gelata";
-  if (code == 51) return "Chiuviccella";
-  if (code == 53) return "Chiuvea mod.";
-  if (code == 55) return "Chiuvea forte";
-  if (code == 56 || code == 57) return "Chiuvea gelata";
-  if (code == 61) return "Pioggia leggera";
-  if (code == 63) return "Pioggia mod.";
-  if (code == 65) return "Pioggia forte";
-  if (code == 66 || code == 67) return "Pioggia gelata";
-  if (code == 71) return "Neve leggera";
-  if (code == 73) return "Neve mod.";
-  if (code == 75) return "Neve forte";
-  if (code == 77) return "Granuli neve";
-  if (code == 80) return "Rovesci deboli";
-  if (code == 81) return "Rovesci mod.";
-  if (code == 82) return "Rovesci forti";
-  if (code == 85 || code == 86) return "Rovesci neve";
-  if (code == 95) return "Temporale";
-  if (code == 96 || code == 99) return "Temp. e grandine";
+  if (code == 51) return "Schizzechea";      // pioviggina leggera
+  if (code == 53) return "Schizzechea mod.";
+  if (code == 55) return "Schizzechea fort'";
+  if (code == 56 || code == 57) return "Schizzechea gelata";
+  if (code == 61) return "Chiove nu poco";
+  if (code == 63) return "Chiove";           // "sta chiuvenno"
+  if (code == 65) return "Chiove assaje";    // piove molto
+  if (code == 66 || code == 67) return "Chiove e gela";
+  if (code == 71) return "'A neva leggera";
+  if (code == 73) return "'A neva mod.";
+  if (code == 75) return "'A neva fort'";
+  if (code == 77) return "Granuli 'e neva";
+  if (code == 80) return "Acquazzoni lievi";
+  if (code == 81) return "Acquazzoni mod.";
+  if (code == 82) return "Acquazzoni forti";
+  if (code == 85 || code == 86) return "Acquazzoni 'e neva";
+  if (code == 95) return "Tempurale";
+  if (code == 96 || code == 99) return "Tempurale e gragnola";
   return "N/D";
 }
 
@@ -6432,22 +6434,45 @@ static void composeWordClockSentenceEo(const tm &timeinfo, char *out, size_t out
   else               { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Estas %d minutoj al la %s", 60 - m5, wordHourEo(nh)); }
 }
 
-// --- Napoletano (NAP) — best-effort ---
+// --- Napoletano (NAP) — da wikibooks.org/wiki/Napoletano ---
 
 static const char* wordHourNap(int h12) {
   switch (h12) {
-    case 1:  return "l'una";
+    case 1:  return "ll'una";    // Num: una; raddoppiamento dell'articolo
     case 2:  return "'e ddoje";
     case 3:  return "'e tre";
     case 4:  return "'e quatto";
     case 5:  return "'e cinche";
-    case 6:  return "'e sei";
+    case 6:  return "'e seje";   // Num: sei → seje
     case 7:  return "'e sette";
     case 8:  return "'e otto";
     case 9:  return "'e nove";
     case 10: return "'e diece";
-    case 11: return "'e undice";
-    default: return "'e ddodice";
+    case 11: return "'e unnece"; // Num: undici → unnece
+    default: return "'e dudece"; // Num: dodici → dudece
+  }
+}
+
+// Minuti "e passa" (5,10,20,25) in parole napoletane
+static const char* minutePastNap(int m5) {
+  switch (m5) {
+    case 5:  return "cinche";
+    case 10: return "diece";
+    case 20: return "vinte";
+    case 25: return "vinte e cinche";
+    default: return "";
+  }
+}
+
+// Minuti "manco" (35,40,45,50,55) in parole napoletane
+static const char* minuteMancoNap(int m5) {
+  switch (m5) {
+    case 35: return "vinte e cinche";
+    case 40: return "vinte";
+    case 45: return "nu quarto";
+    case 50: return "diece";
+    case 55: return "cinche";
+    default: return "";
   }
 }
 
@@ -6456,12 +6481,22 @@ static void composeWordClockSentenceNap(const tm &timeinfo, char *out, size_t ou
   if (h12 == 0) h12 = 12;
   int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
   if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
-  if (m5 == 0)       snprintf(out, outLen, "So' %s", wordHourNap(h12));
-  else if (m5 == 15) snprintf(out, outLen, "So' %s e nu quarto", wordHourNap(h12));
-  else if (m5 == 30) snprintf(out, outLen, "So' %s e mmeza", wordHourNap(h12));
-  else if (m5 == 45) { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Mancano nu quarto a %s", wordHourNap(nh)); }
-  else if (m5 < 30)  snprintf(out, outLen, "So' %s e %d", wordHourNap(h12), m5);
-  else               { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Mancano %d minuti a %s", 60 - m5, wordHourNap(nh)); }
+  int nh = (h12 % 12) + 1;
+  bool sing = (h12 == 1);  // ll'una → verbo è E' non So'
+  if (m5 == 0) {
+    snprintf(out, outLen, sing ? "E' %s"              : "So' %s",              wordHourNap(h12));
+  } else if (m5 == 15) {
+    snprintf(out, outLen, sing ? "E' %s e nu quarto"  : "So' %s e nu quarto",  wordHourNap(h12));
+  } else if (m5 == 30) {
+    snprintf(out, outLen, sing ? "E' %s e mezza"      : "So' %s e mezza",      wordHourNap(h12));
+  } else if (m5 > 30) {
+    // Struttura autentica: "'E sette manco vinte" (cfr. wikibooks Calendario)
+    snprintf(out, outLen, "%s manco %s", wordHourNap(nh), minuteMancoNap(m5));
+  } else {
+    // m5 in {5, 10, 20, 25}
+    snprintf(out, outLen, sing ? "E' %s e %s"         : "So' %s e %s",
+             wordHourNap(h12), minutePastNap(m5));
+  }
 }
 
 // --- 1337 Speak word clock ---
@@ -7499,8 +7534,10 @@ static void formatDateEo(const tm &timeinfo, char *out, size_t outLen) {
 }
 
 static void formatDateNap(const tm &timeinfo, char *out, size_t outLen) {
-  static const char* kWeekday[] = {"Dummeneca","Lunedi","Martedi","Miercuri","Giovedi","Venneri","Sabbato"};
-  static const char* kMonth[] = {"Jennaro","Frevaro","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Uttombre","Novembre","Dicembre"};
+  // Giorni: wikibooks Napoletano/Calendario — lunnerì, marterì, miercurì, gioverì, viernarì, sabbato, dummeneca
+  // Mesi:   wikibooks Napoletano/Calendario — abbrile, austo, nuvembre, decembre, ecc.
+  static const char* kWeekday[] = {"Dummeneca","Lunnerì","Marterì","Miercurì","Gioverì","Viernarì","Sabbato"};
+  static const char* kMonth[] = {"Jennaro","Frevaro","Marzo","Abbrile","Maggio","Giugno","Luglio","Austo","Settembre","Uttombre","Nuvembre","Decembre"};
   snprintf(out, outLen, "%s %d %s %d",
     (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
     timeinfo.tm_mday,
