@@ -13,16 +13,27 @@
 
 - `FW_BUILD_TAG` e `FW_RELEASE_DATE` in `config.h` — **incrementare r-number e aggiornare data ad ogni release**.
 - Visibili su: web UI (hero card, sotto logo) e device INFO panel (`ScryBar Stats`, colonna destra).
-- Corrente: `DB-M0-r136`, `2026-02-28`.
+- Corrente: `DB-M0-r140`, `2026-03-03`.
 
 ## Architettura UI Localization
 
 - `g_wordClockLang` è il pivot lingua globale (word clock + tutta la display UI).
-- `src/ui_strings.h` — struct `UiStrings` + 10 istanze statiche (`kUiLang_it/en/fr/de/es/pt/la/eo/nap/tlh`).
+- `src/ui_strings.h` — struct `UiStrings` + **14 istanze** (`kUiLang_it/en/fr/de/es/pt/la/eo/nap/tlh/l33t/sha/val/genz`).
 - `activeUiStrings()` — dispatcher runtime in `scrybar.ino`.
 - `weatherCodeUiLabel(code)` / `weatherCodeShort(code)` — dispatcher per label meteo.
 - Web UI rimane in inglese per design.
-- Selettore lingua nella web config si chiama **"System Language"** (non più "Word Clock Language").
+- Selettore lingua nella web config si chiama **"System Language"**; lingue divise in `<optgroup>`: "Creative & Constructed" (genz, val, l33t, sha, nap, eo, la, tlh) e "Modern Languages" (en, it, es, fr, de, pt).
+- **Recipe per aggiungere una lingua**: aggiungi `composeWordClockSentence*`, `weatherCodeShort*`, `weatherCodeUiLabel*`, `formatDate*`, `kUiLang_*`, registra in `kAllowed[]`, `kLangsFun[]`/`kLangsStd[]`, e tutti e 5 i dispatcher.
+
+## Napoletano (nap) — vocabolario autentico (r140)
+
+- Numeri: `cinche` (5), `diece` (10), `nu quarto` (15), `vinte` (20), `vinte e cinche` (25), `mmeza` (30)
+- Ore speciali: `ll'una` (1), `'e seje` (6), `'e unnece` (11), `'e dudece` (12)
+- Struttura "past": `So' 'e tre e nu quarto` (3:15) / `E' ll'una e cinche` (1:05)
+- Struttura "to": `'E quatte manco nu quarto` (3:45) / `'E sette manco vinte` (6:40)
+- Mesi: jennaro, frevaro, marzo, abbrile, maggio, giugno, luglio, austo, settembre, uttombre, nuvembre, decembre
+- Giorni: lunnerì, marterì, miercurì, gioverì, viernarì, sabbato, dummeneca
+- Meteo: assulato (clear), ce sta 'o sole (mainly clear), schizzechea (drizzle), chiove (rain), 'a neva (snow), tempurale (storm)
 
 ## INFO Panel (`lvglCreateScreenLayout` + `lvglUpdateInfoPanel`)
 
