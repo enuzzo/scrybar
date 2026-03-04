@@ -24,7 +24,7 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "DB-M0-r143"
+#define FW_BUILD_TAG "DB-M0-r147"
 #define FW_RELEASE_DATE "2026-03-04"
 
 // --- M0.2 Backlight test config ---
@@ -158,6 +158,12 @@
 // Per-SSID connect window used by non-blocking roaming loop.
 #define WIFI_CONNECT_TIMEOUT_MS 10000
 #define WIFI_POLL_INTERVAL_MS 250
+// Retry hardening:
+// - short delay between SSID hops
+// - forced radio re-arm after repeated failures
+#define WIFI_RETRY_STEP_DELAY_MS 220UL
+#define WIFI_RETRY_AFTER_RADIO_RESET_MS 900UL
+#define WIFI_RETRY_FAILS_BEFORE_RADIO_RESET 12U
 // Force public DNS policy (never router DNS):
 // - primary: Google
 // - fallback: Cloudflare

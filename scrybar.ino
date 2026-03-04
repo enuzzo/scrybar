@@ -192,6 +192,9 @@ static bool g_wifiReconnectAttemptActive = false;
 static uint8_t g_wifiReconnectIdx = 0;
 static uint32_t g_wifiReconnectAttemptStartMs = 0;
 static uint32_t g_wifiReconnectNextAttemptMs = 0;
+static uint16_t g_wifiConsecutiveFailCount = 0;
+static uint32_t g_wifiLastRadioResetMs = 0;
+static bool g_wifiInternalDisconnect = false;
 static uint32_t g_lastNtpAttemptMs = 0;
 #endif
 
@@ -1291,6 +1294,21 @@ static void shutdownFromPowerButton(bool hardOffRequested) {
   enterSoftPowerOffFromPowerButton();
 }
 
+static void onPowerButtonShortPress(uint32_t nowMs) {
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
+  (void)nowMs;
+  if (!g_lvglReady) {
+    Serial.println("[PWR] Short press: screensaver unavailable (LVGL not ready).");
+    return;
+  }
+  lvglSetScreenSaverActive(true);
+  Serial.println("[PWR] Short press: screensaver ON.");
+#else
+  (void)nowMs;
+  Serial.println("[PWR] Short press ignored (screensaver disabled).");
+#endif
+}
+
 static void handlePowerButtonLoop(uint32_t nowMs) {
   const int rawLevel = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
   if (rawLevel != g_pwrLastRawLevel) {
@@ -1326,7 +1344,8 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
     if (heldMs >= (uint32_t)PWR_HOLD_SHUTDOWN_MS) {
       shutdownFromPowerButton(false);
     } else {
-      Serial.printf("[PWR] Hold cancelled at %lu ms.\n", (unsigned long)heldMs);
+      Serial.printf("[PWR] Short press (%lu ms).\n", (unsigned long)heldMs);
+      onPowerButtonShortPress(nowMs);
     }
     g_pwrButtonDown = false;
     g_pwrHoldReported = false;
@@ -1574,30 +1593,94 @@ static const char *wlStatusToStr(wl_status_t s) {
 
 static bool applyWiFiDnsOverrideIfEnabled(bool verbose);
 
+static void wifiScheduleNextAttempt(uint32_t nowMs, uint32_t delayMs) {
+  g_wifiReconnectAttemptActive = false;
+  g_wifiReconnectNextAttemptMs = nowMs + delayMs;
+}
+
+static void wifiRotateCredentialIndex() {
+  if (g_wifiCredCount <= 1) return;
+  g_wifiReconnectIdx = (uint8_t)((g_wifiReconnectIdx + 1U) % g_wifiCredCount);
+}
+
+static void wifiRearmStationRadio(uint32_t nowMs, const char *cause) {
+  if ((nowMs - g_wifiLastRadioResetMs) < 1500UL) {
+    wifiScheduleNextAttempt(nowMs, WIFI_RETRY_AFTER_RADIO_RESET_MS);
+    return;
+  }
+  Serial.printf("[WIFI][HEAL] radio reset cause=%s\n", cause ? cause : "-");
+  g_wifiInternalDisconnect = true;
+  WiFi.disconnect(true, false);
+  delay(20);
+  WiFi.mode(WIFI_OFF);
+  delay(60);
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  g_wifiInternalDisconnect = false;
+  g_lastWifiDiscReason = -1;
+  g_wifiLastRadioResetMs = millis();
+  wifiScheduleNextAttempt(g_wifiLastRadioResetMs, WIFI_RETRY_AFTER_RADIO_RESET_MS);
+}
+
+static void wifiHandleFailure(uint32_t nowMs, const char *cause) {
+  const uint8_t failedIdx = g_wifiReconnectIdx;
+  const char *failedSsid = g_wifiCredSsids[failedIdx] ? g_wifiCredSsids[failedIdx] : "-";
+  wifiRotateCredentialIndex();
+  const char *nextSsid = g_wifiCredSsids[g_wifiReconnectIdx] ? g_wifiCredSsids[g_wifiReconnectIdx] : "-";
+  ++g_wifiConsecutiveFailCount;
+  Serial.printf("[WIFI][RETRY] cause=%s fail_streak=%u failed='%s' next='%s'\n",
+                cause ? cause : "-",
+                (unsigned)g_wifiConsecutiveFailCount,
+                failedSsid,
+                nextSsid);
+  if (g_wifiConsecutiveFailCount >= WIFI_RETRY_FAILS_BEFORE_RADIO_RESET) {
+    g_wifiConsecutiveFailCount = 0;
+    wifiRearmStationRadio(nowMs, cause);
+    return;
+  }
+  wifiScheduleNextAttempt(nowMs, WIFI_RETRY_STEP_DELAY_MS);
+}
+
 static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
   if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
     g_wifiConnected = true;
     g_wifiEverConnected = true;
     g_wifiLastConnectMs = millis();
+    g_wifiConsecutiveFailCount = 0;
     Serial.printf("[WIFI][GOT_IP] ip=%s\n", WiFi.localIP().toString().c_str());
+    const String activeSsid = WiFi.SSID();
+    for (uint8_t i = 0; i < g_wifiCredCount; ++i) {
+      const char *known = g_wifiCredSsids[i];
+      if (known && activeSsid.equals(known)) {
+        g_wifiReconnectIdx = i;
+        break;
+      }
+    }
     const bool dnsOk = applyWiFiDnsOverrideIfEnabled(false);
     Serial.printf("[WIFI][DNS] active=%s/%s (%s)\n",
                   WiFi.dnsIP(0).toString().c_str(),
                   WiFi.dnsIP(1).toString().c_str(),
                   dnsOk ? "OK" : "ERR");
-    g_wifiReconnectAttemptActive = false;
-    g_wifiReconnectNextAttemptMs = 0;
+    wifiScheduleNextAttempt(millis(), 0UL);
   } else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+    const bool attemptWasActive = g_wifiReconnectAttemptActive;
     g_wifiConnected = false;
     g_wifiLastDisconnectMs = millis();
     g_lastWifiDiscReason = (int)info.wifi_sta_disconnected.reason;
     Serial.printf("[WIFI][DISC] reason=%d (%s)\n",
                   g_lastWifiDiscReason,
                   WiFi.disconnectReasonName((wifi_err_reason_t)g_lastWifiDiscReason));
-    if (g_wifiCredCount > 0) {
-      g_wifiReconnectAttemptActive = false;
-      g_wifiReconnectNextAttemptMs = millis() + 200UL;
+    if (g_wifiCredCount == 0) return;
+    if (g_wifiInternalDisconnect) {
+      wifiScheduleNextAttempt(millis(), WIFI_RETRY_STEP_DELAY_MS);
+      return;
     }
+    if (attemptWasActive) {
+      wifiHandleFailure(millis(), "event-disconnect");
+      return;
+    }
+    // Link dropped after having been connected: retry soon on last known good SSID.
+    wifiScheduleNextAttempt(millis(), WIFI_RETRY_STEP_DELAY_MS);
   }
 }
 
@@ -1652,6 +1735,9 @@ static void wifiPrepareCredentialCache() {
   g_wifiReconnectAttemptActive = false;
   g_wifiReconnectAttemptStartMs = 0;
   g_wifiReconnectNextAttemptMs = 0;
+  g_wifiConsecutiveFailCount = 0;
+  g_wifiLastRadioResetMs = 0;
+  g_wifiInternalDisconnect = false;
 }
 
 static bool wifiIsConnectedNow() {
@@ -1666,8 +1752,10 @@ static void wifiBeginAttempt(uint8_t idx) {
 
   g_wifiConnected = false;
   g_lastWifiDiscReason = -1;
+  g_wifiInternalDisconnect = true;
   WiFi.disconnect(true, false);
   delay(20);
+  g_wifiInternalDisconnect = false;
 
   Serial.printf("[WIFI] try %u/%u ssid='%s' timeout=%ums\n",
                 (unsigned)(idx + 1),
@@ -1708,10 +1796,13 @@ static void handleWiFiReconnectLoop(uint32_t nowMs) {
                   WiFi.disconnectReasonName((wifi_err_reason_t)g_lastWifiDiscReason));
   }
 
-  WiFi.disconnect(true, false);
+  // Close current attempt first; avoid event-side double handling.
   g_wifiReconnectAttemptActive = false;
-  g_wifiReconnectIdx = (uint8_t)((g_wifiReconnectIdx + 1U) % g_wifiCredCount);
-  g_wifiReconnectNextAttemptMs = nowMs + 120UL;
+  g_wifiInternalDisconnect = true;
+  WiFi.disconnect(true, false);
+  delay(10);
+  g_wifiInternalDisconnect = false;
+  wifiHandleFailure(nowMs, "timeout");
 }
 
 static bool applyWiFiDnsOverrideIfEnabled(bool verbose) {
@@ -7924,7 +8015,9 @@ static bool wifiIsReconnectingUiState() {
 #if TEST_WIFI || TEST_NTP
   const wl_status_t st = WiFi.status();
   if (st == WL_CONNECTED && g_wifiConnected) return false;
+  if (st == WL_DISCONNECTED || st == WL_CONNECT_FAILED || st == WL_CONNECTION_LOST) return true;
   if (st == WL_IDLE_STATUS || st == WL_SCAN_COMPLETED || st == WL_NO_SSID_AVAIL) return true;
+  if (g_wifiReconnectAttemptActive) return true;
   if (g_wifiEverConnected) return true;
   const uint32_t now = millis();
   if (g_wifiLastDisconnectMs > 0 && (now - g_wifiLastDisconnectMs) < 20000UL) return true;
