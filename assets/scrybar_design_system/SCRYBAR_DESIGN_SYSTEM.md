@@ -1,8 +1,64 @@
-# ScryBar Design System v1.0
+# ScryBar Design System v1.2
 
 > A comprehensive dark-themed design system for ESP32 web configuration interfaces.
 > Inspired by premium fintech dashboard aesthetics. Optimized for readability,
 > accessibility on small-to-medium displays, and a professional, futuristic feel.
+
+## 0. Theming System (v1.2 update)
+
+`index.html` now includes a top theme selector that switches runtime presets by writing:
+
+```html
+<html data-theme="...">
+```
+
+Theme presets are defined in `scrybar.css` as token overrides:
+
+- `:root, :root[data-theme="scrybar-default"]` (baseline)
+- `:root[data-theme="cyberpunk-2077"]` (monospaced terminal style)
+- `:root[data-theme="toxic-candy"]` (neon magenta + acid green accents, candy sci-fi finish)
+
+Cyberpunk v1.1 styling details (inspired by augmented geometry patterns):
+
+- 45deg cyber corners on selected surfaces/controls with closed top-left/bottom-right chamfers (`clip-path: polygon(...)`)
+- Layered border/inlay feel via `::before`/`::after` overlays on panels
+- Corner marker accents and scanline overlays bound to cyberpunk tokens
+- Includes ScryBar web FX Grid animation demo at the bottom of `index.html` (theme-reactive colors/treatment)
+- Kept ScryBar nomenclature intact (no class/token renames)
+- Reference studied: `https://unpkg.com/augmented-ui@2/augmented-ui.css`
+
+Toxic Candy v1.2 styling details:
+
+- Accent pair: magenta (`--accent-primary`) + fluo green (`--accent-secondary`)
+- New type mood via `Delius Unicase` + `Space Mono` token stacks (`Chakra Petch` fallback)
+- Rounded “candy shell” surfaces with neon glows and high-contrast states
+- FX Grid token overrides for magenta/green reactive animation
+- Keeps same component nomenclature and responsive behavior
+
+The theming layer covers:
+
+- Colors and gradients
+- Typography families/sizes
+- Component dimensions (`--btn-height-*`, `--input-height-*`, avatar/toggle sizes)
+- Stroke and border widths (`--stroke-width-*`)
+- Glow/shadow/focus tokens
+- Surface overlays/dividers/skeleton shimmer tokens
+- Select dropdown contrast tokens (`--select-option-*`) for clearer hover/selected states
+- Custom dropdown component (`.scry-dropdown`) with explicit selected/hover states and keyboard interaction
+- Web FX animation tokens (`--fx-grid-*`) for grid/horizon/scanline/vignette
+- Responsive behavior for every theme preset (desktop + mobile)
+
+To add a new theme, duplicate the cyberpunk block and override only variables:
+
+```css
+:root[data-theme="my-theme-name"] {
+  --font-family: ...;
+  --accent-primary: ...;
+  --stroke-width-ui: ...;
+  --btn-height-md: ...;
+  --shadow-glow-sm: ...;
+}
+```
 
 **A project by Netmilk Studio sagl — 2026 — Monteggio Plains**
 © 2026 Netmilk Studio sagl. All rights reserved.
@@ -13,8 +69,8 @@
 |-------|-----|
 | **Studio Logo** | `https://netmi.lk/wp-content/uploads/2024/10/netmilk.svg` |
 | **Logo Format** | SVG, light-on-dark optimized |
-| **Logo Placement** | Top of page before project title, footer attribution |
-| **Logo Height** | 48px (hero/header), 24px (footer) |
+| **Logo Placement** | Centered hero (large) + footer attribution |
+| **Logo Size** | Hero: responsive, target `>=280px` width on desktop. Footer: `130px` width |
 
 ---
 
@@ -29,11 +85,27 @@ calm, precise, authoritative.
 
 ### 1.2 Typography
 
-**Font Family:** Montserrat (Google Fonts import)
+**Font System:** token-driven, with per-theme font families and explicit fallback stacks.
 
 ```
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=Space+Mono:wght@400;700&display=swap');
 ```
+
+Theme font map:
+
+| Theme | `--font-family` | `--font-mono` | ESP32 UI font mapping |
+|------|------------------|---------------|-----------------------|
+| `scrybar-default` | Montserrat stack | Space Mono stack | LVGL Montserrat built-ins |
+| `cyberpunk-2077` | Space Mono terminal stack | Space Mono terminal stack | `scry_font_space_mono_*` |
+| `toxic-candy` | Delius Unicase stack (Chakra fallback) | Space Mono stack | `scry_font_delius_unicase_*` |
+
+ESP32 font assets (generated with `lv_font_conv`, static TTF, non-variable):
+
+- `assets/fonts/SpaceMono-Regular.ttf`
+- `assets/fonts/DeliusUnicase-Regular.ttf`
+- `src/fonts/scry_font_space_mono_*.c`
+- `src/fonts/scry_font_delius_unicase_*.c`
 
 | Token                  | Weight | Size   | Line-Height | Letter-Spacing | Usage                        |
 |------------------------|--------|--------|-------------|----------------|------------------------------|

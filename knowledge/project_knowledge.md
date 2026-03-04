@@ -5,17 +5,21 @@ Stable technical context for all AI assistants.
 ## Repository Layout
 
 - `scrybar.ino`: main firmware sketch in repository root.
-- `assets/`, `src/`, `tools/`: firmware resources, drivers, and utilities.
-- `lvgl_validation/`: isolated validation sketch for touch/UI experiments.
+- `config.h`: runtime feature toggles, hardware profile constants, firmware build tag/date.
+- `src/`: firmware support modules and generated assets (including LVGL fonts in `src/fonts/`).
+- `assets/`: static resources (logos, design system, README previews, source TTFs).
+- `assets/scrybar_design_system/`: standalone HTML/CSS design system with runtime theme selector.
+- `tools/`: operational scripts (notably screenshot capture via serial framebuffer dump).
 - `knowledge/`: shared, sanitized cross-assistant knowledge (public, versioned).
-- `.codex/`: local private working memory (not versioned).
+- `memory/`: local assistant memory (project-local, not canonical public documentation).
 
 ## Core Stack
 
 - Firmware: Arduino sketch (`scrybar.ino`)
 - MCU: ESP32-S3
 - Display/touch target: Waveshare ESP32-S3-Touch-LCD-3.49
-- LVGL path available for UI validation and production features.
+- UI: LVGL 8.x
+- Local config UI: embedded HTTP server (`/`, `/config`, `/api/config`, `/api/reload`)
 
 ## Canonical Board Profile
 
@@ -54,94 +58,244 @@ arduino-cli upload -p <PORT> \
 
 - Runtime secrets must stay in local non-versioned `secrets.h`.
 - `secrets.h.example` is versioned and must contain placeholders only.
-- `config.h` and docs must remain secret-free.
+- `config.h` and `knowledge/` docs must remain secret-free.
 
 ## Firmware Versioning
 
-Two constants in `config.h` — **must be incremented on every firmware change before compile+upload**:
+Two constants in `config.h` must be updated for every firmware release:
 
 ```cpp
-#define FW_BUILD_TAG     "DB-M0-rNNN"   // bump r-number each release
-#define FW_RELEASE_DATE  "YYYY-MM-DD"   // today's date
+#define FW_BUILD_TAG     "DB-M0-rNNN"
+#define FW_RELEASE_DATE  "YYYY-MM-DD"
 ```
 
-Both values are visible:
-- **Web UI** — hero card top-right, under the logo (`version` + `last release`)
-- **Physical device** — INFO panel (`ScryBar Stats`), left column `fw:` row
+Both are surfaced on:
 
-Use these to confirm a flash landed: serial monitor logs `[FW] Build=DB-M0-rNNN` at boot, and the web UI shows the new tag immediately after connecting.
+- Web control surface hero card (`version` + `last release`)
+- Device INFO panel (`ScryBar Stats`, `fw:` line)
 
-## Current Product Behaviors (High Level)
+Use them to confirm a flash landed (`[FW] Build=...` at boot).
 
-- Multi-SSID Wi-Fi fallback with non-blocking retry cycle.
-- Touch-driven page navigation (INFO/HOME/AUX views, 3 pages).
-- Weather + RSS + word clock integrated UX — full display UI localizable via `g_wordClockLang`.
-- 14 built-in word clock languages. **Standard:** `it` Italiano (default), `en` English, `fr` Français, `de` Deutsch, `es` Español, `pt` Português, `la` Latina, `eo` Esperanto, `nap` Napoletano, `tlh` Klingon. **Fun & Creative:** `l33t` 1337 Speak, `sha` Shakespearean English, `val` Valley Girl, `genz` Italiano Gen Z. Selectable from web UI (grouped with `<optgroup>`), persisted to NVS.
-- Power/battery diagnostics visible in INFO panel.
+## Runtime Config Model (NVS-backed)
 
-## LVGL Configuration
+`RuntimeNetConfig` is the runtime/persisted state nucleus. Key user-facing fields:
 
-Key settings in `lv_conf.h`:
+- Theme id: `uiTheme` (`ui_theme` in web/API payloads)
+- System language: `g_wordClockLang` (`wc_lang` in web/API payloads)
+- Weather city/lat/lon
+- RSS feed slots (multi-feed)
+- Branding logo URL
 
-- `LV_COLOR_16_SWAP=1` — required for AXS15231B byte order (see DECISIONS.md).
-- `LV_FONT_MONTSERRAT_38=1` — required for word clock font (`lvglFontClock`).
+Apply paths:
 
-Key setting in display driver:
+- Web form POST `/config`
+- API POST `/api/config`
+- Serial command `THEME <id>` (theme only)
 
-- `full_refresh=1` — required with current software rotation.
+## UI Theming System (Unified)
+
+The theming architecture is token-driven and unified across firmware UI and web UI.
+
+Core structure in firmware:
+
+- `UiThemeDefinition` = `{ id, label, web tokens, lvgl tokens }`
+- `kUiThemes[]` contains all runtime themes
+- `activeUiTheme()` + `setActiveUiThemeById()` drive runtime switching
+
+Current theme ids:
+
+- `scrybar-default`
+- `cyberpunk-2077`
+- `toxic-candy`
+
+Theme switch inputs:
+
+- Web UI `<select name="ui_theme">`
+- API `ui_theme=<id>`
+- Serial `THEME <id>` (plus `THEME` for list/status)
+
+Where tokens are applied:
+
+- Device LVGL palette/styling (`UiThemeLvglTokens`)
+- Embedded web control surface CSS vars (`appendWebThemeCssVars`)
+- Standalone design system (`assets/scrybar_design_system/`, HTML `data-theme` selector)
+
+Important behavior rule:
+
+- Weather panel is forced to light-background/dark-text fallback when needed, to preserve readability of transparent weather icons across themes.
+
+## Font System (Web + LVGL)
+
+### Theme typography map
+
+- `scrybar-default`
+  - Main UI font: Montserrat (LVGL built-ins + web stack)
+  - Monospace utility font: Space Mono stack
+- `cyberpunk-2077`
+  - Main + mono: Space Mono terminal style
+  - LVGL custom font family: `scry_font_space_mono_*`
+- `toxic-candy`
+  - Main UI font: Delius Unicase (web), Chakra fallback
+  - Mono: Space Mono stack
+  - LVGL custom font family: `scry_font_delius_unicase_*`
+
+### Generated LVGL fonts
+
+Sources:
+
+- `assets/fonts/SpaceMono-Regular.ttf`
+- `assets/fonts/DeliusUnicase-Regular.ttf`
+
+Generated outputs:
+
+- `src/fonts/scry_font_space_mono_{12,16,20,24,28,32}.c`
+- `src/fonts/scry_font_delius_unicase_{12,16,20,24,28,32}.c`
+
+Generation constraints:
+
+- Use static TTFs (non-variable fonts)
+- `lv_font_conv` with `--no-compress`
+- Glyph range: `0x20-0x7E`
+- Montserrat fallback enabled per size
+
+### Clock sentence auto-fit
+
+Clock line `g_lvglClockL1` uses runtime auto-fit:
+
+- Collect candidate font list per active theme (largest to smallest)
+- Apply candidate, measure label height against available clock body space
+- Select largest fitting font and re-center
+
+This keeps clock text visually full across resolutions/themes without clipping.
+
+## Language System (Word Clock + Full Display UI)
+
+`g_wordClockLang` is the single language pivot for display content.
+
+Supported 14 language codes:
+
+- Standard: `it`, `en`, `fr`, `de`, `es`, `pt`, `la`, `eo`, `nap`, `tlh`
+- Creative/fun: `l33t`, `sha`, `val`, `genz`
+
+Localization architecture:
+
+- `src/ui_strings.h`: `UiStrings` struct + one instance per language
+- `activeUiStrings()` dispatcher at runtime
+- Weather text dispatchers (`weatherCodeUiLabel*`, `weatherCodeShort*`)
+- Date formatting dispatchers per language
+
+Persistence + runtime apply:
+
+- Web form/API payload key: `wc_lang`
+- Saved in NVS key `wc_lang`
+- UI re-renders with selected language
+
+Web config selector groups languages in two `<optgroup>` blocks:
+
+- `Creative & Constructed`
+- `Modern Languages`
+
+## Design System (`assets/scrybar_design_system`)
+
+Purpose:
+
+- Canonical token/documentation playground for ScryBar UI
+- Theme selector in top bar writes `<html data-theme="...">`
+- Mirrors real product theme ids/nomenclature
+
+Notable features:
+
+- Runtime theme selector with contrast-safe dropdown states
+- Cyberpunk geometric chamfers and clipped corners via `clip-path` + pseudo-layer borders
+- Theme-reactive FX grid animation section
+- Responsive layout behavior across theme presets
+
+Main files:
+
+- `index.html`
+- `scrybar.css`
+- `SCRYBAR_DESIGN_SYSTEM.md`
+
+## README Preview Assets
+
+Theme preview screenshots used in `README.md` are tracked in:
+
+- `assets/readme_previews/home_weather_scrybar-default.png`
+- `assets/readme_previews/home_weather_cyberpunk-2077.png`
+- `assets/readme_previews/home_weather_toxic-candy.png`
+
+This location is intentionally outside ignored `screenshots/` paths.
+
+## LVGL Configuration Baselines
+
+Key settings:
+
+- `LV_COLOR_16_SWAP=1` in `lv_conf.h` (AXS15231B byte order)
+- `full_refresh=1` in display driver (rotation stability)
 
 ## Display Orientation
 
 Default: `DISPLAY_FLIP_180=1` in `config.h` (USB-C left, speaker top, mic bottom).
-Effect: 180° rotation via HW mirror (esp_lcd) + `rotation+2` (Arduino_GFX); touch uses direct mapping (`x=rawX`, `y=rawY`), no axis swap.
+Touch mapping is direct (`x=rawX`, `y=rawY`) with no axis swap in current baseline.
 
 ## Touch Anti-Ghost Filtering (AXS15231B)
 
 Discard touch frames where:
 
-- `point_count` is 0 or > 5
-- any coordinate ≥ `0x0FFF` (sentinel value)
-- raw coords outside panel bounds (`rawX >= width || rawY >= height`)
-
-Real idle ghost observed: `points=117` with spurious coordinates.
+- `point_count == 0` or `point_count > 5`
+- Any coordinate ≥ `0x0FFF`
+- Raw coords outside panel bounds
 
 ## Power Policy
 
-- 5s hold: soft-off (re-awakeable via 5–6s hold).
-- Hard-off: serial command `PWROFFHARD` only — not mapped to the physical button by design.
-- At boot: always re-assert `SYS_EN=HIGH` via TCA9554 to support battery fallback on USB disconnect.
-- Battery monitor: ADC1 CH3, 12dB attenuation, ×3 voltage divider.
+- Long-press 5s: soft-off (wakeup via long-press)
+- Hard-off only by serial `PWROFFHARD`
+- Boot always re-asserts `SYS_EN` via TCA9554
+- Battery monitor: ADC1 CH3, 12dB attenuation, ×3 divider
 
-## Serial Command Reference
+## Serial Command Reference (Operational)
 
 | Command | Effect |
 |---|---|
-| `VIEW` | Toggle HOME ↔ AUX page |
+| `HELP` | Print available commands |
+| `THEME` | Print current theme + list |
+| `THEME <id>` | Switch theme at runtime (and persist) |
+| `VIEW` | Toggle HOME ↔ AUX |
 | `VIEW0` / `VIEWINFO` | Force INFO page |
 | `VIEW1` / `VIEWHOME` | Force HOME page |
-| `VIEW2` / `VIEWAUX` | Force AUX page |
+| `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
+| `SNAP` | Emit framebuffer snapshot protocol |
 | `BATSTAT` | Print battery status |
-| `SAVERON` | Force screensaver on |
-| `PWROFFHARD` | Hard power-off (requires power cycle to recover) |
+| `SAVERON` / `SAVEROFF` | Toggle screensaver |
+| `PWRSTAT` | Print power button status |
+| `PWROFFHARD` | Hard power-off |
+| `WEBCFG` | Print active web config summary |
 
-Runtime summary (`[SUMMARY]`) emitted every 30s: build/wifi/ntp/ui/weather state.
+Runtime summary (`[SUMMARY]`) is emitted every 30s.
 
 ## Screenshot Workflow
 
-Capture serial frame dump with `tools/capture_snapshot.py --port <PORT> --out-dir screenshots`.
-With `LV_COLOR_16_SWAP=1`, the frame on wire is `rgb565be` — pass `--pix-fmt rgb565be` if forcing manual decode.
-Preferred order: send `SAVERON` via serial first, then run capture script (avoids `--pre-cmd` race).
+Base capture:
+
+```bash
+python3 tools/capture_snapshot.py --port <PORT> --out-dir screenshots
+```
+
+Wire format with current LVGL settings is `rgb565be`.
+For deterministic theme captures:
+
+1. Send serial theme/view command(s) first.
+2. Wait a short settle delay (`~1-2s`).
+3. Capture frame.
 
 ## Recurring Gotchas
 
-- Avoid default bare board settings that imply wrong flash/PSRAM profile.
-- Validate touch/display orientation after mapping changes.
-- Validate LVGL color/byte-order assumptions when modifying render pipeline.
-- `TEST_TOUCH` in `config.h` must be `1` for swipe navigation to function (boot log shows `[SKIP] TEST_TOUCH=0` if disabled).
-- `arduino-cli monitor` may close during RST due to USB re-enumeration; reconnect manually.
-- Use `lv_color_hex(0xRRGGBB)` — do not pass RGB565 values to `lv_color_hex`.
-- For the degree symbol in LVGL labels use UTF-8 `"\xC2\xB0"`, not `char(176)`.
-- Prefer small, verifiable changes and immediate runtime checks.
+- Do not compile with default bare board profile: wrong partition/flash settings can fail with "Sketch too big".
+- Keep `TEST_TOUCH=1` for swipe navigation.
+- `arduino-cli monitor` can drop on USB re-enumeration after reset/upload.
+- Use `lv_color_hex(0xRRGGBB)` (not RGB565 literals).
+- Degree symbol in LVGL labels must be UTF-8 `"\xC2\xB0"`.
+- Prefer non-variable font sources for deterministic LVGL conversion.
 
 ## Public Logging Rule
 

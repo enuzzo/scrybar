@@ -5,15 +5,34 @@
 - **Dopo ogni modifica al firmware: compile + flash automaticamente**, senza aspettare conferma.
 - **Usare sempre flash completo** (`--clean`, scrittura dell'intero binario). Non usare flash incrementali o delta.
 - Comandi canonici da `knowledge/project_knowledge.md`:
-  - Port fisso: `/dev/cu.usbmodem83101`
+  - Porta seriale: usare sempre quella attualmente enumerata (`/dev/cu.usbmodem*`)
   - Compile: `arduino-cli compile --clean --build-path /tmp/arduino-build-scrybar --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi .`
-  - Upload: `arduino-cli upload -p /dev/cu.usbmodem83101 --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi --input-dir /tmp/arduino-build-scrybar .`
+  - Upload: `arduino-cli upload -p <PORT> --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi --input-dir /tmp/arduino-build-scrybar .`
 
 ## Versioning
 
 - `FW_BUILD_TAG` e `FW_RELEASE_DATE` in `config.h` — **incrementare r-number e aggiornare data ad ogni release**.
 - Visibili su: web UI (hero card, sotto logo) e device INFO panel (`ScryBar Stats`, colonna destra).
-- Corrente: `DB-M0-r140`, `2026-03-03`.
+- Corrente: `DB-M0-r143`, `2026-03-04`.
+
+## Theming + Fonts (r143)
+
+- Sistema temi runtime unificato su tre superfici:
+  - firmware LVGL (`UiThemeLvglTokens`)
+  - web config embedded (`UiThemeWebTokens`)
+  - design system (`assets/scrybar_design_system`)
+- Theme id attivi: `scrybar-default`, `cyberpunk-2077`, `toxic-candy`.
+- Cambio tema:
+  - seriale: `THEME <id>`
+  - web/API: `ui_theme=<id>` su `/config` o `/api/config`
+- Font per tema:
+  - default: Montserrat (LVGL built-ins)
+  - cyberpunk: `Space Mono` (`scry_font_space_mono_{12,16,20,24,28,32}`)
+  - toxic candy: `Delius Unicase` (`scry_font_delius_unicase_{12,16,20,24,28,32}`)
+- Font web aggiornati:
+  - cyberpunk: stack monospace Space Mono
+  - toxic: `Delius Unicase` come `--font-family`
+- Orologio: auto-fit dinamico (`g_lvglClockL1`) con scelta della taglia massima che entra nello spazio.
 
 ## Architettura UI Localization
 

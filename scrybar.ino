@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <string.h>
 #include "src/ui_strings.h"
+#include "src/sketch_fwd.h"
 #include "esp_system.h"
 #include "esp_sleep.h"
 #include "config.h"
@@ -35,6 +36,18 @@
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
 #include <lvgl.h>
+LV_FONT_DECLARE(scry_font_space_mono_16);
+LV_FONT_DECLARE(scry_font_space_mono_12);
+LV_FONT_DECLARE(scry_font_space_mono_20);
+LV_FONT_DECLARE(scry_font_space_mono_24);
+LV_FONT_DECLARE(scry_font_space_mono_28);
+LV_FONT_DECLARE(scry_font_space_mono_32);
+LV_FONT_DECLARE(scry_font_delius_unicase_12);
+LV_FONT_DECLARE(scry_font_delius_unicase_16);
+LV_FONT_DECLARE(scry_font_delius_unicase_20);
+LV_FONT_DECLARE(scry_font_delius_unicase_24);
+LV_FONT_DECLARE(scry_font_delius_unicase_28);
+LV_FONT_DECLARE(scry_font_delius_unicase_32);
 #if __has_include("assets/weather_icons_min/generated/weather_icons_lvgl_min.h")
 #include "assets/weather_icons_min/generated/weather_icons_lvgl_min.h"
 #define DB_HAS_LVGL_WEATHER_MIN_IMAGES 1
@@ -182,6 +195,279 @@ static uint32_t g_wifiReconnectNextAttemptMs = 0;
 static uint32_t g_lastNtpAttemptMs = 0;
 #endif
 
+static constexpr size_t UI_THEME_ID_LEN = 24;
+
+struct UiThemeWebTokens {
+  const char *fontMain;
+  const char *fontMono;
+  const char *bgDeepest;
+  const char *bgDeep;
+  const char *bgSurface;
+  const char *line;
+  const char *lineSoft;
+  const char *txt;
+  const char *txt2;
+  const char *txt3;
+  const char *acc1;
+  const char *acc2;
+  const char *okbg;
+  const char *secBg;
+  const char *border;
+  const char *heroBorder;
+  const char *heroCopyBorder;
+  const char *heroCopyBg;
+  const char *releaseBorder;
+  const char *releaseBg;
+  const char *releaseKey;
+  const char *releaseValue;
+  const char *gridLineA;
+  const char *gridLineB;
+  const char *gridGlowA;
+  const char *gridGlowB;
+  const char *gridHorizonA;
+  const char *gridHorizonB;
+  const char *scanline;
+  const char *vlineA;
+  const char *vlineB;
+  const char *btnGhostBg;
+  const char *btnGhostText;
+};
+
+struct UiThemeLvglTokens {
+  uint32_t screenBg;
+  uint32_t panelBg;
+  uint32_t headerBg;
+  uint32_t headerText;
+  uint32_t headerMeta;
+  uint32_t weatherCardBg;
+  uint32_t weatherTextPrimary;
+  uint32_t weatherTextSecondary;
+  uint32_t weatherGlyphOnline;
+  uint32_t weatherGlyphOffline;
+  uint32_t divider;
+  uint32_t forecastText;
+  uint32_t infoBg;
+  uint32_t infoHeaderBg;
+  uint32_t infoHeaderBorder;
+  uint32_t infoText;
+  uint32_t infoQrDark;
+  uint32_t infoQrLight;
+  uint32_t auxText;
+  uint32_t auxMeta;
+  uint32_t auxSourceText;
+  uint32_t auxWhenText;
+  uint32_t auxBadgeBg;
+  uint32_t auxBadgeText;
+  uint32_t auxQrBtnBg;
+  uint32_t auxQrBtnPressedBg;
+  uint32_t auxQrBtnText;
+  uint32_t auxQrBtnPressedText;
+  uint32_t auxRefreshBtnBg;
+  uint32_t auxRefreshBtnPressedBg;
+  uint32_t auxRefreshBtnText;
+  uint32_t auxNextBtnBg;
+  uint32_t auxNextBtnPressedBg;
+  uint32_t auxNextBtnText;
+  uint32_t auxQrDark;
+  uint32_t auxQrLight;
+  uint32_t auxQrHint;
+  uint32_t wifiBarOff;
+  uint32_t wifiBarOn;
+  uint32_t wifiBarWave;
+  uint32_t saverSky;
+  uint32_t saverField;
+  uint32_t saverCow;
+  uint32_t saverBalloon;
+  uint32_t saverTail;
+  uint32_t saverFooter;
+  uint32_t saverStarLow;
+  uint32_t saverStarMid;
+  uint32_t saverStarHigh;
+};
+
+struct UiThemeDefinition {
+  const char *id;
+  const char *label;
+  UiThemeWebTokens web;
+  UiThemeLvglTokens lvgl;
+};
+
+static const UiThemeDefinition kUiThemes[] = {
+  {
+    "scrybar-default",
+    "ScryBar Default",
+    {
+      "'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace",
+      "#070D2D",
+      "#0B1437",
+      "#111C44",
+      "rgba(255,255,255,.11)",
+      "rgba(255,255,255,.07)",
+      "#FFFFFF",
+      "#A3AED0",
+      "#707EAE",
+      "#7551FF",
+      "#39B8FF",
+      "rgba(1,181,116,.14)",
+      "rgba(11,20,55,0.72)",
+      "rgba(57,184,255,0.18)",
+      "rgba(117,81,255,.34)",
+      "rgba(57,184,255,.22)",
+      "rgba(9,16,44,.36)",
+      "rgba(117,81,255,.42)",
+      "rgba(7,13,38,.72)",
+      "#79d8ff",
+      "#e9f0ff",
+      "rgba(117,81,255,0.20)",
+      "rgba(57,184,255,0.18)",
+      "rgba(117,81,255,0.18)",
+      "rgba(57,184,255,0.08)",
+      "rgba(117,81,255,0.40)",
+      "rgba(57,184,255,0.34)",
+      "rgba(57,184,255,0.32)",
+      "rgba(117,81,255,0.20)",
+      "rgba(57,184,255,0.18)",
+      "#1A2558",
+      "#d9e4ff",
+    },
+    {
+      0x000000, 0x101B44, 0x2D3F82, 0xFFFFFF, 0xAFC2F5, 0xC6DBFF, 0x1B2D63, 0x2C4784,
+      0x1B2D63, 0xAAAAAA, 0x9FB5EE, 0x1B2D63, 0x000000, 0x232833, 0x3A4150, 0xEAF0FF,
+      0xF6FBFF, 0x000000, 0xEAF0FF, 0xAFC2F5, 0x6FD8FF, 0x9FB5EE, 0x2B468E, 0xFFFFFF, 0xFFD34D, 0xFFF19A,
+      0x1E2F63, 0x0B1E4B, 0x6FD8FF, 0xB9ECFF, 0x113063, 0x7B63FF, 0x9E8EFF, 0xF7F2FF,
+      0x162B63, 0xF7FAFF, 0xEAF2FF, 0x1B2D63, 0xFFFFFF, 0xC8D6FF, 0xBFD3FF, 0x66FFB3,
+      0xF3F7FF, 0xF4F7FF, 0xFFFFFF, 0x97B0E4, 0xB9B27A, 0xDDD58A, 0xFFF3B0,
+    },
+  },
+  {
+    "cyberpunk-2077",
+    "Cyberpunk 2077",
+    {
+      "'Space Mono','Monaco','Menlo',Consolas,monospace",
+      "'Space Mono','Monaco','Menlo',Consolas,monospace",
+      "#04070F",
+      "#091523",
+      "#0E2133",
+      "rgba(255,237,77,.16)",
+      "rgba(73,232,255,.11)",
+      "#F5F9EE",
+      "#9ED6D3",
+      "#5FA1A8",
+      "#FFE600",
+      "#27E1FF",
+      "rgba(39,225,255,.14)",
+      "rgba(7,18,29,0.78)",
+      "rgba(39,225,255,0.28)",
+      "rgba(255,230,0,.35)",
+      "rgba(39,225,255,.34)",
+      "rgba(7,18,29,.52)",
+      "rgba(255,230,0,.48)",
+      "rgba(4,12,21,.86)",
+      "#4ee7ff",
+      "#f7f3a0",
+      "rgba(255,230,0,0.20)",
+      "rgba(39,225,255,0.20)",
+      "rgba(255,230,0,0.18)",
+      "rgba(39,225,255,0.10)",
+      "rgba(255,230,0,0.45)",
+      "rgba(39,225,255,0.36)",
+      "rgba(39,225,255,0.32)",
+      "rgba(255,230,0,0.20)",
+      "rgba(39,225,255,0.20)",
+      "#10253A",
+      "#D6FFF6",
+    },
+    {
+      0x04070F, 0x0B1A2A, 0x103048, 0xFFF59A, 0x7FE7FF, 0x122A3F, 0xFFF19A, 0x82EFFF,
+      0xFFE85A, 0x6C8696, 0x38DFFF, 0xFFF6B0, 0x04070F, 0x132539, 0xF2DB4A, 0xE6FCFF,
+      0xF1E94A, 0x04070F, 0xE4FCFF, 0x93EFFF, 0x33E1FF, 0x1A8296, 0x1B3D57, 0xE9FFFE, 0xFFE600, 0xFFF6A8,
+      0x122C42, 0x102338, 0x33E1FF, 0x99F3FF, 0x0C2740, 0x28B0D5, 0x7CDBF0, 0x042134,
+      0x1C415A, 0xF4FFFE, 0xD6FFF8, 0x2A3A4C, 0xA4A139, 0x0F6272, 0x1A8296, 0x7CFFBE,
+      0xFFF8C5, 0xE8FEFF, 0xFFF8C5, 0x7EB7E8, 0x9CA660, 0xD8DD8A, 0xFFF7B0,
+    },
+  },
+  {
+    "toxic-candy",
+    "Toxic Candy",
+    {
+      "'Delius Unicase','Chakra Petch','Montserrat','Segoe UI',sans-serif",
+      "'Space Mono','Monaco','Menlo',Consolas,monospace",
+      "#130816",
+      "#1D0A21",
+      "#301238",
+      "rgba(211,0,255,.18)",
+      "rgba(168,255,77,.10)",
+      "#FFF5FF",
+      "#E3C6F1",
+      "#AB85BD",
+      "#FF37D5",
+      "#9BFF2F",
+      "rgba(155,255,47,.18)",
+      "rgba(32,11,42,0.76)",
+      "rgba(155,255,47,0.26)",
+      "rgba(255,55,213,.40)",
+      "rgba(155,255,47,.35)",
+      "rgba(32,11,42,.58)",
+      "rgba(155,255,47,.50)",
+      "rgba(24,7,31,.84)",
+      "#9BFF2F",
+      "#FFD7FB",
+      "rgba(255,55,213,0.22)",
+      "rgba(155,255,47,0.17)",
+      "rgba(255,55,213,0.20)",
+      "rgba(155,255,47,0.11)",
+      "rgba(255,55,213,0.50)",
+      "rgba(155,255,47,0.42)",
+      "rgba(155,255,47,0.35)",
+      "rgba(255,55,213,0.22)",
+      "rgba(155,255,47,0.22)",
+      "#3A1446",
+      "#F7E6FF",
+    },
+    {
+      0x130816, 0x2A1034, 0x4A1558, 0xFFD9FB, 0xC5FF63, 0x3A1846, 0xF8F1FF, 0xB8FF65,
+      0xFF6BDE, 0xA994B1, 0x9BFF2F, 0xD9FF8A, 0x130816, 0x32113D, 0x9BFF2F, 0xFCEBFF,
+      0x9BFF2F, 0x130816, 0xFCEBFF, 0xD3B8E8, 0x9BFF2F, 0xC8FF88, 0x5A2172, 0xFCEBFF, 0xFF37D5, 0xFF95E8,
+      0x2A0732, 0x25052B, 0x9BFF2F, 0xC8FF88, 0x1A2E00, 0xD300FF, 0xF07CFF, 0xFFF5FF,
+      0x3B0E47, 0xEAFFD2, 0xFBEAFF, 0x573264, 0x9BFF2F, 0xFF4BDE, 0xE8C9FF, 0x9BFF2F,
+      0xFFF0FF, 0xFFCBF7, 0xFFF0FF, 0xC5A3D9, 0x8B5AA0, 0xC37BDD, 0xFFBBF2,
+    },
+  },
+};
+static constexpr size_t UI_THEME_COUNT = sizeof(kUiThemes) / sizeof(kUiThemes[0]);
+static uint8_t g_uiThemeIndex = 0;
+
+static int8_t findUiThemeIndexById(const char *id) {
+  if (!id || !id[0]) return -1;
+  for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
+    if (strcmp(kUiThemes[i].id, id) == 0) return (int8_t)i;
+  }
+  return -1;
+}
+
+static const UiThemeDefinition &uiThemeByIndex(uint8_t idx) {
+  if (idx >= UI_THEME_COUNT) idx = 0;
+  return kUiThemes[idx];
+}
+
+static const UiThemeDefinition &activeUiTheme() {
+  return uiThemeByIndex(g_uiThemeIndex);
+}
+
+static const char *activeUiThemeId() {
+  return activeUiTheme().id;
+}
+
+static const char *activeUiThemeLabel() {
+  return activeUiTheme().label;
+}
+
+static void setActiveUiThemeById(const char *id) {
+  const int8_t idx = findUiThemeIndexById(id);
+  g_uiThemeIndex = (idx >= 0) ? (uint8_t)idx : 0;
+}
+
 #if TEST_WIFI
 static constexpr uint8_t RSS_MAX_ITEMS = 8;
 static constexpr uint8_t RSS_FEED_SLOT_COUNT = 5;
@@ -200,6 +486,7 @@ struct RuntimeNetConfig {
   float weatherLon = WEATHER_LON;
   RuntimeRssFeedConfig rssFeeds[RSS_FEED_SLOT_COUNT];
   char logoUrl[220];
+  char uiTheme[UI_THEME_ID_LEN];
   bool ready = false;
 };
 static RuntimeNetConfig g_runtimeNetConfig = {};
@@ -214,6 +501,11 @@ static bool g_webConfigRoutesRegistered = false;
 static bool updateRssFromFeed(bool force);
 static bool updateWeatherFromApi(bool force);
 static void formatCityLabel(const char *src, char *out, size_t outLen);
+static const char *runtimeUiThemeId();
+static const char *runtimeUiThemeLabel();
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+static void lvglApplyThemeStyles(bool forceInvalidate);
+#endif
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
 static void markUserInteraction(uint32_t nowMs);
 static void lvglSetScreenSaverActive(bool on);
@@ -320,12 +612,14 @@ static lv_obj_t *g_lvglClockL2 = nullptr;
 static lv_obj_t *g_lvglClockL3 = nullptr;
 static lv_obj_t *g_lvglClockDate = nullptr;
 static lv_obj_t *g_lvglClockHeader = nullptr;
+static lv_obj_t *g_lvglClockHeaderFill = nullptr;
 static lv_obj_t *g_lvglClockWiFiBars[4] = {nullptr, nullptr, nullptr, nullptr};
 static uint16_t g_lvglClockWiFiMask = 0xFFFF;
 static lv_obj_t *g_lvglClockDivider = nullptr;
 static lv_obj_t *g_lvglInfoRoot = nullptr;
 static lv_obj_t *g_lvglInfoCard = nullptr;
 static lv_obj_t *g_lvglInfoHeader = nullptr;
+static lv_obj_t *g_lvglInfoHeaderFill = nullptr;
 static lv_obj_t *g_lvglInfoTitle = nullptr;
 static lv_obj_t *g_lvglInfoEndpoint = nullptr;
 static lv_obj_t *g_lvglInfoBodyLeft = nullptr;
@@ -338,6 +632,7 @@ static lv_obj_t *g_lvglHomeRoot = nullptr;
 static lv_obj_t *g_lvglClockBlock = nullptr;
 static lv_obj_t *g_lvglWeatherCard = nullptr;
 static lv_obj_t *g_lvglWeatherHeader = nullptr;
+static lv_obj_t *g_lvglWeatherHeaderFill = nullptr;
 static lv_obj_t *g_lvglWeatherBody = nullptr;
 static lv_obj_t *g_lvglCity = nullptr;
 static bool g_lvglCityTickerScroll = false;
@@ -351,13 +646,16 @@ static lv_obj_t *g_lvglDesc = nullptr;
 static lv_obj_t *g_lvglHumidity = nullptr;
 static lv_obj_t *g_lvglSun = nullptr;
 static lv_obj_t *g_lvglWind = nullptr;
+static lv_obj_t *g_lvglWeatherSep = nullptr;
 static lv_obj_t *g_lvglForecastBar = nullptr;
+static lv_obj_t *g_lvglForecastBarFill = nullptr;
 static lv_obj_t *g_lvglForecastIcon = nullptr;
 static lv_obj_t *g_lvglForecastNow = nullptr;
 static lv_obj_t *g_lvglForecastTomorrow = nullptr;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglAuxCard = nullptr;
 static lv_obj_t *g_lvglAuxHeader = nullptr;
+static lv_obj_t *g_lvglAuxHeaderFill = nullptr;
 static lv_obj_t *g_lvglAuxTitle = nullptr;
 static lv_obj_t *g_lvglAuxFeedIcon = nullptr;
 static lv_obj_t *g_lvglAuxStatus = nullptr;
@@ -717,8 +1015,10 @@ static void printRuntimeSummary(uint32_t nowMs) {
 #if TEST_WIFI
   const bool wifiOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
   const char *wifiState = wifiOk ? "CONNECTED" : "DISCONNECTED";
+  const char *themeState = runtimeUiThemeId();
 #else
   const char *wifiState = "OFF";
+  const char *themeState = activeUiThemeId();
 #endif
 
 #if TEST_NTP
@@ -761,13 +1061,14 @@ static void printRuntimeSummary(uint32_t nowMs) {
   const int pwrRaw = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
   const int pwrPressed = isPwrButtonPressed() ? 1 : 0;
 
-  Serial.printf("[SUMMARY] build=%s uptime=%lu wifi=%s ntp=%s time=%s ui=%s batt=%s pwr_mode=%s pwr_raw=%d pwr_pressed=%d meteo=%s\n",
+  Serial.printf("[SUMMARY] build=%s uptime=%lu wifi=%s ntp=%s time=%s ui=%s theme=%s batt=%s pwr_mode=%s pwr_raw=%d pwr_pressed=%d meteo=%s\n",
                 FW_BUILD_TAG,
                 nowMs,
                 wifiState,
                 ntpState,
                 timeBuf,
                 uiState,
+                themeState,
                 battBuf,
                 g_softPowerOff ? "SOFT_OFF" : "RUN",
                 pwrRaw,
@@ -1523,6 +1824,27 @@ static void ensureRuntimeNetConfig();
 static constexpr uint8_t RSS_FEED_MIN_ITEMS = 1;
 static const char *kWebStudioLogoUrl = "https://netmi.lk/wp-content/uploads/2024/10/netmilk.svg";
 
+static void normalizeRuntimeUiTheme(RuntimeNetConfig &cfg) {
+  const int8_t idx = findUiThemeIndexById(cfg.uiTheme);
+  if (idx >= 0) copyStringSafe(cfg.uiTheme, sizeof(cfg.uiTheme), kUiThemes[idx].id);
+  else copyStringSafe(cfg.uiTheme, sizeof(cfg.uiTheme), kUiThemes[0].id);
+}
+
+static void syncActiveUiThemeFromRuntimeConfig(const RuntimeNetConfig &cfg) {
+  setActiveUiThemeById(cfg.uiTheme);
+}
+
+static const char *runtimeUiThemeId() {
+  ensureRuntimeNetConfig();
+  return g_runtimeNetConfig.uiTheme[0] ? g_runtimeNetConfig.uiTheme : kUiThemes[0].id;
+}
+
+static const char *runtimeUiThemeLabel() {
+  ensureRuntimeNetConfig();
+  const int8_t idx = findUiThemeIndexById(g_runtimeNetConfig.uiTheme);
+  return (idx >= 0) ? kUiThemes[idx].label : kUiThemes[0].label;
+}
+
 static uint8_t clampRssFeedMaxItems(uint8_t n) {
   if (n < RSS_FEED_MIN_ITEMS) return RSS_FEED_MIN_ITEMS;
   if (n > RSS_MAX_ITEMS) return RSS_MAX_ITEMS;
@@ -1689,18 +2011,27 @@ static void loadRuntimeNetConfigFromNvs() {
       g_wordClockLang[sizeof(g_wordClockLang) - 1] = '\0';
     }
   }
+  if (prefs.isKey("ui_theme")) {
+    const String theme = prefs.getString("ui_theme", "");
+    if (theme.length() > 0 && theme.length() < sizeof(g_runtimeNetConfig.uiTheme)) {
+      copyStringSafe(g_runtimeNetConfig.uiTheme, sizeof(g_runtimeNetConfig.uiTheme), theme.c_str());
+      loadedAny = true;
+    }
+  }
   prefs.end();
 
   normalizeRuntimeRssFeeds(g_runtimeNetConfig);
+  normalizeRuntimeUiTheme(g_runtimeNetConfig);
 
   if (loadedAny) {
     const int activeIdx = runtimeFirstConfiguredRssFeedIndexNoEnsure();
-    Serial.printf("[CFG][NVS] loaded city='%s' lat=%.4f lon=%.4f rss_feeds=%u active='%s'\n",
+    Serial.printf("[CFG][NVS] loaded city='%s' lat=%.4f lon=%.4f rss_feeds=%u active='%s' theme='%s'\n",
                   g_runtimeNetConfig.weatherCity,
                   g_runtimeNetConfig.weatherLat,
                   g_runtimeNetConfig.weatherLon,
                   (unsigned)runtimeRssConfiguredFeedCountNoEnsure(),
-                  activeIdx >= 0 ? g_runtimeNetConfig.rssFeeds[activeIdx].url : "-");
+                  activeIdx >= 0 ? g_runtimeNetConfig.rssFeeds[activeIdx].url : "-",
+                  g_runtimeNetConfig.uiTheme);
   } else {
     Serial.println("[CFG][NVS] no saved config, uso default");
   }
@@ -1729,13 +2060,15 @@ static bool saveRuntimeNetConfigToNvs() {
     nFeedMax += prefs.putUChar(key, g_runtimeNetConfig.rssFeeds[i].maxItems);
   }
   const size_t n5 = prefs.putString("logo_url", g_runtimeNetConfig.logoUrl);
-  prefs.putString("wc_lang", g_wordClockLang);
+  const size_t n6 = prefs.putString("wc_lang", g_wordClockLang);
+  const size_t n7 = prefs.putString("ui_theme", g_runtimeNetConfig.uiTheme);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
-  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u)\n",
+  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u)\n",
                 ok ? "OK" : "ERR",
                 (unsigned)n1, (unsigned)n2, (unsigned)n3, (unsigned)n4,
-                (unsigned)nFeedName, (unsigned)nFeedUrl, (unsigned)nFeedMax, (unsigned)n5);
+                (unsigned)nFeedName, (unsigned)nFeedUrl, (unsigned)nFeedMax, (unsigned)n5,
+                (unsigned)n6, (unsigned)n7);
   return ok;
 }
 
@@ -1745,6 +2078,7 @@ static void ensureRuntimeNetConfig() {
   g_runtimeNetConfig.weatherLat = WEATHER_LAT;
   g_runtimeNetConfig.weatherLon = WEATHER_LON;
   resetRuntimeRssFeedsToDefaults(g_runtimeNetConfig);
+  copyStringSafe(g_runtimeNetConfig.uiTheme, sizeof(g_runtimeNetConfig.uiTheme), kUiThemes[0].id);
   if (WEB_CONFIG_LOGO_URL[0]) {
     copyStringSafe(g_runtimeNetConfig.logoUrl, sizeof(g_runtimeNetConfig.logoUrl), WEB_CONFIG_LOGO_URL);
   } else {
@@ -1752,6 +2086,8 @@ static void ensureRuntimeNetConfig() {
   }
   loadRuntimeNetConfigFromNvs();
   normalizeRuntimeRssFeeds(g_runtimeNetConfig);
+  normalizeRuntimeUiTheme(g_runtimeNetConfig);
+  syncActiveUiThemeFromRuntimeConfig(g_runtimeNetConfig);
   g_runtimeNetConfig.ready = true;
 }
 
@@ -1851,6 +2187,45 @@ static void appendJsonEscaped(String &out, const char *text) {
   }
 }
 
+static void appendWebThemeCssVars(String &out, const UiThemeWebTokens &t) {
+  out += F(":root{");
+  out += F("--font-main:"); out += t.fontMain; out += ';';
+  out += F("--font-mono:"); out += t.fontMono; out += ';';
+  out += F("--bg-deepest:"); out += t.bgDeepest; out += ';';
+  out += F("--bg-deep:"); out += t.bgDeep; out += ';';
+  out += F("--bg-surface:"); out += t.bgSurface; out += ';';
+  out += F("--line:"); out += t.line; out += ';';
+  out += F("--line-soft:"); out += t.lineSoft; out += ';';
+  out += F("--txt:"); out += t.txt; out += ';';
+  out += F("--txt2:"); out += t.txt2; out += ';';
+  out += F("--txt3:"); out += t.txt3; out += ';';
+  out += F("--acc1:"); out += t.acc1; out += ';';
+  out += F("--acc2:"); out += t.acc2; out += ';';
+  out += F("--okbg:"); out += t.okbg; out += ';';
+  out += F("--sec-bg:"); out += t.secBg; out += ';';
+  out += F("--border:"); out += t.border; out += ';';
+  out += F("--hero-border:"); out += t.heroBorder; out += ';';
+  out += F("--hero-copy-border:"); out += t.heroCopyBorder; out += ';';
+  out += F("--hero-copy-bg:"); out += t.heroCopyBg; out += ';';
+  out += F("--release-border:"); out += t.releaseBorder; out += ';';
+  out += F("--release-bg:"); out += t.releaseBg; out += ';';
+  out += F("--release-key:"); out += t.releaseKey; out += ';';
+  out += F("--release-value:"); out += t.releaseValue; out += ';';
+  out += F("--grid-line-a:"); out += t.gridLineA; out += ';';
+  out += F("--grid-line-b:"); out += t.gridLineB; out += ';';
+  out += F("--grid-glow-a:"); out += t.gridGlowA; out += ';';
+  out += F("--grid-glow-b:"); out += t.gridGlowB; out += ';';
+  out += F("--grid-horizon-a:"); out += t.gridHorizonA; out += ';';
+  out += F("--grid-horizon-b:"); out += t.gridHorizonB; out += ';';
+  out += F("--scanline:"); out += t.scanline; out += ';';
+  out += F("--vline-a:"); out += t.vlineA; out += ';';
+  out += F("--vline-b:"); out += t.vlineB; out += ';';
+  out += F("--btn-ghost-bg:"); out += t.btnGhostBg; out += ';';
+  out += F("--btn-ghost-text:"); out += t.btnGhostText; out += ';';
+  out += F("--radius:10px;--gap:1.5rem;");
+  out += '}';
+}
+
 static String buildWebConfigPage(const char *statusMsg) {
   ensureRuntimeNetConfig();
   char latBuf[24];
@@ -1858,6 +2233,8 @@ static String buildWebConfigPage(const char *statusMsg) {
   snprintf(latBuf, sizeof(latBuf), "%.4f", runtimeWeatherLat());
   snprintf(lonBuf, sizeof(lonBuf), "%.4f", runtimeWeatherLon());
   const uint8_t configuredFeeds = runtimeRssConfiguredFeedCount();
+  const UiThemeDefinition &themeDef = activeUiTheme();
+  const UiThemeWebTokens &webTheme = themeDef.web;
 
   String html;
   html.reserve(28000);
@@ -1866,12 +2243,12 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("<title>ScryBar Control Surface</title>");
   html += F("<link rel='preconnect' href='https://fonts.googleapis.com'>");
   html += F("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>");
-  html += F("<link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap' rel='stylesheet'>");
+  html += F("<link href='https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=Montserrat:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap' rel='stylesheet'>");
   html += F("<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css'>");
   html += F("<style>");
   // Tron-grid animated background; tuned to stay visible on mobile while keeping form readability.
-  html += F(":root{--bg-deepest:#070D2D;--bg-deep:#0B1437;--bg-surface:#111C44;--line:rgba(255,255,255,.11);--line-soft:rgba(255,255,255,.07);--txt:#FFFFFF;--txt2:#A3AED0;--txt3:#707EAE;--acc1:#7551FF;--acc2:#39B8FF;--okbg:rgba(1,181,116,.14);--radius:10px;--gap:1.5rem;--sec-bg:rgba(11,20,55,0.72);--border:rgba(57,184,255,0.18)}");
-  html += F("*{box-sizing:border-box}html,body{margin:0}body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg-deepest);color:var(--txt);overflow-x:hidden}");
+  appendWebThemeCssVars(html, webTheme);
+  html += F("*{box-sizing:border-box}html,body{margin:0}body{font-family:var(--font-main);background:var(--bg-deepest);color:var(--txt);overflow-x:hidden}");
   html += F(".fx-grid{position:fixed;inset:0;z-index:0;overflow:hidden;perspective:600px;pointer-events:none}");
   html += F(".fx-grid__plane{position:absolute;bottom:-8vh;left:-35%;width:170%;height:62vh;transform:rotateX(62deg);transform-origin:center bottom;background-image:linear-gradient(rgba(117,81,255,0.20) 1px,transparent 1px),linear-gradient(90deg,rgba(57,184,255,0.18) 1px,transparent 1px);background-size:36px 36px;opacity:.95;animation:gridScroll 5s linear infinite;will-change:background-position}");
   html += F(".fx-grid__glow{position:absolute;bottom:0;left:0;right:0;height:62%;background:linear-gradient(to top,rgba(117,81,255,0.18) 0%,rgba(57,184,255,0.08) 45%,transparent 100%);animation:gridGlowPulse 6s ease-in-out infinite}");
@@ -1911,6 +2288,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F(".api-note{margin-top:12px;padding:8px 10px;border-radius:10px;background:rgba(57,184,255,.10);border:1px solid rgba(57,184,255,.28)}");
   html += F(".site-footer{margin-top:18px;padding:12px 2px 4px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#8fa4d2;line-height:1.5}.site-footer strong{color:#dbe7ff}.site-footer a{color:#9fd9ff;text-decoration:none}.site-footer a:hover{color:#c7ebff;text-decoration:underline}");
   html += F("small{color:var(--txt2)}code{color:#d2ddff}@media(prefers-reduced-motion:reduce){.fx-grid *{animation-duration:0.01ms !important;transition-duration:0.01ms !important}}@media(max-width:980px){.grid2,.rss-composer{grid-template-columns:1fr}.fx-grid__plane{height:68vh;bottom:-4vh;background-size:32px 32px;opacity:1}.fx-grid__glow{height:66%;background:linear-gradient(to top,rgba(117,81,255,0.24) 0%,rgba(57,184,255,0.11) 45%,transparent 100%)}.fx-grid__horizon{bottom:58%}.hero-top{flex-wrap:nowrap;align-items:center}.hero-left{min-width:0;flex:1 1 auto}.logo{height:54px}.hero-right{justify-items:end;flex:0 0 auto}.release-box{width:auto}.hero-copy{padding:10px}}@media(max-width:420px){.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}}@media(max-width:480px){.btns{flex-direction:column}.btn.primary{width:100%;justify-content:center}}");
+  html += F(".fx-grid__plane{background-image:linear-gradient(var(--grid-line-a) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line-b) 1px,transparent 1px)}.fx-grid__glow{background:linear-gradient(to top,var(--grid-glow-a) 0%,var(--grid-glow-b) 45%,transparent 100%)}.fx-grid__horizon{background:linear-gradient(90deg,transparent 0%,var(--grid-horizon-a) 20%,var(--grid-horizon-b) 50%,var(--grid-horizon-a) 80%,transparent 100%)}.fx-grid__scanline{background:linear-gradient(90deg,transparent,var(--scanline),transparent)}.fx-grid__vline:nth-child(5){background:linear-gradient(to bottom,transparent,var(--vline-a),transparent)}.fx-grid__vline:nth-child(6){background:linear-gradient(to bottom,transparent,var(--vline-b),transparent)}.fx-grid__vline:nth-child(7){background:linear-gradient(to bottom,transparent,var(--vline-a),transparent)}.hero-top-card{border-color:var(--hero-border)}.hero-copy{border-color:var(--hero-copy-border);background:var(--hero-copy-bg)}.release-box{border-color:var(--release-border);background:var(--release-bg);font-family:var(--font-mono)}.release-box .k{color:var(--release-key)}.release-box .v{color:var(--release-value)}.sec{border-color:var(--border);background:var(--sec-bg)}.btn{font-family:var(--font-main)}.btn.ghost{background:var(--btn-ghost-bg);color:var(--btn-ghost-text)}input,select{font-family:var(--font-main)}");
   html += F("</style></head><body><div class='fx-grid'><div class='fx-grid__plane'></div><div class='fx-grid__glow'></div><div class='fx-grid__horizon'></div><div class='fx-grid__scanline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vignette'></div></div><main class='wrap'>");
   html += F("<section class='hero'><div class='hero-top-card'><div class='hero-top'><div class='hero-left'><img class='logo' alt='Netmilk Studio' src='");
   appendHtmlEscaped(html, runtimeLogoUrl());
@@ -1926,6 +2304,20 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += F("</p>");
   }
   html += F("<form id='cfg_form' method='post' action='/config'>");
+  // Visual theme section
+  {
+    html += F("<div class='sec'><h2><i class='fa-solid fa-palette'></i>Visual Theme</h2><div class='key'>THEME</div><select name='ui_theme'>");
+    for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
+      html += F("<option value='");
+      html += kUiThemes[i].id;
+      html += '\'';
+      if (strcmp(runtimeUiThemeId(), kUiThemes[i].id) == 0) html += F(" selected");
+      html += '>';
+      html += kUiThemes[i].label;
+      html += F("</option>");
+    }
+    html += F("</select><p class='hint'><i class='fa-solid fa-bolt'></i> One selector drives both interfaces: this web control surface and the ESP32 display UI. Switching theme applies instantly and persists in NVS.</p></div>");
+  }
   // System Language section
   {
     // Helper macro-style: emit one <option> with runtime selected check
@@ -2022,6 +2414,7 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += F("<small>fw: </small><code>"); appendHtmlEscaped(html, FW_BUILD_TAG); html += F("</code><br>");
     html += F("<small>date: </small><code>"); appendHtmlEscaped(html, FW_RELEASE_DATE); html += F("</code><br>");
     html += F("<small>lang: </small><code>"); appendHtmlEscaped(html, g_wordClockLang); html += F("</code><br>");
+    html += F("<small>theme: </small><code>"); appendHtmlEscaped(html, runtimeUiThemeLabel()); html += F("</code><br>");
     snprintf(siBuf, sizeof(siBuf), "%lus", (unsigned long)(millis() / 1000UL));
     html += F("<small>uptime: </small><code>"); html += siBuf; html += F("</code><br>");
 #if TEST_NTP
@@ -2086,7 +2479,7 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   snprintf(lonBuf, sizeof(lonBuf), "%.4f", runtimeWeatherLon());
 
   String out;
-  out.reserve(2600);
+  out.reserve(3600);
   out += F("{\"ok\":");
   out += ok ? F("true") : F("false");
   if (message && message[0]) {
@@ -2124,7 +2517,20 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   appendJsonEscaped(out, runtimeLogoUrl());
   out += F("\"},\"word_clock\":{\"lang\":\"");
   out += g_wordClockLang;
-  out += F("\"}}");
+  out += F("\"},\"ui\":{\"theme\":\"");
+  appendJsonEscaped(out, runtimeUiThemeId());
+  out += F("\",\"theme_label\":\"");
+  appendJsonEscaped(out, runtimeUiThemeLabel());
+  out += F("\",\"themes\":[");
+  for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
+    if (i) out += ',';
+    out += F("{\"id\":\"");
+    appendJsonEscaped(out, kUiThemes[i].id);
+    out += F("\",\"label\":\"");
+    appendJsonEscaped(out, kUiThemes[i].label);
+    out += F("\"}");
+  }
+  out += F("]}}");
   g_webConfigServer.send(code, "application/json", out);
 }
 
@@ -2261,6 +2667,21 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     copyStringSafe(next.logoUrl, sizeof(next.logoUrl), logo.c_str());
   }
 
+  if (g_webConfigServer.hasArg("ui_theme")) {
+    hasInput = true;
+    String theme = g_webConfigServer.arg("ui_theme");
+    theme.trim();
+    if (theme.length() == 0) {
+      errorOut = "ui_theme vuoto";
+      return false;
+    }
+    if (findUiThemeIndexById(theme.c_str()) < 0) {
+      errorOut = "ui_theme non valido";
+      return false;
+    }
+    copyStringSafe(next.uiTheme, sizeof(next.uiTheme), theme.c_str());
+  }
+
   if (g_webConfigServer.hasArg("wc_lang")) {
     hasInput = true;
     const String lang = g_webConfigServer.arg("wc_lang");
@@ -2278,6 +2699,8 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     return false;
   }
 
+  normalizeRuntimeUiTheme(next);
+
   const bool weatherChanged =
       (strncmp(g_runtimeNetConfig.weatherCity, next.weatherCity, sizeof(next.weatherCity)) != 0) ||
       (fabsf(g_runtimeNetConfig.weatherLat - next.weatherLat) > 0.00005f) ||
@@ -2291,8 +2714,12 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   }
   const bool brandingChanged =
       (strncmp(g_runtimeNetConfig.logoUrl, next.logoUrl, sizeof(next.logoUrl)) != 0);
+  const bool themeChanged =
+      (strncmp(g_runtimeNetConfig.uiTheme, next.uiTheme, sizeof(next.uiTheme)) != 0);
 
   g_runtimeNetConfig = next;
+  normalizeRuntimeUiTheme(g_runtimeNetConfig);
+  syncActiveUiThemeFromRuntimeConfig(g_runtimeNetConfig);
   g_runtimeNetConfig.ready = true;
   const bool nvsSaved = saveRuntimeNetConfigToNvs();
   if (!nvsSaved) {
@@ -2314,8 +2741,11 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     strncpy(g_rss.fetchedAt, "--/-- --:--", sizeof(g_rss.fetchedAt) - 1);
     g_rss.fetchedAt[sizeof(g_rss.fetchedAt) - 1] = '\0';
   }
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  if (themeChanged && g_lvglReady) lvglApplyThemeStyles(true);
+#endif
 #if TEST_NTP
-  if (weatherChanged || rssChanged || brandingChanged) g_uiNeedsRedraw = true;
+  if (weatherChanged || rssChanged || brandingChanged || themeChanged) g_uiNeedsRedraw = true;
 #endif
   if (weatherChanged) (void)updateWeatherFromApi(true);
   if (rssChanged) (void)updateRssFromFeed(true);
@@ -2362,6 +2792,8 @@ static bool webRequestHasConfigParams() {
   if (g_webConfigServer.hasArg("weather_city")) return true;
   if (g_webConfigServer.hasArg("weather_lat")) return true;
   if (g_webConfigServer.hasArg("weather_lon")) return true;
+  if (g_webConfigServer.hasArg("wc_lang")) return true;
+  if (g_webConfigServer.hasArg("ui_theme")) return true;
   if (g_webConfigServer.hasArg("rss_feed_url")) return true;
   if (g_webConfigServer.hasArg("logo_url")) return true;
   for (uint8_t i = 1; i <= RSS_FEED_SLOT_COUNT; ++i) {
@@ -4779,6 +5211,10 @@ static bool lvglAuxRefreshButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxNextFeedButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxQrModalIsOpen();
+static void lvglUpdateWiFiBars(bool force);
+static void lvglCenterClockSentenceLabel();
+static void lvglApplyClockSentenceAutoFit(const char *text);
+static void lvglApplyThemeFonts();
 static void lvglSetAuxQrButtonPressed(bool pressed);
 static void lvglSetAuxRefreshButtonPressed(bool pressed);
 static void lvglSetAuxNextFeedButtonPressed(bool pressed);
@@ -4867,10 +5303,11 @@ static bool lvglAuxQrModalIsOpen() {
 
 static void lvglSetAuxQrButtonPressed(bool pressed) {
   if (!g_lvglAuxQrBtn) return;
-  const lv_color_t bg = pressed ? lv_color_hex(0xFFF19A) : lv_color_hex(0xFFD34D);
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const lv_color_t bg = lv_color_hex(pressed ? t.auxQrBtnPressedBg : t.auxQrBtnBg);
   lv_obj_set_style_bg_color(g_lvglAuxQrBtn, bg, LV_PART_MAIN);
   if (g_lvglAuxQrBtnText) {
-    const lv_color_t fg = pressed ? lv_color_hex(0x0B1E4B) : lv_color_hex(0x1E2F63);
+    const lv_color_t fg = lv_color_hex(pressed ? t.auxQrBtnPressedText : t.auxQrBtnText);
     lv_obj_set_style_text_color(g_lvglAuxQrBtnText, fg, 0);
   }
   lv_obj_invalidate(g_lvglAuxQrBtn);
@@ -4878,20 +5315,22 @@ static void lvglSetAuxQrButtonPressed(bool pressed) {
 
 static void lvglSetAuxRefreshButtonPressed(bool pressed) {
   if (!g_lvglAuxRefreshBtn) return;
-  const lv_color_t bg = pressed ? lv_color_hex(0xB9ECFF) : lv_color_hex(0x6FD8FF);
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const lv_color_t bg = lv_color_hex(pressed ? t.auxRefreshBtnPressedBg : t.auxRefreshBtnBg);
   lv_obj_set_style_bg_color(g_lvglAuxRefreshBtn, bg, LV_PART_MAIN);
   if (g_lvglAuxRefreshBtnText) {
-    lv_obj_set_style_text_color(g_lvglAuxRefreshBtnText, lv_color_hex(0x113063), 0);
+    lv_obj_set_style_text_color(g_lvglAuxRefreshBtnText, lv_color_hex(t.auxRefreshBtnText), 0);
   }
   lv_obj_invalidate(g_lvglAuxRefreshBtn);
 }
 
 static void lvglSetAuxNextFeedButtonPressed(bool pressed) {
   if (!g_lvglAuxNextFeedBtn) return;
-  const lv_color_t bg = pressed ? lv_color_hex(0x9E8EFF) : lv_color_hex(0x7B63FF);
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const lv_color_t bg = lv_color_hex(pressed ? t.auxNextBtnPressedBg : t.auxNextBtnBg);
   lv_obj_set_style_bg_color(g_lvglAuxNextFeedBtn, bg, LV_PART_MAIN);
   if (g_lvglAuxNextFeedBtnText) {
-    lv_obj_set_style_text_color(g_lvglAuxNextFeedBtnText, lv_color_hex(0xF7F2FF), 0);
+    lv_obj_set_style_text_color(g_lvglAuxNextFeedBtnText, lv_color_hex(t.auxNextBtnText), 0);
   }
   lv_obj_invalidate(g_lvglAuxNextFeedBtn);
 }
@@ -4910,6 +5349,253 @@ static void lvglSetAuxQrModalOpen(bool open) {
     else lv_obj_add_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
     lv_obj_invalidate(g_lvglAuxQrOverlay);
   }
+}
+
+static bool lvglThemeIsCyberpunk() {
+  return strcmp(activeUiThemeId(), "cyberpunk-2077") == 0;
+}
+
+static bool lvglThemeIsToxicCandy() {
+  return strcmp(activeUiThemeId(), "toxic-candy") == 0;
+}
+
+static uint16_t lvglColorLuma(uint32_t rgb) {
+  const uint16_t r = (uint16_t)((rgb >> 16) & 0xFFu);
+  const uint16_t g = (uint16_t)((rgb >> 8) & 0xFFu);
+  const uint16_t b = (uint16_t)(rgb & 0xFFu);
+  return (uint16_t)((299u * r + 587u * g + 114u * b) / 1000u);
+}
+
+static uint32_t lvglResolvedPanelBg(const UiThemeLvglTokens &t) {
+  // Cyberpunk on ESP should stay deep navy/teal, not electric blue.
+  if (lvglThemeIsCyberpunk()) return 0x091523;
+  return t.panelBg;
+}
+
+static uint32_t lvglResolvedHeaderBg(const UiThemeLvglTokens &t) {
+  if (lvglThemeIsCyberpunk()) return 0xFFE600;
+  return t.headerBg;
+}
+
+static uint32_t lvglResolvedHeaderText(const UiThemeLvglTokens &t) {
+  if (lvglThemeIsCyberpunk()) return 0x0F6272;
+  return t.headerText;
+}
+
+static uint32_t lvglResolvedHeaderMeta(const UiThemeLvglTokens &t) {
+  if (lvglThemeIsCyberpunk()) return 0x1A8296;
+  return t.headerMeta;
+}
+
+static uint32_t lvglResolvedWeatherBg(const UiThemeLvglTokens &t) {
+  // Weather icons are authored for transparent-on-light backgrounds.
+  if (lvglColorLuma(t.weatherCardBg) >= 170u) return t.weatherCardBg;
+  return 0xF3F7FF;
+}
+
+static uint32_t lvglResolvedWeatherPrimary(const UiThemeLvglTokens &t, uint32_t weatherBg) {
+  if (lvglColorLuma(weatherBg) >= 170u && lvglColorLuma(t.weatherTextPrimary) <= 130u) {
+    return t.weatherTextPrimary;
+  }
+  return 0x1B2D3A;
+}
+
+static uint32_t lvglResolvedWeatherSecondary(const UiThemeLvglTokens &t, uint32_t weatherBg, uint32_t weatherPrimary) {
+  if (lvglColorLuma(weatherBg) >= 170u && lvglColorLuma(t.weatherTextSecondary) <= 170u) {
+    return t.weatherTextSecondary;
+  }
+  const uint16_t p = lvglColorLuma(weatherPrimary);
+  return (p <= 105u) ? 0x445D6D : 0x2E4655;
+}
+
+static uint32_t lvglResolvedForecastText(const UiThemeLvglTokens &t, uint32_t weatherBg, uint32_t weatherPrimary) {
+  if (lvglColorLuma(weatherBg) >= 170u && lvglColorLuma(t.forecastText) <= 150u) {
+    return t.forecastText;
+  }
+  return weatherPrimary;
+}
+
+static uint32_t lvglResolvedWeatherGlyphOnline(const UiThemeLvglTokens &t, uint32_t weatherBg, uint32_t weatherPrimary) {
+  if (lvglColorLuma(weatherBg) >= 170u && lvglColorLuma(t.weatherGlyphOnline) <= 170u) {
+    return t.weatherGlyphOnline;
+  }
+  return weatherPrimary;
+}
+
+static uint32_t lvglResolvedWeatherGlyphOffline(const UiThemeLvglTokens &t, uint32_t weatherBg, uint32_t weatherSecondary) {
+  if (lvglColorLuma(weatherBg) >= 170u && lvglColorLuma(t.weatherGlyphOffline) <= 180u) {
+    return t.weatherGlyphOffline;
+  }
+  return weatherSecondary;
+}
+
+static void lvglApplyThemeStyles(bool forceInvalidate) {
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const bool cyberpunk = lvglThemeIsCyberpunk();
+  const uint32_t panelBg = lvglResolvedPanelBg(t);
+  const uint32_t headerBg = lvglResolvedHeaderBg(t);
+  const uint32_t headerText = lvglResolvedHeaderText(t);
+  const uint32_t headerMeta = lvglResolvedHeaderMeta(t);
+  const uint32_t infoHeaderBg = cyberpunk ? headerBg : t.infoHeaderBg;
+  const uint32_t infoHeaderBorder = cyberpunk ? t.auxSourceText : t.infoHeaderBorder;
+  const uint32_t infoHeaderText = cyberpunk ? headerText : t.infoText;
+  const uint32_t weatherBg = lvglResolvedWeatherBg(t);
+  const uint32_t weatherTextPrimary = lvglResolvedWeatherPrimary(t, weatherBg);
+  const uint32_t weatherTextSecondary = lvglResolvedWeatherSecondary(t, weatherBg, weatherTextPrimary);
+  const uint32_t forecastText = lvglResolvedForecastText(t, weatherBg, weatherTextPrimary);
+  const uint32_t weatherGlyphOnline = lvglResolvedWeatherGlyphOnline(t, weatherBg, weatherTextPrimary);
+  const uint32_t weatherGlyphOffline = lvglResolvedWeatherGlyphOffline(t, weatherBg, weatherTextSecondary);
+
+  lv_obj_t *scr = lv_scr_act();
+  if (scr) {
+    lv_obj_set_style_bg_color(scr, lv_color_hex(t.screenBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(scr, lv_color_hex(t.screenBg), LV_PART_MAIN);
+  }
+
+  if (g_lvglClockBlock) {
+    lv_obj_set_style_bg_color(g_lvglClockBlock, lv_color_hex(panelBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglClockBlock, lv_color_hex(panelBg), LV_PART_MAIN);
+  }
+  if (g_lvglAuxCard) {
+    lv_obj_set_style_bg_color(g_lvglAuxCard, lv_color_hex(panelBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglAuxCard, lv_color_hex(panelBg), LV_PART_MAIN);
+  }
+  if (g_lvglWeatherCard) {
+    lv_obj_set_style_bg_color(g_lvglWeatherCard, lv_color_hex(weatherBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglWeatherCard, lv_color_hex(weatherBg), LV_PART_MAIN);
+  }
+  if (g_lvglForecastBar) {
+    lv_obj_set_style_bg_color(g_lvglForecastBar, lv_color_hex(weatherBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglForecastBar, lv_color_hex(weatherBg), LV_PART_MAIN);
+  }
+  if (g_lvglForecastBarFill) {
+    lv_obj_set_style_bg_color(g_lvglForecastBarFill, lv_color_hex(weatherBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglForecastBarFill, lv_color_hex(weatherBg), LV_PART_MAIN);
+  }
+
+  if (g_lvglClockHeader) {
+    lv_obj_set_style_bg_color(g_lvglClockHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglClockHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglClockHeader, cyberpunk ? 1 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglClockHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglClockHeader, cyberpunk ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+  }
+  if (g_lvglClockHeaderFill) {
+    lv_obj_set_style_bg_color(g_lvglClockHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglClockHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
+  }
+  if (g_lvglWeatherHeader) {
+    lv_obj_set_style_bg_color(g_lvglWeatherHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglWeatherHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWeatherHeader, cyberpunk ? 1 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglWeatherHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglWeatherHeader, cyberpunk ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+  }
+  if (g_lvglWeatherHeaderFill) {
+    lv_obj_set_style_bg_color(g_lvglWeatherHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglWeatherHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
+  }
+  if (g_lvglAuxHeader) {
+    lv_obj_set_style_bg_color(g_lvglAuxHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglAuxHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglAuxHeader, cyberpunk ? 1 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglAuxHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglAuxHeader, cyberpunk ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+  }
+  if (g_lvglAuxHeaderFill) {
+    lv_obj_set_style_bg_color(g_lvglAuxHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglAuxHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
+  }
+  if (g_lvglInfoCard) {
+    lv_obj_set_style_bg_color(g_lvglInfoCard, lv_color_hex(t.infoBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglInfoCard, lv_color_hex(t.infoBg), LV_PART_MAIN);
+  }
+  if (g_lvglInfoHeader) {
+    lv_obj_set_style_bg_color(g_lvglInfoHeader, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglInfoHeader, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglInfoHeader, lv_color_hex(infoHeaderBorder), LV_PART_MAIN);
+  }
+  if (g_lvglInfoHeaderFill) {
+    lv_obj_set_style_bg_color(g_lvglInfoHeaderFill, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglInfoHeaderFill, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
+  }
+
+  if (g_lvglClockDate) lv_obj_set_style_text_color(g_lvglClockDate, lv_color_hex(headerText), 0);
+  if (g_lvglCity) lv_obj_set_style_text_color(g_lvglCity, lv_color_hex(headerText), 0);
+  if (g_lvglSun) lv_obj_set_style_text_color(g_lvglSun, lv_color_hex(headerText), 0);
+  if (g_lvglAuxTitle) lv_obj_set_style_text_color(g_lvglAuxTitle, lv_color_hex(headerText), 0);
+  if (g_lvglAuxStatus) lv_obj_set_style_text_color(g_lvglAuxStatus, lv_color_hex(headerText), 0);
+  if (g_lvglAuxMeta) lv_obj_set_style_text_color(g_lvglAuxMeta, lv_color_hex(headerMeta), 0);
+  if (g_lvglClockL1) lv_obj_set_style_text_color(g_lvglClockL1, lv_color_hex(cyberpunk ? t.infoText : t.headerText), 0);
+  if (g_lvglClockL2) lv_obj_set_style_text_color(g_lvglClockL2, lv_color_hex(t.infoText), 0);
+  if (g_lvglClockL3) lv_obj_set_style_text_color(g_lvglClockL3, lv_color_hex(cyberpunk ? t.auxMeta : headerMeta), 0);
+  if (g_lvglClockDivider) lv_obj_set_style_bg_color(g_lvglClockDivider, lv_color_hex(t.divider), LV_PART_MAIN);
+
+  if (g_lvglTemp) lv_obj_set_style_text_color(g_lvglTemp, lv_color_hex(weatherTextPrimary), 0);
+  if (g_lvglDesc) lv_obj_set_style_text_color(g_lvglDesc, lv_color_hex(weatherTextPrimary), 0);
+  if (g_lvglHumidity) lv_obj_set_style_text_color(g_lvglHumidity, lv_color_hex(weatherTextPrimary), 0);
+  if (g_lvglWind) lv_obj_set_style_text_color(g_lvglWind, lv_color_hex(weatherTextSecondary), 0);
+  if (g_lvglForecastNow) lv_obj_set_style_text_color(g_lvglForecastNow, lv_color_hex(forecastText), 0);
+  if (g_lvglForecastTomorrow) lv_obj_set_style_text_color(g_lvglForecastTomorrow, lv_color_hex(weatherTextSecondary), 0);
+  if (g_lvglWeatherSep) {
+    lv_obj_set_style_bg_color(g_lvglWeatherSep, lv_color_hex(weatherTextSecondary), LV_PART_MAIN);
+  }
+  if (g_lvglGlyph) {
+    const bool weatherOnline = g_weather.valid;
+    const uint32_t glyph = weatherOnline ? weatherGlyphOnline : weatherGlyphOffline;
+    lv_obj_set_style_text_color(g_lvglGlyph, lv_color_hex(glyph), 0);
+  }
+
+  if (g_lvglInfoTitle) lv_obj_set_style_text_color(g_lvglInfoTitle, lv_color_hex(infoHeaderText), 0);
+  if (g_lvglInfoEndpoint) lv_obj_set_style_text_color(g_lvglInfoEndpoint, lv_color_hex(infoHeaderText), 0);
+  if (g_lvglInfoBodyLeft) lv_obj_set_style_text_color(g_lvglInfoBodyLeft, lv_color_hex(t.infoText), 0);
+
+  if (g_lvglAuxSourceBadge) {
+    lv_obj_set_style_bg_color(g_lvglAuxSourceBadge, lv_color_hex(t.auxBadgeBg), LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglAuxSourceBadge, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglAuxSourceBadge, lv_color_hex(t.auxSourceText), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglAuxSourceBadge, LV_OPA_70, LV_PART_MAIN);
+  }
+  if (g_lvglAuxSourceBadgeText) lv_obj_set_style_text_color(g_lvglAuxSourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
+  if (g_lvglAuxSourceSite) lv_obj_set_style_text_color(g_lvglAuxSourceSite, lv_color_hex(t.auxSourceText), 0);
+  if (g_lvglAuxWhen) lv_obj_set_style_text_color(g_lvglAuxWhen, lv_color_hex(t.auxWhenText), 0);
+  if (g_lvglAuxNews) lv_obj_set_style_text_color(g_lvglAuxNews, lv_color_hex(t.auxText), 0);
+  if (g_lvglAuxQrOverlay) lv_obj_set_style_bg_color(g_lvglAuxQrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
+  if (g_lvglAuxQrHint) lv_obj_set_style_text_color(g_lvglAuxQrHint, lv_color_hex(t.auxQrHint), 0);
+
+  lvglApplyThemeFonts();
+  lvglCenterClockSentenceLabel();
+
+#if SCREENSAVER_ENABLED
+  if (g_lvglScreenSaverRoot) lv_obj_set_style_bg_color(g_lvglScreenSaverRoot, lv_color_hex(t.screenBg), LV_PART_MAIN);
+  if (g_lvglScreenSaverSky) lv_obj_set_style_text_color(g_lvglScreenSaverSky, lv_color_hex(t.saverSky), 0);
+  if (g_lvglScreenSaverField) lv_obj_set_style_text_color(g_lvglScreenSaverField, lv_color_hex(t.saverField), 0);
+  if (g_lvglScreenSaverCow) lv_obj_set_style_text_color(g_lvglScreenSaverCow, lv_color_hex(t.saverCow), 0);
+  if (g_lvglScreenSaverBalloon) lv_obj_set_style_text_color(g_lvglScreenSaverBalloon, lv_color_hex(t.saverBalloon), 0);
+  if (g_lvglScreenSaverBalloonTail) lv_obj_set_style_text_color(g_lvglScreenSaverBalloonTail, lv_color_hex(t.saverTail), 0);
+  if (g_lvglScreenSaverFooter) lv_obj_set_style_text_color(g_lvglScreenSaverFooter, lv_color_hex(t.saverFooter), 0);
+  for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
+    for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
+      if (!g_lvglScreenSaverStarObj[r][s]) continue;
+      lv_obj_set_style_text_color(g_lvglScreenSaverStarObj[r][s], lv_color_hex(t.saverStarLow), 0);
+    }
+  }
+#endif
+
+  lvglSetAuxNextFeedButtonPressed(false);
+  lvglSetAuxRefreshButtonPressed(false);
+  lvglSetAuxQrButtonPressed(false);
+  g_lvglClockWiFiMask = 0xFFFF;
+  lvglUpdateWiFiBars(true);
+
+  if (!forceInvalidate) return;
+  g_uiNeedsRedraw = true;
+  if (g_lvglInfoRoot) lv_obj_invalidate(g_lvglInfoRoot);
+  if (g_lvglHomeRoot) lv_obj_invalidate(g_lvglHomeRoot);
+  if (g_lvglAuxRoot) lv_obj_invalidate(g_lvglAuxRoot);
+#if SCREENSAVER_ENABLED
+  if (g_lvglScreenSaverRoot) lv_obj_invalidate(g_lvglScreenSaverRoot);
+#endif
 }
 #else
 static bool lvglAuxQrButtonContainsPoint(int16_t x, int16_t y) {
@@ -5269,6 +5955,7 @@ static void lvglScreenSaverUpdateBalloon(uint32_t nowMs) {
 
 static void lvglScreenSaverUpdateStars(uint32_t nowMs) {
   if (!g_lvglScreenSaverRoot) return;
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
   for (uint8_t r = 0; r < g_lvglScreenSaverRows; ++r) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
       if (nowMs < g_lvglScreenSaverStarNextMs[r][s]) continue;
@@ -5298,9 +5985,9 @@ static void lvglScreenSaverUpdateStars(uint32_t nowMs) {
         lv_obj_add_flag(star, LV_OBJ_FLAG_HIDDEN);
       } else {
         lv_obj_clear_flag(star, LV_OBJ_FLAG_HIDDEN);
-        lv_color_t col = lv_color_hex(0xB9B27A);
-        if (lvl == 2) col = lv_color_hex(0xDDD58A);
-        else if (lvl >= 3) col = lv_color_hex(0xFFF3B0);
+        lv_color_t col = lv_color_hex(t.saverStarLow);
+        if (lvl == 2) col = lv_color_hex(t.saverStarMid);
+        else if (lvl >= 3) col = lv_color_hex(t.saverStarHigh);
         lv_label_set_text(star, (lvl >= 3) ? "o" : (lvl == 2 ? ":" : "."));
         lv_obj_set_style_text_color(star, col, 0);
       }
@@ -5316,7 +6003,8 @@ static void lvglScreenSaverRespawnCow() {
   }
   g_lvglScreenSaverColorIdx = (int8_t)((g_lvglScreenSaverColorIdx + 1) % 3);
   if (g_lvglScreenSaverCow) {
-    const lv_color_t palette[3] = {lv_color_hex(0xF3F7FF), lv_color_hex(0xF3F7FF), lv_color_hex(0xF3F7FF)};
+    const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+    const lv_color_t palette[3] = {lv_color_hex(t.saverCow), lv_color_hex(t.saverBalloon), lv_color_hex(t.saverCow)};
     lv_obj_set_style_text_color(g_lvglScreenSaverCow, palette[g_lvglScreenSaverColorIdx], 0);
     lvglScreenSaverSetCowArt(g_lvglScreenSaverCowDir);
     lv_obj_set_pos(g_lvglScreenSaverCow, g_lvglScreenSaverX, g_lvglScreenSaverY);
@@ -6831,7 +7519,41 @@ static void drawWeatherPanel(int16_t ox, int16_t oy, int16_t ow, int16_t oh, con
 }
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && DISPLAY_BACKEND_ESP_LCD
+static const lv_font_t* lvglFontTerminal() {
+  return &scry_font_space_mono_16;
+}
+
+static const lv_font_t* lvglFontTerminalTiny() {
+  return &scry_font_space_mono_12;
+}
+
+static const lv_font_t* lvglFontToxicTiny() {
+  return &scry_font_delius_unicase_12;
+}
+
+static const lv_font_t* lvglFontToxicSmall() {
+  return &scry_font_delius_unicase_16;
+}
+
+static const lv_font_t* lvglFontToxicBody() {
+  return &scry_font_delius_unicase_20;
+}
+
+static const lv_font_t* lvglFontToxicTitle() {
+  return &scry_font_delius_unicase_24;
+}
+
+static const lv_font_t* lvglFontToxicBig() {
+  return &scry_font_delius_unicase_28;
+}
+
+static const lv_font_t* lvglFontToxicClock() {
+  return &scry_font_delius_unicase_32;
+}
+
 static const lv_font_t* lvglFontTitle() {
+  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicTitle();
 #if defined(LV_FONT_MONTSERRAT_30) && LV_FONT_MONTSERRAT_30
   return &lv_font_montserrat_30;
 #elif defined(LV_FONT_MONTSERRAT_28) && LV_FONT_MONTSERRAT_28
@@ -6842,6 +7564,8 @@ static const lv_font_t* lvglFontTitle() {
 }
 
 static const lv_font_t* lvglFontBody() {
+  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicBody();
 #if defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
   return &lv_font_montserrat_24;
 #elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
@@ -6854,6 +7578,8 @@ static const lv_font_t* lvglFontBody() {
 }
 
 static const lv_font_t* lvglFontSmall() {
+  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicSmall();
 #if defined(LV_FONT_MONTSERRAT_18) && LV_FONT_MONTSERRAT_18
   return &lv_font_montserrat_18;
 #elif defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
@@ -6864,6 +7590,8 @@ static const lv_font_t* lvglFontSmall() {
 }
 
 static const lv_font_t* lvglFontTiny() {
+  if (lvglThemeIsCyberpunk()) return lvglFontTerminalTiny();
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicTiny();
 #if defined(LV_FONT_MONTSERRAT_14) && LV_FONT_MONTSERRAT_14
   return &lv_font_montserrat_14;
 #else
@@ -6872,6 +7600,8 @@ static const lv_font_t* lvglFontTiny() {
 }
 
 static const lv_font_t* lvglFontMini() {
+  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicSmall();
 #if defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
   return &lv_font_montserrat_16;
 #else
@@ -6880,26 +7610,16 @@ static const lv_font_t* lvglFontMini() {
 }
 
 static const lv_font_t* lvglFontMono() {
-#if defined(LV_FONT_UNSCII_16) && LV_FONT_UNSCII_16
-  return &lv_font_unscii_16;
-#elif defined(LV_FONT_UNSCII_8) && LV_FONT_UNSCII_8
-  return &lv_font_unscii_8;
-#else
-  return lvglFontMini();
-#endif
+  return lvglFontTerminal();
 }
 
 static const lv_font_t* lvglFontMonoTiny() {
-#if defined(LV_FONT_UNSCII_8) && LV_FONT_UNSCII_8
-  return &lv_font_unscii_8;
-#elif defined(LV_FONT_UNSCII_16) && LV_FONT_UNSCII_16
-  return &lv_font_unscii_16;
-#else
-  return lvglFontMini();
-#endif
+  return lvglFontTerminalTiny();
 }
 
 static const lv_font_t* lvglFontInfoBody() {
+  if (lvglThemeIsCyberpunk()) return lvglFontTerminalTiny();
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicSmall();
 #if defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
   return &lv_font_montserrat_16;
 #elif defined(LV_FONT_MONTSERRAT_14) && LV_FONT_MONTSERRAT_14
@@ -6910,6 +7630,8 @@ static const lv_font_t* lvglFontInfoBody() {
 }
 
 static const lv_font_t* lvglFontMeta() {
+  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicBody();
 #if defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
   return &lv_font_montserrat_20;
 #else
@@ -6918,6 +7640,8 @@ static const lv_font_t* lvglFontMeta() {
 }
 
 static const lv_font_t* lvglFontRssNews() {
+  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicBody();
 #if defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
   return &lv_font_montserrat_22;
 #elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
@@ -6930,6 +7654,8 @@ static const lv_font_t* lvglFontRssNews() {
 }
 
 static const lv_font_t* lvglFontClock() {
+  if (lvglThemeIsCyberpunk()) return &scry_font_space_mono_32;
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicClock();
 #if defined(LV_FONT_MONTSERRAT_38) && LV_FONT_MONTSERRAT_38
   return &lv_font_montserrat_38;
 #elif defined(LV_FONT_MONTSERRAT_36) && LV_FONT_MONTSERRAT_36
@@ -6950,6 +7676,8 @@ static const lv_font_t* lvglFontClock() {
 }
 
 static const lv_font_t* lvglFontBig() {
+  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicBig();
 #if defined(LV_FONT_MONTSERRAT_32) && LV_FONT_MONTSERRAT_32
   return &lv_font_montserrat_32;
 #elif defined(LV_FONT_MONTSERRAT_30) && LV_FONT_MONTSERRAT_30
@@ -6960,6 +7688,8 @@ static const lv_font_t* lvglFontBig() {
 }
 
 static const lv_font_t* lvglFontTemp() {
+  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsToxicCandy()) return lvglFontToxicTitle();
 #if defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
   return &lv_font_montserrat_24;
 #elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
@@ -6969,6 +7699,146 @@ static const lv_font_t* lvglFontTemp() {
 #else
   return lvglFontTitle();
 #endif
+}
+
+static lv_coord_t lvglClockLineSpaceForFont(const lv_font_t *font) {
+  if (!font) return 2;
+  const lv_coord_t h = (lv_coord_t)font->line_height;
+  if (h >= 34) return 4;
+  if (h >= 24) return 3;
+  if (h >= 18) return 2;
+  return 1;
+}
+
+static uint8_t lvglCollectClockFonts(const lv_font_t **out, uint8_t cap) {
+  if (!out || cap == 0) return 0;
+  uint8_t n = 0;
+  if (lvglThemeIsCyberpunk()) {
+    out[n++] = &scry_font_space_mono_32;
+    if (n < cap) out[n++] = &scry_font_space_mono_28;
+    if (n < cap) out[n++] = &scry_font_space_mono_24;
+    if (n < cap) out[n++] = &scry_font_space_mono_20;
+    if (n < cap) out[n++] = &scry_font_space_mono_16;
+    if (n < cap) out[n++] = &scry_font_space_mono_12;
+    return n;
+  }
+  if (lvglThemeIsToxicCandy()) {
+    out[n++] = &scry_font_delius_unicase_32;
+    if (n < cap) out[n++] = &scry_font_delius_unicase_28;
+    if (n < cap) out[n++] = &scry_font_delius_unicase_24;
+    if (n < cap) out[n++] = &scry_font_delius_unicase_20;
+    if (n < cap) out[n++] = &scry_font_delius_unicase_16;
+    if (n < cap) out[n++] = &scry_font_delius_unicase_12;
+    return n;
+  }
+#if defined(LV_FONT_MONTSERRAT_38) && LV_FONT_MONTSERRAT_38
+  out[n++] = &lv_font_montserrat_38;
+#endif
+#if defined(LV_FONT_MONTSERRAT_36) && LV_FONT_MONTSERRAT_36
+  if (n < cap) out[n++] = &lv_font_montserrat_36;
+#endif
+#if defined(LV_FONT_MONTSERRAT_32) && LV_FONT_MONTSERRAT_32
+  if (n < cap) out[n++] = &lv_font_montserrat_32;
+#endif
+#if defined(LV_FONT_MONTSERRAT_30) && LV_FONT_MONTSERRAT_30
+  if (n < cap) out[n++] = &lv_font_montserrat_30;
+#endif
+#if defined(LV_FONT_MONTSERRAT_28) && LV_FONT_MONTSERRAT_28
+  if (n < cap) out[n++] = &lv_font_montserrat_28;
+#endif
+#if defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
+  if (n < cap) out[n++] = &lv_font_montserrat_24;
+#endif
+#if defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
+  if (n < cap) out[n++] = &lv_font_montserrat_22;
+#endif
+#if defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
+  if (n < cap) out[n++] = &lv_font_montserrat_20;
+#endif
+  if (n == 0) out[n++] = lvglFontMeta();
+  return n;
+}
+
+static void lvglApplyClockSentenceAutoFit(const char *text) {
+  if (!g_lvglClockL1 || !g_lvglClockBlock || !g_lvglClockHeader || !text) return;
+  const int16_t blockH = lv_obj_get_height(g_lvglClockBlock);
+  const int16_t headerH = lv_obj_get_height(g_lvglClockHeader);
+  const int16_t maxTextH = (blockH - headerH) - 6;
+  const lv_font_t *fonts[10];
+  const uint8_t count = lvglCollectClockFonts(fonts, (uint8_t)(sizeof(fonts) / sizeof(fonts[0])));
+  if (count == 0) return;
+
+  const lv_font_t *chosen = fonts[count - 1];
+  lv_coord_t chosenLineSpace = lvglClockLineSpaceForFont(chosen);
+
+  for (uint8_t i = 0; i < count; ++i) {
+    const lv_font_t *f = fonts[i];
+    const lv_coord_t ls = lvglClockLineSpaceForFont(f);
+    lv_obj_set_style_text_font(g_lvglClockL1, f, 0);
+    lv_obj_set_style_text_line_space(g_lvglClockL1, ls, 0);
+    lv_label_set_text(g_lvglClockL1, text);
+    lvglCenterClockSentenceLabel();
+    lv_obj_update_layout(g_lvglClockL1);
+    const int16_t textH = lv_obj_get_height(g_lvglClockL1);
+    if (textH <= maxTextH) {
+      chosen = f;
+      chosenLineSpace = ls;
+      break;
+    }
+  }
+
+  lv_obj_set_style_text_font(g_lvglClockL1, chosen, 0);
+  lv_obj_set_style_text_line_space(g_lvglClockL1, chosenLineSpace, 0);
+  lv_label_set_text(g_lvglClockL1, text);
+  lvglCenterClockSentenceLabel();
+}
+
+static void lvglApplyThemeFonts() {
+  if (g_lvglInfoTitle) lv_obj_set_style_text_font(g_lvglInfoTitle, lvglFontSmall(), 0);
+  if (g_lvglInfoEndpoint) lv_obj_set_style_text_font(g_lvglInfoEndpoint, lvglFontSmall(), 0);
+  if (g_lvglInfoBodyLeft) lv_obj_set_style_text_font(g_lvglInfoBodyLeft, lvglFontInfoBody(), 0);
+
+  if (g_lvglClockDate) lv_obj_set_style_text_font(g_lvglClockDate, lvglFontSmall(), 0);
+  if (g_lvglClockL1) lv_obj_set_style_text_font(g_lvglClockL1, lvglFontClock(), 0);
+  if (g_lvglClockL2) lv_obj_set_style_text_font(g_lvglClockL2, lvglFontTitle(), 0);
+  if (g_lvglClockL3) lv_obj_set_style_text_font(g_lvglClockL3, lvglFontTitle(), 0);
+  if (g_lvglCity) lv_obj_set_style_text_font(g_lvglCity, lvglFontSmall(), 0);
+  if (g_lvglSun) lv_obj_set_style_text_font(g_lvglSun, lvglFontSmall(), 0);
+  if (g_lvglTemp) lv_obj_set_style_text_font(g_lvglTemp, lvglFontTemp(), 0);
+  if (g_lvglGlyph) lv_obj_set_style_text_font(g_lvglGlyph, lvglFontBig(), 0);
+  if (g_lvglDesc) lv_obj_set_style_text_font(g_lvglDesc, lvglFontMeta(), 0);
+  if (g_lvglHumidity) lv_obj_set_style_text_font(g_lvglHumidity, lvglFontMini(), 0);
+  if (g_lvglWind) lv_obj_set_style_text_font(g_lvglWind, lvglFontTiny(), 0);
+  if (g_lvglForecastNow) lv_obj_set_style_text_font(g_lvglForecastNow, lvglFontSmall(), 0);
+  if (g_lvglForecastTomorrow) lv_obj_set_style_text_font(g_lvglForecastTomorrow, lvglFontTiny(), 0);
+
+  if (g_lvglAuxNextFeedBtnText) lv_obj_set_style_text_font(g_lvglAuxNextFeedBtnText, lvglFontTiny(), 0);
+  if (g_lvglAuxRefreshBtnText) lv_obj_set_style_text_font(g_lvglAuxRefreshBtnText, lvglFontTiny(), 0);
+  if (g_lvglAuxQrBtnText) lv_obj_set_style_text_font(g_lvglAuxQrBtnText, lvglFontTiny(), 0);
+  if (g_lvglAuxTitle) lv_obj_set_style_text_font(g_lvglAuxTitle, lvglFontSmall(), 0);
+  if (g_lvglAuxStatus) lv_obj_set_style_text_font(g_lvglAuxStatus, lvglFontTiny(), 0);
+  if (g_lvglAuxSourceBadgeText) lv_obj_set_style_text_font(g_lvglAuxSourceBadgeText, lvglFontTiny(), 0);
+  if (g_lvglAuxSourceSite) lv_obj_set_style_text_font(g_lvglAuxSourceSite, lvglFontMeta(), 0);
+  if (g_lvglAuxWhen) lv_obj_set_style_text_font(g_lvglAuxWhen, lvglFontTiny(), 0);
+  if (g_lvglAuxNews) lv_obj_set_style_text_font(g_lvglAuxNews, lvglFontRssNews(), 0);
+  if (g_lvglAuxMeta) lv_obj_set_style_text_font(g_lvglAuxMeta, lvglFontSmall(), 0);
+  if (g_lvglAuxQrHint) lv_obj_set_style_text_font(g_lvglAuxQrHint, lvglFontTiny(), 0);
+
+#if SCREENSAVER_ENABLED
+  if (g_lvglScreenSaverSky) lv_obj_set_style_text_font(g_lvglScreenSaverSky, lvglFontMono(), 0);
+  for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
+    for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
+      if (!g_lvglScreenSaverStarObj[r][s]) continue;
+      lv_obj_set_style_text_font(g_lvglScreenSaverStarObj[r][s], lvglFontMonoTiny(), 0);
+    }
+  }
+  if (g_lvglScreenSaverField) lv_obj_set_style_text_font(g_lvglScreenSaverField, lvglFontMonoTiny(), 0);
+  if (g_lvglScreenSaverCow) lv_obj_set_style_text_font(g_lvglScreenSaverCow, lvglFontMonoTiny(), 0);
+  if (g_lvglScreenSaverBalloon) lv_obj_set_style_text_font(g_lvglScreenSaverBalloon, lvglFontMonoTiny(), 0);
+  if (g_lvglScreenSaverBalloonTail) lv_obj_set_style_text_font(g_lvglScreenSaverBalloonTail, lvglFontMonoTiny(), 0);
+  if (g_lvglScreenSaverFooter) lv_obj_set_style_text_font(g_lvglScreenSaverFooter, lvglFontMonoTiny(), 0);
+#endif
+  if (g_lvglClockL1) lvglApplyClockSentenceAutoFit(lv_label_get_text(g_lvglClockL1));
 }
 
 static const char* weatherGlyphText(int code, bool isDay) {
@@ -7065,9 +7935,10 @@ static bool wifiIsReconnectingUiState() {
 static void lvglUpdateWiFiBars(bool force) {
   if (!g_lvglClockWiFiBars[0]) return;
 
-  const lv_color_t kBarOff = lv_color_hex(0x1B2D63);
-  const lv_color_t kBarOn = lv_color_hex(0xFFFFFF);
-  const lv_color_t kBarWave = lv_color_hex(0xC8D6FF);
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const lv_color_t kBarOff = lv_color_hex(t.wifiBarOff);
+  const lv_color_t kBarOn = lv_color_hex(t.wifiBarOn);
+  const lv_color_t kBarWave = lv_color_hex(t.wifiBarWave);
   uint8_t mask = 0;
   uint8_t waveMask = 0;
 
@@ -7269,7 +8140,7 @@ static void lvglUpdateAuxRss(bool force) {
   snprintf(meta, sizeof(meta), "Fetch --/-- --:--");
 #endif
 
-  snprintf(sourceLine, sizeof(sourceLine), "%s  %s", siteShort, whenLine);
+  snprintf(sourceLine, sizeof(sourceLine), "%s", siteShort);
   if (siteHost[0]) {
     faviconIdx = rssFaviconCacheFind(siteHost);
     faviconReady = (faviconIdx >= 0) &&
@@ -7280,7 +8151,6 @@ static void lvglUpdateAuxRss(bool force) {
 
   lv_label_set_text(g_lvglAuxNews, title3);
   lvglForceLabelVisible(g_lvglAuxNews);
-  if (g_lvglAuxWhen) lv_obj_add_flag(g_lvglAuxWhen, LV_OBJ_FLAG_HIDDEN);
   if (g_lvglAuxSourceIcon) {
     if (faviconReady) {
       lv_img_set_src(g_lvglAuxSourceIcon, &g_rssFaviconDsc[faviconIdx]);
@@ -7303,6 +8173,11 @@ static void lvglUpdateAuxRss(bool force) {
   if (g_lvglAuxSourceSite) {
     lv_label_set_text(g_lvglAuxSourceSite, sourceLine);
     lvglForceLabelVisible(g_lvglAuxSourceSite);
+  }
+  if (g_lvglAuxWhen) {
+    lv_label_set_text(g_lvglAuxWhen, whenLine);
+    lv_obj_clear_flag(g_lvglAuxWhen, LV_OBJ_FLAG_HIDDEN);
+    lvglForceLabelVisible(g_lvglAuxWhen);
   }
   if (g_lvglAuxSourceBadgeText) {
     lv_label_set_text(g_lvglAuxSourceBadgeText, siteBadge);
@@ -7898,10 +8773,11 @@ static bool initLvglUi() {
   lv_disp_t *disp = lv_disp_drv_register(&g_lvglDispDrv);
 
   lv_disp_set_theme(disp, nullptr);
+  const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
 
   lv_obj_t *scr = lv_scr_act();
-  lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(scr, lv_color_hex(theme.screenBg), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(scr, lv_color_hex(theme.screenBg), LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(scr, LV_GRAD_DIR_NONE, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
@@ -7916,7 +8792,15 @@ static bool initLvglUi() {
   const int16_t innerPad = 18;
   const int16_t weatherHeaderH = 30;
   const int16_t clockHeaderH = weatherHeaderH;
-  const lv_color_t kHeaderBlue = lv_color_hex(0x2D3F82);
+  const uint32_t panelBgHex = lvglResolvedPanelBg(theme);
+  const uint32_t headerBgHex = lvglResolvedHeaderBg(theme);
+  const uint32_t weatherBgHex = lvglResolvedWeatherBg(theme);
+  const uint32_t weatherTextPrimaryHex = lvglResolvedWeatherPrimary(theme, weatherBgHex);
+  const uint32_t weatherTextSecondaryHex = lvglResolvedWeatherSecondary(theme, weatherBgHex, weatherTextPrimaryHex);
+  const uint32_t weatherForecastTextHex = lvglResolvedForecastText(theme, weatherBgHex, weatherTextPrimaryHex);
+  const uint32_t weatherGlyphOnlineHex = lvglResolvedWeatherGlyphOnline(theme, weatherBgHex, weatherTextPrimaryHex);
+  const lv_color_t kPanelBg = lv_color_hex(panelBgHex);
+  const lv_color_t kHeaderBlue = lv_color_hex(headerBgHex);
   const int16_t weatherCardW = weatherW - (outerPadX * 2);
   const int16_t weatherCardH = cH - (outerPadY * 2);
   const int16_t weatherBodyH = weatherCardH - weatherHeaderH;
@@ -7925,13 +8809,13 @@ static bool initLvglUi() {
   const int16_t weatherTopTextW = weatherCardW - (weatherIconW + 48);
   const int16_t clockBlockW = leftW - (outerPadX * 2);
   const int16_t clockBlockH = cH - (outerPadY * 2);
-  const lv_color_t kWeatherCardBg = lv_color_hex(0xC6DBFF);
-  const lv_color_t kWeatherTextDark = lv_color_hex(0x1B2D63);
-  const lv_color_t kWeatherTextMid = lv_color_hex(0x2C4784);
-  const lv_color_t kInfoBg = lv_color_hex(0x000000);
-  const lv_color_t kInfoHeaderBg = lv_color_hex(0x232833);
-  const lv_color_t kInfoAccentCyan = lv_color_hex(0x66E3FF);
-  const lv_color_t kInfoAccentMagenta = lv_color_hex(0xFF5CCF);
+  const lv_color_t kWeatherCardBg = lv_color_hex(weatherBgHex);
+  const lv_color_t kWeatherTextDark = lv_color_hex(weatherTextPrimaryHex);
+  const lv_color_t kWeatherTextMid = lv_color_hex(weatherTextSecondaryHex);
+  const lv_color_t kWeatherForecastText = lv_color_hex(weatherForecastTextHex);
+  const lv_color_t kWeatherGlyphOnline = lv_color_hex(weatherGlyphOnlineHex);
+  const lv_color_t kInfoBg = lv_color_hex(theme.infoBg);
+  const lv_color_t kInfoHeaderBg = lv_color_hex(theme.infoHeaderBg);
 
   g_lvglInfoRoot = lv_obj_create(scr);
   lv_obj_set_size(g_lvglInfoRoot, cW, cH);
@@ -7967,26 +8851,26 @@ static bool initLvglUi() {
   lv_obj_set_style_bg_grad_dir(g_lvglInfoHeader, LV_GRAD_DIR_NONE, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_lvglInfoHeader, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_radius(g_lvglInfoHeader, 8, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_lvglInfoHeader, lv_color_hex(0x3A4150), LV_PART_MAIN);
+  lv_obj_set_style_border_color(g_lvglInfoHeader, lv_color_hex(theme.infoHeaderBorder), LV_PART_MAIN);
   lv_obj_set_style_border_opa(g_lvglInfoHeader, LV_OPA_60, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_lvglInfoHeader, 1, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_lvglInfoHeader, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_lvglInfoHeader, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(g_lvglInfoHeader, LV_SCROLLBAR_MODE_OFF);
-  lv_obj_t *infoHeaderFill = lv_obj_create(g_lvglInfoHeader);
-  lv_obj_set_size(infoHeaderFill, cW, 10);
-  lv_obj_set_pos(infoHeaderFill, 0, infoHeaderH - 10);
-  lv_obj_set_style_bg_color(infoHeaderFill, kInfoHeaderBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(infoHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(infoHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(infoHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(infoHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(infoHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(infoHeaderFill, LV_SCROLLBAR_MODE_OFF);
+  g_lvglInfoHeaderFill = lv_obj_create(g_lvglInfoHeader);
+  lv_obj_set_size(g_lvglInfoHeaderFill, cW, 10);
+  lv_obj_set_pos(g_lvglInfoHeaderFill, 0, infoHeaderH - 10);
+  lv_obj_set_style_bg_color(g_lvglInfoHeaderFill, kInfoHeaderBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglInfoHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglInfoHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglInfoHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglInfoHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglInfoHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(g_lvglInfoHeaderFill, LV_SCROLLBAR_MODE_OFF);
 
   g_lvglInfoTitle = lv_label_create(g_lvglInfoHeader);
   lv_obj_set_style_text_font(g_lvglInfoTitle, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglInfoTitle, lv_color_hex(0xEAF0FF), 0);
+  lv_obj_set_style_text_color(g_lvglInfoTitle, lv_color_hex(theme.infoText), 0);
   lv_label_set_long_mode(g_lvglInfoTitle, LV_LABEL_LONG_CLIP);
   lv_obj_set_width(g_lvglInfoTitle, cW * 3 / 5);
   lv_obj_align(g_lvglInfoTitle, LV_ALIGN_LEFT_MID, 12, -1);
@@ -7995,7 +8879,7 @@ static bool initLvglUi() {
 
   g_lvglInfoEndpoint = lv_label_create(g_lvglInfoHeader);
   lv_obj_set_style_text_font(g_lvglInfoEndpoint, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglInfoEndpoint, lv_color_hex(0xEAF0FF), 0);
+  lv_obj_set_style_text_color(g_lvglInfoEndpoint, lv_color_hex(theme.infoText), 0);
   lv_label_set_long_mode(g_lvglInfoEndpoint, LV_LABEL_LONG_DOT);
   lv_obj_set_size(g_lvglInfoEndpoint, (cW / 2) - 16, 20);
   lv_obj_align(g_lvglInfoEndpoint, LV_ALIGN_RIGHT_MID, -10, -1);
@@ -8037,7 +8921,7 @@ static bool initLvglUi() {
 
   g_lvglInfoBodyLeft = lv_label_create(infoColLeft);
   lv_obj_set_style_text_font(g_lvglInfoBodyLeft, lvglFontInfoBody(), 0);
-  lv_obj_set_style_text_color(g_lvglInfoBodyLeft, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_text_color(g_lvglInfoBodyLeft, lv_color_hex(theme.infoText), 0);
   lv_obj_set_style_text_line_space(g_lvglInfoBodyLeft, 1, 0);
   lv_label_set_recolor(g_lvglInfoBodyLeft, true);
   lv_label_set_long_mode(g_lvglInfoBodyLeft, LV_LABEL_LONG_WRAP);
@@ -8054,7 +8938,7 @@ static bool initLvglUi() {
 
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   // QR: centred in the right column
-  g_lvglInfoWebQr = lv_qrcode_create(infoColRight, infoQrSize, lv_color_hex(0xF6FBFF), lv_color_hex(0x000000));
+  g_lvglInfoWebQr = lv_qrcode_create(infoColRight, infoQrSize, lv_color_hex(theme.infoQrDark), lv_color_hex(theme.infoQrLight));
   lv_obj_align(g_lvglInfoWebQr, LV_ALIGN_CENTER, 0, 0);
   lv_qrcode_update(g_lvglInfoWebQr, "http://--:8080", strlen("http://--:8080"));
 #endif
@@ -8083,8 +8967,8 @@ static bool initLvglUi() {
   g_lvglClockBlock = lv_obj_create(left);
   lv_obj_set_size(g_lvglClockBlock, clockBlockW, clockBlockH);
   lv_obj_set_pos(g_lvglClockBlock, outerPadX, outerPadY);
-  lv_obj_set_style_bg_color(g_lvglClockBlock, lv_color_hex(0x101B44), LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglClockBlock, lv_color_hex(0x101B44), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_lvglClockBlock, kPanelBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_lvglClockBlock, kPanelBg, LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(g_lvglClockBlock, LV_GRAD_DIR_NONE, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_lvglClockBlock, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_lvglClockBlock, 0, LV_PART_MAIN);
@@ -8107,15 +8991,15 @@ static bool initLvglUi() {
   lv_obj_set_style_shadow_width(g_lvglClockHeader, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_lvglClockHeader, LV_OBJ_FLAG_SCROLLABLE);
 
-  lv_obj_t *clockHeaderFill = lv_obj_create(g_lvglClockHeader);
-  lv_obj_set_size(clockHeaderFill, clockBlockW, 10);
-  lv_obj_set_pos(clockHeaderFill, 0, clockHeaderH - 10);
-  lv_obj_set_style_bg_color(clockHeaderFill, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(clockHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(clockHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(clockHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(clockHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(clockHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
+  g_lvglClockHeaderFill = lv_obj_create(g_lvglClockHeader);
+  lv_obj_set_size(g_lvglClockHeaderFill, clockBlockW, 10);
+  lv_obj_set_pos(g_lvglClockHeaderFill, 0, clockHeaderH - 10);
+  lv_obj_set_style_bg_color(g_lvglClockHeaderFill, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglClockHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglClockHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglClockHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglClockHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglClockHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
 
   constexpr int16_t kWifiBarW = 4;
   constexpr int16_t kWifiBarGap = 3;
@@ -8130,7 +9014,7 @@ static bool initLvglUi() {
     lv_obj_set_pos(g_lvglClockWiFiBars[i],
                    clockWiFiStartX + (int16_t)i * (kWifiBarW + kWifiBarGap),
                    clockWiFiBaseY - clockWiFiHeights[i]);
-    lv_obj_set_style_bg_color(g_lvglClockWiFiBars[i], lv_color_hex(0x1B2D63), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(g_lvglClockWiFiBars[i], lv_color_hex(theme.wifiBarOff), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(g_lvglClockWiFiBars[i], (lv_opa_t)190, LV_PART_MAIN);
     lv_obj_set_style_border_width(g_lvglClockWiFiBars[i], 0, LV_PART_MAIN);
     lv_obj_set_style_shadow_width(g_lvglClockWiFiBars[i], 0, LV_PART_MAIN);
@@ -8174,15 +9058,15 @@ static bool initLvglUi() {
   lv_obj_set_style_border_width(g_lvglWeatherHeader, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_lvglWeatherHeader, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_lvglWeatherHeader, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_t *headerFill = lv_obj_create(g_lvglWeatherHeader);
-  lv_obj_set_size(headerFill, weatherCardW, 10);
-  lv_obj_set_pos(headerFill, 0, weatherHeaderH - 10);
-  lv_obj_set_style_bg_color(headerFill, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(headerFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(headerFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(headerFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(headerFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(headerFill, LV_OBJ_FLAG_SCROLLABLE);
+  g_lvglWeatherHeaderFill = lv_obj_create(g_lvglWeatherHeader);
+  lv_obj_set_size(g_lvglWeatherHeaderFill, weatherCardW, 10);
+  lv_obj_set_pos(g_lvglWeatherHeaderFill, 0, weatherHeaderH - 10);
+  lv_obj_set_style_bg_color(g_lvglWeatherHeaderFill, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglWeatherHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglWeatherHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_t *headerDivider = lv_obj_create(g_lvglWeatherCard);
   lv_obj_set_size(headerDivider, weatherCardW - 16, 2);
   lv_obj_set_pos(headerDivider, 8, weatherHeaderH - 1);
@@ -8237,8 +9121,7 @@ static bool initLvglUi() {
   lv_label_set_long_mode(g_lvglClockL1, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(g_lvglClockL1, clockBlockW - 16);
   lv_obj_set_pos(g_lvglClockL1, 8, 38);
-  lv_label_set_text(g_lvglClockL1, "Clock...");
-  lvglCenterClockSentenceLabel();
+  lvglApplyClockSentenceAutoFit("Clock...");
   lvglForceLabelVisible(g_lvglClockL1);
   lv_obj_add_flag(g_lvglClockL2, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(g_lvglClockL3, LV_OBJ_FLAG_HIDDEN);
@@ -8306,21 +9189,21 @@ static bool initLvglUi() {
 
   g_lvglGlyph = lv_label_create(g_lvglWeatherBody);
   lv_obj_set_style_text_font(g_lvglGlyph, lvglFontBig(), 0);
-  lv_obj_set_style_text_color(g_lvglGlyph, lv_color_hex(0xF2F8FF), 0);
+  lv_obj_set_style_text_color(g_lvglGlyph, kWeatherGlyphOnline, 0);
   lv_obj_align(g_lvglGlyph, LV_ALIGN_TOP_LEFT, 12, 4);
   lv_label_set_text(g_lvglGlyph, "*");
   lv_obj_add_flag(g_lvglGlyph, LV_OBJ_FLAG_HIDDEN);
 
-  lv_obj_t *weatherSep = lv_obj_create(g_lvglWeatherBody);
+  g_lvglWeatherSep = lv_obj_create(g_lvglWeatherBody);
   const int16_t weatherSepW = weatherTopTextW - 26;  // leave extra space near large icon
-  lv_obj_set_size(weatherSep, weatherSepW, 1);
-  lv_obj_set_pos(weatherSep, 12, 44);
-  lv_obj_set_style_bg_color(weatherSep, kWeatherTextMid, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(weatherSep, LV_OPA_70, LV_PART_MAIN);
-  lv_obj_set_style_border_width(weatherSep, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(weatherSep, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(weatherSep, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(weatherSep, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_size(g_lvglWeatherSep, weatherSepW, 1);
+  lv_obj_set_pos(g_lvglWeatherSep, 12, 44);
+  lv_obj_set_style_bg_color(g_lvglWeatherSep, kWeatherTextMid, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglWeatherSep, LV_OPA_70, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglWeatherSep, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglWeatherSep, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglWeatherSep, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglWeatherSep, LV_OBJ_FLAG_SCROLLABLE);
 
   g_lvglDesc = lv_label_create(g_lvglWeatherBody);
   lv_obj_set_style_text_font(g_lvglDesc, lvglFontMeta(), 0);
@@ -8353,8 +9236,8 @@ static bool initLvglUi() {
   g_lvglForecastBar = lv_obj_create(g_lvglWeatherCard);
   lv_obj_set_size(g_lvglForecastBar, weatherCardW, forecastBarH);
   lv_obj_set_pos(g_lvglForecastBar, 0, forecastBarY);
-  lv_obj_set_style_bg_color(g_lvglForecastBar, lv_color_hex(0xC6DBFF), LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglForecastBar, lv_color_hex(0xC6DBFF), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_lvglForecastBar, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_lvglForecastBar, kWeatherCardBg, LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(g_lvglForecastBar, LV_GRAD_DIR_NONE, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_lvglForecastBar, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_radius(g_lvglForecastBar, kCardRadius, LV_PART_MAIN);
@@ -8363,15 +9246,15 @@ static bool initLvglUi() {
   lv_obj_set_style_clip_corner(g_lvglForecastBar, false, LV_PART_MAIN);
   lv_obj_set_style_pad_all(g_lvglForecastBar, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_lvglForecastBar, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_t *forecastBarFill = lv_obj_create(g_lvglForecastBar);
-  lv_obj_set_size(forecastBarFill, weatherCardW, 10);
-  lv_obj_set_pos(forecastBarFill, 0, 0);
-  lv_obj_set_style_bg_color(forecastBarFill, lv_color_hex(0xC6DBFF), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(forecastBarFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(forecastBarFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(forecastBarFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(forecastBarFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(forecastBarFill, LV_OBJ_FLAG_SCROLLABLE);
+  g_lvglForecastBarFill = lv_obj_create(g_lvglForecastBar);
+  lv_obj_set_size(g_lvglForecastBarFill, weatherCardW, 10);
+  lv_obj_set_pos(g_lvglForecastBarFill, 0, 0);
+  lv_obj_set_style_bg_color(g_lvglForecastBarFill, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglForecastBarFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglForecastBarFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglForecastBarFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglForecastBarFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglForecastBarFill, LV_OBJ_FLAG_SCROLLABLE);
 
   g_lvglForecastIcon = lv_img_create(g_lvglForecastBar);
   lv_obj_set_pos(g_lvglForecastIcon, 5, -11);  // keep center while growing icon (+6px)
@@ -8385,7 +9268,7 @@ static bool initLvglUi() {
 
   g_lvglForecastNow = lv_label_create(g_lvglForecastBar);
   lv_obj_set_style_text_font(g_lvglForecastNow, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglForecastNow, lv_color_hex(0x1B2D63), 0);
+  lv_obj_set_style_text_color(g_lvglForecastNow, kWeatherForecastText, 0);
   lv_obj_set_width(g_lvglForecastNow, weatherCardW - 65);
   lv_obj_set_pos(g_lvglForecastNow, 52, 6);
   lv_label_set_long_mode(g_lvglForecastNow, LV_LABEL_LONG_DOT);
@@ -8416,8 +9299,8 @@ static bool initLvglUi() {
   lv_obj_set_size(g_lvglAuxCard, cW - (outerPadX * 2), cH - (outerPadY * 2));
   lv_obj_set_pos(g_lvglAuxCard, outerPadX, outerPadY);
   lv_obj_set_style_radius(g_lvglAuxCard, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_lvglAuxCard, lv_color_hex(0x101B44), LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglAuxCard, lv_color_hex(0x101B44), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_lvglAuxCard, kPanelBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_lvglAuxCard, kPanelBg, LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(g_lvglAuxCard, LV_GRAD_DIR_NONE, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_lvglAuxCard, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_lvglAuxCard, 0, LV_PART_MAIN);
@@ -8441,15 +9324,15 @@ static bool initLvglUi() {
   lv_obj_set_style_border_width(g_lvglAuxHeader, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_lvglAuxHeader, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_lvglAuxHeader, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_t *auxHeaderFill = lv_obj_create(g_lvglAuxHeader);
-  lv_obj_set_size(auxHeaderFill, auxCardW, 10);
-  lv_obj_set_pos(auxHeaderFill, 0, auxHeaderH - 10);
-  lv_obj_set_style_bg_color(auxHeaderFill, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(auxHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(auxHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(auxHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(auxHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(auxHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
+  g_lvglAuxHeaderFill = lv_obj_create(g_lvglAuxHeader);
+  lv_obj_set_size(g_lvglAuxHeaderFill, auxCardW, 10);
+  lv_obj_set_pos(g_lvglAuxHeaderFill, 0, auxHeaderH - 10);
+  lv_obj_set_style_bg_color(g_lvglAuxHeaderFill, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglAuxHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglAuxHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglAuxHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglAuxHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglAuxHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
 
   const int16_t auxBtnW = 44;
   const int16_t auxBtnH = 26;
@@ -8537,7 +9420,15 @@ static bool initLvglUi() {
   const int16_t sourceIconX =
       ((sourceRightEdge - sourceBadgeSize) < leftPaneX) ? leftPaneX : (sourceRightEdge - sourceBadgeSize);
   const int16_t sourceSiteX = leftPaneX;
-  const int16_t sourceSiteW = sourceIconX - sourceSiteX - sourceGap;
+  const int16_t sourceTextTotalW = sourceIconX - sourceSiteX - sourceGap;
+  int16_t sourceWhenW = 96;
+  int16_t sourceSiteW = sourceTextTotalW - sourceWhenW - 4;
+  if (sourceSiteW < 64) {
+    sourceWhenW = 72;
+    sourceSiteW = sourceTextTotalW - sourceWhenW - 4;
+  }
+  if (sourceSiteW < 40) sourceSiteW = 40;
+  const int16_t sourceWhenX = sourceSiteX + sourceSiteW + 4;
   const int16_t sourceBlockH = sourceBadgeSize;
 
   g_lvglAuxSourceBadge = lv_obj_create(g_lvglAuxCard);
@@ -8579,11 +9470,11 @@ static bool initLvglUi() {
   lv_obj_set_style_text_font(g_lvglAuxWhen, lvglFontTiny(), 0);
   lv_obj_set_style_text_color(g_lvglAuxWhen, lv_color_hex(0xAFC2F5), 0);
   lv_label_set_long_mode(g_lvglAuxWhen, LV_LABEL_LONG_DOT);
-  lv_obj_set_size(g_lvglAuxWhen, 1, 1);
-  lv_obj_set_pos(g_lvglAuxWhen, 0, 0);
+  lv_obj_set_size(g_lvglAuxWhen, sourceWhenW, 22);
+  lv_obj_set_pos(g_lvglAuxWhen, sourceWhenX, sourceTextY + 2);
   lv_obj_set_style_text_align(g_lvglAuxWhen, LV_TEXT_ALIGN_RIGHT, 0);
   lv_label_set_text(g_lvglAuxWhen, "--/-- --:--");
-  lv_obj_add_flag(g_lvglAuxWhen, LV_OBJ_FLAG_HIDDEN);
+  lvglForceLabelVisible(g_lvglAuxWhen);
 
   g_lvglAuxNews = lv_label_create(g_lvglAuxCard);
   lv_obj_set_style_text_font(g_lvglAuxNews, lvglFontRssNews(), 0);
@@ -8625,14 +9516,14 @@ static bool initLvglUi() {
   int16_t qrSize = qrOverlayH - 4;
   if (qrSize > (auxCardW - 4)) qrSize = auxCardW - 4;
   if (qrSize < 90) qrSize = 90;
-  g_lvglAuxQr = lv_qrcode_create(g_lvglAuxQrOverlay, qrSize, lv_color_hex(0x162B63), lv_color_hex(0xF7FAFF));
+  g_lvglAuxQr = lv_qrcode_create(g_lvglAuxQrOverlay, qrSize, lv_color_hex(theme.auxQrDark), lv_color_hex(theme.auxQrLight));
   lv_obj_center(g_lvglAuxQr);
   lv_qrcode_update(g_lvglAuxQr, "https://ansa.it", strlen("https://ansa.it"));
   lv_obj_clear_flag(g_lvglAuxQr, LV_OBJ_FLAG_SCROLLABLE);
 
   g_lvglAuxQrHint = lv_label_create(g_lvglAuxQrOverlay);
   lv_obj_set_style_text_font(g_lvglAuxQrHint, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxQrHint, lv_color_hex(0xEAF2FF), 0);
+  lv_obj_set_style_text_color(g_lvglAuxQrHint, lv_color_hex(theme.auxQrHint), 0);
   lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->touchToClose);
   lv_obj_align(g_lvglAuxQrHint, LV_ALIGN_BOTTOM_MID, 0, -8);
   lv_obj_add_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
@@ -8643,7 +9534,7 @@ static bool initLvglUi() {
   lv_obj_set_size(g_lvglScreenSaverRoot, cW, cH);
   lv_obj_set_pos(g_lvglScreenSaverRoot, 0, 0);
   lv_obj_set_style_radius(g_lvglScreenSaverRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_lvglScreenSaverRoot, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_lvglScreenSaverRoot, lv_color_hex(theme.screenBg), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_lvglScreenSaverRoot, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_lvglScreenSaverRoot, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_lvglScreenSaverRoot, 0, LV_PART_MAIN);
@@ -8654,7 +9545,7 @@ static bool initLvglUi() {
 
   g_lvglScreenSaverSky = lv_label_create(g_lvglScreenSaverRoot);
   lv_obj_set_style_text_font(g_lvglScreenSaverSky, lvglFontMono(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverSky, lv_color_hex(0xBFD3FF), 0);
+  lv_obj_set_style_text_color(g_lvglScreenSaverSky, lv_color_hex(theme.saverSky), 0);
   lv_label_set_long_mode(g_lvglScreenSaverSky, LV_LABEL_LONG_WRAP);
   lv_obj_set_size(g_lvglScreenSaverSky, cW - 8, cH - 68);
   lv_obj_set_pos(g_lvglScreenSaverSky, 4, 4);
@@ -8666,7 +9557,7 @@ static bool initLvglUi() {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
       g_lvglScreenSaverStarObj[r][s] = lv_label_create(g_lvglScreenSaverRoot);
       lv_obj_set_style_text_font(g_lvglScreenSaverStarObj[r][s], lvglFontMonoTiny(), 0);
-      lv_obj_set_style_text_color(g_lvglScreenSaverStarObj[r][s], lv_color_hex(0xAFC9FF), 0);
+      lv_obj_set_style_text_color(g_lvglScreenSaverStarObj[r][s], lv_color_hex(theme.saverStarLow), 0);
       lv_label_set_text(g_lvglScreenSaverStarObj[r][s], ".");
       lv_obj_set_pos(g_lvglScreenSaverStarObj[r][s], 8, 8);
       lv_obj_add_flag(g_lvglScreenSaverStarObj[r][s], LV_OBJ_FLAG_HIDDEN);
@@ -8676,7 +9567,7 @@ static bool initLvglUi() {
 
   g_lvglScreenSaverField = lv_label_create(g_lvglScreenSaverRoot);
   lv_obj_set_style_text_font(g_lvglScreenSaverField, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverField, lv_color_hex(0x66FFB3), 0);
+  lv_obj_set_style_text_color(g_lvglScreenSaverField, lv_color_hex(theme.saverField), 0);
   lv_label_set_long_mode(g_lvglScreenSaverField, LV_LABEL_LONG_WRAP);
   lv_obj_set_size(g_lvglScreenSaverField, cW - 8, 12);
   lv_obj_set_pos(g_lvglScreenSaverField, 4, cH - 24);
@@ -8685,7 +9576,7 @@ static bool initLvglUi() {
 
   g_lvglScreenSaverCow = lv_label_create(g_lvglScreenSaverRoot);
   lv_obj_set_style_text_font(g_lvglScreenSaverCow, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverCow, lv_color_hex(0xF3F7FF), 0);
+  lv_obj_set_style_text_color(g_lvglScreenSaverCow, lv_color_hex(theme.saverCow), 0);
   lv_obj_set_style_text_letter_space(g_lvglScreenSaverCow, 0, 0);
   lv_obj_set_style_text_line_space(g_lvglScreenSaverCow, 0, 0);
   lvglScreenSaverSetCowArt(1);
@@ -8694,7 +9585,7 @@ static bool initLvglUi() {
 
   g_lvglScreenSaverBalloon = lv_label_create(g_lvglScreenSaverRoot);
   lv_obj_set_style_text_font(g_lvglScreenSaverBalloon, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverBalloon, lv_color_hex(0xF4F7FF), 0);
+  lv_obj_set_style_text_color(g_lvglScreenSaverBalloon, lv_color_hex(theme.saverBalloon), 0);
   lv_obj_set_style_bg_opa(g_lvglScreenSaverBalloon, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(g_lvglScreenSaverBalloon, 0, 0);
   lv_obj_set_style_pad_hor(g_lvglScreenSaverBalloon, 0, 0);
@@ -8710,7 +9601,7 @@ static bool initLvglUi() {
 
   g_lvglScreenSaverBalloonTail = lv_label_create(g_lvglScreenSaverRoot);
   lv_obj_set_style_text_font(g_lvglScreenSaverBalloonTail, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverBalloonTail, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_text_color(g_lvglScreenSaverBalloonTail, lv_color_hex(theme.saverTail), 0);
   lv_label_set_text(g_lvglScreenSaverBalloonTail, "- - - - -");
   lv_obj_set_pos(g_lvglScreenSaverBalloonTail, 200, cH - 64);
   lvglForceLabelVisible(g_lvglScreenSaverBalloonTail);
@@ -8718,7 +9609,7 @@ static bool initLvglUi() {
 
   g_lvglScreenSaverFooter = lv_label_create(g_lvglScreenSaverRoot);
   lv_obj_set_style_text_font(g_lvglScreenSaverFooter, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverFooter, lv_color_hex(0x97B0E4), 0);
+  lv_obj_set_style_text_color(g_lvglScreenSaverFooter, lv_color_hex(theme.saverFooter), 0);
   lv_label_set_text(g_lvglScreenSaverFooter, "--:--  --/--");
   lv_obj_align(g_lvglScreenSaverFooter, LV_ALIGN_BOTTOM_RIGHT, -8, -2);
   lvglForceLabelVisible(g_lvglScreenSaverFooter);
@@ -8732,7 +9623,7 @@ static bool initLvglUi() {
   g_lastUserInteractionMs = millis();
 #endif
   g_lvglClockWiFiMask = 0xFFFF;
-  lvglUpdateWiFiBars(true);
+  lvglApplyThemeStyles(true);
   Serial.printf("[LVGL] widgets date=%p clock=%p city=%p temp=%p desc=%p hum=%p sun=%p wind=%p f0=%p f1=%p\n",
                 (void*)g_lvglClockDate,
                 (void*)g_lvglClockL1,
@@ -8755,6 +9646,17 @@ static void updateLvglUi(bool force) {
 #if SCREENSAVER_ENABLED
   if (g_lvglScreenSaverActive) return;
 #endif
+  const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
+  const uint32_t weatherBg = lvglResolvedWeatherBg(theme);
+  const uint32_t weatherPrimary = lvglResolvedWeatherPrimary(theme, weatherBg);
+  const uint32_t weatherSecondary = lvglResolvedWeatherSecondary(theme, weatherBg, weatherPrimary);
+  const uint32_t weatherGlyphOnline = lvglResolvedWeatherGlyphOnline(theme, weatherBg, weatherPrimary);
+  const uint32_t weatherGlyphOffline = lvglResolvedWeatherGlyphOffline(theme, weatherBg, weatherSecondary);
+  (void)weatherBg;
+  (void)weatherPrimary;
+  (void)weatherSecondary;
+  (void)weatherGlyphOnline;
+  (void)weatherGlyphOffline;
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo, 50)) return;
   const int dateKey = ((timeinfo.tm_year + 1900) * 10000) + ((timeinfo.tm_mon + 1) * 100) + timeinfo.tm_mday;
@@ -8794,8 +9696,7 @@ static void updateLvglUi(bool force) {
   if (sentence[0] >= 'a' && sentence[0] <= 'z') {
     sentence[0] = (char)toupper((unsigned char)sentence[0]);
   }
-  lv_label_set_text(g_lvglClockL1, sentence);
-  lvglCenterClockSentenceLabel();
+  lvglApplyClockSentenceAutoFit(sentence);
   lvglForceLabelVisible(g_lvglClockL1);
   lv_label_set_text(g_lvglClockL2, "");
   lv_label_set_text(g_lvglClockL3, "");
@@ -8864,7 +9765,7 @@ static void updateLvglUi(bool force) {
 
     lv_obj_add_flag(g_lvglForecastTomorrow, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_lvglWind, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglGlyph) lv_obj_set_style_text_color(g_lvglGlyph, lv_color_hex(0x1B2D63), 0);
+    if (g_lvglGlyph) lv_obj_set_style_text_color(g_lvglGlyph, lv_color_hex(weatherGlyphOnline), 0);
   } else {
     lv_label_set_text(g_lvglTemp, "--\xC2\xB0, --%");
     lvglForceLabelVisible(g_lvglTemp);
@@ -8899,7 +9800,7 @@ static void updateLvglUi(bool force) {
     }
     lv_obj_add_flag(g_lvglForecastTomorrow, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_lvglWind, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglGlyph) lv_obj_set_style_text_color(g_lvglGlyph, lv_color_hex3(0xAAA), 0);
+    if (g_lvglGlyph) lv_obj_set_style_text_color(g_lvglGlyph, lv_color_hex(weatherGlyphOffline), 0);
   }
 #else
   lv_label_set_text(g_lvglTemp, "--\xC2\xB0, --%");
@@ -9393,7 +10294,7 @@ static void handleSerialCommand(const char *line) {
   cmd.toUpperCase();
 
   if (cmd == "HELP") {
-    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEW0, VIEW1, VIEW2, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG");
+    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEW0, VIEW1, VIEW2, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, THEME, THEME <id>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG");
     return;
   }
 
@@ -9427,6 +10328,44 @@ static void handleSerialCommand(const char *line) {
   if (cmd == "VIEW2" || cmd == "VIEWAUX" || cmd == "VIEWRSS") {
     setUiPage(UI_PAGE_AUX);
     Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+    return;
+  }
+
+  if (cmd == "THEME") {
+    Serial.printf("[UI] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
+    Serial.print("[UI] themes:");
+    for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
+      Serial.print(' ');
+      Serial.print(kUiThemes[i].id);
+    }
+    Serial.println();
+    return;
+  }
+
+  if (cmd.startsWith("THEME ")) {
+    String themeArg = raw.substring(6);
+    themeArg.trim();
+    themeArg.toLowerCase();
+    if (themeArg.length() == 0) {
+      Serial.println("[UI][ERR] THEME richiede un id");
+      return;
+    }
+    const int8_t idx = findUiThemeIndexById(themeArg.c_str());
+    if (idx < 0) {
+      Serial.printf("[UI][ERR] theme id non valido: '%s'\n", themeArg.c_str());
+      return;
+    }
+    setActiveUiThemeById(themeArg.c_str());
+#if TEST_WIFI
+    ensureRuntimeNetConfig();
+    copyStringSafe(g_runtimeNetConfig.uiTheme, sizeof(g_runtimeNetConfig.uiTheme), themeArg.c_str());
+    saveRuntimeNetConfigToNvs();
+#endif
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+    if (g_lvglReady) lvglApplyThemeStyles(true);
+#endif
+    g_uiNeedsRedraw = true;
+    Serial.printf("[UI] theme set -> '%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
     return;
   }
   if (cmd == "QRON") {
@@ -9533,6 +10472,7 @@ static void handleSerialCommand(const char *line) {
     }
     if (runtimeLogoUrl()[0]) Serial.printf("[WEB] logo='%s'\n", runtimeLogoUrl());
     else Serial.println("[WEB] logo=''");
+    Serial.printf("[WEB] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
 #else
     Serial.println("[WEB] config UI disabled (WEB_CONFIG_ENABLED=0)");
 #endif

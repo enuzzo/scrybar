@@ -12,6 +12,73 @@
       max-width: 1400px;
       margin: 0 auto;
     }
+    .showcase-toolbar {
+      position: sticky;
+      top: 14px;
+      z-index: 20;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 14px 16px;
+      border: var(--border-default);
+      border-radius: var(--radius-lg);
+      background: var(--bg-surface);
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow-sm);
+    }
+    .showcase-toolbar__meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .showcase-toolbar__label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-primary);
+      font-weight: 700;
+    }
+    .showcase-toolbar__desc {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+    .showcase-toolbar__controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .showcase-toolbar__controls label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      font-weight: 700;
+    }
+    .showcase__theme-dropdown {
+      width: min(320px, 48vw);
+    }
+    .showcase__theme-dropdown .scry-dropdown__trigger {
+      min-height: 56px;
+      font-size: var(--fs-heading-md);
+      letter-spacing: 0.02em;
+      font-weight: var(--fw-medium);
+    }
+    .showcase__theme-dropdown .scry-dropdown__item {
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: var(--fw-medium);
+    }
+    .showcase__theme-dropdown .scry-dropdown__item[aria-selected="true"]::after {
+      content: 'ACTIVE';
+      float: right;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      opacity: 0.9;
+    }
     .showcase__hero {
       text-align: center;
       padding: 80px 24px 64px;
@@ -25,22 +92,16 @@
       transform: translateX(-50%);
       width: 600px;
       height: 600px;
-      background: radial-gradient(circle, rgba(117,81,255,0.12) 0%, transparent 70%);
+      background: var(--gradient-glow-purple);
       pointer-events: none;
     }
-    .showcase__logo {
-      width: 72px;
-      height: 72px;
-      border-radius: 18px;
-      background: var(--gradient-brand);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 24px;
-      font-size: 28px;
-      font-weight: 800;
-      color: #fff;
-      box-shadow: 0 0 60px rgba(117,81,255,0.3);
+    .showcase__hero-logo {
+      display: block;
+      width: clamp(280px, 34vw, 420px);
+      max-width: 92vw;
+      height: auto;
+      margin: 0 auto 22px;
+      filter: brightness(1.06);
     }
     .showcase__version {
       display: inline-block;
@@ -106,6 +167,9 @@
       font-size: 11px;
       color: var(--text-tertiary);
       font-family: var(--font-mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .showcase-label {
       font-size: 11px;
@@ -129,7 +193,7 @@
     }
     .showcase-grid-demo > div {
       background: var(--accent-primary-subtle);
-      border: 1px solid rgba(117,81,255,0.2);
+      border: var(--border-accent);
       border-radius: 6px;
       height: 40px;
       display: flex;
@@ -205,26 +269,341 @@
       overflow: hidden;
       border: var(--border-subtle);
     }
+    .showcase-token-grid {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+      text-align: left;
+    }
+    .showcase-token-pill {
+      border: var(--border-subtle);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      padding: 8px 10px;
+      min-width: 0;
+    }
+    .showcase-token-pill span {
+      font-size: 10px;
+      display: block;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 3px;
+    }
+    .showcase-token-pill code {
+      font-size: 12px;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: block;
+    }
+    .showcase-fx-stage {
+      position: relative;
+      min-height: 420px;
+      border: var(--border-subtle);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      isolation: isolate;
+      background: var(--bg-deepest);
+    }
+    .showcase-fx-overlay {
+      position: relative;
+      z-index: 2;
+      min-height: 420px;
+      display: grid;
+      place-items: end center;
+      text-align: center;
+      padding: 34px 20px;
+      background: linear-gradient(to top, var(--bg-overlay) 0%, transparent 55%);
+    }
+    .showcase-fx-copy {
+      max-width: 880px;
+    }
+    .showcase-fx-copy .showcase-label {
+      margin-bottom: 10px;
+    }
+    .showcase-fx-copy p {
+      margin-top: 10px;
+      color: var(--text-tertiary);
+    }
+    .showcase__footer-logo {
+      display: block;
+      width: 130px;
+      max-width: 72vw;
+      height: auto;
+      margin: 0 auto 16px;
+      opacity: 0.7;
+    }
+    .showcase-fx-grid {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      overflow: hidden;
+      perspective: var(--fx-grid-perspective);
+      pointer-events: none;
+    }
+    .showcase-fx-grid__plane {
+      position: absolute;
+      bottom: var(--fx-grid-plane-bottom);
+      left: -35%;
+      width: 170%;
+      height: var(--fx-grid-plane-height);
+      transform: rotateX(62deg);
+      transform-origin: center bottom;
+      background-image:
+        linear-gradient(var(--fx-grid-plane-line-a) 1px, transparent 1px),
+        linear-gradient(90deg, var(--fx-grid-plane-line-b) 1px, transparent 1px);
+      background-size: var(--fx-grid-plane-size) var(--fx-grid-plane-size);
+      opacity: var(--fx-grid-plane-opacity);
+      animation: gridScroll var(--fx-grid-scroll-duration) linear infinite;
+      will-change: background-position;
+    }
+    .showcase-fx-grid__glow {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: var(--fx-grid-glow-height);
+      background: linear-gradient(to top, var(--fx-grid-glow-a) 0%, var(--fx-grid-glow-b) 45%, transparent 100%);
+      animation: gridGlowPulse var(--fx-grid-glow-duration) ease-in-out infinite;
+    }
+    .showcase-fx-grid__horizon {
+      position: absolute;
+      bottom: var(--fx-grid-horizon-bottom);
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 0%, var(--fx-grid-horizon-a) 20%, var(--fx-grid-horizon-b) 50%, var(--fx-grid-horizon-a) 80%, transparent 100%);
+      box-shadow: 0 0 22px var(--fx-grid-horizon-shadow-a), 0 0 70px var(--fx-grid-horizon-shadow-b);
+    }
+    .showcase-fx-grid__scanline {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--fx-grid-scanline-a), transparent);
+      box-shadow: 0 0 16px var(--fx-grid-scanline-shadow);
+      animation: scanMove var(--fx-grid-scan-duration) ease-in-out infinite;
+      will-change: transform;
+    }
+    .showcase-fx-grid__vline {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      opacity: 0;
+      animation: vlinePulse var(--fx-grid-vline-duration) ease-in-out infinite;
+    }
+    .showcase-fx-grid__vline:nth-child(5) {
+      left: 20%;
+      background: linear-gradient(to bottom, transparent, var(--fx-grid-vline-a), transparent);
+      animation-delay: 0s;
+    }
+    .showcase-fx-grid__vline:nth-child(6) {
+      left: 50%;
+      background: linear-gradient(to bottom, transparent, var(--fx-grid-vline-b), transparent);
+      animation-delay: -1.8s;
+    }
+    .showcase-fx-grid__vline:nth-child(7) {
+      left: 80%;
+      background: linear-gradient(to bottom, transparent, var(--fx-grid-vline-a), transparent);
+      animation-delay: -3.5s;
+    }
+    .showcase-fx-grid__vignette {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 45%, var(--fx-grid-vignette) 100%);
+    }
+    @keyframes gridScroll {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 var(--fx-grid-plane-size); }
+    }
+    @keyframes gridGlowPulse {
+      0%, 100% { opacity: 0.78; }
+      50% { opacity: 1; }
+    }
+    @keyframes scanMove {
+      0%, 100% { transform: translateY(100vh); opacity: 0; }
+      5% { opacity: 1; }
+      95% { opacity: 1; }
+      99% { transform: translateY(0); opacity: 0; }
+    }
+    @keyframes vlinePulse {
+      0%, 100% { opacity: 0; }
+      50% { opacity: 1; }
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase-token-pill {
+      position: relative;
+      overflow: hidden;
+      border-radius: 0;
+      clip-path: polygon(
+        var(--cyber-cut-sm) 0,
+        100% 0,
+        100% calc(100% - var(--cyber-cut-sm)),
+        calc(100% - var(--cyber-cut-sm)) 100%,
+        0 100%,
+        0 var(--cyber-cut-sm)
+      );
+      border-color: transparent;
+      background-image: var(--cyber-surface-overlay), var(--cyber-scanline-overlay);
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase-token-pill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: var(--cyber-corner-mark-control);
+      opacity: 1;
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase-toolbar {
+      overflow: visible;
+      clip-path: none;
+      border-radius: var(--radius-lg);
+      border: var(--border-default);
+      background: var(--bg-surface);
+      background-image: none;
+      box-shadow: var(--shadow-sm);
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase-toolbar::after {
+      content: none;
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase__theme-dropdown {
+      position: relative;
+      z-index: 40;
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase__theme-dropdown .scry-dropdown__trigger,
+    :root[data-theme="cyberpunk-2077"] .showcase__theme-dropdown .scry-dropdown__menu {
+      clip-path: none;
+      border-radius: var(--radius-sm);
+      background-image: none;
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase__theme-dropdown .scry-dropdown__trigger::before,
+    :root[data-theme="cyberpunk-2077"] .showcase__theme-dropdown .scry-dropdown__menu::before {
+      content: none;
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase__theme-dropdown .scry-dropdown__menu {
+      z-index: 60;
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase-fx-stage {
+      position: relative;
+      border-radius: 0;
+      clip-path: polygon(
+        var(--cyber-cut-md) 0,
+        100% 0,
+        100% calc(100% - var(--cyber-cut-md)),
+        calc(100% - var(--cyber-cut-md)) 100%,
+        0 100%,
+        0 var(--cyber-cut-md)
+      );
+      border-color: transparent;
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase-fx-stage::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: var(--cyber-corner-mark-panel);
+      opacity: 1;
+      z-index: 1;
+    }
+    :root[data-theme="cyberpunk-2077"] .showcase-fx-overlay {
+      background:
+        linear-gradient(to top, rgba(7, 9, 15, 0.84) 0%, rgba(7, 9, 15, 0.16) 52%, transparent 100%),
+        var(--cyber-scanline-overlay);
+    }
     @media (max-width: 768px) {
       .showcase { padding: 24px 16px; }
+      .showcase-toolbar {
+        position: static;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .showcase-toolbar__controls {
+        width: 100%;
+      }
+      .showcase__theme-dropdown {
+        width: 100%;
+      }
+      .showcase__hero-logo {
+        width: min(86vw, 320px);
+      }
+      .showcase-fx-stage,
+      .showcase-fx-overlay {
+        min-height: 360px;
+      }
+      .showcase-fx-grid__plane {
+        height: 68vh;
+        bottom: -4vh;
+        background-size: 32px 32px;
+        opacity: 1;
+      }
+      .showcase-fx-grid__glow {
+        height: 66%;
+      }
+      .showcase-fx-grid__horizon {
+        bottom: 58%;
+      }
       .showcase__hero { padding: 40px 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .showcase-fx-grid * {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
     }
   </style>
 </head>
 <body>
 
 <div class="showcase">
+  <div class="showcase-toolbar">
+    <div class="showcase-toolbar__meta">
+      <div class="showcase-toolbar__label">Theming System</div>
+      <div class="showcase-toolbar__desc">Switch theme preset and inspect live tokens (colors, radius, stroke, glow, shadows, dimensions).</div>
+    </div>
+    <div class="showcase-toolbar__controls">
+      <label for="themeDropdownTrigger">Theme</label>
+      <div id="themeDropdown" class="scry-dropdown showcase__theme-dropdown" data-dropdown-theme="true">
+        <button
+          id="themeDropdownTrigger"
+          type="button"
+          class="scry-dropdown__trigger"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-label="Theme selector">
+          <span class="scry-dropdown__value">ScryBar Default</span>
+          <span class="scry-dropdown__caret" aria-hidden="true"></span>
+        </button>
+        <ul class="scry-dropdown__menu" role="listbox" aria-labelledby="themeDropdownTrigger">
+          <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="scrybar-default">ScryBar Default</button></li>
+          <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="cyberpunk-2077">Cyberpunk 2077</button></li>
+          <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="toxic-candy">Toxic Candy</button></li>
+        </ul>
+      </div>
+    </div>
+  </div>
 
   <!-- ========== HERO ========== -->
   <div class="showcase__hero">
-    <img src="https://netmi.lk/wp-content/uploads/2024/10/netmilk.svg" alt="Netmilk Studio" style="height:48px;margin-bottom:20px;filter:brightness(1.1);">
-    <div><span class="showcase__version">v1.0</span></div>
+    <img class="showcase__hero-logo" src="https://netmi.lk/wp-content/uploads/2024/10/netmilk.svg" alt="Netmilk Studio">
+    <div><span class="showcase__version">v1.2</span></div>
     <h1 class="text-display-lg" style="margin-bottom:8px;">ScryBar Design System</h1>
     <p class="text-body-lg" style="color:var(--text-tertiary); max-width:560px; margin:0 auto;">
-      A comprehensive dark-themed design system for ESP32 web configuration interfaces.
-      Every token, component, and pattern — live &amp; interactive.
+      Token-driven design system for ESP32 web interfaces, now with runtime theme switching.
+      Every token, component, and pattern remains live and editable via CSS variables.
     </p>
     <p class="text-caption" style="color:var(--text-muted);margin-top:16px;">© 2026 Netmilk Studio sagl — Monteggio Plains</p>
+    <div class="showcase-token-grid">
+      <div class="showcase-token-pill"><span>Theme</span><code id="activeThemeId">scrybar-default</code></div>
+      <div class="showcase-token-pill"><span>Primary Accent</span><code data-token-value="--accent-primary"></code></div>
+      <div class="showcase-token-pill"><span>Surface</span><code data-token-value="--bg-surface"></code></div>
+      <div class="showcase-token-pill"><span>Stroke Width</span><code data-token-value="--stroke-width-ui"></code></div>
+      <div class="showcase-token-pill"><span>Glow Shadow</span><code data-token-value="--shadow-glow-sm"></code></div>
+      <div class="showcase-token-pill"><span>Button Height (MD)</span><code data-token-value="--btn-height-md"></code></div>
+    </div>
   </div>
 
   <hr class="scry-divider scry-divider--lg">
@@ -233,116 +612,117 @@
   <section class="showcase-section">
     <div class="showcase-section__title">01 — Foundations</div>
     <h2 class="showcase-section__heading">Color Palette</h2>
+    <p class="text-caption mb-4">All swatches below bind to CSS variables and update with the selected theme preset.</p>
 
     <div class="showcase-label">Core Backgrounds</div>
     <div class="showcase-swatch-grid mb-6">
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#070D2D;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Deepest</div><div class="showcase-swatch__hex">#070D2D</div></div>
+        <div class="showcase-swatch__color" style="background:var(--bg-deepest);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--bg-deepest</div><div class="showcase-swatch__hex" data-token-value="--bg-deepest"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#0B1437;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Deep</div><div class="showcase-swatch__hex">#0B1437</div></div>
+        <div class="showcase-swatch__color" style="background:var(--bg-deep);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--bg-deep</div><div class="showcase-swatch__hex" data-token-value="--bg-deep"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#111C44;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Surface</div><div class="showcase-swatch__hex">#111C44</div></div>
+        <div class="showcase-swatch__color" style="background:var(--bg-surface);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--bg-surface</div><div class="showcase-swatch__hex" data-token-value="--bg-surface"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#162052;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Surface Hover</div><div class="showcase-swatch__hex">#162052</div></div>
+        <div class="showcase-swatch__color" style="background:var(--bg-surface-hover);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--bg-surface-hover</div><div class="showcase-swatch__hex" data-token-value="--bg-surface-hover"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#1A2558;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Elevated</div><div class="showcase-swatch__hex">#1A2558</div></div>
+        <div class="showcase-swatch__color" style="background:var(--bg-elevated);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--bg-elevated</div><div class="showcase-swatch__hex" data-token-value="--bg-elevated"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#1E2D66;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Elevated Hover</div><div class="showcase-swatch__hex">#1E2D66</div></div>
+        <div class="showcase-swatch__color" style="background:var(--bg-elevated-hover);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--bg-elevated-hover</div><div class="showcase-swatch__hex" data-token-value="--bg-elevated-hover"></div></div>
       </div>
     </div>
 
     <div class="showcase-label mt-6">Accent Colors</div>
     <div class="showcase-swatch-grid mb-6">
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#7551FF;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Primary (Violet)</div><div class="showcase-swatch__hex">#7551FF</div></div>
+        <div class="showcase-swatch__color" style="background:var(--accent-primary);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--accent-primary</div><div class="showcase-swatch__hex" data-token-value="--accent-primary"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#8B6FFF;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Primary Hover</div><div class="showcase-swatch__hex">#8B6FFF</div></div>
+        <div class="showcase-swatch__color" style="background:var(--accent-primary-hover);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--accent-primary-hover</div><div class="showcase-swatch__hex" data-token-value="--accent-primary-hover"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#39B8FF;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Secondary (Cyan)</div><div class="showcase-swatch__hex">#39B8FF</div></div>
+        <div class="showcase-swatch__color" style="background:var(--accent-secondary);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--accent-secondary</div><div class="showcase-swatch__hex" data-token-value="--accent-secondary"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:rgba(117,81,255,0.12);border:1px solid rgba(117,81,255,0.3);"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Primary Subtle</div><div class="showcase-swatch__hex">rgba(117,81,255,.12)</div></div>
+        <div class="showcase-swatch__color" style="background:var(--accent-primary-subtle);border:var(--border-accent);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--accent-primary-subtle</div><div class="showcase-swatch__hex" data-token-value="--accent-primary-subtle"></div></div>
       </div>
     </div>
 
     <div class="showcase-label mt-6">Semantic Colors</div>
     <div class="showcase-swatch-grid mb-6">
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#01B574;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Success</div><div class="showcase-swatch__hex">#01B574</div></div>
+        <div class="showcase-swatch__color" style="background:var(--color-success);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--color-success</div><div class="showcase-swatch__hex" data-token-value="--color-success"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#FFB547;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Warning</div><div class="showcase-swatch__hex">#FFB547</div></div>
+        <div class="showcase-swatch__color" style="background:var(--color-warning);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--color-warning</div><div class="showcase-swatch__hex" data-token-value="--color-warning"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#EE5D50;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Danger</div><div class="showcase-swatch__hex">#EE5D50</div></div>
+        <div class="showcase-swatch__color" style="background:var(--color-danger);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--color-danger</div><div class="showcase-swatch__hex" data-token-value="--color-danger"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#39B8FF;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Info</div><div class="showcase-swatch__hex">#39B8FF</div></div>
+        <div class="showcase-swatch__color" style="background:var(--color-info);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--color-info</div><div class="showcase-swatch__hex" data-token-value="--color-info"></div></div>
       </div>
     </div>
 
     <div class="showcase-label mt-6">Text Colors</div>
     <div class="showcase-swatch-grid">
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#FFFFFF;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Primary</div><div class="showcase-swatch__hex">#FFFFFF</div></div>
+        <div class="showcase-swatch__color" style="background:var(--text-primary);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--text-primary</div><div class="showcase-swatch__hex" data-token-value="--text-primary"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#A3AED0;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Secondary</div><div class="showcase-swatch__hex">#A3AED0</div></div>
+        <div class="showcase-swatch__color" style="background:var(--text-secondary);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--text-secondary</div><div class="showcase-swatch__hex" data-token-value="--text-secondary"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#707EAE;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Tertiary</div><div class="showcase-swatch__hex">#707EAE</div></div>
+        <div class="showcase-swatch__color" style="background:var(--text-tertiary);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--text-tertiary</div><div class="showcase-swatch__hex" data-token-value="--text-tertiary"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:#4A5568;"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Muted</div><div class="showcase-swatch__hex">#4A5568</div></div>
+        <div class="showcase-swatch__color" style="background:var(--text-muted);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--text-muted</div><div class="showcase-swatch__hex" data-token-value="--text-muted"></div></div>
       </div>
     </div>
 
     <div class="showcase-label mt-8">Gradients</div>
     <div class="showcase-swatch-grid">
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:linear-gradient(135deg, #868CFF 0%, #4318FF 100%);"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Brand</div><div class="showcase-swatch__hex">--gradient-brand</div></div>
+        <div class="showcase-swatch__color" style="background:var(--gradient-brand);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--gradient-brand</div><div class="showcase-swatch__hex" data-token-value="--gradient-brand"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:linear-gradient(135deg, #7551FF 0%, #39B8FF 100%);"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Card</div><div class="showcase-swatch__hex">--gradient-card</div></div>
+        <div class="showcase-swatch__color" style="background:var(--gradient-card);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--gradient-card</div><div class="showcase-swatch__hex" data-token-value="--gradient-card"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:linear-gradient(135deg, #01B574 0%, #39B8FF 100%);"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Success</div><div class="showcase-swatch__hex">--gradient-success</div></div>
+        <div class="showcase-swatch__color" style="background:var(--gradient-success);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--gradient-success</div><div class="showcase-swatch__hex" data-token-value="--gradient-success"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:linear-gradient(135deg, #FFB547 0%, #EE5D50 100%);"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Warm</div><div class="showcase-swatch__hex">--gradient-warm</div></div>
+        <div class="showcase-swatch__color" style="background:var(--gradient-warm);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--gradient-warm</div><div class="showcase-swatch__hex" data-token-value="--gradient-warm"></div></div>
       </div>
       <div class="showcase-swatch">
-        <div class="showcase-swatch__color" style="background:linear-gradient(135deg, #111C44 0%, #1A2558 100%);"></div>
-        <div class="showcase-swatch__info"><div class="showcase-swatch__name">Surface</div><div class="showcase-swatch__hex">--gradient-surface</div></div>
+        <div class="showcase-swatch__color" style="background:var(--gradient-surface);"></div>
+        <div class="showcase-swatch__info"><div class="showcase-swatch__name">--gradient-surface</div><div class="showcase-swatch__hex" data-token-value="--gradient-surface"></div></div>
       </div>
     </div>
   </section>
@@ -702,6 +1082,66 @@
 
   <hr class="scry-divider scry-divider--lg">
 
+  <!-- ========== 8B. DROPDOWN ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">Dropdown</h2>
+    <p class="text-caption mb-4">Custom dropdown component with explicit hover and active contrast, designed to remain readable in every theme.</p>
+
+    <div class="showcase-row">
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Update Interval</div>
+          <div class="scry-dropdown" data-dropdown="demo-interval">
+            <button type="button" class="scry-dropdown__trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="scry-dropdown__value">Every 15 minutes</span>
+              <span class="scry-dropdown__caret" aria-hidden="true"></span>
+            </button>
+            <ul class="scry-dropdown__menu" role="listbox">
+              <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="5m">Every 5 minutes</button></li>
+              <li><button type="button" class="scry-dropdown__item is-selected" role="option" aria-selected="true" data-value="15m">Every 15 minutes</button></li>
+              <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="30m">Every 30 minutes</button></li>
+              <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="60m">Every hour</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Feed Priority</div>
+          <div class="scry-dropdown" data-dropdown="demo-priority">
+            <button type="button" class="scry-dropdown__trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="scry-dropdown__value">Balanced</span>
+              <span class="scry-dropdown__caret" aria-hidden="true"></span>
+            </button>
+            <ul class="scry-dropdown__menu" role="listbox">
+              <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="realtime">Realtime</button></li>
+              <li><button type="button" class="scry-dropdown__item is-selected" role="option" aria-selected="true" data-value="balanced">Balanced</button></li>
+              <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="battery">Battery Saver</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-col">
+        <div class="showcase-box">
+          <div class="showcase-label">Disabled</div>
+          <div class="scry-dropdown scry-dropdown--disabled">
+            <button type="button" class="scry-dropdown__trigger" disabled aria-label="Dropdown disabled">
+              <span class="scry-dropdown__value">Managed by Policy</span>
+              <span class="scry-dropdown__caret" aria-hidden="true"></span>
+            </button>
+            <ul class="scry-dropdown__menu" role="listbox">
+              <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="true" data-value="policy">Managed by Policy</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scry-divider scry-divider--lg">
+
   <!-- ========== 9. CARDS ========== -->
   <section class="showcase-section">
     <h2 class="showcase-section__heading">Cards</h2>
@@ -744,7 +1184,7 @@
       </div>
 
       <!-- Glow card -->
-      <div class="scry-card scry-card--glow" style="border-color: rgba(117,81,255,0.2);">
+      <div class="scry-card scry-card--glow" style="border-color: var(--card-hover-border);">
         <div class="scry-card__header">
           <div class="scry-card__title">Glow Card</div>
         </div>
@@ -1032,7 +1472,7 @@
           <span class="text-body-sm text-white">Temperature Critical</span>
           <span class="text-caption">95%</span>
         </div>
-        <div class="scry-progress scry-progress--lg">
+        <div class="scry-progress scry-progress--md">
           <div class="scry-progress__fill scry-progress__fill--danger" style="width:95%;"></div>
         </div>
       </div>
@@ -1133,7 +1573,7 @@
           <span class="scry-list-item__meta">2h ago</span>
         </div>
         <div class="scry-list-item">
-          <div class="scry-avatar scry-avatar--sm" style="background:linear-gradient(135deg, #EE5D50, #FFB547);">E</div>
+          <div class="scry-avatar scry-avatar--sm" style="background:var(--gradient-warm);">E</div>
           <div class="scry-list-item__content">
             <div class="scry-list-item__title">API Error</div>
             <div class="scry-list-item__subtitle">RSS feed esp32.com/rss returned 503</div>
@@ -1208,7 +1648,7 @@
 
     <div style="position:relative;padding:24px;background:var(--bg-deep);border-radius:var(--radius-xl);border:var(--border-subtle);min-height:400px;display:flex;align-items:center;justify-content:center;">
       <!-- Simulated modal (not fixed) -->
-      <div style="background:rgba(7,13,45,0.6);position:absolute;inset:0;border-radius:var(--radius-xl);"></div>
+      <div style="background:var(--bg-overlay);position:absolute;inset:0;border-radius:var(--radius-xl);"></div>
       <div class="scry-modal" style="position:relative;animation:none;">
         <div class="scry-modal__header">
           <span class="text-heading-lg">Add RSS Feed</span>
@@ -1405,7 +1845,7 @@
       <div class="sidebar-demo-container">
         <div class="showcase-label" style="padding:16px 16px 0;text-align:center;">Collapsed</div>
         <div style="width:100px;padding:16px 0;display:flex;flex-direction:column;align-items:center;gap:4px;">
-          <div style="width:40px;height:40px;border-radius:12px;background:var(--gradient-brand);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:14px;margin-bottom:24px;">S</div>
+          <div style="width:40px;height:40px;border-radius:12px;background:var(--gradient-brand);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--text-on-gradient);font-size:14px;margin-bottom:24px;">S</div>
 
           <button class="scry-sidebar__item active" style="position:relative;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -1430,7 +1870,7 @@
         <div class="showcase-label" style="padding:16px 20px 0;">Expanded</div>
         <div style="padding:16px 16px 20px;">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:28px;padding:0 4px;">
-            <div style="width:40px;height:40px;border-radius:12px;background:var(--gradient-brand);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:14px;flex-shrink:0;">S</div>
+            <div style="width:40px;height:40px;border-radius:12px;background:var(--gradient-brand);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--text-on-gradient);font-size:14px;flex-shrink:0;">S</div>
             <div>
               <div class="text-heading-sm" style="font-size:15px;">ScryBar</div>
               <div class="text-micro">ESP32-S3 Control</div>
@@ -1716,11 +2156,39 @@
     </div>
   </section>
 
+  <hr class="scry-divider scry-divider--lg">
+
+  <!-- ========== 29. SCRYBAR FX GRID ========== -->
+  <section class="showcase-section">
+    <h2 class="showcase-section__heading">ScryBar Web FX Grid (Pure CSS)</h2>
+    <p class="text-caption mb-4">Original animation from ScryBar web UI, integrated as a token-driven, responsive showcase component.</p>
+
+    <div class="showcase-fx-stage">
+      <div class="showcase-fx-grid">
+        <div class="showcase-fx-grid__plane"></div>
+        <div class="showcase-fx-grid__glow"></div>
+        <div class="showcase-fx-grid__horizon"></div>
+        <div class="showcase-fx-grid__scanline"></div>
+        <div class="showcase-fx-grid__vline"></div>
+        <div class="showcase-fx-grid__vline"></div>
+        <div class="showcase-fx-grid__vline"></div>
+        <div class="showcase-fx-grid__vignette"></div>
+      </div>
+      <div class="showcase-fx-overlay">
+        <div class="showcase-fx-copy">
+          <div class="showcase-label">Theme Reactive Animation</div>
+          <h3 class="text-heading-xl">Grid, Horizon, Scanline, Vignetting</h3>
+          <p class="text-body-lg">Switch theme from the selector above to see palette and visual treatment adapt live.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Footer -->
   <div style="text-align:center;padding:48px 0 24px;">
-    <img src="https://netmi.lk/wp-content/uploads/2024/10/netmilk.svg" alt="Netmilk Studio" style="height:24px;margin-bottom:16px;opacity:0.6;">
+    <img class="showcase__footer-logo" src="https://netmi.lk/wp-content/uploads/2024/10/netmilk.svg" alt="Netmilk Studio">
     <div class="text-overline mb-2">ScryBar Design System</div>
-    <p class="text-caption" style="margin-bottom:4px;">Built for ESP32-S3 web interfaces &mdash; Dark theme, Montserrat, full component library</p>
+    <p class="text-caption" style="margin-bottom:4px;">Built for ESP32-S3 web interfaces &mdash; Runtime theming, multi-font, full component library</p>
     <p class="text-micro" style="color:var(--text-muted);">A project by Netmilk Studio sagl &mdash; 2026 &mdash; Monteggio Plains</p>
     <p class="text-micro" style="color:var(--text-muted);margin-top:2px;">&copy; 2026 Netmilk Studio sagl. All rights reserved.</p>
   </div>
@@ -1728,8 +2196,13 @@
 </div>
 
 <script>
+const THEME_STORAGE_KEY = 'scrybar.design-system.theme';
+const DEFAULT_THEME = 'scrybar-default';
+const SUPPORTED_THEMES = ['scrybar-default', 'cyberpunk-2077', 'toxic-candy'];
+
 function replayAnimation() {
   const demo = document.getElementById('animDemo');
+  if (!demo) return;
   const cards = demo.querySelectorAll('.scry-stat');
   cards.forEach(card => {
     card.style.animation = 'none';
@@ -1737,6 +2210,166 @@ function replayAnimation() {
     card.style.animation = '';
   });
 }
+
+function getSafeTheme(themeName) {
+  if (!themeName) return DEFAULT_THEME;
+  return SUPPORTED_THEMES.includes(themeName) ? themeName : DEFAULT_THEME;
+}
+
+function updateTokenReadouts() {
+  const rootStyles = getComputedStyle(document.documentElement);
+  document.querySelectorAll('[data-token-value]').forEach(node => {
+    const tokenName = node.getAttribute('data-token-value');
+    const tokenValue = rootStyles.getPropertyValue(tokenName).trim() || '-';
+    node.textContent = tokenValue;
+    node.title = tokenValue;
+  });
+}
+
+function applyTheme(themeName) {
+  const safeTheme = getSafeTheme(themeName);
+  document.documentElement.setAttribute('data-theme', safeTheme);
+  const activeThemeEl = document.getElementById('activeThemeId');
+  if (activeThemeEl) activeThemeEl.textContent = safeTheme;
+  updateTokenReadouts();
+  return safeTheme;
+}
+
+function setDropdownOpen(dropdown, isOpen) {
+  const trigger = dropdown.querySelector('.scry-dropdown__trigger');
+  if (!trigger) return;
+  dropdown.classList.toggle('is-open', isOpen);
+  trigger.setAttribute('aria-expanded', String(isOpen));
+}
+
+function setDropdownValue(dropdown, rawValue) {
+  const items = Array.from(dropdown.querySelectorAll('.scry-dropdown__item'));
+  if (!items.length) return null;
+
+  const value = rawValue || '';
+  let selected = items.find(item => item.dataset.value === value);
+  if (!selected) {
+    selected = items.find(item => item.getAttribute('aria-selected') === 'true') || items[0];
+  }
+
+  items.forEach(item => {
+    const isSelected = item === selected;
+    item.classList.toggle('is-selected', isSelected);
+    item.setAttribute('aria-selected', String(isSelected));
+  });
+
+  const valueNode = dropdown.querySelector('.scry-dropdown__value');
+  if (valueNode) valueNode.textContent = selected.textContent.trim();
+  dropdown.dataset.value = selected.dataset.value || '';
+  return selected;
+}
+
+function initDropdown(dropdown, onChange) {
+  const trigger = dropdown.querySelector('.scry-dropdown__trigger');
+  const menu = dropdown.querySelector('.scry-dropdown__menu');
+  if (!trigger || !menu) return null;
+  if (dropdown.classList.contains('scry-dropdown--disabled') || trigger.disabled) return null;
+
+  const items = Array.from(dropdown.querySelectorAll('.scry-dropdown__item'));
+  if (!items.length) return null;
+
+  const focusSelected = () => {
+    const selected = dropdown.querySelector('.scry-dropdown__item[aria-selected="true"]') || items[0];
+    if (selected) selected.focus();
+  };
+
+  setDropdownValue(dropdown, dropdown.dataset.value);
+
+  trigger.addEventListener('click', () => {
+    const shouldOpen = !dropdown.classList.contains('is-open');
+    document.querySelectorAll('.scry-dropdown.is-open').forEach(openDropdown => {
+      if (openDropdown !== dropdown) setDropdownOpen(openDropdown, false);
+    });
+    setDropdownOpen(dropdown, shouldOpen);
+    if (shouldOpen) focusSelected();
+  });
+
+  trigger.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setDropdownOpen(dropdown, true);
+      focusSelected();
+    }
+  });
+
+  items.forEach((item, index) => {
+    item.addEventListener('click', () => {
+      const selected = setDropdownValue(dropdown, item.dataset.value);
+      setDropdownOpen(dropdown, false);
+      trigger.focus();
+      if (selected && typeof onChange === 'function') onChange(selected.dataset.value, selected);
+    });
+
+    item.addEventListener('keydown', event => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        items[(index + 1) % items.length].focus();
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        items[(index - 1 + items.length) % items.length].focus();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        setDropdownOpen(dropdown, false);
+        trigger.focus();
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        const selected = setDropdownValue(dropdown, item.dataset.value);
+        setDropdownOpen(dropdown, false);
+        trigger.focus();
+        if (selected && typeof onChange === 'function') onChange(selected.dataset.value, selected);
+      }
+    });
+  });
+
+  document.addEventListener('click', event => {
+    if (!dropdown.contains(event.target)) setDropdownOpen(dropdown, false);
+  });
+
+  return {
+    setValue(nextValue, silent = false) {
+      const selected = setDropdownValue(dropdown, nextValue);
+      if (!silent && selected && typeof onChange === 'function') onChange(selected.dataset.value, selected);
+    }
+  };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const dropdownApis = new Map();
+  document.querySelectorAll('.scry-dropdown').forEach(dropdown => {
+    const isThemeDropdown = dropdown.hasAttribute('data-dropdown-theme');
+    const api = initDropdown(dropdown, selectedValue => {
+      if (!isThemeDropdown) return;
+      document.querySelectorAll('.scry-dropdown.is-open').forEach(openDropdown => {
+        setDropdownOpen(openDropdown, false);
+      });
+      const selectedTheme = applyTheme(selectedValue);
+      try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
+      } catch (_err) {
+        // Ignore persistence errors (private mode/restricted storage).
+      }
+    });
+    if (api && dropdown.id) dropdownApis.set(dropdown.id, api);
+  });
+
+  let storedTheme = null;
+  try {
+    storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  } catch (_err) {
+    storedTheme = null;
+  }
+
+  const initialTheme = applyTheme(storedTheme || DEFAULT_THEME);
+  const themeDropdownApi = dropdownApis.get('themeDropdown');
+  if (themeDropdownApi) {
+    themeDropdownApi.setValue(initialTheme, true);
+  }
+});
 </script>
 
 </body>
