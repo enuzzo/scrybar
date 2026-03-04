@@ -9,9 +9,9 @@
 
 ## Theme Previews (HOME + Weather)
 
-| ScryBar Default | Cyberpunk 2077 | Toxic Candy |
-|---|---|---|
-| ![ScryBar Default HOME Weather](assets/readme_previews/home_weather_scrybar-default.png) | ![Cyberpunk 2077 HOME Weather](assets/readme_previews/home_weather_cyberpunk-2077.png) | ![Toxic Candy HOME Weather](assets/readme_previews/home_weather_toxic-candy.png) |
+| ScryBar Default | Cyberpunk 2077 | Toxic Candy | Tokyo Transit | Minimal Brutalist Mono |
+|---|---|---|---|---|
+| ![ScryBar Default HOME Weather](assets/readme_previews/home_weather_scrybar-default.png) | ![Cyberpunk 2077 HOME Weather](assets/readme_previews/home_weather_cyberpunk-2077.png) | ![Toxic Candy HOME Weather](assets/readme_previews/home_weather_toxic-candy.png) | ![Tokyo Transit HOME Weather](assets/readme_previews/home_weather_tokyo-transit.png) | ![Minimal Brutalist Mono HOME Weather](assets/readme_previews/home_weather_minimal-brutalist-mono.png) |
 
 > Yes, that is cyberpunk in Latin. If you want neon UI saying *Hora septima est*, ScryBar will not judge.
 
@@ -86,7 +86,7 @@ Three views, navigated by swipe. Left or right, like flipping pages. There is no
   └────────────────────────────────────────────────┘
 ```
 
-**HOME** — Word clock in natural sentence form, switchable across 14 languages: Italiano, English, Français, Deutsch, Español, Português, Latina, Esperanto, Napoletano, tlhIngan Hol (Klingon), 1337 Speak, Shakespearean English, Valley Girl, and Italiano Gen Z. Not uppercase tiles — actual grammar, composed at runtime. Plus weather icon, temperature, and humidity. Typography is theme-driven at runtime (Montserrat/Space Mono/Delius Unicase) with auto-fit sizing so the sentence always fills the panel cleanly.
+**HOME** — Word clock in natural sentence form, switchable across 14 languages: Italiano, English, Français, Deutsch, Español, Português, Latina, Esperanto, Napoletano, tlhIngan Hol (Klingon), 1337 Speak, Shakespearean English, Valley Girl, and Italiano Gen Z. Not uppercase tiles — actual grammar, composed at runtime. Plus weather icon, temperature, and humidity. Typography is theme-driven at runtime (Montserrat/Space Mono/Delius Unicase/Chakra Petch/IBM Plex Mono) with auto-fit sizing so the sentence always fills the panel cleanly.
 
 **AUX** — RSS rotation. Up to 5 configurable feeds. Each headline cycles with source name and a QR code that deep-links to the article. You won't scan it most of the time. It is there when you want it.
 

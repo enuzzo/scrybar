@@ -1,10 +1,10 @@
-# ScryBar Design System v1.2
+# ScryBar Design System v1.4
 
 > A comprehensive dark-themed design system for ESP32 web configuration interfaces.
 > Inspired by premium fintech dashboard aesthetics. Optimized for readability,
 > accessibility on small-to-medium displays, and a professional, futuristic feel.
 
-## 0. Theming System (v1.2 update)
+## 0. Theming System (v1.4 update)
 
 `index.html` now includes a top theme selector that switches runtime presets by writing:
 
@@ -17,6 +17,8 @@ Theme presets are defined in `scrybar.css` as token overrides:
 - `:root, :root[data-theme="scrybar-default"]` (baseline)
 - `:root[data-theme="cyberpunk-2077"]` (monospaced terminal style)
 - `:root[data-theme="toxic-candy"]` (neon magenta + acid green accents, candy sci-fi finish)
+- `:root[data-theme="tokyo-transit"]` (metro-signage neon cyan + magenta, Chakra Petch typography)
+- `:root[data-theme="minimal-brutalist-mono"]` (hard mono editorial grid, black/white + signal red)
 
 Cyberpunk v1.1 styling details (inspired by augmented geometry patterns):
 
@@ -34,6 +36,22 @@ Toxic Candy v1.2 styling details:
 - Rounded “candy shell” surfaces with neon glows and high-contrast states
 - FX Grid token overrides for magenta/green reactive animation
 - Keeps same component nomenclature and responsive behavior
+
+Tokyo Transit v1.3 styling details:
+
+- Accent pair: transit cyan (`--accent-primary`) + signal magenta (`--accent-secondary`)
+- Typography mood via `Chakra Petch` with `Space Mono` technical fallback
+- Signage-inspired gradients for cards, controls, and toolbar surfaces
+- High-contrast interactive states for dropdown/button readability in dense dark surfaces
+- FX Grid token overrides aligned with cyan/magenta horizon treatment
+
+Minimal Brutalist Mono v1.4 styling details:
+
+- Strict monochrome hierarchy (`#0A0A0A` / `#111111` / `#F3F3F3`) with signal red accent (`#FF3B30`)
+- Typography mood via `IBM Plex Mono` stack for both UI and technical readouts
+- Hard-edged radii, thicker strokes, and offset shadows for brutalist tactile feel
+- Flat/high-contrast controls with explicit pressed translation (`transform`) for stronger affordance
+- FX Grid token overrides shifted to white/red scanline language, slower and more restrained
 
 The theming layer covers:
 
@@ -89,7 +107,7 @@ calm, precise, authoritative.
 
 ```
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 ```
 
 Theme font map:
@@ -99,6 +117,8 @@ Theme font map:
 | `scrybar-default` | Montserrat stack | Space Mono stack | LVGL Montserrat built-ins |
 | `cyberpunk-2077` | Space Mono terminal stack | Space Mono terminal stack | `scry_font_space_mono_*` |
 | `toxic-candy` | Delius Unicase stack (Chakra fallback) | Space Mono stack | `scry_font_delius_unicase_*` |
+| `tokyo-transit` | Chakra Petch stack | Space Mono stack | `scry_font_space_mono_*` |
+| `minimal-brutalist-mono` | IBM Plex Mono stack | IBM Plex Mono / Space Mono stack | `scry_font_space_mono_*` |
 
 ESP32 font assets (generated with `lv_font_conv`, static TTF, non-variable):
 

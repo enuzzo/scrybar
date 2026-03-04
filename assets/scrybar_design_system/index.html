@@ -514,6 +514,40 @@
         linear-gradient(to top, rgba(7, 9, 15, 0.84) 0%, rgba(7, 9, 15, 0.16) 52%, transparent 100%),
         var(--cyber-scanline-overlay);
     }
+    :root[data-theme="tokyo-transit"] .showcase-toolbar {
+      border-color: rgba(0, 209, 255, 0.5);
+      box-shadow: 0 0 0 1px rgba(255, 63, 129, 0.2), var(--shadow-sm);
+      background-image: linear-gradient(160deg, rgba(0, 209, 255, 0.12) 0%, rgba(255, 63, 129, 0.08) 100%);
+    }
+    :root[data-theme="tokyo-transit"] .showcase-token-pill {
+      border-color: rgba(0, 209, 255, 0.5);
+      background-image: linear-gradient(140deg, rgba(0, 209, 255, 0.14) 0%, rgba(255, 63, 129, 0.1) 100%);
+    }
+    :root[data-theme="tokyo-transit"] .showcase__theme-dropdown .scry-dropdown__item[aria-selected="true"]::after {
+      color: var(--accent-primary);
+    }
+    :root[data-theme="tokyo-transit"] .showcase-fx-overlay {
+      background: linear-gradient(to top, rgba(6, 13, 26, 0.84) 0%, rgba(6, 13, 26, 0.2) 54%, transparent 100%);
+    }
+    :root[data-theme="minimal-brutalist-mono"] .showcase-toolbar {
+      border-width: 2px;
+      border-color: rgba(255, 255, 255, 0.46);
+      border-radius: 4px;
+      box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
+      background-image: linear-gradient(175deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 59, 48, 0.06) 100%);
+    }
+    :root[data-theme="minimal-brutalist-mono"] .showcase-token-pill {
+      border-width: 2px;
+      border-radius: 2px;
+      border-color: rgba(255, 59, 48, 0.7);
+      background-image: linear-gradient(155deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 59, 48, 0.12) 100%);
+    }
+    :root[data-theme="minimal-brutalist-mono"] .showcase__theme-dropdown .scry-dropdown__item[aria-selected="true"]::after {
+      color: var(--accent-secondary);
+    }
+    :root[data-theme="minimal-brutalist-mono"] .showcase-fx-overlay {
+      background: linear-gradient(to top, rgba(10, 10, 10, 0.9) 0%, rgba(10, 10, 10, 0.26) 56%, transparent 100%);
+    }
     @media (max-width: 768px) {
       .showcase { padding: 24px 16px; }
       .showcase-toolbar {
@@ -581,6 +615,8 @@
           <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="scrybar-default">ScryBar Default</button></li>
           <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="cyberpunk-2077">Cyberpunk 2077</button></li>
           <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="toxic-candy">Toxic Candy</button></li>
+          <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="tokyo-transit">Tokyo Transit</button></li>
+          <li><button type="button" class="scry-dropdown__item" role="option" aria-selected="false" data-value="minimal-brutalist-mono">Minimal Brutalist Mono</button></li>
         </ul>
       </div>
     </div>
@@ -589,7 +625,7 @@
   <!-- ========== HERO ========== -->
   <div class="showcase__hero">
     <img class="showcase__hero-logo" src="https://netmi.lk/wp-content/uploads/2024/10/netmilk.svg" alt="Netmilk Studio">
-    <div><span class="showcase__version">v1.2</span></div>
+    <div><span class="showcase__version">v1.4</span></div>
     <h1 class="text-display-lg" style="margin-bottom:8px;">ScryBar Design System</h1>
     <p class="text-body-lg" style="color:var(--text-tertiary); max-width:560px; margin:0 auto;">
       Token-driven design system for ESP32 web interfaces, now with runtime theme switching.
@@ -2198,7 +2234,7 @@
 <script>
 const THEME_STORAGE_KEY = 'scrybar.design-system.theme';
 const DEFAULT_THEME = 'scrybar-default';
-const SUPPORTED_THEMES = ['scrybar-default', 'cyberpunk-2077', 'toxic-candy'];
+const SUPPORTED_THEMES = ['scrybar-default', 'cyberpunk-2077', 'toxic-candy', 'tokyo-transit', 'minimal-brutalist-mono'];
 
 function replayAnimation() {
   const demo = document.getElementById('animDemo');

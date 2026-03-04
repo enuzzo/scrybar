@@ -437,6 +437,100 @@ static const UiThemeDefinition kUiThemes[] = {
       0xFFF0FF, 0xFFCBF7, 0xFFF0FF, 0xC5A3D9, 0x8B5AA0, 0xC37BDD, 0xFFBBF2,
     },
   },
+  {
+    "tokyo-transit",
+    "Tokyo Transit",
+    {
+      "'Chakra Petch','Space Mono','Montserrat','Segoe UI',sans-serif",
+      "'Space Mono','Monaco','Menlo',Consolas,monospace",
+      "#060D1A",
+      "#0B1730",
+      "#132741",
+      "rgba(0,209,255,.18)",
+      "rgba(255,63,129,.11)",
+      "#EAF3FF",
+      "#A9C3E6",
+      "#7598C4",
+      "#00D1FF",
+      "#FF3F81",
+      "rgba(52,227,154,.14)",
+      "rgba(12,24,43,0.78)",
+      "rgba(0,209,255,.28)",
+      "rgba(255,63,129,.36)",
+      "rgba(0,209,255,.32)",
+      "rgba(10,21,36,.54)",
+      "rgba(0,209,255,.42)",
+      "rgba(7,14,24,.82)",
+      "#7BE8FF",
+      "#F4FAFF",
+      "rgba(0,209,255,0.20)",
+      "rgba(255,63,129,0.16)",
+      "rgba(0,209,255,0.20)",
+      "rgba(255,63,129,0.10)",
+      "rgba(0,209,255,0.45)",
+      "rgba(255,63,129,0.36)",
+      "rgba(0,209,255,0.32)",
+      "rgba(0,209,255,0.22)",
+      "rgba(255,63,129,0.20)",
+      "#17355A",
+      "#EAF3FF",
+    },
+    {
+      0x060D1A, 0x132741, 0x00D1FF, 0x081624, 0x1A4B66, 0xF3F8FF, 0x162A3F, 0x355572,
+      0x1C3A57, 0x71879D, 0x3D5E82, 0x1C3A57, 0x060D1A, 0x1A3760, 0x00D1FF, 0xEAF3FF,
+      0xF6FBFF, 0x0B1730, 0xEAF3FF, 0xA9C3E6, 0x00D1FF, 0xFF76A9, 0x1B3A62, 0xEAF3FF, 0x17355A, 0x102A47,
+      0x00D1FF, 0x4EE2FF, 0x3A1E42, 0x2B1631, 0xFF8BB6, 0x17355A, 0x102A47, 0xEAF3FF,
+      0x081624, 0xF6FBFF, 0x95B9D6, 0x374A62, 0x00D1FF, 0xFF3F81, 0x132741, 0x1B3A62,
+      0x00D1FF, 0xFF3F81, 0xEAF3FF, 0xA9C3E6, 0x6A8BB6, 0x8CC7EF, 0xF4FAFF,
+    },
+  },
+  {
+    "minimal-brutalist-mono",
+    "Minimal Brutalist Mono",
+    {
+      "'IBM Plex Mono','Space Mono','Montserrat','Segoe UI',monospace",
+      "'IBM Plex Mono','Space Mono','Monaco','Menlo',monospace",
+      "#0A0A0A",
+      "#111111",
+      "#1A1A1A",
+      "rgba(255,255,255,.16)",
+      "rgba(255,255,255,.08)",
+      "#F5F5F5",
+      "#CFCFCF",
+      "#8F8F8F",
+      "#F1F1F1",
+      "#FF3B30",
+      "rgba(33,45,35,.78)",
+      "rgba(20,20,20,0.82)",
+      "rgba(255,255,255,.22)",
+      "rgba(255,255,255,.28)",
+      "rgba(255,255,255,.18)",
+      "rgba(15,15,15,.66)",
+      "rgba(255,255,255,.24)",
+      "rgba(10,10,10,.88)",
+      "#BDBDBD",
+      "#F5F5F5",
+      "rgba(255,255,255,0.18)",
+      "rgba(255,59,48,0.18)",
+      "rgba(255,255,255,0.10)",
+      "rgba(255,59,48,0.10)",
+      "rgba(255,255,255,0.36)",
+      "rgba(255,59,48,0.30)",
+      "rgba(255,255,255,0.28)",
+      "rgba(255,255,255,0.14)",
+      "rgba(255,59,48,0.14)",
+      "#1E1E1E",
+      "#F1F1F1",
+    },
+    {
+      0x0A0A0A, 0x171717, 0xEFEFEF, 0x111111, 0x5C5C5C, 0xF4F4F4, 0x111111, 0x444444,
+      0x111111, 0x666666, 0xB0B0B0, 0x111111, 0x0F0F0F, 0xE8E8E8, 0xB8B8B8, 0xF3F3F3,
+      0x111111, 0xF4F4F4, 0xF2F2F2, 0xBDBDBD, 0xFF3B30, 0xF06B63, 0x2A2A2A, 0xF3F3F3, 0x1E1E1E, 0x2A2A2A,
+      0xF3F3F3, 0xFFFFFF, 0x171717, 0x2B2B2B, 0xF3F3F3, 0x2C2C2C, 0x3A3A3A, 0xF3F3F3,
+      0x111111, 0xF5F5F5, 0xB5B5B5, 0x3A3A3A, 0xF3F3F3, 0xFF3B30, 0x0C0C0C, 0x181818,
+      0xF2F2F2, 0xFF3B30, 0xF2F2F2, 0x2A2A2A, 0x8A8A8A, 0xCFCFCF, 0xFFFFFF,
+    },
+  },
 };
 static constexpr size_t UI_THEME_COUNT = sizeof(kUiThemes) / sizeof(kUiThemes[0]);
 static uint8_t g_uiThemeIndex = 0;
@@ -2334,7 +2428,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("<title>ScryBar Control Surface</title>");
   html += F("<link rel='preconnect' href='https://fonts.googleapis.com'>");
   html += F("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>");
-  html += F("<link href='https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=Montserrat:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap' rel='stylesheet'>");
+  html += F("<link href='https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap' rel='stylesheet'>");
   html += F("<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css'>");
   html += F("<style>");
   // Tron-grid animated background; tuned to stay visible on mobile while keeping form readability.
@@ -5450,6 +5544,14 @@ static bool lvglThemeIsToxicCandy() {
   return strcmp(activeUiThemeId(), "toxic-candy") == 0;
 }
 
+static bool lvglThemeIsTokyoTransit() {
+  return strcmp(activeUiThemeId(), "tokyo-transit") == 0;
+}
+
+static bool lvglThemeIsMinimalBrutalistMono() {
+  return strcmp(activeUiThemeId(), "minimal-brutalist-mono") == 0;
+}
+
 static uint16_t lvglColorLuma(uint32_t rgb) {
   const uint16_t r = (uint16_t)((rgb >> 16) & 0xFFu);
   const uint16_t g = (uint16_t)((rgb >> 8) & 0xFFu);
@@ -5523,19 +5625,39 @@ static uint32_t lvglResolvedWeatherGlyphOffline(const UiThemeLvglTokens &t, uint
 static void lvglApplyThemeStyles(bool forceInvalidate) {
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
   const bool cyberpunk = lvglThemeIsCyberpunk();
+  const bool tokyo = lvglThemeIsTokyoTransit();
+  const bool minimal = lvglThemeIsMinimalBrutalistMono();
+  const bool headerBordered = cyberpunk || minimal;
   const uint32_t panelBg = lvglResolvedPanelBg(t);
   const uint32_t headerBg = lvglResolvedHeaderBg(t);
   const uint32_t headerText = lvglResolvedHeaderText(t);
   const uint32_t headerMeta = lvglResolvedHeaderMeta(t);
   const uint32_t infoHeaderBg = cyberpunk ? headerBg : t.infoHeaderBg;
   const uint32_t infoHeaderBorder = cyberpunk ? t.auxSourceText : t.infoHeaderBorder;
-  const uint32_t infoHeaderText = cyberpunk ? headerText : t.infoText;
+  const uint32_t infoHeaderText = (cyberpunk || minimal) ? headerText : t.infoText;
   const uint32_t weatherBg = lvglResolvedWeatherBg(t);
   const uint32_t weatherTextPrimary = lvglResolvedWeatherPrimary(t, weatherBg);
   const uint32_t weatherTextSecondary = lvglResolvedWeatherSecondary(t, weatherBg, weatherTextPrimary);
   const uint32_t forecastText = lvglResolvedForecastText(t, weatherBg, weatherTextPrimary);
   const uint32_t weatherGlyphOnline = lvglResolvedWeatherGlyphOnline(t, weatherBg, weatherTextPrimary);
   const uint32_t weatherGlyphOffline = lvglResolvedWeatherGlyphOffline(t, weatherBg, weatherTextSecondary);
+  uint32_t clockLine1 = cyberpunk ? t.infoText : t.headerText;
+  uint32_t clockLine2 = t.infoText;
+  uint32_t clockLine3 = cyberpunk ? t.auxMeta : headerMeta;
+  uint32_t clockDivider = t.divider;
+  if (tokyo) {
+    // Tokyo transit clock copy sits on dark panel, so keep it bright and neon-accented.
+    clockLine1 = t.auxSourceText;
+    clockLine2 = t.infoText;
+    clockLine3 = t.auxWhenText;
+    clockDivider = t.auxSourceText;
+  } else if (minimal) {
+    // Brutalist mono keeps high contrast on dark clock panel with a single red accent.
+    clockLine1 = t.infoText;
+    clockLine2 = t.infoText;
+    clockLine3 = t.auxMeta;
+    clockDivider = t.auxSourceText;
+  }
 
   lv_obj_t *scr = lv_scr_act();
   if (scr) {
@@ -5567,9 +5689,9 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglClockHeader) {
     lv_obj_set_style_bg_color(g_lvglClockHeader, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglClockHeader, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_lvglClockHeader, cyberpunk ? 1 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglClockHeader, headerBordered ? 1 : 0, LV_PART_MAIN);
     lv_obj_set_style_border_color(g_lvglClockHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglClockHeader, cyberpunk ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglClockHeader, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
   }
   if (g_lvglClockHeaderFill) {
     lv_obj_set_style_bg_color(g_lvglClockHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
@@ -5578,9 +5700,9 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglWeatherHeader) {
     lv_obj_set_style_bg_color(g_lvglWeatherHeader, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglWeatherHeader, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_lvglWeatherHeader, cyberpunk ? 1 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWeatherHeader, headerBordered ? 1 : 0, LV_PART_MAIN);
     lv_obj_set_style_border_color(g_lvglWeatherHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglWeatherHeader, cyberpunk ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglWeatherHeader, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
   }
   if (g_lvglWeatherHeaderFill) {
     lv_obj_set_style_bg_color(g_lvglWeatherHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
@@ -5589,9 +5711,9 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglAuxHeader) {
     lv_obj_set_style_bg_color(g_lvglAuxHeader, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglAuxHeader, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_lvglAuxHeader, cyberpunk ? 1 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglAuxHeader, headerBordered ? 1 : 0, LV_PART_MAIN);
     lv_obj_set_style_border_color(g_lvglAuxHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglAuxHeader, cyberpunk ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglAuxHeader, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
   }
   if (g_lvglAuxHeaderFill) {
     lv_obj_set_style_bg_color(g_lvglAuxHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
@@ -5617,10 +5739,10 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglAuxTitle) lv_obj_set_style_text_color(g_lvglAuxTitle, lv_color_hex(headerText), 0);
   if (g_lvglAuxStatus) lv_obj_set_style_text_color(g_lvglAuxStatus, lv_color_hex(headerText), 0);
   if (g_lvglAuxMeta) lv_obj_set_style_text_color(g_lvglAuxMeta, lv_color_hex(headerMeta), 0);
-  if (g_lvglClockL1) lv_obj_set_style_text_color(g_lvglClockL1, lv_color_hex(cyberpunk ? t.infoText : t.headerText), 0);
-  if (g_lvglClockL2) lv_obj_set_style_text_color(g_lvglClockL2, lv_color_hex(t.infoText), 0);
-  if (g_lvglClockL3) lv_obj_set_style_text_color(g_lvglClockL3, lv_color_hex(cyberpunk ? t.auxMeta : headerMeta), 0);
-  if (g_lvglClockDivider) lv_obj_set_style_bg_color(g_lvglClockDivider, lv_color_hex(t.divider), LV_PART_MAIN);
+  if (g_lvglClockL1) lv_obj_set_style_text_color(g_lvglClockL1, lv_color_hex(clockLine1), 0);
+  if (g_lvglClockL2) lv_obj_set_style_text_color(g_lvglClockL2, lv_color_hex(clockLine2), 0);
+  if (g_lvglClockL3) lv_obj_set_style_text_color(g_lvglClockL3, lv_color_hex(clockLine3), 0);
+  if (g_lvglClockDivider) lv_obj_set_style_bg_color(g_lvglClockDivider, lv_color_hex(clockDivider), LV_PART_MAIN);
 
   if (g_lvglTemp) lv_obj_set_style_text_color(g_lvglTemp, lv_color_hex(weatherTextPrimary), 0);
   if (g_lvglDesc) lv_obj_set_style_text_color(g_lvglDesc, lv_color_hex(weatherTextPrimary), 0);
@@ -5640,6 +5762,39 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglInfoTitle) lv_obj_set_style_text_color(g_lvglInfoTitle, lv_color_hex(infoHeaderText), 0);
   if (g_lvglInfoEndpoint) lv_obj_set_style_text_color(g_lvglInfoEndpoint, lv_color_hex(infoHeaderText), 0);
   if (g_lvglInfoBodyLeft) lv_obj_set_style_text_color(g_lvglInfoBodyLeft, lv_color_hex(t.infoText), 0);
+
+#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
+  if (g_lvglInfoWebQr) {
+    lv_obj_t *infoQrParent = lv_obj_get_parent(g_lvglInfoWebQr);
+    const lv_coord_t infoQrSize = lv_obj_get_width(g_lvglInfoWebQr);
+    char infoPayload[sizeof(g_lvglInfoLastQrPayload)];
+    copyStringSafe(
+      infoPayload,
+      sizeof(infoPayload),
+      g_lvglInfoLastQrPayload[0] ? g_lvglInfoLastQrPayload : "http://--:8080"
+    );
+    lv_obj_del(g_lvglInfoWebQr);
+    g_lvglInfoWebQr = lv_qrcode_create(infoQrParent, infoQrSize, lv_color_hex(t.infoQrDark), lv_color_hex(t.infoQrLight));
+    lv_obj_align(g_lvglInfoWebQr, LV_ALIGN_CENTER, 0, 0);
+    lv_qrcode_update(g_lvglInfoWebQr, infoPayload, strlen(infoPayload));
+  }
+  if (g_lvglAuxQr) {
+    lv_obj_t *auxQrParent = lv_obj_get_parent(g_lvglAuxQr);
+    const lv_coord_t auxQrSize = lv_obj_get_width(g_lvglAuxQr);
+    const bool auxQrHidden = lv_obj_has_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
+    char auxPayload[sizeof(g_lvglAuxLastQrPayload)];
+    copyStringSafe(
+      auxPayload,
+      sizeof(auxPayload),
+      g_lvglAuxLastQrPayload[0] ? g_lvglAuxLastQrPayload : "https://ansa.it"
+    );
+    lv_obj_del(g_lvglAuxQr);
+    g_lvglAuxQr = lv_qrcode_create(auxQrParent, auxQrSize, lv_color_hex(t.auxQrDark), lv_color_hex(t.auxQrLight));
+    lv_obj_center(g_lvglAuxQr);
+    lv_qrcode_update(g_lvglAuxQr, auxPayload, strlen(auxPayload));
+    if (auxQrHidden) lv_obj_add_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
+  }
+#endif
 
   if (g_lvglAuxSourceBadge) {
     lv_obj_set_style_bg_color(g_lvglAuxSourceBadge, lv_color_hex(t.auxBadgeBg), LV_PART_MAIN);
@@ -7399,6 +7554,40 @@ static const char* wordHourGenz(int h12) {
   }
 }
 
+static const char* wordMinuteGenz(int m) {
+  switch (m) {
+    case 5:  return "cinque";
+    case 10: return "dieci";
+    case 15: return "un quarto";
+    case 20: return "venti";
+    case 25: return "venticinque";
+    case 30: return "mezza";
+    default: return "";
+  }
+}
+
+static const char* genzLead(uint8_t vibe) {
+  switch (vibe % 6) {
+    case 0: return "dai";
+    case 1: return "bro";
+    case 2: return "zio";
+    case 3: return "raga";
+    case 4: return "fra";
+    default: return "amo";
+  }
+}
+
+static const char* genzCloser(uint8_t vibe) {
+  switch (vibe % 6) {
+    case 0: return "no cap";
+    case 1: return "onesto";
+    case 2: return "ngl";
+    case 3: return "fr";
+    case 4: return "real";
+    default: return "ti giuro";
+  }
+}
+
 static void composeWordClockSentenceGenz(const tm &timeinfo, char *out, size_t outLen) {
   int h12 = timeinfo.tm_hour % 12;
   if (h12 == 0) h12 = 12;
@@ -7409,24 +7598,41 @@ static void composeWordClockSentenceGenz(const tm &timeinfo, char *out, size_t o
   const char* nhr = wordHourGenz(nh);
   bool sing   = (h12 == 1);   // l'una vs le X
   bool nhSing = (nh  == 1);
+  const uint8_t vibe = (uint8_t)((timeinfo.tm_wday * 3 + h12 + (m5 / 5)) % 6);
+  const char *lead = genzLead(vibe);
+  const char *closer = genzCloser(vibe);
+  const bool robaTipo = (vibe == 4);
+
   if (m5 == 0) {
-    if (sing) snprintf(out, outLen, "boh tipo e' l'%s", hr);
-    else      snprintf(out, outLen, "boh tipo le %s", hr);
+    if (sing) snprintf(out, outLen, "%s, e' l'%s %s", lead, hr, closer);
+    else      snprintf(out, outLen, "%s, sono le %s %s", lead, hr, closer);
   } else if (m5 == 15) {
-    if (sing) snprintf(out, outLen, "tipo l'%s e un quarto", hr);
-    else      snprintf(out, outLen, "tipo le %s e un quarto", hr);
+    if (sing) snprintf(out, outLen, "%s, l'%s e un quarto %s", lead, hr, closer);
+    else      snprintf(out, outLen, "%s, le %s e un quarto %s", lead, hr, closer);
   } else if (m5 == 30) {
-    if (sing) snprintf(out, outLen, "letteralmente l'%s e mezza", hr);
-    else      snprintf(out, outLen, "letteralmente le %s e mezza", hr);
-  } else if (m5 == 45) {
-    if (nhSing) snprintf(out, outLen, "quasi l'%s ngl", nhr);
-    else        snprintf(out, outLen, "quasi le %s ngl", nhr);
+    if (robaTipo) {
+      if (sing) snprintf(out, outLen, "una roba tipo l'%s e mezza %s", hr, closer);
+      else      snprintf(out, outLen, "una roba tipo le %s e mezza %s", hr, closer);
+    } else {
+      if (sing) snprintf(out, outLen, "%s, l'%s e mezza %s", lead, hr, closer);
+      else      snprintf(out, outLen, "%s, le %s e mezza %s", lead, hr, closer);
+    }
+  } else if (m5 >= 45) {
+    if (nhSing) snprintf(out, outLen, "%s, sara' l'%s tra poco %s", lead, nhr, closer);
+    else        snprintf(out, outLen, "%s, saranno le %s tra poco %s", lead, nhr, closer);
   } else if (m5 < 30) {
-    if (sing) snprintf(out, outLen, "tipo l'%s e %d, boh", hr, m5);
-    else      snprintf(out, outLen, "tipo le %s e %d, boh", hr, m5);
+    const char *mm = wordMinuteGenz(m5);
+    if (robaTipo) {
+      if (sing) snprintf(out, outLen, "una roba tipo l'%s e %s %s", hr, mm, closer);
+      else      snprintf(out, outLen, "una roba tipo le %s e %s %s", hr, mm, closer);
+    } else {
+      if (sing) snprintf(out, outLen, "%s, l'%s e %s %s", lead, hr, mm, closer);
+      else      snprintf(out, outLen, "%s, le %s e %s %s", lead, hr, mm, closer);
+    }
   } else {
-    if (nhSing) snprintf(out, outLen, "mancano %d a l'%s, skip", 60 - m5, nhr);
-    else        snprintf(out, outLen, "mancano %d a le %s, skip", 60 - m5, nhr);
+    const char *mm = wordMinuteGenz(60 - m5);
+    if (nhSing) snprintf(out, outLen, "%s, mancano %s all'%s %s", lead, mm, nhr, closer);
+    else        snprintf(out, outLen, "%s, mancano %s alle %s %s", lead, mm, nhr, closer);
   }
 }
 
@@ -7643,7 +7849,7 @@ static const lv_font_t* lvglFontToxicClock() {
 }
 
 static const lv_font_t* lvglFontTitle() {
-  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicTitle();
 #if defined(LV_FONT_MONTSERRAT_30) && LV_FONT_MONTSERRAT_30
   return &lv_font_montserrat_30;
@@ -7655,7 +7861,7 @@ static const lv_font_t* lvglFontTitle() {
 }
 
 static const lv_font_t* lvglFontBody() {
-  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicBody();
 #if defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
   return &lv_font_montserrat_24;
@@ -7669,7 +7875,7 @@ static const lv_font_t* lvglFontBody() {
 }
 
 static const lv_font_t* lvglFontSmall() {
-  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicSmall();
 #if defined(LV_FONT_MONTSERRAT_18) && LV_FONT_MONTSERRAT_18
   return &lv_font_montserrat_18;
@@ -7681,7 +7887,7 @@ static const lv_font_t* lvglFontSmall() {
 }
 
 static const lv_font_t* lvglFontTiny() {
-  if (lvglThemeIsCyberpunk()) return lvglFontTerminalTiny();
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminalTiny();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicTiny();
 #if defined(LV_FONT_MONTSERRAT_14) && LV_FONT_MONTSERRAT_14
   return &lv_font_montserrat_14;
@@ -7691,7 +7897,7 @@ static const lv_font_t* lvglFontTiny() {
 }
 
 static const lv_font_t* lvglFontMini() {
-  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicSmall();
 #if defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
   return &lv_font_montserrat_16;
@@ -7709,7 +7915,7 @@ static const lv_font_t* lvglFontMonoTiny() {
 }
 
 static const lv_font_t* lvglFontInfoBody() {
-  if (lvglThemeIsCyberpunk()) return lvglFontTerminalTiny();
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminalTiny();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicSmall();
 #if defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
   return &lv_font_montserrat_16;
@@ -7721,7 +7927,7 @@ static const lv_font_t* lvglFontInfoBody() {
 }
 
 static const lv_font_t* lvglFontMeta() {
-  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicBody();
 #if defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
   return &lv_font_montserrat_20;
@@ -7731,7 +7937,7 @@ static const lv_font_t* lvglFontMeta() {
 }
 
 static const lv_font_t* lvglFontRssNews() {
-  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicBody();
 #if defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
   return &lv_font_montserrat_22;
@@ -7745,7 +7951,7 @@ static const lv_font_t* lvglFontRssNews() {
 }
 
 static const lv_font_t* lvglFontClock() {
-  if (lvglThemeIsCyberpunk()) return &scry_font_space_mono_32;
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return &scry_font_space_mono_32;
   if (lvglThemeIsToxicCandy()) return lvglFontToxicClock();
 #if defined(LV_FONT_MONTSERRAT_38) && LV_FONT_MONTSERRAT_38
   return &lv_font_montserrat_38;
@@ -7767,7 +7973,7 @@ static const lv_font_t* lvglFontClock() {
 }
 
 static const lv_font_t* lvglFontBig() {
-  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicBig();
 #if defined(LV_FONT_MONTSERRAT_32) && LV_FONT_MONTSERRAT_32
   return &lv_font_montserrat_32;
@@ -7779,7 +7985,7 @@ static const lv_font_t* lvglFontBig() {
 }
 
 static const lv_font_t* lvglFontTemp() {
-  if (lvglThemeIsCyberpunk()) return lvglFontTerminal();
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicTitle();
 #if defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
   return &lv_font_montserrat_24;
@@ -7804,7 +8010,7 @@ static lv_coord_t lvglClockLineSpaceForFont(const lv_font_t *font) {
 static uint8_t lvglCollectClockFonts(const lv_font_t **out, uint8_t cap) {
   if (!out || cap == 0) return 0;
   uint8_t n = 0;
-  if (lvglThemeIsCyberpunk()) {
+  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) {
     out[n++] = &scry_font_space_mono_32;
     if (n < cap) out[n++] = &scry_font_space_mono_28;
     if (n < cap) out[n++] = &scry_font_space_mono_24;

@@ -107,6 +107,8 @@ Current theme ids:
 - `scrybar-default`
 - `cyberpunk-2077`
 - `toxic-candy`
+- `tokyo-transit`
+- `minimal-brutalist-mono`
 
 Theme switch inputs:
 
@@ -138,6 +140,13 @@ Important behavior rule:
   - Main UI font: Delius Unicase (web), Chakra fallback
   - Mono: Space Mono stack
   - LVGL custom font family: `scry_font_delius_unicase_*`
+- `tokyo-transit`
+  - Main UI font: Chakra Petch (web), Space Mono fallback
+  - Mono: Space Mono stack
+  - LVGL custom font family: `scry_font_space_mono_*`
+- `minimal-brutalist-mono`
+  - Main + mono web font: IBM Plex Mono stack
+  - LVGL custom font family: `scry_font_space_mono_*` (embedded fallback)
 
 ### Generated LVGL fonts
 
@@ -176,6 +185,10 @@ Supported 14 language codes:
 
 - Standard: `it`, `en`, `fr`, `de`, `es`, `pt`, `la`, `eo`, `nap`, `tlh`
 - Creative/fun: `l33t`, `sha`, `val`, `genz`
+
+Gen Z sentence style rule:
+
+- `genz` keeps slang always-on with rotating lead/closer expressions (for variety), while preserving correct Italian grammar (`all'` / `alle`) and writing minute values in words (not digits).
 
 Localization architecture:
 
@@ -216,6 +229,10 @@ Main files:
 - `scrybar.css`
 - `SCRYBAR_DESIGN_SYSTEM.md`
 
+Theme ideation backlog:
+
+- `knowledge/theme_proposals_catalog.md` tracks candidate themes, palettes, font pairings, and external style references before implementation.
+
 ## README Preview Assets
 
 Theme preview screenshots used in `README.md` are tracked in:
@@ -223,6 +240,8 @@ Theme preview screenshots used in `README.md` are tracked in:
 - `assets/readme_previews/home_weather_scrybar-default.png`
 - `assets/readme_previews/home_weather_cyberpunk-2077.png`
 - `assets/readme_previews/home_weather_toxic-candy.png`
+- `assets/readme_previews/home_weather_tokyo-transit.png`
+- `assets/readme_previews/home_weather_minimal-brutalist-mono.png`
 
 This location is intentionally outside ignored `screenshots/` paths.
 

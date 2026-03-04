@@ -99,7 +99,7 @@ Entry format:
 ## 2026-03-04 - Unified Runtime Theming Across Firmware, Web UI, and Design System
 
 - Context: Theme styling had to stay coherent across three surfaces: LVGL device UI, embedded web control surface, and standalone design system documentation.
-- Decision: Centralize runtime themes in firmware through `kUiThemes[]` with two token sets per theme (`UiThemeLvglTokens` + `UiThemeWebTokens`) and keep the same theme ids in design system (`scrybar-default`, `cyberpunk-2077`, `toxic-candy`).
+- Decision: Centralize runtime themes in firmware through `kUiThemes[]` with two token sets per theme (`UiThemeLvglTokens` + `UiThemeWebTokens`) and keep the same theme ids in design system (`scrybar-default`, `cyberpunk-2077`, `toxic-candy`, `tokyo-transit`, `minimal-brutalist-mono`).
 - Impact/Tradeoffs: Theme switching is now one conceptual model across product and docs; adding a new theme requires touching both firmware tokens and design-system CSS variables, but naming remains consistent and migration risk is lower.
 
 ---
@@ -125,3 +125,27 @@ Entry format:
 - Context: Weather icons are authored for transparency over light backgrounds and degraded visually on dark themed weather cards.
 - Decision: Enforce a light weather background with dark text/glyph fallback when active theme weather colors do not meet readability thresholds.
 - Impact/Tradeoffs: Theme purity is slightly reduced in weather panel for some palettes, but icon legibility and UI clarity are consistently preserved.
+
+---
+
+## 2026-03-04 - Theme Exploration Catalog in Public Knowledge
+
+- Context: Theme ideation was happening in chat threads and risked being lost across sessions, making it harder for future assistants and contributors to continue consistently.
+- Decision: Add and maintain `knowledge/theme_proposals_catalog.md` as the canonical backlog for visual theme concepts, including palette seeds, static font recommendations, references, and implementation notes.
+- Impact/Tradeoffs: Better continuity and discoverability; requires periodic curation to keep links and priorities fresh.
+
+---
+
+## 2026-03-04 - Minimal Brutalist Mono Theme as First-Class Runtime Theme
+
+- Context: Third production theme was requested with a strict monochrome brutalist visual language, but still needed to remain swappable with the same runtime theming model used by existing themes.
+- Decision: Add `minimal-brutalist-mono` to the shared theme registry (`kUiThemes[]`) with both web and LVGL token sets, wire it into design system selector/JS support, and map typography to `IBM Plex Mono` for web and `scry_font_space_mono_*` for LVGL fallback consistency.
+- Impact/Tradeoffs: Fast runtime swaps across firmware UI and web UI remain intact; visual identity is distinct and high-contrast, while embedded font pipeline stays stable without introducing new LVGL font assets.
+
+---
+
+## 2026-03-04 - Gen Z Clock Grammar + Slang Always-On Policy
+
+- Context: Gen Z clock strings had grammatical defects (`a le`) and numeric minute rendering that reduced natural Italian readability.
+- Decision: For `genz`, enforce minute words (`cinque`, `dieci`, `venti`, `venticinque`) and correct prepositions (`all'`, `alle`), while keeping slang always present via rotating lead/closer phrases and additional variants such as `una roba tipo ...`.
+- Impact/Tradeoffs: Output remains playful and varied without sacrificing grammatical correctness; deterministic variation avoids visual flicker while preserving humor in daily use.

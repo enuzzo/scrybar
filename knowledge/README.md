@@ -16,6 +16,7 @@ This folder is public and versioned by design.
 - `assistant_bootstrap_prompt.md`: prompt to paste at session start.
 - `project_knowledge.md`: stable technical context and defaults.
 - `decisions.md`: concise architectural/operational decisions (ADR-lite).
+- `theme_proposals_catalog.md`: living backlog of theme concepts (palette, fonts, references, implementation notes).
 
 ## Data Policy (Mandatory)
 
