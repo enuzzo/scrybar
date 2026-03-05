@@ -7,6 +7,7 @@ Stable technical context for all AI assistants.
 - `scrybar.ino`: main firmware sketch in repository root.
 - `config.h`: runtime feature toggles, hardware profile constants, firmware build tag/date.
 - `src/`: firmware support modules and generated assets (including LVGL fonts in `src/fonts/`).
+- `vendor/`: parked third-party modules not in active compile path (for reference/reuse).
 - `assets/`: static resources (logos, design system, README previews, source TTFs).
 - `assets/scrybar_design_system/`: standalone HTML/CSS design system with runtime theme selector.
 - `tools/`: operational scripts (notably screenshot capture via serial framebuffer dump).
@@ -157,8 +158,8 @@ Sources:
 
 Generated outputs:
 
-- `src/fonts/scry_font_space_mono_{12,16,20,24,28,32}.c`
-- `src/fonts/scry_font_delius_unicase_{12,16,20,24,28,32}.c`
+- `src/fonts/scry_font_space_mono_{12,16,18,20,24,28,32}.c`
+- `src/fonts/scry_font_delius_unicase_{12,16,18,20,24,28,32}.c`
 
 Generation constraints:
 
@@ -166,6 +167,24 @@ Generation constraints:
 - `lv_font_conv` with `--no-compress`
 - Glyph range: `0x20-0x7E`
 - Montserrat fallback enabled per size
+
+## Build-Scope Hygiene
+
+Arduino sketch behavior:
+
+- Sources under `src/` are part of the active compile scope.
+- Parked modules should stay under `vendor/` to avoid implicit compile.
+
+Audio stack policy:
+
+- Legacy audio/codec tree was moved from `src/audio` to `vendor/audio`.
+- It is retained for future work but intentionally excluded from default firmware builds.
+- Reactivation should be explicit and partial (import only required modules), not full-tree restore.
+
+Reference:
+
+- `src/README.md`
+- `vendor/audio/README.md`
 
 ### Clock sentence auto-fit
 
@@ -189,6 +208,11 @@ Supported 14 language codes:
 Gen Z sentence style rule:
 
 - `genz` keeps slang always-on with rotating lead/closer expressions (for variety), while preserving correct Italian grammar (`all'` / `alle`) and writing minute values in words (not digits).
+
+Screensaver thought localization rule:
+
+- Cow thought balloon quotes are language-aware and follow `wc_lang`.
+- Supported with dedicated quote packs for all configured language codes; unknown codes fallback to Italian.
 
 Localization architecture:
 

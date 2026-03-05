@@ -37,6 +37,7 @@
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
 #include <lvgl.h>
 LV_FONT_DECLARE(scry_font_space_mono_16);
+LV_FONT_DECLARE(scry_font_space_mono_18);
 LV_FONT_DECLARE(scry_font_space_mono_12);
 LV_FONT_DECLARE(scry_font_space_mono_20);
 LV_FONT_DECLARE(scry_font_space_mono_24);
@@ -44,6 +45,7 @@ LV_FONT_DECLARE(scry_font_space_mono_28);
 LV_FONT_DECLARE(scry_font_space_mono_32);
 LV_FONT_DECLARE(scry_font_delius_unicase_12);
 LV_FONT_DECLARE(scry_font_delius_unicase_16);
+LV_FONT_DECLARE(scry_font_delius_unicase_18);
 LV_FONT_DECLARE(scry_font_delius_unicase_20);
 LV_FONT_DECLARE(scry_font_delius_unicase_24);
 LV_FONT_DECLARE(scry_font_delius_unicase_28);
@@ -5559,6 +5561,38 @@ static uint16_t lvglColorLuma(uint32_t rgb) {
   return (uint16_t)((299u * r + 587u * g + 114u * b) / 1000u);
 }
 
+static uint16_t lvglColorContrastLuma(uint32_t fg, uint32_t bg) {
+  const uint16_t lf = lvglColorLuma(fg);
+  const uint16_t lb = lvglColorLuma(bg);
+  return (lf >= lb) ? (uint16_t)(lf - lb) : (uint16_t)(lb - lf);
+}
+
+static uint32_t lvglResolvedSaverReadableText(const UiThemeLvglTokens &t) {
+  const uint32_t bg = t.screenBg;
+  const uint32_t candidates[] = {
+      t.saverBalloon,
+      t.saverFooter,
+      t.infoText,
+      t.auxSourceText,
+      t.headerText,
+      0xFFFFFF,
+  };
+  uint32_t best = 0xFFFFFF;
+  uint16_t bestScore = 0;
+  for (size_t i = 0; i < (sizeof(candidates) / sizeof(candidates[0])); ++i) {
+    const uint32_t c = candidates[i];
+    if (c == t.saverCow) continue;
+    if (lvglColorLuma(c) < 145u) continue;
+    const uint16_t score = lvglColorContrastLuma(c, bg);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  if (bestScore < 95u) return 0xFFFFFF;
+  return best;
+}
+
 static uint32_t lvglResolvedPanelBg(const UiThemeLvglTokens &t) {
   // Cyberpunk on ESP should stay deep navy/teal, not electric blue.
   if (lvglThemeIsCyberpunk()) return 0x091523;
@@ -5641,6 +5675,7 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   const uint32_t forecastText = lvglResolvedForecastText(t, weatherBg, weatherTextPrimary);
   const uint32_t weatherGlyphOnline = lvglResolvedWeatherGlyphOnline(t, weatherBg, weatherTextPrimary);
   const uint32_t weatherGlyphOffline = lvglResolvedWeatherGlyphOffline(t, weatherBg, weatherTextSecondary);
+  const uint32_t saverReadableText = lvglResolvedSaverReadableText(t);
   uint32_t clockLine1 = cyberpunk ? t.infoText : t.headerText;
   uint32_t clockLine2 = t.infoText;
   uint32_t clockLine3 = cyberpunk ? t.auxMeta : headerMeta;
@@ -5817,9 +5852,9 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglScreenSaverSky) lv_obj_set_style_text_color(g_lvglScreenSaverSky, lv_color_hex(t.saverSky), 0);
   if (g_lvglScreenSaverField) lv_obj_set_style_text_color(g_lvglScreenSaverField, lv_color_hex(t.saverField), 0);
   if (g_lvglScreenSaverCow) lv_obj_set_style_text_color(g_lvglScreenSaverCow, lv_color_hex(t.saverCow), 0);
-  if (g_lvglScreenSaverBalloon) lv_obj_set_style_text_color(g_lvglScreenSaverBalloon, lv_color_hex(t.saverBalloon), 0);
-  if (g_lvglScreenSaverBalloonTail) lv_obj_set_style_text_color(g_lvglScreenSaverBalloonTail, lv_color_hex(t.saverTail), 0);
-  if (g_lvglScreenSaverFooter) lv_obj_set_style_text_color(g_lvglScreenSaverFooter, lv_color_hex(t.saverFooter), 0);
+  if (g_lvglScreenSaverBalloon) lv_obj_set_style_text_color(g_lvglScreenSaverBalloon, lv_color_hex(saverReadableText), 0);
+  if (g_lvglScreenSaverBalloonTail) lv_obj_set_style_text_color(g_lvglScreenSaverBalloonTail, lv_color_hex(saverReadableText), 0);
+  if (g_lvglScreenSaverFooter) lv_obj_set_style_text_color(g_lvglScreenSaverFooter, lv_color_hex(saverReadableText), 0);
   for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
       if (!g_lvglScreenSaverStarObj[r][s]) continue;
@@ -5931,13 +5966,33 @@ static void lvglScreenSaverSetCowArt(int8_t dir) {
   lv_label_set_text(g_lvglScreenSaverCow, (dir >= 0) ? kCowLeft : kCowRight);
 }
 
-static constexpr uint8_t kScreenSaverThoughtWrapCols = 28;
-static constexpr uint8_t kScreenSaverThoughtMaxLines = 3;
+static constexpr uint8_t kScreenSaverThoughtMaxLines = 4;
+
+static uint8_t lvglScreenSaverWrapCols() {
+  const int16_t cw = canvasWidth();
+  if (cw <= 0) return 18;
+  const lv_font_t *f = lvglFontScreenSaverBalloonText();
+  uint16_t charPx = 12;
+  if (f && f->line_height > 0) {
+    charPx = (uint16_t)((f->line_height * 58u) / 100u);
+    if (charPx < 9u) charPx = 9u;
+  }
+  uint16_t maxW = (uint16_t)((cw * 66) / 100);
+  uint8_t cols = (charPx > 0u) ? (uint8_t)(maxW / charPx) : 18u;
+  if (cols < 14u) cols = 14u;
+  if (cols > 30u) cols = 30u;
+  return cols;
+}
 
 static uint16_t lvglScreenSaverEstimateBalloonWidth(const char *text) {
-  const uint16_t kMinW = 64;
-  const uint16_t kCharPx = 8;
-  const uint16_t kPadPx = 2;
+  const uint16_t kMinW = 112;
+  uint16_t kCharPx = 12;
+  const lv_font_t *f = lvglFontScreenSaverBalloonText();
+  if (f && f->line_height > 0) {
+    kCharPx = (uint16_t)((f->line_height * 58u) / 100u);
+    if (kCharPx < 9u) kCharPx = 9u;
+  }
+  const uint16_t kPadPx = 10;
   if (!text || !text[0]) return kMinW;
   uint16_t maxLineLen = 0;
   uint16_t lineLen = 0;
@@ -5952,7 +6007,7 @@ static uint16_t lvglScreenSaverEstimateBalloonWidth(const char *text) {
   if (lineLen > maxLineLen) maxLineLen = lineLen;
   uint16_t w = (uint16_t)(kPadPx + (maxLineLen * kCharPx));
   const int16_t cw = canvasWidth();
-  const uint16_t kMaxW = (cw > 40) ? (uint16_t)((cw * 56) / 100) : 320;
+  const uint16_t kMaxW = (cw > 40) ? (uint16_t)((cw * 66) / 100) : 320;
   if (w < kMinW) w = kMinW;
   if (w > kMaxW) w = kMaxW;
   return w;
@@ -6056,10 +6111,10 @@ static void lvglScreenSaverUpdateFooter(uint32_t nowMs) {
     snprintf(buf, sizeof(buf), "--:--  --/--");
   }
   static const int8_t kJitterXY[4][2] = {
-      {-8, -2},
-      {-10, -2},
-      {-8, -3},
-      {-7, -1},
+      {-10, -4},
+      {-12, -4},
+      {-10, -5},
+      {-9, -3},
   };
   lv_label_set_text(g_lvglScreenSaverFooter, buf);
   lv_obj_align(g_lvglScreenSaverFooter, LV_ALIGN_BOTTOM_RIGHT,
@@ -6115,54 +6170,157 @@ static void lvglScreenSaverInitStars() {
   }
 }
 
+static const char *const kSaverQuotesIt[] = {
+    "Mastico erba e penso a Nietzsche.",
+    "Ho quattro stomaci e zero risposte.",
+    "Il libero arbitrio finisce al recinto elettrico.",
+    "Tutti cercano il senso della vita. Io cerco trifoglio.",
+    "Non sono pigra. Sono in contemplazione.",
+    "Il mondo gira, l'erba cresce, io mastico.",
+    "Di notte le stelle promettono troppo.",
+    "Produco latte e dubbi esistenziali.",
+};
+
+static const char *const kSaverQuotesEn[] = {
+    "I chew grass and think about Nietzsche.",
+    "I have four stomachs and zero answers.",
+    "Free will ends at the electric fence.",
+    "Everyone seeks meaning. I seek clover.",
+    "I am not lazy. I am contemplating.",
+    "The world spins, grass grows, I chew.",
+    "At night, stars overpromise.",
+    "I produce milk and existential doubt.",
+};
+
+static const char *const kSaverQuotesFr[] = {
+    "Je rumine de l'herbe et des idees noires.",
+    "J'ai quatre estomacs et zero reponse.",
+    "La liberte s'arrete au fil electrique.",
+    "Tout le monde cherche le sens, moi le trefle.",
+    "Je ne suis pas paresseuse, je contemple.",
+    "La nuit, les etoiles promettent trop.",
+};
+
+static const char *const kSaverQuotesDe[] = {
+    "Ich kaue Gras und denke an Nietzsche.",
+    "Ich habe vier Magen und null Antworten.",
+    "Freier Wille endet am Elektrozaun.",
+    "Alle suchen Sinn, ich suche Klee.",
+    "Ich bin nicht faul, ich kontempliere.",
+    "Nachts versprechen Sterne zu viel.",
+};
+
+static const char *const kSaverQuotesEs[] = {
+    "Mastico hierba y pienso en Nietzsche.",
+    "Tengo cuatro estomagos y cero respuestas.",
+    "El libre albedrio termina en la cerca electrica.",
+    "Todos buscan sentido, yo busco trebol.",
+    "No soy perezosa, estoy contemplando.",
+    "De noche, las estrellas prometen de mas.",
+};
+
+static const char *const kSaverQuotesPt[] = {
+    "Mastigo erva e penso em Nietzsche.",
+    "Tenho quatro estomagos e zero respostas.",
+    "O livre arbitrio acaba na cerca eletrica.",
+    "Todo mundo busca sentido, eu busco trevo.",
+    "Nao sou preguicosa, estou contemplando.",
+    "A noite, as estrelas prometem demais.",
+};
+
+static const char *const kSaverQuotesLa[] = {
+    "Herbam rumino et de Nietzsche cogito.",
+    "Quattuor ventriculos habeo, responsa nulla.",
+    "Arbitrium liberum ad saeptum electricum finitur.",
+    "Omnes sensum quaerunt, ego trifolium quaero.",
+    "Pigra non sum; contemplor.",
+    "Mundus volvitur, herba crescit, rumino.",
+};
+
+static const char *const kSaverQuotesEo[] = {
+    "Mi machas herbon kaj pensas pri Nietzsche.",
+    "Mi havas kvar stomakojn kaj nul respondojn.",
+    "Chiuj serchas sencon; mi serchas trifolion.",
+    "Mi ne estas pigra, mi kontemplas.",
+};
+
+static const char *const kSaverQuotesNap[] = {
+    "Mastico erba e penzo a Nietzsche.",
+    "Tengo quatto stommache e nisciuna risposta.",
+    "Ll'arbetrio fernesce arrete o recinto.",
+    "Tutte cercano o senso, io cerco o trifoglio.",
+};
+
+static const char *const kSaverQuotesTlh[] = {
+    "yotlh vISoptaH, Nietzsche vIqel.",
+    "loS burgh vIghaj, pagh jangmey.",
+    "Saeptum tIq law', qabDaq yIQub.",
+    "Qapla? nope. vIneHbogh: clover.",
+};
+
+static const char *const kSaverQuotesL33t[] = {
+    "1 ch3w gr455 4nd th1nk 4b0u7 N137z5ch3.",
+    "1 h4v3 4 570m4ch5 x4 n0 4n5w3r5.",
+    "fr33 w1ll 3nd5 47 3l3c7r1c f3nc3.",
+    "n07 l4zy, ju57 c0n73mpl471n9.",
+};
+
+static const char *const kSaverQuotesSha[] = {
+    "I chew the meadow and converse with dread.",
+    "Four stomachs have I, yet answers none.",
+    "Free will doth end where fences hum.",
+    "I seek not glory, only clover.",
+};
+
+static const char *const kSaverQuotesVal[] = {
+    "Like, I chew grass and overthink everything.",
+    "I have four stomachs, still zero clarity.",
+    "Free will? Not with that electric fence.",
+    "I am not lazy, I am vibing in thought.",
+};
+
+static const char *const kSaverQuotesGenz[] = {
+    "Bro, mastico e overpenso pesante.",
+    "Zio, quattro stomaci e zero lore.",
+    "Dai, free will finisce al recinto.",
+    "Una roba tipo filosofia, ma col trifoglio.",
+    "Onesto: non pigra, solo chill contemplativo.",
+    "Le stelle hypeano troppo, bro.",
+};
+
+static void lvglScreenSaverQuotePackForLang(const char *const **items, uint8_t *count) {
+  if (!items || !count) return;
+  *items = kSaverQuotesIt;
+  *count = (uint8_t)(sizeof(kSaverQuotesIt) / sizeof(kSaverQuotesIt[0]));
+  if (strcmp(g_wordClockLang, "en") == 0) { *items = kSaverQuotesEn; *count = (uint8_t)(sizeof(kSaverQuotesEn) / sizeof(kSaverQuotesEn[0])); return; }
+  if (strcmp(g_wordClockLang, "fr") == 0) { *items = kSaverQuotesFr; *count = (uint8_t)(sizeof(kSaverQuotesFr) / sizeof(kSaverQuotesFr[0])); return; }
+  if (strcmp(g_wordClockLang, "de") == 0) { *items = kSaverQuotesDe; *count = (uint8_t)(sizeof(kSaverQuotesDe) / sizeof(kSaverQuotesDe[0])); return; }
+  if (strcmp(g_wordClockLang, "es") == 0) { *items = kSaverQuotesEs; *count = (uint8_t)(sizeof(kSaverQuotesEs) / sizeof(kSaverQuotesEs[0])); return; }
+  if (strcmp(g_wordClockLang, "pt") == 0) { *items = kSaverQuotesPt; *count = (uint8_t)(sizeof(kSaverQuotesPt) / sizeof(kSaverQuotesPt[0])); return; }
+  if (strcmp(g_wordClockLang, "la") == 0) { *items = kSaverQuotesLa; *count = (uint8_t)(sizeof(kSaverQuotesLa) / sizeof(kSaverQuotesLa[0])); return; }
+  if (strcmp(g_wordClockLang, "eo") == 0) { *items = kSaverQuotesEo; *count = (uint8_t)(sizeof(kSaverQuotesEo) / sizeof(kSaverQuotesEo[0])); return; }
+  if (strcmp(g_wordClockLang, "nap") == 0) { *items = kSaverQuotesNap; *count = (uint8_t)(sizeof(kSaverQuotesNap) / sizeof(kSaverQuotesNap[0])); return; }
+  if (strcmp(g_wordClockLang, "tlh") == 0) { *items = kSaverQuotesTlh; *count = (uint8_t)(sizeof(kSaverQuotesTlh) / sizeof(kSaverQuotesTlh[0])); return; }
+  if (strcmp(g_wordClockLang, "l33t") == 0) { *items = kSaverQuotesL33t; *count = (uint8_t)(sizeof(kSaverQuotesL33t) / sizeof(kSaverQuotesL33t[0])); return; }
+  if (strcmp(g_wordClockLang, "sha") == 0) { *items = kSaverQuotesSha; *count = (uint8_t)(sizeof(kSaverQuotesSha) / sizeof(kSaverQuotesSha[0])); return; }
+  if (strcmp(g_wordClockLang, "val") == 0) { *items = kSaverQuotesVal; *count = (uint8_t)(sizeof(kSaverQuotesVal) / sizeof(kSaverQuotesVal[0])); return; }
+  if (strcmp(g_wordClockLang, "genz") == 0) { *items = kSaverQuotesGenz; *count = (uint8_t)(sizeof(kSaverQuotesGenz) / sizeof(kSaverQuotesGenz[0])); return; }
+}
+
 static void lvglScreenSaverSetBalloonText() {
   if (!g_lvglScreenSaverBalloon) return;
-  static const char *kQuotes[] = {
-      "Mastico erba e penso a Nietzsche. Lui almeno non doveva produrre latte.",
-      "Rumino pensieri a 4 stomaci di profondita'.",
-      "Ho 4 stomaci e zero risposte.",
-      "Cartesio disse \"penso dunque sono\". Io muggisco, dunque boh.",
-      "Produco latte, metano e dubbi esistenziali. Non necessariamente in quest'ordine.",
-      "Il pastore dice \"muoviti\". Il filosofo dice \"perche'\". Io faccio entrambe le cose.",
-      "Se un albero cade nella foresta e nessuno lo sente, io lo mastico.",
-      "Kafka si e' svegliato scarafaggio. Poteva andargli peggio.",
-      "Sartre aveva ragione: l'inferno sono gli altri. Soprattutto il veterinario.",
-      "Camus disse che bisogna immaginare Sisifo felice. Io rumino e confermo.",
-      "Platone parlava di caverne. Io ho un intero prato e non mi basta.",
-      "Il contadino pensa di possedermi. Il recinto pensa di contenermi. Io penso.",
-      "Il libero arbitrio e' sopravvalutato quando hai un recinto elettrico.",
-      "Di notte le stelle sembrano promesse che nessuno intende mantenere.",
-      "La mia opinione non conta. Ma neanche la tua, se ci pensi.",
-      "Guardano la luna. Io guardo l'erba. Chi di noi si sbaglia?",
-      "Tutti cercano il senso della vita. Io cerco il trifoglio. Stessi risultati.",
-      "Il pessimista vede il bicchiere mezzo vuoto. Io vedo il secchio mezzo munto.",
-      "Socrate sapeva di non sapere. Io non so neanche quello.",
-      "La differenza tra me e un filosofo e' che io almeno produco qualcosa.",
-      "Mi dicono di vivere il momento. Sono una mucca: non ho alternative.",
-      "Epicuro cercava il piacere. Io ho trovato il trifoglio. Stesso concetto.",
-      "Il silenzio del prato di notte e' la risposta a domande che nessuno ha fatto.",
-      "Non sono pigra. Sono in contemplazione. C'e' una differenza sottile.",
-      "Il mondo gira, l'erba cresce, io mastico. Tutto il resto e' opinabile.",
-      "Diogene viveva in una botte. Io in un campo. Almeno ho piu' spazio.",
-      "Ogni giorno e' uguale. I buddisti la chiamano illuminazione, io la chiamo lunedi'.",
-      "L'ottimismo e' quella cosa che ti fa credere che il recinto sia un suggerimento.",
-      "La notte e' fatta per chi rumina. In tutti i sensi.",
-      "Seneca consigliava di prepararsi al peggio. Ma lui non ha mai visto un mattatoio.",
-      "La felicita' e' un prato verde e la certezza che il contadino dorma.",
-      "Pascal scommetteva su Dio. Io scommetto che domani c'e' ancora erba.",
-      "Il mio contributo alla societa' e' involontario. Come quello di molti.",
-      "Guardo il tramonto e penso: un altro giorno senza aver concluso niente. Come tutti.",
-      "La differenza tra una mucca e un uomo d'affari? La mucca sa di stare in un recinto.",
-      "Schopenhauer aveva ragione su tutto. Tranne che sull'erba: e' ottima.",
-      "L'esistenzialismo e' un lusso per chi non deve essere munto alle 5.",
-      "Muggire nel vuoto. Nessuno risponde. Come mandare un messaggio al proprio ex.",
-      "Non invidio gli umani. Hanno piu' scelte e le stesse risposte: nessuna.",
-      "La luna sorge, il grillo canta, io mastico. Chiamatela pure filosofia."};
-  const uint8_t n = (uint8_t)(sizeof(kQuotes) / sizeof(kQuotes[0]));
-  g_lvglScreenSaverBalloonIdx = (uint8_t)((g_lvglScreenSaverBalloonIdx + 1U + (lvglScreenSaverRandNext() % (n - 1U))) % n);
-  const char *quote = kQuotes[g_lvglScreenSaverBalloonIdx];
+  const char *const *quotes = nullptr;
+  uint8_t n = 0;
+  lvglScreenSaverQuotePackForLang(&quotes, &n);
+  if (!quotes || n == 0) return;
+  if (g_lvglScreenSaverBalloonIdx >= n) g_lvglScreenSaverBalloonIdx = 0;
+  if (n > 1U) {
+    g_lvglScreenSaverBalloonIdx =
+        (uint8_t)((g_lvglScreenSaverBalloonIdx + 1U + (lvglScreenSaverRandNext() % (n - 1U))) % n);
+  }
+  const char *quote = quotes[g_lvglScreenSaverBalloonIdx];
   static char wrapped[256];
-  lvglScreenSaverWrapQuote(quote, wrapped, sizeof(wrapped), kScreenSaverThoughtWrapCols, kScreenSaverThoughtMaxLines);
+  lvglScreenSaverWrapQuote(quote, wrapped, sizeof(wrapped), lvglScreenSaverWrapCols(), kScreenSaverThoughtMaxLines);
   lv_label_set_text(g_lvglScreenSaverBalloon, wrapped);
   lv_obj_set_size(g_lvglScreenSaverBalloon, lvglScreenSaverEstimateBalloonWidth(wrapped), LV_SIZE_CONTENT);
   lv_obj_update_layout(g_lvglScreenSaverBalloon);
@@ -6250,8 +6408,8 @@ static void lvglScreenSaverRespawnCow() {
   g_lvglScreenSaverColorIdx = (int8_t)((g_lvglScreenSaverColorIdx + 1) % 3);
   if (g_lvglScreenSaverCow) {
     const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-    const lv_color_t palette[3] = {lv_color_hex(t.saverCow), lv_color_hex(t.saverBalloon), lv_color_hex(t.saverCow)};
-    lv_obj_set_style_text_color(g_lvglScreenSaverCow, palette[g_lvglScreenSaverColorIdx], 0);
+    (void)g_lvglScreenSaverColorIdx;
+    lv_obj_set_style_text_color(g_lvglScreenSaverCow, lv_color_hex(t.saverCow), 0);
     lvglScreenSaverSetCowArt(g_lvglScreenSaverCowDir);
     lv_obj_set_pos(g_lvglScreenSaverCow, g_lvglScreenSaverX, g_lvglScreenSaverY);
   }
@@ -6376,14 +6534,15 @@ static void handleScreenSaverLoop(uint32_t nowMs) {
   }
   if (g_lvglScreenSaverBalloon && g_lvglScreenSaverBalloonVisible) {
     const int16_t bw = lv_obj_get_width(g_lvglScreenSaverBalloon);
+    const int16_t bh = lv_obj_get_height(g_lvglScreenSaverBalloon);
     int16_t bx = g_lvglScreenSaverX + ((g_lvglScreenSaverCowDir >= 0) ? 120 : -bw + 96);
     const int16_t maxX = canvasWidth() - bw - 8;
     if (bx < 8) bx = 8;
     if (bx > maxX) bx = maxX;
-    const int16_t by = g_lvglScreenSaverY - 50;
+    const int16_t by = g_lvglScreenSaverY - bh - 10;
     lv_obj_set_pos(g_lvglScreenSaverBalloon, bx, (by < 4) ? 4 : by);
     if (g_lvglScreenSaverBalloonTail) {
-      lv_obj_set_pos(g_lvglScreenSaverBalloonTail, bx, lv_obj_get_y(g_lvglScreenSaverBalloon) + lv_obj_get_height(g_lvglScreenSaverBalloon) + 2);
+      lv_obj_set_pos(g_lvglScreenSaverBalloonTail, bx, lv_obj_get_y(g_lvglScreenSaverBalloon) + bh + 2);
     }
   }
 }
@@ -7914,6 +8073,21 @@ static const lv_font_t* lvglFontMonoTiny() {
   return lvglFontTerminalTiny();
 }
 
+static const lv_font_t* lvglFontScreenSaverBalloonText() {
+  if (lvglThemeIsToxicCandy()) return &scry_font_delius_unicase_18;
+  return &scry_font_space_mono_18;
+}
+
+static const lv_font_t* lvglFontScreenSaverFooterText() {
+  if (lvglThemeIsToxicCandy()) return &scry_font_delius_unicase_24;
+  return &scry_font_space_mono_24;
+}
+
+static const lv_font_t* lvglFontScreenSaverTail() {
+  if (lvglThemeIsToxicCandy()) return &scry_font_delius_unicase_16;
+  return &scry_font_space_mono_16;
+}
+
 static const lv_font_t* lvglFontInfoBody() {
   if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminalTiny();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicSmall();
@@ -8131,9 +8305,9 @@ static void lvglApplyThemeFonts() {
   }
   if (g_lvglScreenSaverField) lv_obj_set_style_text_font(g_lvglScreenSaverField, lvglFontMonoTiny(), 0);
   if (g_lvglScreenSaverCow) lv_obj_set_style_text_font(g_lvglScreenSaverCow, lvglFontMonoTiny(), 0);
-  if (g_lvglScreenSaverBalloon) lv_obj_set_style_text_font(g_lvglScreenSaverBalloon, lvglFontMonoTiny(), 0);
-  if (g_lvglScreenSaverBalloonTail) lv_obj_set_style_text_font(g_lvglScreenSaverBalloonTail, lvglFontMonoTiny(), 0);
-  if (g_lvglScreenSaverFooter) lv_obj_set_style_text_font(g_lvglScreenSaverFooter, lvglFontMonoTiny(), 0);
+  if (g_lvglScreenSaverBalloon) lv_obj_set_style_text_font(g_lvglScreenSaverBalloon, lvglFontScreenSaverBalloonText(), 0);
+  if (g_lvglScreenSaverBalloonTail) lv_obj_set_style_text_font(g_lvglScreenSaverBalloonTail, lvglFontScreenSaverTail(), 0);
+  if (g_lvglScreenSaverFooter) lv_obj_set_style_text_font(g_lvglScreenSaverFooter, lvglFontScreenSaverFooterText(), 0);
 #endif
   if (g_lvglClockL1) lvglApplyClockSentenceAutoFit(lv_label_get_text(g_lvglClockL1));
 }
@@ -9829,6 +10003,7 @@ static bool initLvglUi() {
 #endif
 
 #if SCREENSAVER_ENABLED
+  const uint32_t saverReadableText = lvglResolvedSaverReadableText(theme);
   g_lvglScreenSaverRoot = lv_obj_create(scr);
   lv_obj_set_size(g_lvglScreenSaverRoot, cW, cH);
   lv_obj_set_pos(g_lvglScreenSaverRoot, 0, 0);
@@ -9883,8 +10058,8 @@ static bool initLvglUi() {
   lvglForceLabelVisible(g_lvglScreenSaverCow);
 
   g_lvglScreenSaverBalloon = lv_label_create(g_lvglScreenSaverRoot);
-  lv_obj_set_style_text_font(g_lvglScreenSaverBalloon, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverBalloon, lv_color_hex(theme.saverBalloon), 0);
+  lv_obj_set_style_text_font(g_lvglScreenSaverBalloon, lvglFontScreenSaverBalloonText(), 0);
+  lv_obj_set_style_text_color(g_lvglScreenSaverBalloon, lv_color_hex(saverReadableText), 0);
   lv_obj_set_style_bg_opa(g_lvglScreenSaverBalloon, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(g_lvglScreenSaverBalloon, 0, 0);
   lv_obj_set_style_pad_hor(g_lvglScreenSaverBalloon, 0, 0);
@@ -9899,18 +10074,18 @@ static bool initLvglUi() {
   lv_obj_add_flag(g_lvglScreenSaverBalloon, LV_OBJ_FLAG_HIDDEN);
 
   g_lvglScreenSaverBalloonTail = lv_label_create(g_lvglScreenSaverRoot);
-  lv_obj_set_style_text_font(g_lvglScreenSaverBalloonTail, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverBalloonTail, lv_color_hex(theme.saverTail), 0);
+  lv_obj_set_style_text_font(g_lvglScreenSaverBalloonTail, lvglFontScreenSaverTail(), 0);
+  lv_obj_set_style_text_color(g_lvglScreenSaverBalloonTail, lv_color_hex(saverReadableText), 0);
   lv_label_set_text(g_lvglScreenSaverBalloonTail, "- - - - -");
   lv_obj_set_pos(g_lvglScreenSaverBalloonTail, 200, cH - 64);
   lvglForceLabelVisible(g_lvglScreenSaverBalloonTail);
   lv_obj_add_flag(g_lvglScreenSaverBalloonTail, LV_OBJ_FLAG_HIDDEN);
 
   g_lvglScreenSaverFooter = lv_label_create(g_lvglScreenSaverRoot);
-  lv_obj_set_style_text_font(g_lvglScreenSaverFooter, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverFooter, lv_color_hex(theme.saverFooter), 0);
+  lv_obj_set_style_text_font(g_lvglScreenSaverFooter, lvglFontScreenSaverFooterText(), 0);
+  lv_obj_set_style_text_color(g_lvglScreenSaverFooter, lv_color_hex(saverReadableText), 0);
   lv_label_set_text(g_lvglScreenSaverFooter, "--:--  --/--");
-  lv_obj_align(g_lvglScreenSaverFooter, LV_ALIGN_BOTTOM_RIGHT, -8, -2);
+  lv_obj_align(g_lvglScreenSaverFooter, LV_ALIGN_BOTTOM_RIGHT, -10, -4);
   lvglForceLabelVisible(g_lvglScreenSaverFooter);
 #endif
 

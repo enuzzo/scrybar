@@ -149,3 +149,19 @@ Entry format:
 - Context: Gen Z clock strings had grammatical defects (`a le`) and numeric minute rendering that reduced natural Italian readability.
 - Decision: For `genz`, enforce minute words (`cinque`, `dieci`, `venti`, `venticinque`) and correct prepositions (`all'`, `alle`), while keeping slang always present via rotating lead/closer phrases and additional variants such as `una roba tipo ...`.
 - Impact/Tradeoffs: Output remains playful and varied without sacrificing grammatical correctness; deterministic variation avoids visual flicker while preserving humor in daily use.
+
+---
+
+## 2026-03-05 - Screensaver Cow Thoughts Localized by `wc_lang`
+
+- Context: The screensaver balloon had Italian-only quotes while the rest of the UI already followed the runtime language pivot (`wc_lang`).
+- Decision: Introduce language-specific quote packs for all supported language codes and resolve the active pack at runtime via `g_wordClockLang`, with Italian as default fallback.
+- Impact/Tradeoffs: Screensaver now feels consistent with full UI localization; modest flash growth due to additional strings, but still well within current partition headroom.
+
+---
+
+## 2026-03-05 - Exclude Unused Audio Stack from Active Compile Path
+
+- Context: Legacy `src/audio` codec/microphone stack was being compiled in the sketch build pipeline even though no symbols were linked in the final firmware.
+- Decision: Move the whole audio subtree from `src/audio` to `vendor/audio`, keeping sources in-repo but outside the Arduino sketch compile path.
+- Impact/Tradeoffs: No runtime behavior change and no feature loss for active firmware; cleaner build surface and less compile-time noise, while preserving the codebase for possible future audio reactivation.
