@@ -164,6 +164,18 @@
 #define WIFI_RETRY_STEP_DELAY_MS 220UL
 #define WIFI_RETRY_AFTER_RADIO_RESET_MS 900UL
 #define WIFI_RETRY_FAILS_BEFORE_RADIO_RESET 12U
+// Wi-Fi direct setup mode:
+// - off: never expose setup AP
+// - auto: expose setup AP after prolonged STA disconnect
+// - on: keep setup AP always active (AP+STA)
+#define WIFI_SETUP_MODE_DEFAULT "auto"
+#define WIFI_SETUP_AP_AUTOSTART_MS 30000UL
+#define WIFI_SETUP_AP_SSID_PREFIX "ScryBar-Setup"
+#define WIFI_SETUP_AP_PASSWORD ""
+#define WIFI_SETUP_AP_CHANNEL 6
+#define WIFI_SETUP_AP_MAX_CLIENTS 4
+// Runtime known networks saved in NVS (in addition to secrets.h credentials).
+#define WIFI_RUNTIME_CREDENTIALS_MAX 6
 // Force public DNS policy (never router DNS):
 // - primary: Google
 // - fallback: Cloudflare

@@ -132,8 +132,9 @@ At boot, ScryBar:
 
 1. Asserts `SYS_EN=HIGH` via TCA9554 (battery fallback safety on USB disconnect).
 2. Cycles Wi-Fi SSIDs in non-blocking retry loops — 10 seconds per SSID, then next, indefinitely (or prioritizes the selected known SSID when set from web config).
-3. Syncs NTP once connected.
-4. Renders `HOME` and enters the main loop.
+3. If no known SSID is reachable, starts Wi-Fi Direct setup AP fallback (`2.4 GHz only`) so you can still open the control UI and provision a new network.
+4. Syncs NTP once connected.
+5. Renders `HOME` and enters the main loop.
 
 Every 30 seconds, a `[SUMMARY]` block prints to serial: build, Wi-Fi, NTP, UI, and weather state. It is the firmware's heartbeat and the fastest way to know if something has gone quietly wrong.
 
@@ -225,13 +226,36 @@ http://<DEVICE_IP>:8080
 |---|---|---|
 | `GET /` | — | Config UI (Tron-grid themed, responsive, reduced-motion fallback) |
 | `GET /api/config` | — | Current config as JSON |
+| `GET /api/wifi/scan` | — | Scan nearby `2.4 GHz` Wi-Fi networks (bounded timeout, safe in AP setup mode) |
+| `GET /api/wifi/setup-qr.svg` | — | SVG QR for setup URL (`http://192.168.4.1:8080` in AP mode) |
 | `POST /api/config` | JSON body | Update config fields |
 | `POST /config` | Form body | Update config via form UI |
 | `POST /reload` | — | Force refresh weather and RSS feeds |
 
 Runtime config persists to NVS. Survives power cycles. Writable without reflash.
 
-Configurable from the UI: preferred known Wi-Fi network (`Auto` rotation or one saved SSID), weather city, latitude/longitude, logo URL, and up to 5 RSS feeds — each with a friendly name, URL, and max post count. The feed composer is in-page: search, add, edit, delete, no page reloads.
+Configurable from the UI: preferred known Wi-Fi network (`Auto` rotation or one saved SSID), Wi-Fi Direct mode (`off`, `auto fallback`, `always on`), provisioning of new Wi-Fi credentials via in-page `2.4 GHz` scan + password, weather city, latitude/longitude, logo URL, and up to 5 RSS feeds — each with a friendly name, URL, and max post count. The feed composer is in-page: search, add, edit, delete, no page reloads.
+
+Wi-Fi password UX detail: the password field is always rendered in monospaced glyphs (theme-agnostic) and has an eye toggle for show/hide, so uppercase-heavy themes do not turn provisioning into guesswork.
+
+Provisioned Wi-Fi credentials are stored in NVS and survive reboot/reflash (until NVS erase).
+
+### Wi-Fi Field Recovery (When You Are In a Random Parking Lot)
+
+If ScryBar cannot join any known network, this is the recovery flow:
+
+1. Firmware keeps rotating known SSIDs from `secrets.h` and runtime NVS credentials.
+2. If still offline (and direct mode is `auto` or `on`), setup AP starts: `ScryBar-Setup-XXXX`.
+3. Join that AP from phone/laptop (2.4 GHz only).
+4. Open `http://192.168.4.1:8080`.
+5. Use `Scan networks`, pick SSID, enter password, save.
+
+About captive portal behavior:
+
+- Captive DNS/probe redirects are implemented and often work.
+- Some OSes still decide they are too cool for captive popups on a given day.
+- That is fine: the QR and direct IP are the canonical path and do not lie.
+- If popup fails, scan QR or type `192.168.4.1:8080` manually and continue.
 
 ---
 
@@ -247,6 +271,8 @@ Commands sent over Serial at 115200 baud.
 | `VIEW2` / `VIEWAUX` | Force AUX page |
 | `BATSTAT` | Print battery status |
 | `SAVERON` | Force screensaver on |
+| `WIFIDIRECT` | Print Wi-Fi direct mode/AP status |
+| `WIFIDIRECT off|auto|on` | Set Wi-Fi direct mode and persist to NVS |
 | `PWROFFHARD` | Hard power-off — **requires a hardware power cycle to recover. Not mapped to the physical button by design.** |
 
 A `[SUMMARY]` block is emitted automatically every 30 seconds: build, Wi-Fi, NTP, UI, and weather state. Read it like a flight data recorder.

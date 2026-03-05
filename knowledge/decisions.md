@@ -181,3 +181,27 @@ Entry format:
 - Context: Wi-Fi credentials are already configured in `secrets.h`, but the web panel lacked a direct control to prioritize one known SSID without editing firmware.
 - Decision: Add a `wifi_pref_ssid` dropdown in web config populated from known SSIDs, persist preferred SSID to NVS key `wifi_pref`, expose it via `/api/config`, and trigger reconnect logic when preference changes.
 - Impact/Tradeoffs: Faster field switching between known networks and clearer operator control. Scope is intentionally limited to preconfigured SSIDs (no runtime password entry), preserving security and simplicity.
+
+---
+
+## 2026-03-05 - Add Wi-Fi Direct Fallback + Runtime Provisioning
+
+- Context: Device needed true field mobility: if none of the known SSIDs is reachable, operators still need a way to open web config and onboard a new AP/hotspot without reflashing.
+- Decision: Introduce Wi-Fi direct setup mode (`off|auto|on`) with AP+STA behavior, auto-fallback AP on prolonged disconnect, `GET /api/wifi/scan` (2.4 GHz list), and runtime credential storage in NVS (`wifi_dyn_*`) merged with `secrets.h` credentials for reconnect rotation.
+- Impact/Tradeoffs: Stronger real-world reliability and faster deployment in unknown environments (hotspots/open APs). Slightly higher NVS write surface and additional complexity in Wi-Fi state machine accepted to remove reflashing dependency.
+
+---
+
+## 2026-03-05 - Harden AP Setup Reliability (Scan Timeout + QR Handler Stack Safety)
+
+- Context: In AP setup mode, Wi-Fi scan requests could appear stuck in UI, and the setup flow experienced panic/reboot instability tied to heavy QR generation callback stack use.
+- Decision: Make `/api/wifi/scan` bounded and non-hanging (timeout-aware async scan completion, explicit `scan_timeout`/`scan_failed` signaling), add front-end abort timeout handling, and move qrcodegen work buffers from callback stack to static storage.
+- Impact/Tradeoffs: Setup experience becomes deterministic under poor RF conditions and AP-only mode; no more indefinite "Scanning..." UX and no stack-canary panic from QR rendering path. Slight static RAM increase accepted for stability.
+
+---
+
+## 2026-03-05 - Force Monospace + Visibility Toggle for Wi-Fi Password Input
+
+- Context: Theme typography can be stylized or uppercase-heavy, making password entry visually ambiguous during provisioning.
+- Decision: Enforce monospaced rendering for `wifi_new_password` regardless of theme and add explicit eye toggle for show/hide state in web config UI.
+- Impact/Tradeoffs: Better operator accuracy and faster debugging in field setups, with negligible UI complexity increase.

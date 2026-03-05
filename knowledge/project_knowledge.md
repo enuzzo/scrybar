@@ -84,6 +84,7 @@ Use them to confirm a flash landed (`[FW] Build=...` at boot).
 - Theme id: `uiTheme` (`ui_theme` in web/API payloads)
 - System language: `g_wordClockLang` (`wc_lang` in web/API payloads)
 - Preferred Wi-Fi SSID: `g_wifiPreferredSsid` (`wifi_pref_ssid` in web/API payloads)
+- Wi-Fi direct mode: `g_wifiSetupMode` (`wifi_setup_mode` in web/API payloads, values `off|auto|on`)
 - Weather city/lat/lon
 - RSS feed slots (multi-feed)
 - Branding logo URL
@@ -101,6 +102,17 @@ Wi-Fi preference behavior:
 - Value is validated against provisioned credentials only (no runtime password entry).
 - NVS key: `wifi_pref`.
 - On change, firmware schedules immediate reconnect and disconnects current STA only if needed.
+
+Wi-Fi direct/provisioning behavior:
+
+- Firmware keeps cycling all known SSIDs (from `secrets.h` + runtime NVS list).
+- When mode is `auto`, setup AP is started after prolonged disconnect (`WIFI_SETUP_AP_AUTOSTART_MS`) or immediately if no known SSID exists.
+- Setup AP mode is `2.4 GHz` only by hardware/network stack constraints.
+- New credentials can be provisioned from web UI scan (`GET /api/wifi/scan`) and saved to runtime known list in NVS.
+- Runtime credentials persist across reboot/reflash, and are cleared only when NVS is erased.
+- Setup URL in AP mode is canonical: `http://192.168.4.1:8080` (also exposed via QR endpoint `GET /api/wifi/setup-qr.svg`).
+- Captive portal probes are redirected, but popup behavior is OS-dependent; docs and operators should treat QR/direct URL as authoritative.
+- Wi-Fi scan API is timeout-bounded and returns quickly even in AP setup mode (`scan_timeout` / `scan_failed` message path), to avoid hanging UI.
 
 ## UI Theming System (Unified)
 
@@ -157,6 +169,11 @@ Important behavior rule:
 - `minimal-brutalist-mono`
   - Main + mono web font: IBM Plex Mono stack
   - LVGL custom font family: `scry_font_space_mono_*` (embedded fallback)
+
+Web Wi-Fi provisioning input policy:
+
+- Password field (`#wifi_new_password`) is forced monospaced independent of active theme.
+- Password field has show/hide eye toggle (`#wifi_pwd_toggle`) to avoid ambiguity under all-uppercase/stylized themes.
 
 ### Generated LVGL fonts
 

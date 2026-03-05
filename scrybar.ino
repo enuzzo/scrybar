@@ -31,7 +31,20 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 #include <Preferences.h>
+#if __has_include(<qrcodegen.h>)
+#include <qrcodegen.h>
+#define DB_HAS_QRCODEGEN 1
+#elif __has_include("qrcodegen.h")
+#include "qrcodegen.h"
+#define DB_HAS_QRCODEGEN 1
+#elif __has_include(<extra/libs/qrcode/qrcodegen.h>)
+#include <extra/libs/qrcode/qrcodegen.h>
+#define DB_HAS_QRCODEGEN 1
+#else
+#define DB_HAS_QRCODEGEN 0
+#endif
 #endif
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
@@ -180,6 +193,14 @@ static bool g_energyBatteryMode = false;
 static uint32_t g_energyLastEvalMs = 0;
 #endif
 #if TEST_WIFI || TEST_NTP
+static constexpr uint8_t WIFI_STATIC_CREDENTIALS_MAX = 5;
+static constexpr uint8_t WIFI_TOTAL_CREDENTIALS_MAX = WIFI_STATIC_CREDENTIALS_MAX + WIFI_RUNTIME_CREDENTIALS_MAX;
+static constexpr size_t WIFI_MAX_SSID_LEN = 32;
+static constexpr size_t WIFI_MAX_PASSWORD_LEN = 64;
+struct RuntimeWiFiCredential {
+  char ssid[WIFI_MAX_SSID_LEN + 1] = {0};
+  char password[WIFI_MAX_PASSWORD_LEN + 1] = {0};
+};
 static bool g_wifiConnected = false;
 static int g_lastWifiDiscReason = -1;
 static bool g_wifiEventRegistered = false;
@@ -187,10 +208,20 @@ static bool g_wifiEverConnected = false;
 static uint32_t g_wifiLastConnectMs = 0;
 static uint32_t g_wifiLastDisconnectMs = 0;
 static bool g_shortenerDnsDiagDone = false;
-static const char *g_wifiCredSsids[5] = {nullptr};
-static const char *g_wifiCredPasswords[5] = {nullptr};
+static const char *g_wifiStaticSsids[WIFI_STATIC_CREDENTIALS_MAX] = {nullptr};
+static const char *g_wifiStaticPasswords[WIFI_STATIC_CREDENTIALS_MAX] = {nullptr};
+static size_t g_wifiStaticCredCount = 0;
+static RuntimeWiFiCredential g_wifiRuntimeCreds[WIFI_RUNTIME_CREDENTIALS_MAX];
+static uint8_t g_wifiRuntimeCredCount = 0;
+static const char *g_wifiCredSsids[WIFI_TOTAL_CREDENTIALS_MAX] = {nullptr};
+static const char *g_wifiCredPasswords[WIFI_TOTAL_CREDENTIALS_MAX] = {nullptr};
 static size_t g_wifiCredCount = 0;
 static char g_wifiPreferredSsid[33] = "";
+static char g_wifiSetupMode[8] = WIFI_SETUP_MODE_DEFAULT;  // off | auto | on
+static bool g_wifiSetupApActive = false;
+static bool g_wifiSetupApAutoStarted = false;
+static uint32_t g_wifiNoLinkSinceMs = 0;
+static char g_wifiSetupApSsid[33] = "";
 static bool g_wifiReconnectAttemptActive = false;
 static uint8_t g_wifiReconnectIdx = 0;
 static uint32_t g_wifiReconnectAttemptStartMs = 0;
@@ -596,6 +627,13 @@ static char g_wordClockLang[16] = WORD_CLOCK_LANG_DEFAULT;
 static WebServer g_webConfigServer(WEB_CONFIG_PORT);
 static bool g_webConfigServerStarted = false;
 static bool g_webConfigRoutesRegistered = false;
+static DNSServer g_webConfigDnsServer;
+static bool g_webConfigDnsStarted = false;
+#if DB_HAS_QRCODEGEN
+// Keep QR work buffers off callback stack to avoid stack canary/panic on web task.
+static uint8_t g_webQrTempBuf[qrcodegen_BUFFER_LEN_MAX];
+static uint8_t g_webQrDataBuf[qrcodegen_BUFFER_LEN_MAX];
+#endif
 #endif
 
 static bool updateRssFromFeed(bool force);
@@ -1689,6 +1727,67 @@ static const char *wlStatusToStr(wl_status_t s) {
 }
 
 static bool applyWiFiDnsOverrideIfEnabled(bool verbose);
+#if WEB_CONFIG_ENABLED
+static void webConfigStartCaptiveDnsIfNeeded();
+static void webConfigStopCaptiveDns();
+#endif
+static bool wifiSetupModeIsOff() { return strcmp(g_wifiSetupMode, "off") == 0; }
+static bool wifiSetupModeIsOn() { return strcmp(g_wifiSetupMode, "on") == 0; }
+static bool wifiSetupModeIsAuto() { return !wifiSetupModeIsOff() && !wifiSetupModeIsOn(); }
+
+static void wifiBuildSetupApSsid() {
+  if (g_wifiSetupApSsid[0]) return;
+  const uint64_t mac = ESP.getEfuseMac();
+  const uint8_t tailA = (uint8_t)((mac >> 8) & 0xFF);
+  const uint8_t tailB = (uint8_t)(mac & 0xFF);
+  snprintf(g_wifiSetupApSsid, sizeof(g_wifiSetupApSsid), "%s-%02X%02X", WIFI_SETUP_AP_SSID_PREFIX, tailA, tailB);
+}
+
+static void wifiBuildSetupPortalUrl(char *out, size_t outLen) {
+  if (!out || outLen == 0) return;
+  IPAddress apIp = WiFi.softAPIP();
+  if ((uint32_t)apIp == 0U) apIp = IPAddress(192, 168, 4, 1);
+  snprintf(out, outLen, "http://%s:%u", apIp.toString().c_str(), (unsigned)WEB_CONFIG_PORT);
+  out[outLen - 1] = '\0';
+}
+
+static bool wifiStartSetupAp(bool autoStart) {
+  if (g_wifiSetupApActive) return true;
+  wifiBuildSetupApSsid();
+  WiFi.mode(WIFI_AP_STA);
+  bool ok = false;
+  if (strlen(WIFI_SETUP_AP_PASSWORD) >= 8) {
+    ok = WiFi.softAP(g_wifiSetupApSsid, WIFI_SETUP_AP_PASSWORD, WIFI_SETUP_AP_CHANNEL, false, WIFI_SETUP_AP_MAX_CLIENTS);
+  } else {
+    ok = WiFi.softAP(g_wifiSetupApSsid, nullptr, WIFI_SETUP_AP_CHANNEL, false, WIFI_SETUP_AP_MAX_CLIENTS);
+  }
+  if (!ok) {
+    Serial.println("[WIFI][AP][ERR] impossibile avviare setup AP");
+    return false;
+  }
+  g_wifiSetupApActive = true;
+  g_wifiSetupApAutoStarted = autoStart;
+#if WEB_CONFIG_ENABLED
+  webConfigStartCaptiveDnsIfNeeded();
+#endif
+  Serial.printf("[WIFI][AP] setup active ssid='%s' ip=%s mode=%s\n",
+                g_wifiSetupApSsid,
+                WiFi.softAPIP().toString().c_str(),
+                autoStart ? "auto" : "manual");
+  return true;
+}
+
+static void wifiStopSetupAp() {
+  if (!g_wifiSetupApActive) return;
+  WiFi.softAPdisconnect(true);
+  g_wifiSetupApActive = false;
+  g_wifiSetupApAutoStarted = false;
+#if WEB_CONFIG_ENABLED
+  webConfigStopCaptiveDns();
+#endif
+  WiFi.mode(WIFI_STA);
+  Serial.println("[WIFI][AP] setup disabled");
+}
 
 static void wifiScheduleNextAttempt(uint32_t nowMs, uint32_t delayMs) {
   g_wifiReconnectAttemptActive = false;
@@ -1710,6 +1809,8 @@ static void wifiRearmStationRadio(uint32_t nowMs, const char *cause) {
   WiFi.disconnect(true, false);
   delay(20);
   WiFi.mode(WIFI_OFF);
+  g_wifiSetupApActive = false;
+  g_wifiSetupApAutoStarted = false;
   delay(60);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
@@ -1743,6 +1844,7 @@ static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
     g_wifiConnected = true;
     g_wifiEverConnected = true;
     g_wifiLastConnectMs = millis();
+    g_wifiNoLinkSinceMs = 0;
     g_wifiConsecutiveFailCount = 0;
     Serial.printf("[WIFI][GOT_IP] ip=%s\n", WiFi.localIP().toString().c_str());
     const String activeSsid = WiFi.SSID();
@@ -1763,6 +1865,7 @@ static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
     const bool attemptWasActive = g_wifiReconnectAttemptActive;
     g_wifiConnected = false;
     g_wifiLastDisconnectMs = millis();
+    if (g_wifiNoLinkSinceMs == 0) g_wifiNoLinkSinceMs = g_wifiLastDisconnectMs;
     g_lastWifiDiscReason = (int)info.wifi_sta_disconnected.reason;
     Serial.printf("[WIFI][DISC] reason=%d (%s)\n",
                   g_lastWifiDiscReason,
@@ -1781,7 +1884,7 @@ static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
   }
 }
 
-static size_t buildWiFiCredentialList(const char **ssidOut, const char **passOut, size_t cap) {
+static size_t buildWiFiStaticCredentialList(const char **ssidOut, const char **passOut, size_t cap) {
   size_t n = 0;
 #if defined(WIFI_SSID) && defined(WIFI_PASSWORD)
   if (n < cap && strlen(WIFI_SSID) > 0) {
@@ -1832,11 +1935,37 @@ static int8_t findWiFiCredentialIndexBySsid(const char *ssid) {
 }
 
 static void wifiPrepareCredentialCache() {
-  g_wifiCredCount = buildWiFiCredentialList(g_wifiCredSsids, g_wifiCredPasswords, sizeof(g_wifiCredSsids) / sizeof(g_wifiCredSsids[0]));
+  g_wifiStaticCredCount = buildWiFiStaticCredentialList(g_wifiStaticSsids, g_wifiStaticPasswords, WIFI_STATIC_CREDENTIALS_MAX);
+  g_wifiCredCount = 0;
+  for (uint8_t i = 0; i < g_wifiRuntimeCredCount && g_wifiCredCount < WIFI_TOTAL_CREDENTIALS_MAX; ++i) {
+    const char *ssid = g_wifiRuntimeCreds[i].ssid;
+    if (!ssid[0]) continue;
+    g_wifiCredSsids[g_wifiCredCount] = g_wifiRuntimeCreds[i].ssid;
+    g_wifiCredPasswords[g_wifiCredCount] = g_wifiRuntimeCreds[i].password;
+    ++g_wifiCredCount;
+  }
+  for (size_t i = 0; i < g_wifiStaticCredCount && g_wifiCredCount < WIFI_TOTAL_CREDENTIALS_MAX; ++i) {
+    const char *ssid = g_wifiStaticSsids[i];
+    if (!ssid || !ssid[0]) continue;
+    bool duplicate = false;
+    for (size_t j = 0; j < g_wifiCredCount; ++j) {
+      if (g_wifiCredSsids[j] && strcmp(g_wifiCredSsids[j], ssid) == 0) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (duplicate) continue;
+    g_wifiCredSsids[g_wifiCredCount] = ssid;
+    g_wifiCredPasswords[g_wifiCredCount] = g_wifiStaticPasswords[i];
+    ++g_wifiCredCount;
+  }
   if (g_wifiCredCount == 0) {
-    Serial.println("[WIFI][ERR] Nessuna rete valida configurata in secrets.h");
+    Serial.println("[WIFI][WARN] Nessuna rete nota configurata (secrets + NVS)");
   } else {
-    Serial.printf("[WIFI] reti configurate: %u\n", (unsigned)g_wifiCredCount);
+    Serial.printf("[WIFI] reti note: %u (secrets=%u runtime=%u)\n",
+                  (unsigned)g_wifiCredCount,
+                  (unsigned)g_wifiStaticCredCount,
+                  (unsigned)g_wifiRuntimeCredCount);
   }
   g_wifiReconnectIdx = 0;
   if (g_wifiPreferredSsid[0]) {
@@ -1849,6 +1978,34 @@ static void wifiPrepareCredentialCache() {
   g_wifiConsecutiveFailCount = 0;
   g_wifiLastRadioResetMs = 0;
   g_wifiInternalDisconnect = false;
+}
+
+static bool wifiIsConnectedNow();
+
+static void wifiHandleSetupModeLoop(uint32_t nowMs) {
+  if (wifiSetupModeIsOn()) {
+    (void)wifiStartSetupAp(false);
+    if (wifiIsConnectedNow()) g_wifiNoLinkSinceMs = 0;
+    return;
+  }
+
+  if (wifiIsConnectedNow()) {
+    g_wifiNoLinkSinceMs = 0;
+    if (g_wifiSetupApActive) wifiStopSetupAp();
+    return;
+  }
+  if (g_wifiNoLinkSinceMs == 0) g_wifiNoLinkSinceMs = nowMs;
+
+  if (wifiSetupModeIsOff()) {
+    if (g_wifiSetupApActive) wifiStopSetupAp();
+    return;
+  }
+  if (!wifiSetupModeIsAuto()) return;
+
+  const uint32_t bootstrapDelay = (g_wifiCredCount == 0) ? 500UL : WIFI_SETUP_AP_AUTOSTART_MS;
+  if (!g_wifiSetupApActive && (nowMs - g_wifiNoLinkSinceMs) >= bootstrapDelay) {
+    (void)wifiStartSetupAp(true);
+  }
 }
 
 static bool wifiIsConnectedNow() {
@@ -1942,17 +2099,6 @@ static bool runWiFiConnectTest() {
   Serial.println("ScryBar | M0.6 WiFi connect");
   Serial.println("=================================================");
 
-#if !defined(WIFI_SSID) || !defined(WIFI_PASSWORD)
-  Serial.println("[FAIL] WIFI_SSID/WIFI_PASSWORD mancanti in secrets.h");
-  Serial.println("[HINT] Apri secrets.h e imposta credenziali WiFi.");
-  return false;
-#else
-  if (strlen(WIFI_SSID) == 0 || strlen(WIFI_PASSWORD) == 0) {
-    Serial.println("[FAIL] WIFI_SSID/WIFI_PASSWORD vuoti.");
-    Serial.println("[HINT] Compila di nuovo dopo aver valorizzato secrets.h.");
-    return false;
-  }
-
   WiFi.mode(WIFI_STA);
   WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
@@ -1965,13 +2111,19 @@ static bool runWiFiConnectTest() {
     WiFi.onEvent(onWiFiEvent);
     g_wifiEventRegistered = true;
   }
+  normalizeWifiSetupMode();
   wifiPrepareCredentialCache();
-  if (g_wifiCredCount == 0) return false;
+  g_wifiNoLinkSinceMs = millis();
 
-  // Non-blocking strategy: one SSID attempt at a time, cycled in loop().
-  wifiBeginAttempt(0);
+  if (g_wifiCredCount > 0) {
+    // Non-blocking strategy: one SSID attempt at a time, cycled in loop().
+    wifiBeginAttempt(g_wifiReconnectIdx);
+  } else {
+    Serial.println("[WIFI][INFO] Nessuna rete nota: avvio setup AP fallback.");
+    (void)wifiStartSetupAp(true);
+  }
+  wifiHandleSetupModeLoop(millis());
   return false;
-#endif
 }
 
 static bool runNtpTimeTest() {
@@ -2019,6 +2171,90 @@ static void copyStringSafe(char *dst, size_t dstLen, const char *src) {
 static bool startsWithHttp(const char *url) {
   if (!url) return false;
   return (strncmp(url, "http://", 7) == 0) || (strncmp(url, "https://", 8) == 0);
+}
+
+static void normalizeWifiSetupMode() {
+  if (wifiSetupModeIsOff() || wifiSetupModeIsOn() || wifiSetupModeIsAuto()) return;
+  copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), WIFI_SETUP_MODE_DEFAULT);
+  if (!wifiSetupModeIsOff() && !wifiSetupModeIsOn() && !wifiSetupModeIsAuto()) {
+    copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), "auto");
+  }
+}
+
+static int8_t findRuntimeWiFiCredentialBySsid(const char *ssid) {
+  if (!ssid || !ssid[0]) return -1;
+  for (uint8_t i = 0; i < g_wifiRuntimeCredCount; ++i) {
+    if (strcmp(g_wifiRuntimeCreds[i].ssid, ssid) == 0) return (int8_t)i;
+  }
+  return -1;
+}
+
+static bool upsertRuntimeWiFiCredential(const char *ssid, const char *password) {
+  if (!ssid || !ssid[0]) return false;
+  if (strlen(ssid) > WIFI_MAX_SSID_LEN) return false;
+  const char *safePass = password ? password : "";
+  if (strlen(safePass) > WIFI_MAX_PASSWORD_LEN) return false;
+
+  const int8_t existing = findRuntimeWiFiCredentialBySsid(ssid);
+  if (existing >= 0) {
+    copyStringSafe(g_wifiRuntimeCreds[(uint8_t)existing].password, sizeof(g_wifiRuntimeCreds[(uint8_t)existing].password), safePass);
+    return true;
+  }
+
+  if (g_wifiRuntimeCredCount < WIFI_RUNTIME_CREDENTIALS_MAX) {
+    copyStringSafe(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].ssid, sizeof(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].ssid), ssid);
+    copyStringSafe(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].password, sizeof(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].password), safePass);
+    ++g_wifiRuntimeCredCount;
+    return true;
+  }
+
+  // FIFO eviction when runtime slots are full.
+  for (uint8_t i = 1; i < WIFI_RUNTIME_CREDENTIALS_MAX; ++i) {
+    copyStringSafe(g_wifiRuntimeCreds[i - 1].ssid, sizeof(g_wifiRuntimeCreds[i - 1].ssid), g_wifiRuntimeCreds[i].ssid);
+    copyStringSafe(g_wifiRuntimeCreds[i - 1].password, sizeof(g_wifiRuntimeCreds[i - 1].password), g_wifiRuntimeCreds[i].password);
+  }
+  const uint8_t tail = WIFI_RUNTIME_CREDENTIALS_MAX - 1;
+  copyStringSafe(g_wifiRuntimeCreds[tail].ssid, sizeof(g_wifiRuntimeCreds[tail].ssid), ssid);
+  copyStringSafe(g_wifiRuntimeCreds[tail].password, sizeof(g_wifiRuntimeCreds[tail].password), safePass);
+  return true;
+}
+
+static void loadRuntimeWiFiCredentialsFromPrefs(Preferences &prefs, bool &loadedAny) {
+  g_wifiRuntimeCredCount = 0;
+  const uint8_t rawCount = prefs.getUChar("wifi_dyn_n", 0);
+  const uint8_t count = (rawCount > WIFI_RUNTIME_CREDENTIALS_MAX) ? WIFI_RUNTIME_CREDENTIALS_MAX : rawCount;
+  for (uint8_t i = 0; i < count; ++i) {
+    char keySsid[16];
+    char keyPass[16];
+    snprintf(keySsid, sizeof(keySsid), "wifi_ds%u", (unsigned)(i + 1));
+    snprintf(keyPass, sizeof(keyPass), "wifi_dp%u", (unsigned)(i + 1));
+    const String ssid = prefs.getString(keySsid, "");
+    if (ssid.length() == 0 || ssid.length() > WIFI_MAX_SSID_LEN) continue;
+    const String pass = prefs.getString(keyPass, "");
+    if (pass.length() > WIFI_MAX_PASSWORD_LEN) continue;
+    copyStringSafe(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].ssid, sizeof(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].ssid), ssid.c_str());
+    copyStringSafe(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].password, sizeof(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].password), pass.c_str());
+    ++g_wifiRuntimeCredCount;
+    loadedAny = true;
+  }
+}
+
+static size_t saveRuntimeWiFiCredentialsToPrefs(Preferences &prefs) {
+  size_t bytes = prefs.putUChar("wifi_dyn_n", g_wifiRuntimeCredCount);
+  for (uint8_t i = 0; i < WIFI_RUNTIME_CREDENTIALS_MAX; ++i) {
+    char keySsid[16];
+    char keyPass[16];
+    snprintf(keySsid, sizeof(keySsid), "wifi_ds%u", (unsigned)(i + 1));
+    snprintf(keyPass, sizeof(keyPass), "wifi_dp%u", (unsigned)(i + 1));
+    if (i < g_wifiRuntimeCredCount) {
+      bytes += prefs.putString(keySsid, g_wifiRuntimeCreds[i].ssid);
+      bytes += prefs.putString(keyPass, g_wifiRuntimeCreds[i].password);
+    } else {
+      bytes += prefs.putString(keySsid, "");
+      bytes += prefs.putString(keyPass, "");
+    }
+  }
+  return bytes;
 }
 
 static void ensureRuntimeNetConfig();
@@ -2215,6 +2451,16 @@ static void loadRuntimeNetConfigFromNvs() {
       loadedAny = true;
     }
   }
+  if (prefs.isKey("wifi_setup_mode")) {
+    String setupMode = prefs.getString("wifi_setup_mode", WIFI_SETUP_MODE_DEFAULT);
+    setupMode.trim();
+    setupMode.toLowerCase();
+    if (setupMode.length() < sizeof(g_wifiSetupMode)) {
+      copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), setupMode.c_str());
+      loadedAny = true;
+    }
+  }
+  loadRuntimeWiFiCredentialsFromPrefs(prefs, loadedAny);
   if (prefs.isKey("wc_lang")) {
     String lang = prefs.getString("wc_lang", WORD_CLOCK_LANG_DEFAULT);
     lang.trim();
@@ -2261,6 +2507,8 @@ static void loadRuntimeNetConfigFromNvs() {
   }
   prefs.end();
 
+  normalizeWifiSetupMode();
+  wifiPrepareCredentialCache();
   if (g_wifiPreferredSsid[0]) {
     const int8_t preferredIdx = findWiFiCredentialIndexBySsid(g_wifiPreferredSsid);
     if (preferredIdx >= 0) g_wifiReconnectIdx = (uint8_t)preferredIdx;
@@ -2281,14 +2529,16 @@ static void loadRuntimeNetConfigFromNvs() {
 
   if (loadedAny) {
     const int activeIdx = runtimeFirstConfiguredRssFeedIndexNoEnsure();
-    Serial.printf("[CFG][NVS] loaded city='%s' lat=%.4f lon=%.4f rss_feeds=%u active='%s' theme='%s' wifi_pref='%s'\n",
+    Serial.printf("[CFG][NVS] loaded city='%s' lat=%.4f lon=%.4f rss_feeds=%u active='%s' theme='%s' wifi_pref='%s' wifi_setup='%s' wifi_dyn=%u\n",
                   g_runtimeNetConfig.weatherCity,
                   g_runtimeNetConfig.weatherLat,
                   g_runtimeNetConfig.weatherLon,
                   (unsigned)runtimeRssConfiguredFeedCountNoEnsure(),
                   activeIdx >= 0 ? g_runtimeNetConfig.rssFeeds[activeIdx].url : "-",
                   g_runtimeNetConfig.uiTheme,
-                  g_wifiPreferredSsid[0] ? g_wifiPreferredSsid : "auto");
+                  g_wifiPreferredSsid[0] ? g_wifiPreferredSsid : "auto",
+                  g_wifiSetupMode,
+                  (unsigned)g_wifiRuntimeCredCount);
   } else {
     Serial.println("[CFG][NVS] no saved config, uso default");
   }
@@ -2320,13 +2570,15 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n6 = prefs.putString("wc_lang", g_wordClockLang);
   const size_t n7 = prefs.putString("ui_theme", g_runtimeNetConfig.uiTheme);
   const size_t n8 = prefs.putString("wifi_pref", g_wifiPreferredSsid);
+  const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSetupMode);
+  const size_t n10 = saveRuntimeWiFiCredentialsToPrefs(prefs);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
-  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u wifi_pref=%u)\n",
+  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
                 ok ? "OK" : "ERR",
                 (unsigned)n1, (unsigned)n2, (unsigned)n3, (unsigned)n4,
                 (unsigned)nFeedName, (unsigned)nFeedUrl, (unsigned)nFeedMax, (unsigned)n5,
-                (unsigned)n6, (unsigned)n7, (unsigned)n8);
+                (unsigned)n6, (unsigned)n7, (unsigned)n8, (unsigned)n9, (unsigned)n10);
   return ok;
 }
 
@@ -2534,7 +2786,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("input:focus{border-color:var(--acc2);box-shadow:0 0 0 2px rgba(57,184,255,.18)}");
   html += F("select{width:100%;padding:11px 12px;border-radius:var(--radius);border:1px solid rgba(255,255,255,.16);background:rgba(17,28,68,.76);color:var(--txt);outline:none;font:500 14px 'Montserrat',sans-serif;margin:0 0 9px;cursor:pointer}select:focus{border-color:var(--acc2);box-shadow:0 0 0 2px var(--border)}");
   html += F(".badge-soon{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:rgba(117,81,255,.22);color:#b8a8ff;font-size:10px;font-weight:700;vertical-align:middle;letter-spacing:.04em}");
-  html += F(".hint{margin:4px 0 14px;color:var(--txt2);font-size:12px}.geo-status{margin:2px 0 8px;color:#9bb3ee;font-size:12px;min-height:16px}");
+  html += F(".hint{margin:4px 0 14px;color:var(--txt2);font-size:12px}.geo-status{margin:2px 0 8px;color:#9bb3ee;font-size:12px;min-height:16px}.secret-input-wrap{display:flex;gap:8px;align-items:stretch;margin:0 0 9px}.secret-input-wrap input{margin:0}.secret-toggle{min-width:44px;padding:0 12px}.secret-toggle i{margin:0}#wifi_new_password{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace!important;text-transform:none!important;letter-spacing:.02em}");
   html += F(".btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:11px;padding:11px 15px;font:700 13px 'Montserrat',sans-serif;cursor:pointer;transition:all .18s ease}");
   html += F(".btn.primary{background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;box-shadow:0 0 14px rgba(117,81,255,.32);animation:savePulse 2.6s ease-in-out infinite}.btn.ghost{background:#1A2558;color:#d9e4ff;border:1px solid rgba(255,255,255,.14)}.btn:hover{transform:translateY(-1px)}");
   html += F(".btn.sm{padding:8px 11px;border-radius:9px;font-size:12px}.btn.warn{background:rgba(117,81,255,.18);color:#decfff;border:1px solid rgba(117,81,255,.5)}");
@@ -2543,7 +2795,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F(".rss-list{display:grid;gap:8px;margin-top:10px}.rss-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid rgba(57,184,255,.28);border-left:3px solid rgba(117,81,255,.78);border-radius:12px;padding:10px;background:rgba(9,16,44,.76)}");
   html += F(".rss-title{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#e7eeff;margin:0 0 2px}.rss-title i{color:#39B8FF;font-size:12px}.rss-meta{font-size:12px;color:#98acd8;margin:0;word-break:break-all}.rss-chip{display:inline-block;margin-left:7px;padding:2px 7px;border-radius:999px;background:rgba(57,184,255,.17);color:#9fd9ff;font-size:11px;font-weight:700}");
   html += F(".rss-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rss-status{margin:6px 0 2px;color:#9bb3ee;font-size:12px;min-height:16px}.rss-empty{padding:12px;border:1px dashed rgba(255,255,255,.2);border-radius:12px;color:#8ea2cf;font-size:12px;background:rgba(10,18,50,.35)}.hidden{display:none}");
-  html += F(".api-note{margin-top:12px;padding:8px 10px;border-radius:10px;background:rgba(57,184,255,.10);border:1px solid rgba(57,184,255,.28)}");
+  html += F(".api-note{margin-top:12px;padding:8px 10px;border-radius:10px;background:rgba(57,184,255,.10);border:1px solid rgba(57,184,255,.28)}.setup-quick{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin-top:10px}.setup-qr{width:138px;height:138px;border:1px solid rgba(255,255,255,.2);background:#fff;padding:6px;border-radius:8px;display:block}.setup-url{font:600 13px var(--font-mono);word-break:break-all}");
   html += F(".site-footer{margin-top:18px;padding:12px 2px 4px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#8fa4d2;line-height:1.5}.site-footer strong{color:#dbe7ff}.site-footer a{color:#9fd9ff;text-decoration:none}.site-footer a:hover{color:#c7ebff;text-decoration:underline}");
   html += F("small{color:var(--txt2)}code{color:#d2ddff}@media(prefers-reduced-motion:reduce){.fx-grid *{animation-duration:0.01ms !important;transition-duration:0.01ms !important}}@media(max-width:980px){.grid2,.rss-composer{grid-template-columns:1fr}.fx-grid__plane{height:68vh;bottom:-4vh;background-size:32px 32px;opacity:1}.fx-grid__glow{height:66%;background:linear-gradient(to top,rgba(117,81,255,0.24) 0%,rgba(57,184,255,0.11) 45%,transparent 100%)}.fx-grid__horizon{bottom:58%}.hero-top{flex-wrap:nowrap;align-items:center}.hero-left{min-width:0;flex:1 1 auto}.logo{height:54px}.hero-right{justify-items:end;flex:0 0 auto}.release-box{width:auto}.hero-copy{padding:10px}}@media(max-width:420px){.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}}@media(max-width:480px){.btns{flex-direction:column}.btn.primary{width:100%;justify-content:center}}");
   html += F(".fx-grid__plane{background-image:linear-gradient(var(--grid-line-a) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line-b) 1px,transparent 1px)}.fx-grid__glow{background:linear-gradient(to top,var(--grid-glow-a) 0%,var(--grid-glow-b) 45%,transparent 100%)}.fx-grid__horizon{background:linear-gradient(90deg,transparent 0%,var(--grid-horizon-a) 20%,var(--grid-horizon-b) 50%,var(--grid-horizon-a) 80%,transparent 100%)}.fx-grid__scanline{background:linear-gradient(90deg,transparent,var(--scanline),transparent)}.fx-grid__vline:nth-child(5){background:linear-gradient(to bottom,transparent,var(--vline-a),transparent)}.fx-grid__vline:nth-child(6){background:linear-gradient(to bottom,transparent,var(--vline-b),transparent)}.fx-grid__vline:nth-child(7){background:linear-gradient(to bottom,transparent,var(--vline-a),transparent)}.hero-top-card{border-color:var(--hero-border)}.hero-copy{border-color:var(--hero-copy-border);background:var(--hero-copy-bg)}.release-box{border-color:var(--release-border);background:var(--release-bg);font-family:var(--font-mono)}.release-box .k{color:var(--release-key)}.release-box .v{color:var(--release-value)}.sec{border-color:var(--border);background:var(--sec-bg)}.btn{font-family:var(--font-main)}.btn.ghost{background:var(--btn-ghost-bg);color:var(--btn-ghost-text)}input,select{font-family:var(--font-main)}");
@@ -2584,6 +2836,8 @@ static String buildWebConfigPage(const char *statusMsg) {
   {
     const bool wifiOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
     const String activeSsid = wifiOk ? WiFi.SSID() : String("");
+    char setupUrl[96] = "";
+    wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
     html += F("<div class='sec'><h2><i class='fa-solid fa-wifi'></i>Wi-Fi Known Networks</h2><div class='key'>PREFERRED SSID</div><select name='wifi_pref_ssid'>");
     html += F("<option value=''");
     if (!g_wifiPreferredSsid[0]) html += F(" selected");
@@ -2601,7 +2855,30 @@ static String buildWebConfigPage(const char *statusMsg) {
       if (wifiOk && activeSsid.equals(ssid)) html += F(" (connected)");
       html += F("</option>");
     }
-    html += F("</select><p class='hint'><i class='fa-solid fa-circle-info'></i> Select one of the SSIDs already configured in secrets. If set, ScryBar will prioritize it on reconnect. Use Auto to keep adaptive rotation.</p></div>");
+    html += F("</select><div class='key'>WIFI DIRECT MODE</div><select name='wifi_setup_mode'>");
+    html += F("<option value='off'");
+    if (wifiSetupModeIsOff()) html += F(" selected");
+    html += F(">Off</option>");
+    html += F("<option value='auto'");
+    if (wifiSetupModeIsAuto()) html += F(" selected");
+    html += F(">Auto fallback</option>");
+    html += F("<option value='on'");
+    if (wifiSetupModeIsOn()) html += F(" selected");
+    html += F(">Always on</option>");
+    html += F("</select>");
+    html += F("<p class='hint'><i class='fa-solid fa-circle-info'></i> Auto mode cycles known SSIDs first, then starts setup AP if disconnected too long. ScryBar supports <b>2.4 GHz only</b> (5 GHz is ignored).</p>");
+  html += F("<div class='card'><div class='key'>PROVISION NEW NETWORK (2.4 GHZ)</div><div class='grid2'><div><button id='wifi_scan_btn' class='btn ghost sm' type='button'><i class='fa-solid fa-tower-cell'></i> Scan networks</button><p id='wifi_scan_status' class='rss-status'></p><div class='key'>SCAN RESULTS</div><select id='wifi_scan_results'><option value=''>Press scan first...</option></select></div><div><div class='key'>SSID</div><input id='wifi_new_ssid' name='wifi_new_ssid' maxlength='32' placeholder='MyPhone Hotspot'><div class='key'>PASSWORD</div><div class='secret-input-wrap'><input id='wifi_new_password' name='wifi_new_password' maxlength='64' type='password' placeholder='Leave empty if open network'><button id='wifi_pwd_toggle' class='btn ghost sm secret-toggle' type='button' aria-label='Show password' title='Show password'><i class='fa-solid fa-eye'></i></button></div></div></div>");
+    if (g_wifiSetupApActive) {
+      html += F("<p class='hint'><i class='fa-solid fa-satellite-dish'></i> Setup AP active: <code>");
+      appendHtmlEscaped(html, g_wifiSetupApSsid);
+      html += F("</code> @ <code>");
+      html += WiFi.softAPIP().toString();
+      html += F("</code></p>");
+      html += F("<div class='setup-quick'><img class='setup-qr' src='/api/wifi/setup-qr.svg' alt='Setup QR'><div><div class='key'>SETUP URL</div><div class='setup-url'>");
+      appendHtmlEscaped(html, setupUrl);
+      html += F("</div><p class='hint'><i class='fa-solid fa-mobile-screen-button'></i> Scan this QR or open the URL manually to access setup instantly. Captive portal probes are redirected to this page.</p></div></div>");
+    }
+    html += F("<p class='hint'><i class='fa-solid fa-floppy-disk'></i> Save Config to store SSID/password in NVS (persistent across reboot/reflash; cleared only by NVS erase).</p></div>");
   }
 #endif
   // System Language section
@@ -2692,6 +2969,16 @@ static String buildWebConfigPage(const char *statusMsg) {
       html += F("</code><br><small>preferred: </small><code>");
       if (g_wifiPreferredSsid[0]) appendHtmlEscaped(html, g_wifiPreferredSsid);
       else html += F("auto");
+      html += F("</code><br><small>direct mode: </small><code>");
+      appendHtmlEscaped(html, g_wifiSetupMode);
+      html += F("</code><br><small>setup ap: </small><code>");
+      if (g_wifiSetupApActive) {
+        appendHtmlEscaped(html, g_wifiSetupApSsid);
+        html += F(" @ ");
+        html += WiFi.softAPIP().toString();
+      } else {
+        html += F("off");
+      }
       html += F("</code>");
     }
 #else
@@ -2723,7 +3010,7 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += F("</div>");
     html += F("</div></div>");
   }
-  html += F("<p class='api-note'><small><i class='fa-solid fa-terminal'></i> API ready: <code>GET /api/config</code>, <code>POST /api/config</code>.</small></p>");
+  html += F("<p class='api-note'><small><i class='fa-solid fa-terminal'></i> API ready: <code>GET /api/config</code>, <code>POST /api/config</code>, <code>GET /api/wifi/scan</code>, <code>GET /api/wifi/setup-qr.svg</code>.</small></p>");
   html += F("<footer class='site-footer'><strong>A project by Netmilk Studio sagl</strong> | Copyright 2026<br>Open Source under the <a href='https://opensource.org/license/mit' target='_blank' rel='noopener noreferrer'>MIT License</a> | Feel free to steal, fork, remix, and ship. \xF0\x9F\x96\x96</footer>");
   html += F("<script>(function(){");
   html += F("(function(){const t=document.querySelector('.msg.fixed-top');if(t){setTimeout(function(){t.style.transition='opacity .6s';t.style.opacity='0';setTimeout(function(){t.style.display='none';},650);},4200);}})();");
@@ -2732,6 +3019,10 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("function applyPick(key){const r=map[key];if(!r)return false;city.value=r.name||city.value;lat.value=Number(r.latitude).toFixed(4);lon.value=Number(r.longitude).toFixed(4);setStatus('Coordinates filled in automatically.');return true;}");
   html += F("q.addEventListener('change',function(){applyPick(q.value);});q.addEventListener('blur',function(){applyPick(q.value);});");
   html += F("q.addEventListener('input',function(){const term=q.value.trim();if(term.length<2){clearHits();setStatus('');return;}clearTimeout(t);t=setTimeout(async function(){try{setStatus('Searching...');const u='https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name='+encodeURIComponent(term);const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);const data=await r.json();const rows=(data&&data.results)?data.results:[];clearHits();if(!rows.length){setStatus('No results found.');return;}rows.forEach(function(it){const label=[it.name,it.admin1,it.country].filter(Boolean).join(', ');const opt=document.createElement('option');opt.value=label;opt.label=(Number(it.latitude).toFixed(4)+', '+Number(it.longitude).toFixed(4));dl.appendChild(opt);map[label]=it;});setStatus('Select a result to fill city / lat / lon.');if(rows.length===1){const one=[rows[0].name,rows[0].admin1,rows[0].country].filter(Boolean).join(', ');q.value=one;applyPick(one);}}catch(e){clearHits();setStatus('Search unavailable, try again later.');}} ,280);});");
+  html += F("const wifiScanBtn=document.getElementById('wifi_scan_btn');const wifiScanResults=document.getElementById('wifi_scan_results');const wifiScanStatus=document.getElementById('wifi_scan_status');const wifiNewSsid=document.getElementById('wifi_new_ssid');const wifiNewPassword=document.getElementById('wifi_new_password');const wifiPwdToggle=document.getElementById('wifi_pwd_toggle');");
+  html += F("function setWifiStatus(msg){if(wifiScanStatus)wifiScanStatus.textContent=msg||'';}function escHtml(s){return (s||'').replace(/[&<>]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;'})[c];});}");
+  html += F("async function scanWifiNow(){if(!wifiScanResults)return;const ctl=(window.AbortController?new AbortController():null);let tm=0;try{setWifiStatus('Scanning 2.4 GHz networks...');wifiScanResults.innerHTML=\"<option value=''>Scanning...</option>\";if(ctl){tm=window.setTimeout(function(){ctl.abort();},9000);}const res=await fetch('/api/wifi/scan',{cache:'no-store',signal:ctl?ctl.signal:undefined});if(tm)window.clearTimeout(tm);if(!res.ok)throw new Error('http '+res.status);const data=await res.json();const rows=(data&&data.networks)?data.networks:[];wifiScanResults.innerHTML=\"\";if(!rows.length){wifiScanResults.innerHTML=\"<option value=''>No 2.4 GHz network found</option>\";setWifiStatus((data&&data.message==='scan_timeout')?'Scan timed out, retry in a few seconds.':'No 2.4 GHz networks found.');return;}rows.forEach(function(n){const opt=document.createElement('option');const lock=n.secure?'SEC':'OPEN';opt.value=n.ssid||'';opt.dataset.secure=n.secure?'1':'0';opt.dataset.channel=String(n.channel||0);opt.innerHTML=escHtml((n.ssid||'(hidden)')+'  '+lock+'  ch'+(n.channel||'?')+'  '+(n.rssi||0)+'dBm');wifiScanResults.appendChild(opt);});setWifiStatus('Scan complete. Pick an SSID and press Save Config.');if(rows[0]&&rows[0].ssid&&wifiNewSsid&&!wifiNewSsid.value){wifiNewSsid.value=rows[0].ssid;}}catch(e){if(tm)window.clearTimeout(tm);wifiScanResults.innerHTML=\"<option value=''>Scan failed</option>\";setWifiStatus((e&&e.name==='AbortError')?'Scan timeout. Retry.':'Scan unavailable right now.');}}");
+  html += F("function syncWifiPwdToggle(){if(!wifiPwdToggle||!wifiNewPassword)return;const visible=wifiNewPassword.type==='text';wifiPwdToggle.innerHTML=visible?\"<i class='fa-solid fa-eye-slash'></i>\":\"<i class='fa-solid fa-eye'></i>\";wifiPwdToggle.title=visible?'Hide password':'Show password';wifiPwdToggle.setAttribute('aria-label',wifiPwdToggle.title);}if(wifiPwdToggle&&wifiNewPassword){wifiPwdToggle.addEventListener('click',function(){wifiNewPassword.type=(wifiNewPassword.type==='password')?'text':'password';syncWifiPwdToggle();});syncWifiPwdToggle();}if(wifiScanBtn)wifiScanBtn.addEventListener('click',function(){scanWifiNow();});if(wifiScanResults)wifiScanResults.addEventListener('change',function(){const v=wifiScanResults.value||'';if(wifiNewSsid&&v)wifiNewSsid.value=v;const sel=wifiScanResults.options[wifiScanResults.selectedIndex];if(wifiNewPassword&&sel&&sel.dataset.secure==='0'){wifiNewPassword.value='';wifiNewPassword.placeholder='Open network (no password)';}else if(wifiNewPassword){wifiNewPassword.placeholder='Password (WPA/WPA2)';}});");
   html += F("const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');");
   html += F("const maxSlots=5;const minPosts=1;const maxPosts=8;let editIndex=-1;");
   html += F("const initialFeeds=[");
@@ -2795,7 +3086,17 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
     appendJsonEscaped(out, ssid);
     out += '"';
   }
-  out += F("]},\"rss\":{\"feed_url\":\"");
+  out += F("],\"setup_mode\":\"");
+  appendJsonEscaped(out, g_wifiSetupMode);
+  out += F("\",\"setup_ap_active\":");
+  out += g_wifiSetupApActive ? F("true") : F("false");
+  out += F(",\"setup_ap_ssid\":\"");
+  appendJsonEscaped(out, g_wifiSetupApSsid);
+  out += F("\",\"setup_ap_ip\":\"");
+  appendJsonEscaped(out, WiFi.softAPIP().toString().c_str());
+  out += F("\",\"runtime_known\":");
+  out += (unsigned)g_wifiRuntimeCredCount;
+  out += F("},\"rss\":{\"feed_url\":\"");
   appendJsonEscaped(out, runtimeRssFeedUrl());
   out += F("\",\"active_max_items\":");
   out += (unsigned)runtimeRssActiveMaxItems();
@@ -2852,6 +3153,8 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   bool hasInput = false;
   bool langChanged = false;
   bool wifiPrefChanged = false;
+  bool wifiSetupModeChanged = false;
+  bool wifiProvisioned = false;
   int8_t wifiPrefIdx = -1;
 
   if (g_webConfigServer.hasArg("weather_city")) {
@@ -2987,7 +3290,54 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     copyStringSafe(next.uiTheme, sizeof(next.uiTheme), theme.c_str());
   }
 
-  if (g_webConfigServer.hasArg("wifi_pref_ssid")) {
+  if (g_webConfigServer.hasArg("wifi_setup_mode")) {
+    hasInput = true;
+    String setupMode = g_webConfigServer.arg("wifi_setup_mode");
+    setupMode.trim();
+    setupMode.toLowerCase();
+    if (!(setupMode == "off" || setupMode == "auto" || setupMode == "on")) {
+      errorOut = "wifi_setup_mode non valido";
+      return false;
+    }
+    if (strncmp(g_wifiSetupMode, setupMode.c_str(), sizeof(g_wifiSetupMode)) != 0) {
+      copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), setupMode.c_str());
+      wifiSetupModeChanged = true;
+    }
+  }
+
+  if (g_webConfigServer.hasArg("wifi_new_ssid") || g_webConfigServer.hasArg("wifi_new_password")) {
+    hasInput = true;
+    String ssid = g_webConfigServer.arg("wifi_new_ssid");
+    String pass = g_webConfigServer.arg("wifi_new_password");
+    ssid.trim();
+    if (ssid.length() > 0) {
+      if (ssid.length() > WIFI_MAX_SSID_LEN) {
+        errorOut = "wifi_new_ssid troppo lungo";
+        return false;
+      }
+      if (pass.length() > WIFI_MAX_PASSWORD_LEN) {
+        errorOut = "wifi_new_password troppo lunga";
+        return false;
+      }
+      if (!upsertRuntimeWiFiCredential(ssid.c_str(), pass.c_str())) {
+        errorOut = "impossibile salvare rete runtime";
+        return false;
+      }
+      wifiPrepareCredentialCache();
+      char previousPref[sizeof(g_wifiPreferredSsid)] = {0};
+      copyStringSafe(previousPref, sizeof(previousPref), g_wifiPreferredSsid);
+      copyStringSafe(g_wifiPreferredSsid, sizeof(g_wifiPreferredSsid), ssid.c_str());
+      wifiPrefChanged = true;
+      wifiProvisioned = true;
+      wifiPrefIdx = findWiFiCredentialIndexBySsid(g_wifiPreferredSsid);
+      if (wifiPrefIdx < 0) wifiPrefChanged = (strcmp(previousPref, g_wifiPreferredSsid) != 0);
+      Serial.printf("[WIFI][PROVISION] added ssid='%s' runtime_known=%u\n",
+                    g_wifiPreferredSsid,
+                    (unsigned)g_wifiRuntimeCredCount);
+    }
+  }
+
+  if (!wifiProvisioned && g_webConfigServer.hasArg("wifi_pref_ssid")) {
     hasInput = true;
     String preferred = g_webConfigServer.arg("wifi_pref_ssid");
     preferred.trim();
@@ -3103,6 +3453,11 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
       }
     }
   }
+  if (wifiSetupModeChanged) {
+    normalizeWifiSetupMode();
+    if (wifiSetupModeIsOff()) wifiStopSetupAp();
+    else wifiHandleSetupModeLoop(millis());
+  }
   if (weatherChanged) (void)updateWeatherFromApi(true);
   if (rssChanged) (void)updateRssFromFeed(true);
   return true;
@@ -3122,8 +3477,174 @@ static void handleWebConfigRoot() {
   g_webConfigServer.send(200, "text/html; charset=utf-8", html);
 }
 
+static void sendWebCaptiveRedirect() {
+  char setupUrl[96] = "";
+  wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
+  g_webConfigServer.sendHeader("Cache-Control", "no-store", true);
+  g_webConfigServer.sendHeader("Location", setupUrl, true);
+  g_webConfigServer.send(302, "text/plain", "");
+}
+
+static void handleWebCaptivePortalProbe() {
+  sendWebCaptiveRedirect();
+}
+
+#if WEB_CONFIG_ENABLED
+static void webConfigStartCaptiveDnsIfNeeded() {
+  if (!g_wifiSetupApActive || g_webConfigDnsStarted) return;
+  if (!g_webConfigDnsServer.start(53, "*", WiFi.softAPIP())) {
+    Serial.println("[WEB][DNS][ERR] captive dns start failed");
+    return;
+  }
+  g_webConfigDnsStarted = true;
+  Serial.printf("[WEB][DNS] captive resolver active on %s\n", WiFi.softAPIP().toString().c_str());
+}
+
+static void webConfigStopCaptiveDns() {
+  if (!g_webConfigDnsStarted) return;
+  g_webConfigDnsServer.stop();
+  g_webConfigDnsStarted = false;
+  Serial.println("[WEB][DNS] captive resolver stopped");
+}
+#endif
+
 static void handleWebConfigGet() {
   sendWebConfigJson(200, true);
+}
+
+static void handleWebWifiScanApi() {
+  String out;
+  out.reserve(2600);
+  out += F("{\"ok\":true,\"only_24ghz\":true,\"networks\":[");
+
+  const uint32_t scanStartMs = millis();
+  constexpr uint32_t WIFI_SCAN_API_TIMEOUT_MS = 6500UL;
+
+  const int prior = WiFi.scanComplete();
+  if (prior == WIFI_SCAN_RUNNING) {
+    WiFi.scanDelete();
+    delay(20);
+  } else if (prior >= 0 || prior == WIFI_SCAN_FAILED) {
+    WiFi.scanDelete();
+  }
+
+  int found = WIFI_SCAN_FAILED;
+  int startRc = WiFi.scanNetworks(true, true, false, 160);
+  if (startRc == WIFI_SCAN_RUNNING) {
+    while (true) {
+      found = WiFi.scanComplete();
+      if (found != WIFI_SCAN_RUNNING) break;
+      if ((millis() - scanStartMs) > WIFI_SCAN_API_TIMEOUT_MS) {
+        found = WIFI_SCAN_FAILED;
+        break;
+      }
+#if WEB_CONFIG_ENABLED
+      if (g_webConfigDnsStarted) g_webConfigDnsServer.processNextRequest();
+#endif
+      delay(35);
+    }
+  } else if (startRc >= 0) {
+    found = startRc;
+  } else {
+    found = WIFI_SCAN_FAILED;
+  }
+
+  const bool scanTimedOut = (found == WIFI_SCAN_FAILED) && ((millis() - scanStartMs) > WIFI_SCAN_API_TIMEOUT_MS);
+  Serial.printf("[WEB][WIFI] scan rc=%d elapsed=%lums mode=%d ap=%d sta=%d timeout=%d\n",
+                found,
+                (unsigned long)(millis() - scanStartMs),
+                (int)WiFi.getMode(),
+                g_wifiSetupApActive ? 1 : 0,
+                wifiIsConnectedNow() ? 1 : 0,
+                scanTimedOut ? 1 : 0);
+
+  bool first = true;
+  if (found > 0) {
+    for (int i = 0; i < found; ++i) {
+      const int ch = WiFi.channel(i);
+      const String ssid = WiFi.SSID(i);
+      if (ch < 1 || ch > 14) continue;
+      if (ssid.length() == 0) continue;
+      if (!first) out += ',';
+      first = false;
+      out += F("{\"ssid\":\"");
+      appendJsonEscaped(out, ssid.c_str());
+      out += F("\",\"rssi\":");
+      out += WiFi.RSSI(i);
+      out += F(",\"channel\":");
+      out += ch;
+      out += F(",\"secure\":");
+      out += (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? F("false") : F("true");
+      out += '}';
+    }
+  }
+  WiFi.scanDelete();
+  if (scanTimedOut) out += F("],\"message\":\"scan_timeout\"}");
+  else if (found == WIFI_SCAN_FAILED) out += F("],\"message\":\"scan_failed\"}");
+  else out += F("]}");
+  g_webConfigServer.send(200, "application/json", out);
+}
+
+static void handleWebWifiSetupQrSvgApi() {
+  char setupUrl[96];
+  wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
+
+#if DB_HAS_QRCODEGEN
+  const bool ok = qrcodegen_encodeText(
+      setupUrl,
+      g_webQrTempBuf,
+      g_webQrDataBuf,
+      qrcodegen_Ecc_MEDIUM,
+      1,
+      8,
+      qrcodegen_Mask_AUTO,
+      true);
+  if (!ok) {
+    g_webConfigServer.send(500, "text/plain", "QR encode failed");
+    return;
+  }
+
+  const int qrSize = qrcodegen_getSize(g_webQrDataBuf);
+  const int border = 3;
+  const int scale = 5;
+  const int dim = (qrSize + border * 2) * scale;
+
+  String svg;
+  svg.reserve(18000);
+  svg += F("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ");
+  svg += dim;
+  svg += ' ';
+  svg += dim;
+  svg += F("' shape-rendering='crispEdges'>");
+  svg += F("<rect width='100%' height='100%' fill='#ffffff'/>");
+  for (int y = 0; y < qrSize; ++y) {
+    for (int x = 0; x < qrSize; ++x) {
+      if (!qrcodegen_getModule(g_webQrDataBuf, x, y)) continue;
+      const int px = (x + border) * scale;
+      const int py = (y + border) * scale;
+      svg += F("<rect x='");
+      svg += px;
+      svg += F("' y='");
+      svg += py;
+      svg += F("' width='");
+      svg += scale;
+      svg += F("' height='");
+      svg += scale;
+      svg += F("' fill='#000000'/>");
+    }
+  }
+  svg += F("</svg>");
+  g_webConfigServer.send(200, "image/svg+xml", svg);
+#else
+  String fallback;
+  fallback.reserve(256);
+  fallback += F("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 360 80'><rect width='100%' height='100%' fill='#111827'/>");
+  fallback += F("<text x='12' y='34' font-family='monospace' font-size='14' fill='#f9fafb'>QR encoder not available</text>");
+  fallback += F("<text x='12' y='56' font-family='monospace' font-size='12' fill='#93c5fd'>");
+  appendHtmlEscaped(fallback, setupUrl);
+  fallback += F("</text></svg>");
+  g_webConfigServer.send(200, "image/svg+xml", fallback);
+#endif
 }
 
 static void handleWebConfigApplyApi() {
@@ -3150,6 +3671,9 @@ static bool webRequestHasConfigParams() {
   if (g_webConfigServer.hasArg("weather_lon")) return true;
   if (g_webConfigServer.hasArg("wc_lang")) return true;
   if (g_webConfigServer.hasArg("wifi_pref_ssid")) return true;
+  if (g_webConfigServer.hasArg("wifi_setup_mode")) return true;
+  if (g_webConfigServer.hasArg("wifi_new_ssid")) return true;
+  if (g_webConfigServer.hasArg("wifi_new_password")) return true;
   if (g_webConfigServer.hasArg("ui_theme")) return true;
   if (g_webConfigServer.hasArg("rss_feed_url")) return true;
   if (g_webConfigServer.hasArg("logo_url")) return true;
@@ -3196,17 +3720,38 @@ static void handleWebReloadApi() {
 
 static void ensureWebConfigServerStarted() {
   ensureRuntimeNetConfig();
-  if (g_webConfigServerStarted) return;
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
+  const bool staUp = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
+  if (!staUp && !g_wifiSetupApActive) {
+    if (g_webConfigDnsStarted) webConfigStopCaptiveDns();
+    return;
+  }
+  if (g_webConfigServerStarted) {
+    if (g_wifiSetupApActive) webConfigStartCaptiveDnsIfNeeded();
+    else if (g_webConfigDnsStarted) webConfigStopCaptiveDns();
+    return;
+  }
 
   if (!g_webConfigRoutesRegistered) {
     g_webConfigServer.on("/", HTTP_GET, handleWebConfigRoot);
+    g_webConfigServer.on("/generate_204", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webConfigServer.on("/gen_204", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webConfigServer.on("/hotspot-detect.html", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webConfigServer.on("/connecttest.txt", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webConfigServer.on("/ncsi.txt", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webConfigServer.on("/fwlink", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webConfigServer.on("/success.txt", HTTP_GET, handleWebCaptivePortalProbe);
     g_webConfigServer.on("/config", HTTP_POST, handleWebConfigApplyForm);
     g_webConfigServer.on("/reload", HTTP_POST, handleWebReloadForm);
     g_webConfigServer.on("/api/config", HTTP_GET, handleWebConfigGet);
     g_webConfigServer.on("/api/config", HTTP_POST, handleWebConfigApplyApi);
+    g_webConfigServer.on("/api/wifi/scan", HTTP_GET, handleWebWifiScanApi);
+    g_webConfigServer.on("/api/wifi/setup-qr.svg", HTTP_GET, handleWebWifiSetupQrSvgApi);
     g_webConfigServer.on("/api/reload", HTTP_POST, handleWebReloadApi);
     g_webConfigServer.onNotFound([]() {
+      if (g_wifiSetupApActive) {
+        sendWebCaptiveRedirect();
+        return;
+      }
       g_webConfigServer.send(404, "text/plain", "Not found");
     });
     g_webConfigRoutesRegistered = true;
@@ -3214,13 +3759,23 @@ static void ensureWebConfigServerStarted() {
 
   g_webConfigServer.begin();
   g_webConfigServerStarted = true;
-  Serial.printf("[WEB] config ui ready: http://%s:%u\n",
-                WiFi.localIP().toString().c_str(),
-                (unsigned)WEB_CONFIG_PORT);
+  if (staUp) {
+    Serial.printf("[WEB] config ui ready (STA): http://%s:%u\n",
+                  WiFi.localIP().toString().c_str(),
+                  (unsigned)WEB_CONFIG_PORT);
+  }
+  if (g_wifiSetupApActive) {
+    webConfigStartCaptiveDnsIfNeeded();
+    Serial.printf("[WEB] config ui ready (AP): ssid='%s' url=http://%s:%u\n",
+                  g_wifiSetupApSsid,
+                  WiFi.softAPIP().toString().c_str(),
+                  (unsigned)WEB_CONFIG_PORT);
+  }
 }
 
 static void handleWebConfigServerLoop() {
   ensureWebConfigServerStarted();
+  if (g_webConfigDnsStarted) g_webConfigDnsServer.processNextRequest();
   if (g_webConfigServerStarted) g_webConfigServer.handleClient();
 }
 #else
@@ -6150,10 +6705,12 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_t *infoQrParent = lv_obj_get_parent(g_lvglInfoWebQr);
     const lv_coord_t infoQrSize = lv_obj_get_width(g_lvglInfoWebQr);
     char infoPayload[sizeof(g_lvglInfoLastQrPayload)];
+    char infoFallback[sizeof(g_lvglInfoLastQrPayload)] = "http://--:8080";
+    if (g_wifiSetupApActive) wifiBuildSetupPortalUrl(infoFallback, sizeof(infoFallback));
     copyStringSafe(
       infoPayload,
       sizeof(infoPayload),
-      g_lvglInfoLastQrPayload[0] ? g_lvglInfoLastQrPayload : "http://--:8080"
+      g_lvglInfoLastQrPayload[0] ? g_lvglInfoLastQrPayload : infoFallback
     );
     lv_obj_del(g_lvglInfoWebQr);
     g_lvglInfoWebQr = lv_qrcode_create(infoQrParent, infoQrSize, lv_color_hex(t.infoQrDark), lv_color_hex(t.infoQrLight));
@@ -8093,6 +8650,7 @@ static const char* const kBellazioLeads[] = {
   "Guarda,",
   "Ok raga,",
   "Minchia spettacolo,",
+  "Minchia oh,",
   "No vabbe',",
   "Bomber:",
   "Cavallo!",
@@ -9484,11 +10042,12 @@ static void lvglUpdateInfoPanel(bool force) {
   char pwrSourceBuf[24] = "--";
   char battVizBuf[96] = "N/A";
   char webUrlBuf[72] = "http://--:8080";
-  char endpointBuf[48];
+  char endpointBuf[48] = "--:8080";
 
 #if TEST_WIFI
   const wl_status_t st = WiFi.status();
   const bool wifiOk = (st == WL_CONNECTED) && g_wifiConnected;
+  const bool setupApOk = g_wifiSetupApActive;
   snprintf(wifiBuf, sizeof(wifiBuf), "%s", wlStatusToStr(st));
   if (wifiOk) {
     snprintf(ipBuf, sizeof(ipBuf), "%s", WiFi.localIP().toString().c_str());
@@ -9501,6 +10060,15 @@ static void lvglUpdateInfoPanel(bool force) {
 #if WEB_CONFIG_ENABLED
   if (wifiOk && g_webConfigServerStarted) {
     snprintf(webUrlBuf, sizeof(webUrlBuf), "http://%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
+    snprintf(endpointBuf, sizeof(endpointBuf), "%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
+  } else if (setupApOk) {
+    wifiBuildSetupPortalUrl(webUrlBuf, sizeof(webUrlBuf));
+    IPAddress apIp = WiFi.softAPIP();
+    if ((uint32_t)apIp == 0U) apIp = IPAddress(192, 168, 4, 1);
+    snprintf(ipBuf, sizeof(ipBuf), "%s", apIp.toString().c_str());
+    snprintf(endpointBuf, sizeof(endpointBuf), "%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
+    snprintf(wifiBuf, sizeof(wifiBuf), "AP SETUP");
+    if (g_wifiSetupApSsid[0]) copyStringSafe(ssidBuf, sizeof(ssidBuf), g_wifiSetupApSsid);
   }
 #endif
 #endif
@@ -9533,7 +10101,9 @@ static void lvglUpdateInfoPanel(bool force) {
   snprintf(ntpBuf, sizeof(ntpBuf), "%s", g_ntpSynced ? "SYNCED" : "WAIT");
 #endif
 
-  snprintf(endpointBuf, sizeof(endpointBuf), "%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
+  if (strcmp(endpointBuf, "--:8080") == 0) {
+    snprintf(endpointBuf, sizeof(endpointBuf), "%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
+  }
 
   char leftCol[512];
   snprintf(leftCol, sizeof(leftCol),
@@ -11172,7 +11742,7 @@ static void handleSerialCommand(const char *line) {
   cmd.toUpperCase();
 
   if (cmd == "HELP") {
-    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEW0, VIEW1, VIEW2, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, THEME, THEME <id>, LANG, LANG <code>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG");
+    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEW0, VIEW1, VIEW2, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, THEME, THEME <id>, LANG, LANG <code>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG, WIFIDIRECT, WIFIDIRECT <off|auto|on>");
     return;
   }
 
@@ -11364,6 +11934,11 @@ static void handleSerialCommand(const char *line) {
       Serial.printf("[WEB] url=http://%s:%u\n", WiFi.localIP().toString().c_str(), (unsigned)WEB_CONFIG_PORT);
     } else if (g_wifiConnected) {
       Serial.printf("[WEB] WiFi OK, server not started yet (port=%u)\n", (unsigned)WEB_CONFIG_PORT);
+    } else if (g_wifiSetupApActive) {
+      Serial.printf("[WEB] setup-ap ssid='%s' url=http://%s:%u\n",
+                    g_wifiSetupApSsid,
+                    WiFi.softAPIP().toString().c_str(),
+                    (unsigned)WEB_CONFIG_PORT);
     } else {
       Serial.println("[WEB] WiFi non connesso");
     }
@@ -11387,12 +11962,42 @@ static void handleSerialCommand(const char *line) {
     else Serial.println("[WEB] logo=''");
     Serial.printf("[WEB] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
     Serial.printf("[WEB] lang='%s'\n", g_wordClockLang);
+    Serial.printf("[WEB] wifi_setup_mode='%s' setup_ap=%d runtime_known=%u\n",
+                  g_wifiSetupMode,
+                  g_wifiSetupApActive ? 1 : 0,
+                  (unsigned)g_wifiRuntimeCredCount);
 #else
     Serial.println("[WEB] config UI disabled (WEB_CONFIG_ENABLED=0)");
 #endif
 #else
     Serial.println("[WEB] unavailable (TEST_WIFI=0)");
 #endif
+    return;
+  }
+
+  if (cmd == "WIFIDIRECT" || cmd == "WIFISETUP") {
+    Serial.printf("[WIFI][DIRECT] mode='%s' ap_active=%d ap_ssid='%s' ap_ip=%s\n",
+                  g_wifiSetupMode,
+                  g_wifiSetupApActive ? 1 : 0,
+                  g_wifiSetupApSsid[0] ? g_wifiSetupApSsid : "-",
+                  WiFi.softAPIP().toString().c_str());
+    return;
+  }
+
+  if (cmd.startsWith("WIFIDIRECT ") || cmd.startsWith("WIFISETUP ")) {
+    String mode = raw.substring(raw.indexOf(' ') + 1);
+    mode.trim();
+    mode.toLowerCase();
+    if (!(mode == "off" || mode == "auto" || mode == "on")) {
+      Serial.println("[WIFI][DIRECT][ERR] usa: WIFIDIRECT off|auto|on");
+      return;
+    }
+    copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), mode.c_str());
+    normalizeWifiSetupMode();
+    ensureRuntimeNetConfig();
+    (void)saveRuntimeNetConfigToNvs();
+    wifiHandleSetupModeLoop(millis());
+    Serial.printf("[WIFI][DIRECT] mode set -> '%s'\n", g_wifiSetupMode);
     return;
   }
 
@@ -11621,6 +12226,7 @@ void loop() {
   pollSerialCommands();
 #if TEST_WIFI
   handleWiFiReconnectLoop(now);
+  wifiHandleSetupModeLoop(now);
   handleWebConfigServerLoop();
 #endif
 #if TEST_BATTERY
