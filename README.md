@@ -80,10 +80,10 @@ Three views, navigated by swipe. Left or right, like flipping pages. There is no
 
 ```
           swipe right          swipe left
-  ┌────────────────────────────────────────────────┐
-  │   INFO   ◄── HOME (clock+weather) ──► AUX (RSS) │
+  ┌───────────────────────────────────────────────────┐
+  │   INFO   ◄── HOME (clock+weather) ──► AUX (RSS)   │
   │ (tech)        (default boot)          (headlines) │
-  └────────────────────────────────────────────────┘
+  └───────────────────────────────────────────────────┘
 ```
 
 **HOME** — Word clock in natural sentence form, switchable across 14 languages: Italiano, English, Français, Deutsch, Español, Português, Latina, Esperanto, Napoletano, tlhIngan Hol (Klingon), 1337 Speak, Shakespearean English, Valley Girl, and Italiano Gen Z. Not uppercase tiles — actual grammar, composed at runtime. Plus weather icon, temperature, and humidity. Typography is theme-driven at runtime (Montserrat/Space Mono/Delius Unicase/Chakra Petch/IBM Plex Mono) with auto-fit sizing so the sentence always fills the panel cleanly.
