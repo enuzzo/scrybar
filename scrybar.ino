@@ -190,6 +190,7 @@ static bool g_shortenerDnsDiagDone = false;
 static const char *g_wifiCredSsids[5] = {nullptr};
 static const char *g_wifiCredPasswords[5] = {nullptr};
 static size_t g_wifiCredCount = 0;
+static char g_wifiPreferredSsid[33] = "";
 static bool g_wifiReconnectAttemptActive = false;
 static uint8_t g_wifiReconnectIdx = 0;
 static uint32_t g_wifiReconnectAttemptStartMs = 0;
@@ -502,7 +503,7 @@ static const UiThemeDefinition kUiThemes[] = {
       "#8F8F8F",
       "#F1F1F1",
       "#FF3B30",
-      "rgba(33,45,35,.78)",
+      "rgba(22,22,22,.90)",
       "rgba(20,20,20,0.82)",
       "rgba(255,255,255,.22)",
       "rgba(255,255,255,.28)",
@@ -590,7 +591,7 @@ struct RuntimeNetConfig {
 };
 static RuntimeNetConfig g_runtimeNetConfig = {};
 static bool g_runtimeNetConfigNvsLoaded = false;
-static char g_wordClockLang[8] = WORD_CLOCK_LANG_DEFAULT;
+static char g_wordClockLang[16] = WORD_CLOCK_LANG_DEFAULT;
 #if WEB_CONFIG_ENABLED
 static WebServer g_webConfigServer(WEB_CONFIG_PORT);
 static bool g_webConfigServerStarted = false;
@@ -1820,6 +1821,16 @@ static size_t buildWiFiCredentialList(const char **ssidOut, const char **passOut
   return n;
 }
 
+static int8_t findWiFiCredentialIndexBySsid(const char *ssid) {
+  if (!ssid || !ssid[0]) return -1;
+  for (uint8_t i = 0; i < g_wifiCredCount; ++i) {
+    const char *known = g_wifiCredSsids[i];
+    if (!known || !known[0]) continue;
+    if (strcmp(known, ssid) == 0) return (int8_t)i;
+  }
+  return -1;
+}
+
 static void wifiPrepareCredentialCache() {
   g_wifiCredCount = buildWiFiCredentialList(g_wifiCredSsids, g_wifiCredPasswords, sizeof(g_wifiCredSsids) / sizeof(g_wifiCredSsids[0]));
   if (g_wifiCredCount == 0) {
@@ -1828,6 +1839,10 @@ static void wifiPrepareCredentialCache() {
     Serial.printf("[WIFI] reti configurate: %u\n", (unsigned)g_wifiCredCount);
   }
   g_wifiReconnectIdx = 0;
+  if (g_wifiPreferredSsid[0]) {
+    const int8_t preferredIdx = findWiFiCredentialIndexBySsid(g_wifiPreferredSsid);
+    if (preferredIdx >= 0) g_wifiReconnectIdx = (uint8_t)preferredIdx;
+  }
   g_wifiReconnectAttemptActive = false;
   g_wifiReconnectAttemptStartMs = 0;
   g_wifiReconnectNextAttemptMs = 0;
@@ -2122,6 +2137,7 @@ static void loadRuntimeNetConfigFromNvs() {
   }
 
   bool loadedAny = false;
+  bool langNeedsPersist = false;
   if (prefs.isKey("w_city")) {
     const String city = prefs.getString("w_city", "");
     if (city.length() > 0) {
@@ -2191,11 +2207,49 @@ static void loadRuntimeNetConfigFromNvs() {
       loadedAny = true;
     }
   }
+  if (prefs.isKey("wifi_pref")) {
+    String wifiPref = prefs.getString("wifi_pref", "");
+    wifiPref.trim();
+    if (wifiPref.length() < sizeof(g_wifiPreferredSsid)) {
+      copyStringSafe(g_wifiPreferredSsid, sizeof(g_wifiPreferredSsid), wifiPref.c_str());
+      loadedAny = true;
+    }
+  }
   if (prefs.isKey("wc_lang")) {
-    const String lang = prefs.getString("wc_lang", WORD_CLOCK_LANG_DEFAULT);
-    if (lang.length() > 0 && lang.length() < sizeof(g_wordClockLang)) {
+    String lang = prefs.getString("wc_lang", WORD_CLOCK_LANG_DEFAULT);
+    lang.trim();
+    lang.toLowerCase();
+    String langLower(lang);
+    langLower.toLowerCase();
+    const bool legacyAlias =
+        (langLower.length() == 4) &&
+        (langLower.charAt(0) == 'g') &&
+        (langLower.charAt(1) == 'e') &&
+        (langLower.charAt(2) == 'n') &&
+        (langLower.charAt(3) == 'z');
+    if (legacyAlias) {
+      // Backward compatibility: old alias before rename to Bellazio.
+      lang = "bellazio";
+      langNeedsPersist = true;
+      Serial.println("[CFG][NVS] wc_lang legacy alias -> 'bellazio'");
+    }
+    if (lang.equalsIgnoreCase("bellazi")) {
+      // Backward compatibility: old truncated value caused by 8-byte lang buffer.
+      lang = "bellazio";
+      langNeedsPersist = true;
+      Serial.println("[CFG][NVS] wc_lang legacy 'bellazi' -> 'bellazio'");
+    }
+    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "nap", "l33t", "sha", "val", "bellazio", nullptr};
+    bool valid = false;
+    for (int i = 0; kAllowed[i]; ++i) {
+      if (lang == kAllowed[i]) { valid = true; break; }
+    }
+    if (valid && lang.length() > 0 && lang.length() < sizeof(g_wordClockLang)) {
       strncpy(g_wordClockLang, lang.c_str(), sizeof(g_wordClockLang) - 1);
       g_wordClockLang[sizeof(g_wordClockLang) - 1] = '\0';
+    } else if (lang.length() > 0) {
+      Serial.printf("[CFG][NVS] wc_lang invalid '%s', fallback '%s'\n", lang.c_str(), WORD_CLOCK_LANG_DEFAULT);
+      copyStringSafe(g_wordClockLang, sizeof(g_wordClockLang), WORD_CLOCK_LANG_DEFAULT);
     }
   }
   if (prefs.isKey("ui_theme")) {
@@ -2207,18 +2261,34 @@ static void loadRuntimeNetConfigFromNvs() {
   }
   prefs.end();
 
+  if (g_wifiPreferredSsid[0]) {
+    const int8_t preferredIdx = findWiFiCredentialIndexBySsid(g_wifiPreferredSsid);
+    if (preferredIdx >= 0) g_wifiReconnectIdx = (uint8_t)preferredIdx;
+    else g_wifiPreferredSsid[0] = '\0';
+  }
+
+  if (langNeedsPersist) {
+    Preferences prefsRw;
+    if (prefsRw.begin("scrybar_cfg", false)) {
+      prefsRw.putString("wc_lang", "bellazio");
+      prefsRw.end();
+      Serial.println("[CFG][NVS] wc_lang migration persisted");
+    }
+  }
+
   normalizeRuntimeRssFeeds(g_runtimeNetConfig);
   normalizeRuntimeUiTheme(g_runtimeNetConfig);
 
   if (loadedAny) {
     const int activeIdx = runtimeFirstConfiguredRssFeedIndexNoEnsure();
-    Serial.printf("[CFG][NVS] loaded city='%s' lat=%.4f lon=%.4f rss_feeds=%u active='%s' theme='%s'\n",
+    Serial.printf("[CFG][NVS] loaded city='%s' lat=%.4f lon=%.4f rss_feeds=%u active='%s' theme='%s' wifi_pref='%s'\n",
                   g_runtimeNetConfig.weatherCity,
                   g_runtimeNetConfig.weatherLat,
                   g_runtimeNetConfig.weatherLon,
                   (unsigned)runtimeRssConfiguredFeedCountNoEnsure(),
                   activeIdx >= 0 ? g_runtimeNetConfig.rssFeeds[activeIdx].url : "-",
-                  g_runtimeNetConfig.uiTheme);
+                  g_runtimeNetConfig.uiTheme,
+                  g_wifiPreferredSsid[0] ? g_wifiPreferredSsid : "auto");
   } else {
     Serial.println("[CFG][NVS] no saved config, uso default");
   }
@@ -2249,13 +2319,14 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n5 = prefs.putString("logo_url", g_runtimeNetConfig.logoUrl);
   const size_t n6 = prefs.putString("wc_lang", g_wordClockLang);
   const size_t n7 = prefs.putString("ui_theme", g_runtimeNetConfig.uiTheme);
+  const size_t n8 = prefs.putString("wifi_pref", g_wifiPreferredSsid);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
-  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u)\n",
+  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u wifi_pref=%u)\n",
                 ok ? "OK" : "ERR",
                 (unsigned)n1, (unsigned)n2, (unsigned)n3, (unsigned)n4,
                 (unsigned)nFeedName, (unsigned)nFeedUrl, (unsigned)nFeedMax, (unsigned)n5,
-                (unsigned)n6, (unsigned)n7);
+                (unsigned)n6, (unsigned)n7, (unsigned)n8);
   return ok;
 }
 
@@ -2476,7 +2547,10 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F(".site-footer{margin-top:18px;padding:12px 2px 4px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#8fa4d2;line-height:1.5}.site-footer strong{color:#dbe7ff}.site-footer a{color:#9fd9ff;text-decoration:none}.site-footer a:hover{color:#c7ebff;text-decoration:underline}");
   html += F("small{color:var(--txt2)}code{color:#d2ddff}@media(prefers-reduced-motion:reduce){.fx-grid *{animation-duration:0.01ms !important;transition-duration:0.01ms !important}}@media(max-width:980px){.grid2,.rss-composer{grid-template-columns:1fr}.fx-grid__plane{height:68vh;bottom:-4vh;background-size:32px 32px;opacity:1}.fx-grid__glow{height:66%;background:linear-gradient(to top,rgba(117,81,255,0.24) 0%,rgba(57,184,255,0.11) 45%,transparent 100%)}.fx-grid__horizon{bottom:58%}.hero-top{flex-wrap:nowrap;align-items:center}.hero-left{min-width:0;flex:1 1 auto}.logo{height:54px}.hero-right{justify-items:end;flex:0 0 auto}.release-box{width:auto}.hero-copy{padding:10px}}@media(max-width:420px){.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}}@media(max-width:480px){.btns{flex-direction:column}.btn.primary{width:100%;justify-content:center}}");
   html += F(".fx-grid__plane{background-image:linear-gradient(var(--grid-line-a) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line-b) 1px,transparent 1px)}.fx-grid__glow{background:linear-gradient(to top,var(--grid-glow-a) 0%,var(--grid-glow-b) 45%,transparent 100%)}.fx-grid__horizon{background:linear-gradient(90deg,transparent 0%,var(--grid-horizon-a) 20%,var(--grid-horizon-b) 50%,var(--grid-horizon-a) 80%,transparent 100%)}.fx-grid__scanline{background:linear-gradient(90deg,transparent,var(--scanline),transparent)}.fx-grid__vline:nth-child(5){background:linear-gradient(to bottom,transparent,var(--vline-a),transparent)}.fx-grid__vline:nth-child(6){background:linear-gradient(to bottom,transparent,var(--vline-b),transparent)}.fx-grid__vline:nth-child(7){background:linear-gradient(to bottom,transparent,var(--vline-a),transparent)}.hero-top-card{border-color:var(--hero-border)}.hero-copy{border-color:var(--hero-copy-border);background:var(--hero-copy-bg)}.release-box{border-color:var(--release-border);background:var(--release-bg);font-family:var(--font-mono)}.release-box .k{color:var(--release-key)}.release-box .v{color:var(--release-value)}.sec{border-color:var(--border);background:var(--sec-bg)}.btn{font-family:var(--font-main)}.btn.ghost{background:var(--btn-ghost-bg);color:var(--btn-ghost-text)}input,select{font-family:var(--font-main)}");
-  html += F("</style></head><body><div class='fx-grid'><div class='fx-grid__plane'></div><div class='fx-grid__glow'></div><div class='fx-grid__horizon'></div><div class='fx-grid__scanline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vignette'></div></div><main class='wrap'>");
+  html += F("body[data-theme='minimal-brutalist-mono'] .fx-grid{display:none}body[data-theme='minimal-brutalist-mono'] .hero-top-card,body[data-theme='minimal-brutalist-mono'] .hero-copy,body[data-theme='minimal-brutalist-mono'] .sec,body[data-theme='minimal-brutalist-mono'] .card,body[data-theme='minimal-brutalist-mono'] .rss-row,body[data-theme='minimal-brutalist-mono'] .rss-empty,body[data-theme='minimal-brutalist-mono'] .api-note,body[data-theme='minimal-brutalist-mono'] .msg{background:var(--bg-surface)!important;border-color:var(--line)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important}body[data-theme='minimal-brutalist-mono'] .sec h2,body[data-theme='minimal-brutalist-mono'] .rss-title{color:var(--txt)!important}body[data-theme='minimal-brutalist-mono'] .sec h2 i,body[data-theme='minimal-brutalist-mono'] .rss-title i,body[data-theme='minimal-brutalist-mono'] .site-footer a{color:var(--acc2)!important}body[data-theme='minimal-brutalist-mono'] .lede,body[data-theme='minimal-brutalist-mono'] .rss-meta,body[data-theme='minimal-brutalist-mono'] .hint,body[data-theme='minimal-brutalist-mono'] .geo-status,body[data-theme='minimal-brutalist-mono'] .site-footer{color:var(--txt2)!important}body[data-theme='minimal-brutalist-mono'] input,body[data-theme='minimal-brutalist-mono'] select{background:var(--bg-surface)!important;border-color:var(--line)!important;color:var(--txt)!important;box-shadow:none!important}body[data-theme='minimal-brutalist-mono'] .btn{border:1px solid var(--line)!important;box-shadow:none!important}body[data-theme='minimal-brutalist-mono'] .btn.primary{background:var(--acc2)!important;color:#FFFFFF!important;animation:none!important}body[data-theme='minimal-brutalist-mono'] .btn.ghost,body[data-theme='minimal-brutalist-mono'] .btn.warn,body[data-theme='minimal-brutalist-mono'] .btn.danger{background:var(--bg-surface)!important;color:var(--txt)!important}body[data-theme='minimal-brutalist-mono'] .pill,body[data-theme='minimal-brutalist-mono'] .rss-chip,body[data-theme='minimal-brutalist-mono'] .badge-soon{background:var(--line-soft)!important;color:var(--txt2)!important;border:1px solid var(--line)!important}body[data-theme='minimal-brutalist-mono'] .rss-row{border-left-color:var(--acc2)!important}body[data-theme='minimal-brutalist-mono'] *,body[data-theme='minimal-brutalist-mono'] *::before,body[data-theme='minimal-brutalist-mono'] *::after{border-radius:0!important}");
+  html += F("</style></head><body data-theme='");
+  appendHtmlEscaped(html, themeDef.id);
+  html += F("'><div class='fx-grid'><div class='fx-grid__plane'></div><div class='fx-grid__glow'></div><div class='fx-grid__horizon'></div><div class='fx-grid__scanline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vignette'></div></div><main class='wrap'>");
   html += F("<section class='hero'><div class='hero-top-card'><div class='hero-top'><div class='hero-left'><img class='logo' alt='Netmilk Studio' src='");
   appendHtmlEscaped(html, runtimeLogoUrl());
   html += F("'></div><div class='hero-right'><div class='release-box'><span class='k'><i class='fa-regular fa-calendar'></i> last release</span><span class='v'>");
@@ -2505,6 +2579,31 @@ static String buildWebConfigPage(const char *statusMsg) {
     }
     html += F("</select><p class='hint'><i class='fa-solid fa-bolt'></i> One selector drives both interfaces: this web control surface and the ESP32 display UI. Switching theme applies instantly and persists in NVS.</p></div>");
   }
+#if TEST_WIFI
+  // Wi-Fi preferred network section
+  {
+    const bool wifiOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
+    const String activeSsid = wifiOk ? WiFi.SSID() : String("");
+    html += F("<div class='sec'><h2><i class='fa-solid fa-wifi'></i>Wi-Fi Known Networks</h2><div class='key'>PREFERRED SSID</div><select name='wifi_pref_ssid'>");
+    html += F("<option value=''");
+    if (!g_wifiPreferredSsid[0]) html += F(" selected");
+    html += F(">Auto (smart rotation)</option>");
+    for (uint8_t i = 0; i < g_wifiCredCount; ++i) {
+      const char *ssid = g_wifiCredSsids[i];
+      if (!ssid || !ssid[0]) continue;
+      html += F("<option value='");
+      appendHtmlEscaped(html, ssid);
+      html += '\'';
+      const bool selected = (strcmp(g_wifiPreferredSsid, ssid) == 0);
+      if (selected) html += F(" selected");
+      html += '>';
+      appendHtmlEscaped(html, ssid);
+      if (wifiOk && activeSsid.equals(ssid)) html += F(" (connected)");
+      html += F("</option>");
+    }
+    html += F("</select><p class='hint'><i class='fa-solid fa-circle-info'></i> Select one of the SSIDs already configured in secrets. If set, ScryBar will prioritize it on reconnect. Use Auto to keep adaptive rotation.</p></div>");
+  }
+#endif
   // System Language section
   {
     // Helper macro-style: emit one <option> with runtime selected check
@@ -2590,6 +2689,9 @@ static String buildWebConfigPage(const char *statusMsg) {
         html += F(" / ");
         html += WiFi.dnsIP(1).toString();
       } else { html += F("--"); }
+      html += F("</code><br><small>preferred: </small><code>");
+      if (g_wifiPreferredSsid[0]) appendHtmlEscaped(html, g_wifiPreferredSsid);
+      else html += F("auto");
       html += F("</code>");
     }
 #else
@@ -2680,7 +2782,20 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   out += latBuf;
   out += F(",\"lon\":");
   out += lonBuf;
-  out += F("},\"rss\":{\"feed_url\":\"");
+  out += F("},\"wifi\":{\"preferred_ssid\":\"");
+  appendJsonEscaped(out, g_wifiPreferredSsid);
+  out += F("\",\"known\":[");
+  bool firstSsid = true;
+  for (uint8_t i = 0; i < g_wifiCredCount; ++i) {
+    const char *ssid = g_wifiCredSsids[i];
+    if (!ssid || !ssid[0]) continue;
+    if (!firstSsid) out += ',';
+    firstSsid = false;
+    out += '"';
+    appendJsonEscaped(out, ssid);
+    out += '"';
+  }
+  out += F("]},\"rss\":{\"feed_url\":\"");
   appendJsonEscaped(out, runtimeRssFeedUrl());
   out += F("\",\"active_max_items\":");
   out += (unsigned)runtimeRssActiveMaxItems();
@@ -2735,6 +2850,9 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   ensureRuntimeNetConfig();
   RuntimeNetConfig next = g_runtimeNetConfig;
   bool hasInput = false;
+  bool langChanged = false;
+  bool wifiPrefChanged = false;
+  int8_t wifiPrefIdx = -1;
 
   if (g_webConfigServer.hasArg("weather_city")) {
     hasInput = true;
@@ -2869,15 +2987,46 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     copyStringSafe(next.uiTheme, sizeof(next.uiTheme), theme.c_str());
   }
 
+  if (g_webConfigServer.hasArg("wifi_pref_ssid")) {
+    hasInput = true;
+    String preferred = g_webConfigServer.arg("wifi_pref_ssid");
+    preferred.trim();
+    char previousPref[sizeof(g_wifiPreferredSsid)] = {0};
+    copyStringSafe(previousPref, sizeof(previousPref), g_wifiPreferredSsid);
+    if (preferred.length() == 0) {
+      g_wifiPreferredSsid[0] = '\0';
+      wifiPrefChanged = (previousPref[0] != '\0');
+    } else {
+      if (preferred.length() >= sizeof(g_wifiPreferredSsid)) {
+        errorOut = "wifi_pref_ssid troppo lungo";
+        return false;
+      }
+      wifiPrefIdx = findWiFiCredentialIndexBySsid(preferred.c_str());
+      if (wifiPrefIdx < 0) {
+        errorOut = "wifi_pref_ssid non presente nelle reti note";
+        return false;
+      }
+      copyStringSafe(g_wifiPreferredSsid, sizeof(g_wifiPreferredSsid), preferred.c_str());
+      wifiPrefChanged = (strcmp(previousPref, g_wifiPreferredSsid) != 0);
+    }
+  }
+
   if (g_webConfigServer.hasArg("wc_lang")) {
     hasInput = true;
-    const String lang = g_webConfigServer.arg("wc_lang");
+    String lang = g_webConfigServer.arg("wc_lang");
+    lang.trim();
+    lang.toLowerCase();
     const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "nap", "l33t", "sha", "val", "bellazio", nullptr};
     bool valid = false;
     for (int i = 0; kAllowed[i]; i++) { if (lang == kAllowed[i]) { valid = true; break; } }
-    if (valid) {
-      strncpy(g_wordClockLang, lang.c_str(), sizeof(g_wordClockLang) - 1);
-      g_wordClockLang[sizeof(g_wordClockLang) - 1] = '\0';
+    if (!valid) {
+      errorOut = "wc_lang non valido";
+      return false;
+    }
+    if (strncmp(g_wordClockLang, lang.c_str(), sizeof(g_wordClockLang)) != 0) {
+      copyStringSafe(g_wordClockLang, sizeof(g_wordClockLang), lang.c_str());
+      langChanged = true;
+      Serial.printf("[CFG][WEB] wc_lang='%s'\n", g_wordClockLang);
     }
   }
 
@@ -2932,8 +3081,28 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   if (themeChanged && g_lvglReady) lvglApplyThemeStyles(true);
 #endif
 #if TEST_NTP
-  if (weatherChanged || rssChanged || brandingChanged || themeChanged) g_uiNeedsRedraw = true;
+  if (weatherChanged || rssChanged || brandingChanged || themeChanged || langChanged) g_uiNeedsRedraw = true;
 #endif
+  if (wifiPrefChanged) {
+    if (wifiPrefIdx >= 0) g_wifiReconnectIdx = (uint8_t)wifiPrefIdx;
+    else if (g_wifiReconnectIdx >= g_wifiCredCount) g_wifiReconnectIdx = 0;
+    if (g_wifiCredCount > 0) {
+      const bool wifiUp = wifiIsConnectedNow();
+      bool alreadyOnTarget = false;
+      if (wifiUp && wifiPrefIdx >= 0) {
+        alreadyOnTarget = WiFi.SSID().equals(g_wifiCredSsids[wifiPrefIdx]);
+      }
+      if (!alreadyOnTarget) {
+        wifiScheduleNextAttempt(millis(), 0UL);
+        if (wifiUp) {
+          g_wifiInternalDisconnect = true;
+          WiFi.disconnect(true, false);
+          delay(20);
+          g_wifiInternalDisconnect = false;
+        }
+      }
+    }
+  }
   if (weatherChanged) (void)updateWeatherFromApi(true);
   if (rssChanged) (void)updateRssFromFeed(true);
   return true;
@@ -2980,6 +3149,7 @@ static bool webRequestHasConfigParams() {
   if (g_webConfigServer.hasArg("weather_lat")) return true;
   if (g_webConfigServer.hasArg("weather_lon")) return true;
   if (g_webConfigServer.hasArg("wc_lang")) return true;
+  if (g_webConfigServer.hasArg("wifi_pref_ssid")) return true;
   if (g_webConfigServer.hasArg("ui_theme")) return true;
   if (g_webConfigServer.hasArg("rss_feed_url")) return true;
   if (g_webConfigServer.hasArg("logo_url")) return true;
@@ -3737,7 +3907,7 @@ static const char* weatherCodeShortBellazio(int code) {
 }
 
 static const char* weatherCodeUiLabelBellazio(int code) {
-  if (code == 0) return "Sereno ngl";
+  if (code == 0) return "Sereno pieno";
   if (code == 1) return "Sole, tipo";
   if (code == 2) return "Un po' nuv.";
   if (code == 3) return "Tutto coperto";
@@ -3801,98 +3971,261 @@ static const char* weatherCodeShort(int code) {
   return weatherCodeShortIt(code);
 }
 
+static void appendAsciiFoldedCodepoint(String &out, uint32_t cp) {
+  if (cp == 0) return;
+  if (cp < 0x20U) { out += ' '; return; }
+  if (cp < 0x80U) { out += (char)cp; return; }
+
+  switch (cp) {
+    case 0x00A0: out += ' '; return;     // NBSP
+    case 0x00AB: case 0x00BB: out += '"'; return;
+    case 0x2010: case 0x2011: case 0x2012: case 0x2013: case 0x2014: case 0x2015: out += '-'; return;
+    case 0x2018: case 0x2019: case 0x201A: case 0x201B: case 0x2032: out += '\''; return;
+    case 0x201C: case 0x201D: case 0x201E: case 0x201F: case 0x2033: out += '"'; return;
+    case 0x2022: case 0x00B7: case 0x2219: out += '*'; return;
+    case 0x2026: out += "..."; return;
+    case 0x202F: case 0x2009: case 0x200A: case 0x2002: case 0x2003: out += ' '; return;
+    case 0x200B: case 0x200C: case 0x200D: case 0xFEFF: return; // zero-width
+    case 0x2044: out += '/'; return;
+    case 0x20AC: out += "EUR"; return;
+    case 0x00A3: out += "GBP"; return;
+    case 0x00A5: out += "YEN"; return;
+    case 0x00A2: out += "cent"; return;
+    case 0x00A9: out += "(c)"; return;
+    case 0x00AE: out += "(r)"; return;
+    case 0x2122: out += "(tm)"; return;
+    case 0x00DF: out += "ss"; return;
+    case 0x00C6: out += "AE"; return;
+    case 0x00E6: out += "ae"; return;
+    case 0x0152: out += "OE"; return;
+    case 0x0153: out += "oe"; return;
+    case 0x00D0: out += "D"; return;
+    case 0x00F0: out += "d"; return;
+    case 0x00DE: out += "TH"; return;
+    case 0x00FE: out += "th"; return;
+  }
+
+  switch (cp) {
+    case 0x00C0: case 0x00C1: case 0x00C2: case 0x00C3: case 0x00C4: case 0x00C5:
+    case 0x0100: case 0x0102: case 0x0104: out += 'A'; return;
+    case 0x00E0: case 0x00E1: case 0x00E2: case 0x00E3: case 0x00E4: case 0x00E5:
+    case 0x0101: case 0x0103: case 0x0105: out += 'a'; return;
+    case 0x00C7: case 0x0106: case 0x0108: case 0x010A: case 0x010C: out += 'C'; return;
+    case 0x00E7: case 0x0107: case 0x0109: case 0x010B: case 0x010D: out += 'c'; return;
+    case 0x00C8: case 0x00C9: case 0x00CA: case 0x00CB:
+    case 0x0112: case 0x0114: case 0x0116: case 0x0118: case 0x011A: out += 'E'; return;
+    case 0x00E8: case 0x00E9: case 0x00EA: case 0x00EB:
+    case 0x0113: case 0x0115: case 0x0117: case 0x0119: case 0x011B: out += 'e'; return;
+    case 0x00CC: case 0x00CD: case 0x00CE: case 0x00CF:
+    case 0x0128: case 0x012A: case 0x012C: case 0x012E: case 0x0130: out += 'I'; return;
+    case 0x00EC: case 0x00ED: case 0x00EE: case 0x00EF:
+    case 0x0129: case 0x012B: case 0x012D: case 0x012F: case 0x0131: out += 'i'; return;
+    case 0x00D1: case 0x0143: case 0x0145: case 0x0147: out += 'N'; return;
+    case 0x00F1: case 0x0144: case 0x0146: case 0x0148: out += 'n'; return;
+    case 0x00D2: case 0x00D3: case 0x00D4: case 0x00D5: case 0x00D6: case 0x00D8:
+    case 0x014C: case 0x014E: case 0x0150: out += 'O'; return;
+    case 0x00F2: case 0x00F3: case 0x00F4: case 0x00F5: case 0x00F6: case 0x00F8:
+    case 0x014D: case 0x014F: case 0x0151: out += 'o'; return;
+    case 0x00D9: case 0x00DA: case 0x00DB: case 0x00DC:
+    case 0x0168: case 0x016A: case 0x016C: case 0x016E: case 0x0170: case 0x0172: out += 'U'; return;
+    case 0x00F9: case 0x00FA: case 0x00FB: case 0x00FC:
+    case 0x0169: case 0x016B: case 0x016D: case 0x016F: case 0x0171: case 0x0173: out += 'u'; return;
+    case 0x00DD: case 0x0176: case 0x0178: out += 'Y'; return;
+    case 0x00FD: case 0x00FF: case 0x0177: out += 'y'; return;
+    case 0x015A: case 0x015C: case 0x015E: case 0x0160: out += 'S'; return;
+    case 0x015B: case 0x015D: case 0x015F: case 0x0161: out += 's'; return;
+    case 0x0179: case 0x017B: case 0x017D: out += 'Z'; return;
+    case 0x017A: case 0x017C: case 0x017E: out += 'z'; return;
+  }
+
+  out += ' ';
+}
+
+static bool decodeNextUtf8Codepoint(const String &in, int &idx, uint32_t &cp) {
+  const int len = (int)in.length();
+  if (idx >= len) return false;
+  const uint8_t b0 = (uint8_t)in[idx];
+  if (b0 < 0x80U) { cp = b0; ++idx; return true; }
+  if ((b0 & 0xE0U) == 0xC0U && (idx + 1) < len) {
+    const uint8_t b1 = (uint8_t)in[idx + 1];
+    if ((b1 & 0xC0U) == 0x80U) {
+      cp = (uint32_t)(b0 & 0x1FU) << 6;
+      cp |= (uint32_t)(b1 & 0x3FU);
+      idx += 2;
+      return true;
+    }
+  } else if ((b0 & 0xF0U) == 0xE0U && (idx + 2) < len) {
+    const uint8_t b1 = (uint8_t)in[idx + 1];
+    const uint8_t b2 = (uint8_t)in[idx + 2];
+    if (((b1 & 0xC0U) == 0x80U) && ((b2 & 0xC0U) == 0x80U)) {
+      cp = (uint32_t)(b0 & 0x0FU) << 12;
+      cp |= (uint32_t)(b1 & 0x3FU) << 6;
+      cp |= (uint32_t)(b2 & 0x3FU);
+      idx += 3;
+      return true;
+    }
+  } else if ((b0 & 0xF8U) == 0xF0U && (idx + 3) < len) {
+    const uint8_t b1 = (uint8_t)in[idx + 1];
+    const uint8_t b2 = (uint8_t)in[idx + 2];
+    const uint8_t b3 = (uint8_t)in[idx + 3];
+    if (((b1 & 0xC0U) == 0x80U) && ((b2 & 0xC0U) == 0x80U) && ((b3 & 0xC0U) == 0x80U)) {
+      cp = (uint32_t)(b0 & 0x07U) << 18;
+      cp |= (uint32_t)(b1 & 0x3FU) << 12;
+      cp |= (uint32_t)(b2 & 0x3FU) << 6;
+      cp |= (uint32_t)(b3 & 0x3FU);
+      idx += 4;
+      return true;
+    }
+  }
+  cp = b0;
+  ++idx;
+  return false;
+}
+
+static void foldUtf8ToAscii(String &text) {
+  String out;
+  out.reserve(text.length() + 8);
+  int i = 0;
+  while (i < (int)text.length()) {
+    uint32_t cp = 0;
+    (void)decodeNextUtf8Codepoint(text, i, cp);
+    appendAsciiFoldedCodepoint(out, cp);
+  }
+  text = out;
+}
+
+static bool htmlNamedEntityToCodepoint(const String &entityRaw, uint32_t &cpOut) {
+  String entity(entityRaw);
+  entity.toLowerCase();
+  if (entity == "amp") { cpOut = '&'; return true; }
+  if (entity == "quot") { cpOut = '"'; return true; }
+  if (entity == "apos") { cpOut = '\''; return true; }
+  if (entity == "lt") { cpOut = '<'; return true; }
+  if (entity == "gt") { cpOut = '>'; return true; }
+  if (entity == "nbsp") { cpOut = 0x00A0; return true; }
+  if (entity == "copy") { cpOut = 0x00A9; return true; }
+  if (entity == "reg") { cpOut = 0x00AE; return true; }
+  if (entity == "trade") { cpOut = 0x2122; return true; }
+  if (entity == "hellip") { cpOut = 0x2026; return true; }
+  if (entity == "bull") { cpOut = 0x2022; return true; }
+  if (entity == "middot") { cpOut = 0x00B7; return true; }
+  if (entity == "ndash") { cpOut = 0x2013; return true; }
+  if (entity == "mdash") { cpOut = 0x2014; return true; }
+  if (entity == "lsquo") { cpOut = 0x2018; return true; }
+  if (entity == "rsquo") { cpOut = 0x2019; return true; }
+  if (entity == "ldquo") { cpOut = 0x201C; return true; }
+  if (entity == "rdquo") { cpOut = 0x201D; return true; }
+  if (entity == "laquo") { cpOut = 0x00AB; return true; }
+  if (entity == "raquo") { cpOut = 0x00BB; return true; }
+  if (entity == "euro") { cpOut = 0x20AC; return true; }
+  if (entity == "pound") { cpOut = 0x00A3; return true; }
+  if (entity == "yen") { cpOut = 0x00A5; return true; }
+  if (entity == "cent") { cpOut = 0x00A2; return true; }
+  if (entity == "deg") { cpOut = 0x00B0; return true; }
+  if (entity == "aacute") { cpOut = 0x00E1; return true; }
+  if (entity == "agrave") { cpOut = 0x00E0; return true; }
+  if (entity == "acirc") { cpOut = 0x00E2; return true; }
+  if (entity == "atilde") { cpOut = 0x00E3; return true; }
+  if (entity == "auml") { cpOut = 0x00E4; return true; }
+  if (entity == "aring") { cpOut = 0x00E5; return true; }
+  if (entity == "eacute") { cpOut = 0x00E9; return true; }
+  if (entity == "egrave") { cpOut = 0x00E8; return true; }
+  if (entity == "ecirc") { cpOut = 0x00EA; return true; }
+  if (entity == "euml") { cpOut = 0x00EB; return true; }
+  if (entity == "iacute") { cpOut = 0x00ED; return true; }
+  if (entity == "igrave") { cpOut = 0x00EC; return true; }
+  if (entity == "icirc") { cpOut = 0x00EE; return true; }
+  if (entity == "iuml") { cpOut = 0x00EF; return true; }
+  if (entity == "oacute") { cpOut = 0x00F3; return true; }
+  if (entity == "ograve") { cpOut = 0x00F2; return true; }
+  if (entity == "ocirc") { cpOut = 0x00F4; return true; }
+  if (entity == "otilde") { cpOut = 0x00F5; return true; }
+  if (entity == "ouml") { cpOut = 0x00F6; return true; }
+  if (entity == "uacute") { cpOut = 0x00FA; return true; }
+  if (entity == "ugrave") { cpOut = 0x00F9; return true; }
+  if (entity == "ucirc") { cpOut = 0x00FB; return true; }
+  if (entity == "uuml") { cpOut = 0x00FC; return true; }
+  if (entity == "ntilde") { cpOut = 0x00F1; return true; }
+  if (entity == "ccedil") { cpOut = 0x00E7; return true; }
+  if (entity == "yacute") { cpOut = 0x00FD; return true; }
+  if (entity == "yuml") { cpOut = 0x00FF; return true; }
+  if (entity == "szlig") { cpOut = 0x00DF; return true; }
+  if (entity == "aelig") { cpOut = 0x00E6; return true; }
+  if (entity == "oelig") { cpOut = 0x0153; return true; }
+  return false;
+}
+
+static void decodeHtmlEntitiesToAscii(String &text) {
+  String out;
+  out.reserve(text.length() + 8);
+  for (int i = 0; i < (int)text.length(); ++i) {
+    const char c = text[i];
+    if (c != '&') {
+      out += c;
+      continue;
+    }
+    int semi = text.indexOf(';', i + 1);
+    if (semi < 0 || (semi - i) > 14) {
+      out += '&';
+      continue;
+    }
+    const String entity = text.substring(i + 1, semi);
+    uint32_t cp = 0;
+    bool ok = false;
+    if (entity.startsWith("#x") || entity.startsWith("#X")) {
+      char *endPtr = nullptr;
+      const unsigned long v = strtoul(entity.substring(2).c_str(), &endPtr, 16);
+      if (endPtr && *endPtr == '\0') { cp = (uint32_t)v; ok = true; }
+    } else if (entity.startsWith("#")) {
+      char *endPtr = nullptr;
+      const unsigned long v = strtoul(entity.substring(1).c_str(), &endPtr, 10);
+      if (endPtr && *endPtr == '\0') { cp = (uint32_t)v; ok = true; }
+    } else {
+      ok = htmlNamedEntityToCodepoint(entity, cp);
+    }
+    if (ok) {
+      appendAsciiFoldedCodepoint(out, cp);
+      i = semi;
+      continue;
+    }
+    out += '&';
+    out += entity;
+    out += ';';
+    i = semi;
+  }
+  text = out;
+}
+
+static void sanitizeAsciiBuffer(char *buf, size_t bufLen) {
+  if (!buf || bufLen == 0 || buf[0] == '\0') return;
+  String tmp(buf);
+  decodeHtmlEntitiesToAscii(tmp);
+  foldUtf8ToAscii(tmp);
+  strncpy(buf, tmp.c_str(), bufLen - 1);
+  buf[bufLen - 1] = '\0';
+}
+
 #if RSS_ENABLED
 static void normalizeRssText(String &text) {
-  text.replace("&amp;", "&");
-  text.replace("&quot;", "\"");
-  text.replace("&apos;", "'");
-  text.replace("&#39;", "'");
-  text.replace("&#8216;", "'");
-  text.replace("&#8217;", "'");
-  text.replace("&#8220;", "\"");
-  text.replace("&#8221;", "\"");
-  text.replace("&#8211;", "-");
-  text.replace("&#8212;", "-");
-  text.replace("&#8230;", "...");
-  text.replace("&#x2018;", "'");
-  text.replace("&#x2019;", "'");
-  text.replace("&#x201C;", "\"");
-  text.replace("&#x201D;", "\"");
-  text.replace("&#x2013;", "-");
-  text.replace("&#x2014;", "-");
-  text.replace("&#x2026;", "...");
-  text.replace("&#X2018;", "'");
-  text.replace("&#X2019;", "'");
-  text.replace("&#X201C;", "\"");
-  text.replace("&#X201D;", "\"");
-  text.replace("&#X2013;", "-");
-  text.replace("&#X2014;", "-");
-  text.replace("&#X2026;", "...");
-  text.replace("&agrave;", "a'");
-  text.replace("&egrave;", "e'");
-  text.replace("&eacute;", "e'");
-  text.replace("&igrave;", "i'");
-  text.replace("&ograve;", "o'");
-  text.replace("&ugrave;", "u'");
-  text.replace("&Agrave;", "A'");
-  text.replace("&Egrave;", "E'");
-  text.replace("&Eacute;", "E'");
-  text.replace("&Igrave;", "I'");
-  text.replace("&Ograve;", "O'");
-  text.replace("&Ugrave;", "U'");
-  text.replace("&#224;", "a'");
-  text.replace("&#232;", "e'");
-  text.replace("&#233;", "e'");
-  text.replace("&#236;", "i'");
-  text.replace("&#242;", "o'");
-  text.replace("&#249;", "u'");
-  text.replace("&#192;", "A'");
-  text.replace("&#200;", "E'");
-  text.replace("&#201;", "E'");
-  text.replace("&#204;", "I'");
-  text.replace("&#210;", "O'");
-  text.replace("&#217;", "U'");
-  text.replace("&lt;", "<");
-  text.replace("&gt;", ">");
-  text.replace("&nbsp;", " ");
-  text.replace("\xE2\x80\x99", "'");
-  text.replace("\xE2\x80\x93", "-");
-  text.replace("\xE2\x80\x94", "-");
-  text.replace("\xC3\xA0", "a'");
-  text.replace("\xC3\xA8", "e'");
-  text.replace("\xC3\xA9", "e'");
-  text.replace("\xC3\xAC", "i'");
-  text.replace("\xC3\xB2", "o'");
-  text.replace("\xC3\xB9", "u'");
-  text.replace("\xC3\x80", "A'");
-  text.replace("\xC3\x88", "E'");
-  text.replace("\xC3\x89", "E'");
-  text.replace("\xC3\x8C", "I'");
-  text.replace("\xC3\x92", "O'");
-  text.replace("\xC3\x99", "U'");
-
   String noTags;
   noTags.reserve(text.length());
   bool inTag = false;
   for (int i = 0; i < (int)text.length(); ++i) {
     const char c = text[i];
-    if (c == '<') {
-      inTag = true;
-      continue;
-    }
-    if (c == '>') {
-      inTag = false;
-      continue;
-    }
+    if (c == '<') { inTag = true; continue; }
+    if (c == '>') { inTag = false; continue; }
     if (!inTag) noTags += c;
   }
+
+  decodeHtmlEntitiesToAscii(noTags);
+  foldUtf8ToAscii(noTags);
 
   String collapsed;
   collapsed.reserve(noTags.length());
   bool prevSpace = true;
   for (int i = 0; i < (int)noTags.length(); ++i) {
     char c = noTags[i];
-    if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+    if ((uint8_t)c <= 0x20U) c = ' ';
     const bool isSpace = (c == ' ');
     if (isSpace) {
       if (!prevSpace) collapsed += ' ';
@@ -5661,6 +5994,11 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   const bool cyberpunk = lvglThemeIsCyberpunk();
   const bool tokyo = lvglThemeIsTokyoTransit();
   const bool minimal = lvglThemeIsMinimalBrutalistMono();
+  const lv_coord_t cardRadius = minimal ? 0 : 10;
+  const lv_coord_t infoRadius = minimal ? 0 : 8;
+  const lv_coord_t buttonRadius = minimal ? 0 : 4;
+  const lv_coord_t badgeRadius = minimal ? 0 : 6;
+  const lv_coord_t wifiBarRadius = minimal ? 0 : 1;
   const bool headerBordered = cyberpunk || minimal;
   const uint32_t panelBg = lvglResolvedPanelBg(t);
   const uint32_t headerBg = lvglResolvedHeaderBg(t);
@@ -5703,18 +6041,22 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglClockBlock) {
     lv_obj_set_style_bg_color(g_lvglClockBlock, lv_color_hex(panelBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglClockBlock, lv_color_hex(panelBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglClockBlock, cardRadius, LV_PART_MAIN);
   }
   if (g_lvglAuxCard) {
     lv_obj_set_style_bg_color(g_lvglAuxCard, lv_color_hex(panelBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglAuxCard, lv_color_hex(panelBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglAuxCard, cardRadius, LV_PART_MAIN);
   }
   if (g_lvglWeatherCard) {
     lv_obj_set_style_bg_color(g_lvglWeatherCard, lv_color_hex(weatherBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglWeatherCard, lv_color_hex(weatherBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWeatherCard, cardRadius, LV_PART_MAIN);
   }
   if (g_lvglForecastBar) {
     lv_obj_set_style_bg_color(g_lvglForecastBar, lv_color_hex(weatherBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglForecastBar, lv_color_hex(weatherBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglForecastBar, cardRadius, LV_PART_MAIN);
   }
   if (g_lvglForecastBarFill) {
     lv_obj_set_style_bg_color(g_lvglForecastBarFill, lv_color_hex(weatherBg), LV_PART_MAIN);
@@ -5724,6 +6066,7 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglClockHeader) {
     lv_obj_set_style_bg_color(g_lvglClockHeader, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglClockHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglClockHeader, cardRadius, LV_PART_MAIN);
     lv_obj_set_style_border_width(g_lvglClockHeader, headerBordered ? 1 : 0, LV_PART_MAIN);
     lv_obj_set_style_border_color(g_lvglClockHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
     lv_obj_set_style_border_opa(g_lvglClockHeader, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
@@ -5735,6 +6078,7 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglWeatherHeader) {
     lv_obj_set_style_bg_color(g_lvglWeatherHeader, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglWeatherHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWeatherHeader, cardRadius, LV_PART_MAIN);
     lv_obj_set_style_border_width(g_lvglWeatherHeader, headerBordered ? 1 : 0, LV_PART_MAIN);
     lv_obj_set_style_border_color(g_lvglWeatherHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
     lv_obj_set_style_border_opa(g_lvglWeatherHeader, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
@@ -5746,6 +6090,7 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglAuxHeader) {
     lv_obj_set_style_bg_color(g_lvglAuxHeader, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglAuxHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglAuxHeader, cardRadius, LV_PART_MAIN);
     lv_obj_set_style_border_width(g_lvglAuxHeader, headerBordered ? 1 : 0, LV_PART_MAIN);
     lv_obj_set_style_border_color(g_lvglAuxHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
     lv_obj_set_style_border_opa(g_lvglAuxHeader, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
@@ -5757,11 +6102,13 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglInfoCard) {
     lv_obj_set_style_bg_color(g_lvglInfoCard, lv_color_hex(t.infoBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglInfoCard, lv_color_hex(t.infoBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglInfoCard, infoRadius, LV_PART_MAIN);
   }
   if (g_lvglInfoHeader) {
     lv_obj_set_style_bg_color(g_lvglInfoHeader, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglInfoHeader, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
     lv_obj_set_style_border_color(g_lvglInfoHeader, lv_color_hex(infoHeaderBorder), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglInfoHeader, infoRadius, LV_PART_MAIN);
   }
   if (g_lvglInfoHeaderFill) {
     lv_obj_set_style_bg_color(g_lvglInfoHeaderFill, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
@@ -5836,6 +6183,15 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_set_style_border_width(g_lvglAuxSourceBadge, 1, LV_PART_MAIN);
     lv_obj_set_style_border_color(g_lvglAuxSourceBadge, lv_color_hex(t.auxSourceText), LV_PART_MAIN);
     lv_obj_set_style_border_opa(g_lvglAuxSourceBadge, LV_OPA_70, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglAuxSourceBadge, badgeRadius, LV_PART_MAIN);
+  }
+  if (g_lvglAuxSourceIcon) lv_obj_set_style_radius(g_lvglAuxSourceIcon, badgeRadius, LV_PART_MAIN);
+  if (g_lvglAuxNextFeedBtn) lv_obj_set_style_radius(g_lvglAuxNextFeedBtn, buttonRadius, LV_PART_MAIN);
+  if (g_lvglAuxRefreshBtn) lv_obj_set_style_radius(g_lvglAuxRefreshBtn, buttonRadius, LV_PART_MAIN);
+  if (g_lvglAuxQrBtn) lv_obj_set_style_radius(g_lvglAuxQrBtn, buttonRadius, LV_PART_MAIN);
+  for (uint8_t i = 0; i < 4; ++i) {
+    if (!g_lvglClockWiFiBars[i]) continue;
+    lv_obj_set_style_radius(g_lvglClockWiFiBars[i], wifiBarRadius, LV_PART_MAIN);
   }
   if (g_lvglAuxSourceBadgeText) lv_obj_set_style_text_color(g_lvglAuxSourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
   if (g_lvglAuxSourceSite) lv_obj_set_style_text_color(g_lvglAuxSourceSite, lv_color_hex(t.auxSourceText), 0);
@@ -7737,7 +8093,10 @@ static const char* const kBellazioLeads[] = {
   "Guarda,",
   "Ok raga,",
   "Minchia spettacolo,",
-  "No vabb\xC3\xA9,"
+  "No vabbe',",
+  "Bomber:",
+  "Cavallo!",
+  "Stai sereno..."
 };
 
 struct BellazioCloser {
@@ -7747,25 +8106,42 @@ struct BellazioCloser {
 
 static const BellazioCloser kBellazioClosers[] = {
   {"Onesto.", "punto"},
-  {"No cap.", "punto"},
-  {"Fr.", "punto"},
-  {"Ngl.", "punto"},
+  {"Davvero.", "punto"},
+  {"Ci sta.", "virgola"},
+  {"Serio.", "virgola"},
   {"Ti giuro.", "punto"},
   {"For real.", "punto"},
   {"Assurdo.", "punto"},
   {"Pazzesco.", "punto"},
   {"Bestiale.", "punto"},
-  {"\xC3\x88 una roba.", "punto"},
+  {"E una roba.", "punto"},
   {"Boh.", "punto"},
   {"Tipo.", "punto"},
   {"Adorooo!", "punto"},
-  {"Giuro\xE2\x80\xA6", "ellissi"},
-  {"Sul serio\xE2\x80\xA6", "ellissi"},
-  {"Tipo\xE2\x80\xA6", "ellissi"},
-  {"Cio\xC3\xA8\xE2\x80\xA6", "ellissi"},
-  {"Mah\xE2\x80\xA6", "ellissi"},
-  {"Ma anche no\xE2\x80\xA6", "ellissi"},
+  {"Giuro...", "ellissi"},
+  {"Sul serio...", "ellissi"},
+  {"Tipo...", "ellissi"},
+  {"Cioe...", "ellissi"},
+  {"Mah...", "ellissi"},
+  {"Ma anche no...", "ellissi"},
+  {"Bene, ma non benissimo.", "punto"},
+  {"Escile.", "punto"},
+  {"Apericena?", "punto"},
+  {"Buongiornissimo!", "punto"},
+  {"Ciaone.", "punto"},
+  {"Da paura.", "punto"},
+  {"Il disagio proprio.", "punto"},
+  {"Spacca", "virgola"},
+  {"Sta senza p'nzier.", "punto"},
+  {"Ti lovvo.", "punto"},
 };
+
+static const char* bellazioCloserSeparator(const char* type) {
+  if (!type) return ". ";
+  if (strcmp(type, "virgola") == 0) return ", ";
+  if (strcmp(type, "ellissi") == 0) return ". ";
+  return ". ";
+}
 
 static void composeWordClockSentenceBellazio(const tm &timeinfo, char *out, size_t outLen) {
   int h12 = timeinfo.tm_hour % 12;
@@ -7783,7 +8159,7 @@ static void composeWordClockSentenceBellazio(const tm &timeinfo, char *out, size
   const uint16_t closerSeed = (uint16_t)((timeinfo.tm_yday * 3) + (timeinfo.tm_wday * 11) + (h12 * 5) + (m5 / 5));
   const char* lead = kBellazioLeads[leadSeed % leadCount];
   const BellazioCloser* closer = &kBellazioClosers[closerSeed % closerCount];
-  (void)closer->type;
+  const char* closerSep = bellazioCloserSeparator(closer->type);
 
   char timePhrase[72];
   timePhrase[0] = '\0';
@@ -7809,7 +8185,7 @@ static void composeWordClockSentenceBellazio(const tm &timeinfo, char *out, size
     else        snprintf(timePhrase, sizeof(timePhrase), "mancano %s alle %s", mm, nhr);
   }
 
-  snprintf(out, outLen, "%s %s. %s", lead, timePhrase, closer->text);
+  snprintf(out, outLen, "%s %s%s%s", lead, timePhrase, closerSep, closer->text);
 }
 
 // --- Language dispatcher ---
@@ -8021,7 +8397,7 @@ static const lv_font_t* lvglFontToxicBig() {
 }
 
 static const lv_font_t* lvglFontToxicClock() {
-  return &scry_font_delius_unicase_32;
+  return &scry_font_delius_unicase_28;
 }
 
 static const lv_font_t* lvglFontTitle() {
@@ -8211,8 +8587,7 @@ static uint8_t lvglCollectClockFonts(const lv_font_t **out, uint8_t cap) {
     return n;
   }
   if (lvglThemeIsToxicCandy()) {
-    out[n++] = &scry_font_delius_unicase_32;
-    if (n < cap) out[n++] = &scry_font_delius_unicase_28;
+    out[n++] = &scry_font_delius_unicase_28;
     if (n < cap) out[n++] = &scry_font_delius_unicase_24;
     if (n < cap) out[n++] = &scry_font_delius_unicase_20;
     if (n < cap) out[n++] = &scry_font_delius_unicase_16;
@@ -8587,9 +8962,9 @@ static void lvglUpdateAuxRss(bool force) {
       }
     }
     if (lvglAuxQrModalIsOpen()) {
-      snprintf(meta, sizeof(meta), "Fetch %s  •  QR", g_rss.fetchedAt);
+      snprintf(meta, sizeof(meta), "Fetch %s | QR", g_rss.fetchedAt);
     } else {
-      snprintf(meta, sizeof(meta), "Fetch %s  •  %lus", g_rss.fetchedAt, (unsigned long)rotateLeftSec);
+      snprintf(meta, sizeof(meta), "Fetch %s | %lus", g_rss.fetchedAt, (unsigned long)rotateLeftSec);
     }
     rssResolveSourceHost(g_rss.items[showIndex], siteHost, sizeof(siteHost));
     buildRssSiteShortName(siteHost, siteShort, sizeof(siteShort));
@@ -8638,6 +9013,11 @@ static void lvglUpdateAuxRss(bool force) {
                    (g_rssFaviconCache[faviconIdx].pngData != nullptr) &&
                    (g_rssFaviconCache[faviconIdx].pngSize > 0);
   }
+
+  sanitizeAsciiBuffer(title3, sizeof(title3));
+  sanitizeAsciiBuffer(whenLine, sizeof(whenLine));
+  sanitizeAsciiBuffer(meta, sizeof(meta));
+  sanitizeAsciiBuffer(sourceLine, sizeof(sourceLine));
 
   lv_label_set_text(g_lvglAuxNews, title3);
   lvglForceLabelVisible(g_lvglAuxNews);
@@ -8901,7 +9281,7 @@ static void formatDateEo(const tm &timeinfo, char *out, size_t outLen) {
 static void formatDateNap(const tm &timeinfo, char *out, size_t outLen) {
   // Giorni: wikibooks Napoletano/Calendario — lunnerì, marterì, miercurì, gioverì, viernarì, sabbato, dummeneca
   // Mesi:   wikibooks Napoletano/Calendario — abbrile, austo, nuvembre, decembre, ecc.
-  static const char* kWeekday[] = {"Dummeneca","Lunnerì","Marterì","Miercurì","Gioverì","Viernarì","Sabbato"};
+  static const char* kWeekday[] = {"Dummeneca","Lunneri","Marteri","Miercuri","Gioveri","Viernari","Sabbato"};
   static const char* kMonth[] = {"Jennaro","Frevaro","Marzo","Abbrile","Maggio","Giugno","Luglio","Austo","Settembre","Uttombre","Nuvembre","Decembre"};
   snprintf(out, outLen, "%s %d %s %d",
     (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
@@ -9278,7 +9658,12 @@ static bool initLvglUi() {
   const int16_t leftW = cW - weatherW - cardsGapX;
   const int16_t outerPadX = 0;
   const int16_t outerPadY = 0;
-  constexpr lv_coord_t kCardRadius = 10;
+  const bool minimalTheme = lvglThemeIsMinimalBrutalistMono();
+  const lv_coord_t kCardRadius = minimalTheme ? 0 : 10;
+  const lv_coord_t kInfoRadius = minimalTheme ? 0 : 8;
+  const lv_coord_t kButtonRadius = minimalTheme ? 0 : 4;
+  const lv_coord_t kBadgeRadius = minimalTheme ? 0 : 6;
+  const lv_coord_t kWifiBarRadius = minimalTheme ? 0 : 1;
   const int16_t innerPad = 18;
   const int16_t weatherHeaderH = 30;
   const int16_t clockHeaderH = weatherHeaderH;
@@ -9321,7 +9706,7 @@ static bool initLvglUi() {
   g_lvglInfoCard = lv_obj_create(g_lvglInfoRoot);
   lv_obj_set_size(g_lvglInfoCard, cW, cH);
   lv_obj_set_pos(g_lvglInfoCard, 0, 0);
-  lv_obj_set_style_radius(g_lvglInfoCard, 8, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglInfoCard, kInfoRadius, LV_PART_MAIN);
   lv_obj_set_style_bg_color(g_lvglInfoCard, kInfoBg, LV_PART_MAIN);
   lv_obj_set_style_bg_grad_color(g_lvglInfoCard, kInfoBg, LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(g_lvglInfoCard, LV_GRAD_DIR_NONE, LV_PART_MAIN);
@@ -9340,7 +9725,7 @@ static bool initLvglUi() {
   lv_obj_set_style_bg_grad_color(g_lvglInfoHeader, kInfoHeaderBg, LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(g_lvglInfoHeader, LV_GRAD_DIR_NONE, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_lvglInfoHeader, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglInfoHeader, 8, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglInfoHeader, kInfoRadius, LV_PART_MAIN);
   lv_obj_set_style_border_color(g_lvglInfoHeader, lv_color_hex(theme.infoHeaderBorder), LV_PART_MAIN);
   lv_obj_set_style_border_opa(g_lvglInfoHeader, LV_OPA_60, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_lvglInfoHeader, 1, LV_PART_MAIN);
@@ -9508,7 +9893,7 @@ static bool initLvglUi() {
     lv_obj_set_style_bg_opa(g_lvglClockWiFiBars[i], (lv_opa_t)190, LV_PART_MAIN);
     lv_obj_set_style_border_width(g_lvglClockWiFiBars[i], 0, LV_PART_MAIN);
     lv_obj_set_style_shadow_width(g_lvglClockWiFiBars[i], 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglClockWiFiBars[i], 1, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglClockWiFiBars[i], kWifiBarRadius, LV_PART_MAIN);
     lv_obj_clear_flag(g_lvglClockWiFiBars[i], LV_OBJ_FLAG_SCROLLABLE);
   }
 
@@ -9839,7 +10224,7 @@ static bool initLvglUi() {
   lv_obj_set_style_bg_opa(g_lvglAuxNextFeedBtn, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_lvglAuxNextFeedBtn, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_lvglAuxNextFeedBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxNextFeedBtn, 4, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglAuxNextFeedBtn, kButtonRadius, LV_PART_MAIN);
   lv_obj_set_style_pad_all(g_lvglAuxNextFeedBtn, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_lvglAuxNextFeedBtn, LV_OBJ_FLAG_SCROLLABLE);
   g_lvglAuxNextFeedBtnText = lv_label_create(g_lvglAuxNextFeedBtn);
@@ -9856,7 +10241,7 @@ static bool initLvglUi() {
   lv_obj_set_style_bg_opa(g_lvglAuxRefreshBtn, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_lvglAuxRefreshBtn, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_lvglAuxRefreshBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxRefreshBtn, 4, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglAuxRefreshBtn, kButtonRadius, LV_PART_MAIN);
   lv_obj_set_style_pad_all(g_lvglAuxRefreshBtn, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_lvglAuxRefreshBtn, LV_OBJ_FLAG_SCROLLABLE);
   g_lvglAuxRefreshBtnText = lv_label_create(g_lvglAuxRefreshBtn);
@@ -9873,7 +10258,7 @@ static bool initLvglUi() {
   lv_obj_set_style_bg_opa(g_lvglAuxQrBtn, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_lvglAuxQrBtn, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_lvglAuxQrBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxQrBtn, 4, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglAuxQrBtn, kButtonRadius, LV_PART_MAIN);
   lv_obj_set_style_pad_all(g_lvglAuxQrBtn, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_lvglAuxQrBtn, LV_OBJ_FLAG_SCROLLABLE);
   g_lvglAuxQrBtnText = lv_label_create(g_lvglAuxQrBtn);
@@ -9928,7 +10313,7 @@ static bool initLvglUi() {
   lv_obj_set_style_bg_opa(g_lvglAuxSourceBadge, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_lvglAuxSourceBadge, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_lvglAuxSourceBadge, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxSourceBadge, 6, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglAuxSourceBadge, kBadgeRadius, LV_PART_MAIN);
   lv_obj_set_style_pad_all(g_lvglAuxSourceBadge, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_lvglAuxSourceBadge, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -9941,7 +10326,7 @@ static bool initLvglUi() {
 
   g_lvglAuxSourceIcon = lv_img_create(g_lvglAuxCard);
   lv_obj_set_pos(g_lvglAuxSourceIcon, sourceIconX, sourceRowY);
-  lv_obj_set_style_radius(g_lvglAuxSourceIcon, 6, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglAuxSourceIcon, kBadgeRadius, LV_PART_MAIN);
   lv_obj_set_style_clip_corner(g_lvglAuxSourceIcon, true, LV_PART_MAIN);
   lv_obj_add_flag(g_lvglAuxSourceIcon, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglAuxSourceIcon, LV_OBJ_FLAG_SCROLLABLE);
@@ -10184,6 +10569,7 @@ static void updateLvglUi(bool force) {
   }
   char sentence[96], d1[48];
   composeWordClockSentenceActive(timeinfo, sentence, sizeof(sentence));
+  sanitizeAsciiBuffer(sentence, sizeof(sentence));
   if (sentence[0] >= 'a' && sentence[0] <= 'z') {
     sentence[0] = (char)toupper((unsigned char)sentence[0]);
   }
@@ -10192,6 +10578,7 @@ static void updateLvglUi(bool force) {
   lv_label_set_text(g_lvglClockL2, "");
   lv_label_set_text(g_lvglClockL3, "");
   formatDateActive(timeinfo, d1, sizeof(d1));
+  sanitizeAsciiBuffer(d1, sizeof(d1));
   lv_label_set_text(g_lvglClockDate, d1);
   lvglForceLabelVisible(g_lvglClockDate);
 #if TEST_WIFI
@@ -10785,7 +11172,7 @@ static void handleSerialCommand(const char *line) {
   cmd.toUpperCase();
 
   if (cmd == "HELP") {
-    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEW0, VIEW1, VIEW2, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, THEME, THEME <id>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG");
+    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEW0, VIEW1, VIEW2, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, THEME, THEME <id>, LANG, LANG <code>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG");
     return;
   }
 
@@ -10830,6 +11217,41 @@ static void handleSerialCommand(const char *line) {
       Serial.print(kUiThemes[i].id);
     }
     Serial.println();
+    return;
+  }
+
+  if (cmd == "LANG" || cmd == "LANGSTAT") {
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo, 50)) {
+      Serial.printf("[LANG] wc_lang='%s' sentence=<ntp-unavailable>\n", g_wordClockLang);
+      return;
+    }
+    char sentence[96];
+    composeWordClockSentenceActive(timeinfo, sentence, sizeof(sentence));
+    Serial.printf("[LANG] wc_lang='%s' sentence=\"%s\"\n", g_wordClockLang, sentence);
+    return;
+  }
+
+  if (cmd.startsWith("LANG ")) {
+    String langArg = raw.substring(5);
+    langArg.trim();
+    langArg.toLowerCase();
+    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "nap", "l33t", "sha", "val", "bellazio", nullptr};
+    bool valid = false;
+    for (int i = 0; kAllowed[i]; ++i) {
+      if (langArg == kAllowed[i]) { valid = true; break; }
+    }
+    if (!valid) {
+      Serial.printf("[LANG][ERR] code non valido: '%s'\n", langArg.c_str());
+      return;
+    }
+    copyStringSafe(g_wordClockLang, sizeof(g_wordClockLang), langArg.c_str());
+#if TEST_WIFI
+    ensureRuntimeNetConfig();
+    saveRuntimeNetConfigToNvs();
+#endif
+    g_uiNeedsRedraw = true;
+    Serial.printf("[LANG] set -> '%s'\n", g_wordClockLang);
     return;
   }
 
@@ -10964,6 +11386,7 @@ static void handleSerialCommand(const char *line) {
     if (runtimeLogoUrl()[0]) Serial.printf("[WEB] logo='%s'\n", runtimeLogoUrl());
     else Serial.println("[WEB] logo=''");
     Serial.printf("[WEB] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
+    Serial.printf("[WEB] lang='%s'\n", g_wordClockLang);
 #else
     Serial.println("[WEB] config UI disabled (WEB_CONFIG_ENABLED=0)");
 #endif

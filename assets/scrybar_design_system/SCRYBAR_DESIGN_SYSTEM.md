@@ -49,9 +49,9 @@ Minimal Brutalist Mono v1.4 styling details:
 
 - Strict monochrome hierarchy (`#0A0A0A` / `#111111` / `#F3F3F3`) with signal red accent (`#FF3B30`)
 - Typography mood via `IBM Plex Mono` stack for both UI and technical readouts
-- Hard-edged radii, thicker strokes, and offset shadows for brutalist tactile feel
+- Hard-edged geometry only: rounded corners are fully disabled (`border-radius: 0`) across components in this preset
 - Flat/high-contrast controls with explicit pressed translation (`transform`) for stronger affordance
-- FX Grid token overrides shifted to white/red scanline language, slower and more restrained
+- No gradients in this preset: gradient tokens are flattened to solid colors and decorative glow layers are disabled
 
 The theming layer covers:
 

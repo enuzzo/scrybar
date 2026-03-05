@@ -275,7 +275,7 @@ static const UiStrings kUiLang_bellazio = {
     /* forecastNa           */ "Fra 3h: --",
     /* weatherOffline       */ "Meteo offline",
     /* wifiOff              */ "WiFi skippato",
-    /* rssOffline           */ "RSS offline boh.\nConnettiti\nal WiFi ngl.",
+    /* rssOffline           */ "RSS offline boh.\nConnettiti\nal WiFi dai.",
     /* rssFeedError         */ "Feed non disp.\nRiprovo tipo\ntra poco.",
     /* rssSyncing           */ "Tipo sto sincro...\nAspetta un sec.\n",
     /* rssDisabled          */ "RSS skippato.",

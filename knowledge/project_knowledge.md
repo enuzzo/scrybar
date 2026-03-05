@@ -83,6 +83,7 @@ Use them to confirm a flash landed (`[FW] Build=...` at boot).
 
 - Theme id: `uiTheme` (`ui_theme` in web/API payloads)
 - System language: `g_wordClockLang` (`wc_lang` in web/API payloads)
+- Preferred Wi-Fi SSID: `g_wifiPreferredSsid` (`wifi_pref_ssid` in web/API payloads)
 - Weather city/lat/lon
 - RSS feed slots (multi-feed)
 - Branding logo URL
@@ -92,6 +93,14 @@ Apply paths:
 - Web form POST `/config`
 - API POST `/api/config`
 - Serial command `THEME <id>` (theme only)
+
+Wi-Fi preference behavior:
+
+- `wifi_pref_ssid=""` means automatic rotation across known credentials.
+- `wifi_pref_ssid="<known ssid>"` pins reconnect priority to that SSID.
+- Value is validated against provisioned credentials only (no runtime password entry).
+- NVS key: `wifi_pref`.
+- On change, firmware schedules immediate reconnect and disconnects current STA only if needed.
 
 ## UI Theming System (Unified)
 
@@ -208,6 +217,11 @@ Supported 14 language codes:
 Bellazio sentence style rule:
 
 - `bellazio` keeps slang always-on with rotating lead/closer expressions (for variety), while preserving correct Italian grammar (`all'` / `alle`) and writing minute values in words (not digits).
+
+Character safety rule:
+
+- Displayed text is normalized to printable ASCII before rendering (clock/date/RSS/weather metadata), with UTF-8 folding + HTML entity decode + whitespace normalization.
+- Goal: avoid unsupported glyph boxes on LVGL fonts constrained to `0x20-0x7E`.
 
 Screensaver thought localization rule:
 

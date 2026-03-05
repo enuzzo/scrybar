@@ -35,7 +35,7 @@ Every ESP32 project starts the same way: blink an LED.
 
 Then you add a display because a blinking LED isn't really telling you anything. Then a touch controller because a display without interaction is just a slow TV. Then Wi-Fi because weather exists. Then NTP because the clock needs to know what time it is. Then RSS because why pull weather if you're pulling nothing else. Then QR codes because URLs are for people who type on phones with two thumbs.
 
-By the time you stop, you've built something that tells time in Italian like it's dictating verse, shows a weather summary with an icon, scrolls headlines from three feeds in rotation, and opens a web config UI on your LAN when you can't find the USB cable.
+By the time you stop, you've built something that tells time in Italian like it's dictating verse, shows a weather summary with an icon, scrolls headlines from three feeds in rotation, supports preferred-known-WiFi selection, and opens a web config UI on your LAN when you can't find the USB cable.
 
 We gave it three swipeable views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there. But reflashing firmware at 2 AM because a glyph is three pixels off and literally nobody will ever notice is not a hobby — it's a clinical condition. ScryBar exists so the rest of your devices don't have to suffer.
 
@@ -131,7 +131,7 @@ Language setting persists to NVS — survives power cycles. The full UI (weather
 At boot, ScryBar:
 
 1. Asserts `SYS_EN=HIGH` via TCA9554 (battery fallback safety on USB disconnect).
-2. Cycles Wi-Fi SSIDs in non-blocking retry loops — 10 seconds per SSID, then next, indefinitely.
+2. Cycles Wi-Fi SSIDs in non-blocking retry loops — 10 seconds per SSID, then next, indefinitely (or prioritizes the selected known SSID when set from web config).
 3. Syncs NTP once connected.
 4. Renders `HOME` and enters the main loop.
 
@@ -231,7 +231,7 @@ http://<DEVICE_IP>:8080
 
 Runtime config persists to NVS. Survives power cycles. Writable without reflash.
 
-Configurable from the UI: weather city, latitude/longitude, logo URL, and up to 5 RSS feeds — each with a friendly name, URL, and max post count. The feed composer is in-page: search, add, edit, delete, no page reloads.
+Configurable from the UI: preferred known Wi-Fi network (`Auto` rotation or one saved SSID), weather city, latitude/longitude, logo URL, and up to 5 RSS feeds — each with a friendly name, URL, and max post count. The feed composer is in-page: search, add, edit, delete, no page reloads.
 
 ---
 

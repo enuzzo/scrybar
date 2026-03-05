@@ -55,7 +55,7 @@ Entry format:
 ## 2026-02-28 - Multi-Language Word Clock Infrastructure
 
 - Context: Word clock was hard-coded Italian. The TODO roadmap planned multi-language support; Klingon was identified as the first addition.
-- Decision: Introduce `WORD_CLOCK_LANG_DEFAULT` in `config.h`, a global `g_wordClockLang[8]`, a `composeWordClockSentenceActive()` dispatcher, and NVS key `wc_lang` for persistence. The web config UI exposes a language selector.
+- Decision: Introduce `WORD_CLOCK_LANG_DEFAULT` in `config.h`, a global `g_wordClockLang[16]`, a `composeWordClockSentenceActive()` dispatcher, and NVS key `wc_lang` for persistence. The web config UI exposes a language selector.
 - Impact/Tradeoffs: Clean extension path for new languages (add `composeWordClockSentence<Lang>()` + register in dispatcher + whitelist in web handler). NVS key `wc_lang` is 7 chars, well within the ESP32 NVS 15-char key limit.
 
 ---
@@ -80,7 +80,7 @@ Entry format:
 
 - Context: Word clock had 10 languages (r139). Roadmap planned fun/creative languages. Neapolitan was implemented but with generic Italian-style number words and no authentic "manco" structure. Web UI language `<select>` had no visual grouping between fun and standard languages.
 - Decision:
-  - Added 4 new languages: `l33t` (1337 Speak), `sha` (Shakespearean English, rotating exclamations via `h12%6`), `val` (Valley Girl), `bellazio` (Italian Bellazio — boh/tipo/letteralmente/ngl/slay).
+  - Added 4 new languages: `l33t` (1337 Speak), `sha` (Shakespearean English, rotating exclamations via `h12%6`), `val` (Valley Girl), `bellazio` (Italian Bellazio — boh/tipo/letteralmente/for real/slay).
   - Revamped Neapolitan (`nap`) from scratch using wikibooks Napoletano resources: authentic number words (`seje`, `unnece`, `dudece`, `cinche`, `diece`, `vinte`), authentic "manco" structure for "to" times (`'e quatte manco nu quarto`), correct raddoppiamento (`ll'una` for 1 o'clock), authentic month/weekday names (`jennaro`, `dummeneca`, etc.), and authentic weather vocab (`assulato`, `schizzechea`, `tempurale`).
   - Split web UI language `<select>` into two `<optgroup>` groups: "Creative & Constructed" (bellazio, val, l33t, sha, nap, eo, la, tlh) on top, "Modern Languages" (en, it, es, fr, de, pt) below. Each standard language is labelled in its own language.
   - `kAllowed[]` updated to 14 entries; all 5 dispatchers updated.
@@ -165,3 +165,19 @@ Entry format:
 - Context: Legacy `src/audio` codec/microphone stack was being compiled in the sketch build pipeline even though no symbols were linked in the final firmware.
 - Decision: Move the whole audio subtree from `src/audio` to `vendor/audio`, keeping sources in-repo but outside the Arduino sketch compile path.
 - Impact/Tradeoffs: No runtime behavior change and no feature loss for active firmware; cleaner build surface and less compile-time noise, while preserving the codebase for possible future audio reactivation.
+
+---
+
+## 2026-03-05 - UTF-8/Entity Sanitization Pipeline for Display-Safe Text
+
+- Context: A growing set of language strings and RSS titles included typographic UTF-8 glyphs (smart quotes, ellipsis, bullets, accented forms) not always covered by active LVGL fonts, causing replacement boxes on screen.
+- Decision: Add a shared transliteration pipeline (`decodeHtmlEntitiesToAscii` + UTF-8 codepoint folding) and apply it to clock sentence, date line, and RSS text surfaces before render. Replace known non-ASCII Bellazio literals with ASCII-safe equivalents.
+- Impact/Tradeoffs: Display output is now robust against unsupported glyphs and unpredictable feed encodings. Minor semantic loss on diacritics/special symbols is accepted in favor of guaranteed legibility on embedded fonts.
+
+---
+
+## 2026-03-05 - Web UI Dropdown for Known Wi-Fi Selection
+
+- Context: Wi-Fi credentials are already configured in `secrets.h`, but the web panel lacked a direct control to prioritize one known SSID without editing firmware.
+- Decision: Add a `wifi_pref_ssid` dropdown in web config populated from known SSIDs, persist preferred SSID to NVS key `wifi_pref`, expose it via `/api/config`, and trigger reconnect logic when preference changes.
+- Impact/Tradeoffs: Faster field switching between known networks and clearer operator control. Scope is intentionally limited to preconfigured SSIDs (no runtime password entry), preserving security and simplicity.
