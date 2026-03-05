@@ -1,6 +1,6 @@
 # ScryBar Firmware (M0)
 
-> ScryBar is a mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture. It tells time in Italian like it's poetry, checks weather you could learn by opening a window, scrolls news you'll swear you already read, and answers spoken questions like a pocket deity with latency and trust issues. All of this on an ESP32 that didn't ask for this life. We could have stopped at a blinking LED. We didn't. We gave it four swipeable views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there. But reflashing firmware at 2 AM because a glyph is three pixels off and literally nobody will ever notice is not a hobby - it's a clinical condition. ScryBar exists so the rest of your devices don't have to suffer.
+> ScryBar is a mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture. It tells time in 14 languages like it's poetry, checks weather you could learn by opening a window, and scrolls news you'll swear you already read. All of this on an ESP32 that didn't ask for this life. We could have stopped at a blinking LED. We didn't. We gave it four live views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there.
 
 Minimal firmware sketch for incremental smoke testing on Waveshare ESP32-S3-Touch-LCD-3.49. ✨
 
@@ -100,17 +100,25 @@ Current scope:
 ## 7) Page Flow (Touch) 👆
 
 - Boot page: `HOME` (clock + weather), unchanged.
-- Swipe left from `HOME`: `AUX` (RSS page), then `GPT`.
+- Swipe left from `HOME`: `AUX` (RSS page), then `WIKI`.
 - Swipe right from `HOME`: `INFO` (technical panel, includes IP + web port).
 - `INFO` is intentionally placed "before" home (iPhone-widget style).
 - `INFO` net block includes: Wi-Fi state, SSID, power mode (`CHARGING/BATTERY`) + battery %, IP/DNS/MAC.
+- `AUX` and `WIKI` share the same interaction model: `SKIP` next article, `NXT` next feed, QR on-demand.
+- Wiki thumbnails are rendered on the right when available.
+- Physical side buttons:
+  - `BOOT` (left): single click -> `HOME`
+  - `PWR` (center): screensaver
+  - `RST` (right): hardware reset
 
 Serial page shortcuts:
 
 - `VIEW0` / `VIEWINFO` -> `INFO`
 - `VIEW1` / `VIEWHOME` -> `HOME`
-- `VIEW2` / `VIEWAUX` -> `AUX`
-- `VIEW3` / `VIEWGPT` -> `GPT`
+- `VIEW2` / `VIEWAUX` / `VIEWRSS` -> `AUX`
+- `VIEW3` / `VIEWWIKI` -> `WIKI`
+- `VIEWFIRST` -> first main page (`HOME`, excludes INFO)
+- `VIEWLAST` -> last main page (`WIKI`)
 
 ## 8) Canonical Orientation 🧭
 

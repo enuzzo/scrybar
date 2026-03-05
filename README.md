@@ -4,7 +4,7 @@
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
 [![Languages](https://img.shields.io/badge/Word_Clock-14_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
-[![Views](https://img.shields.io/badge/Views-3_swipeable-3B82F6?style=for-the-badge)](#views)
+[![Views](https://img.shields.io/badge/Views-4_live_views-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
 ## Theme Previews (HOME + Weather)
@@ -20,7 +20,7 @@
 > checks weather you could learn by opening a window, and scrolls news you've already read.
 > All of this on an ESP32 that didn't ask for this life.
 
-**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, three swipeable views, and a word clock that composes real sentences in fourteen languages — from Italian and Latin to Klingon, 1337 Speak, Shakespearean English, and Bellazio — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
+**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, four live views, and a word clock that composes real sentences in fourteen languages — from Italian and Latin to Klingon, 1337 Speak, Shakespearean English, and Bellazio — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
 
 The name comes from *scrying*: the practice of seeing what matters from afar. That is what ScryBar does from your desk.
 
@@ -37,7 +37,7 @@ Then you add a display because a blinking LED isn't really telling you anything.
 
 By the time you stop, you've built something that tells time in Italian like it's dictating verse, shows a weather summary with an icon, scrolls headlines from three feeds in rotation, supports preferred-known-WiFi selection, and opens a web config UI on your LAN when you can't find the USB cable.
 
-We gave it three swipeable views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there. But reflashing firmware at 2 AM because a glyph is three pixels off and literally nobody will ever notice is not a hobby — it's a clinical condition. ScryBar exists so the rest of your devices don't have to suffer.
+We gave it four live views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there. But reflashing firmware at 2 AM because a glyph is three pixels off and literally nobody will ever notice is not a hobby — it's a clinical condition. ScryBar exists so the rest of your devices don't have to suffer.
 
 ---
 
@@ -70,27 +70,35 @@ We gave it three swipeable views, a QR code generator, and an existential purpos
 | **Touch** | AXS15231B integrated | Single-point touch. Carefully filtered for ghost frames and sentinel coordinates. |
 | **Power** | USB-C + optional LiPo | Charging and battery fallback managed via TCA9554 GPIO expander. Always re-asserted at boot. |
 
-The physical profile: a horizontal bar that sits flat on your desk. Wide enough to hold three views of information. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
+The physical profile: a horizontal bar that sits flat on your desk. Wide enough to hold four views of information. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
 
 ---
 
 ## Views
 
-Three views, navigated by swipe. Left or right, like flipping pages. There is no tap-to-navigate because tapping is for widgets.
+Four views, navigated by swipe. Left or right, like flipping pages. There is no tap-to-navigate because tapping is for widgets.
 
 ```
-          swipe right          swipe left
-  ┌───────────────────────────────────────────────────┐
-  │   INFO   ◄── HOME (clock+weather) ──► AUX (RSS)   │
-  │ (tech)        (default boot)          (headlines) │
-  └───────────────────────────────────────────────────┘
+          swipe right                swipe left
+  ┌───────────────────────────────────────────────────────────────┐
+  │   INFO   ◄── HOME (clock+weather) ──► AUX (RSS) ──► WIKI     │
+  │ (tech)        (default boot)          (headlines)   (wiki)   │
+  └───────────────────────────────────────────────────────────────┘
 ```
 
 **HOME** — Word clock in natural sentence form, switchable across 14 languages: Italiano, English, Français, Deutsch, Español, Português, Latina, Esperanto, Napoletano, tlhIngan Hol (Klingon), 1337 Speak, Shakespearean English, Valley Girl, and Bellazio. Not uppercase tiles — actual grammar, composed at runtime. Plus weather icon, temperature, and humidity. Typography is theme-driven at runtime (Montserrat/Space Mono/Delius Unicase/Chakra Petch/IBM Plex Mono) with auto-fit sizing so the sentence always fills the panel cleanly.
 
-**AUX** — RSS rotation. Up to 5 configurable feeds. Each headline cycles with source name and a QR code that deep-links to the article. You won't scan it most of the time. It is there when you want it.
+**AUX** — RSS rotation. Up to 5 configurable feeds. `SKIP` moves to next article, `NXT` moves to next feed, and QR opens only on demand.
+
+**WIKI** — Dedicated Wikipedia stream (3 feed families, 3 items each, hourly refresh). Same ergonomics as AUX (`SKIP`, `NXT`, on-demand QR), with summary text and remote thumbnail image shown on the right when available.
 
 **INFO** — Diagnostics panel. Wi-Fi state, SSID, IP, DNS, MAC, power mode (`CHARGING/BATTERY`), and battery percentage. Placed before HOME in the swipe order — left of boot — like an iPhone widget page you only visit when something feels wrong.
+
+Physical buttons:
+
+- `PWR` (center): opens screensaver.
+- `BOOT` (left): single click jumps to `HOME`.
+- `RST` (right): hardware reset.
 
 ---
 
@@ -266,9 +274,12 @@ Commands sent over Serial at 115200 baud.
 | Command | Effect |
 |---|---|
 | `VIEW` | Toggle HOME ↔ AUX |
+| `VIEWFIRST` | Jump to first main view (`HOME`, excludes INFO) |
+| `VIEWLAST` | Jump to last main view (`WIKI`) |
 | `VIEW0` / `VIEWINFO` | Force INFO page |
 | `VIEW1` / `VIEWHOME` | Force HOME page |
-| `VIEW2` / `VIEWAUX` | Force AUX page |
+| `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
+| `VIEW3` / `VIEWWIKI` | Force WIKI page |
 | `BATSTAT` | Print battery status |
 | `SAVERON` | Force screensaver on |
 | `WIFIDIRECT` | Print Wi-Fi direct mode/AP status |

@@ -164,6 +164,19 @@ LV_FONT_DECLARE(scry_font_delius_unicase_32);
 #ifndef RSS_FAVICON_RETRY_MS
 #define RSS_FAVICON_RETRY_MS 300000UL
 #endif
+#ifndef RSS_THUMB_CACHE_SIZE
+#define RSS_THUMB_CACHE_SIZE 3
+#endif
+#if RSS_THUMB_CACHE_SIZE < 1
+#undef RSS_THUMB_CACHE_SIZE
+#define RSS_THUMB_CACHE_SIZE 1
+#endif
+#ifndef RSS_THUMB_MAX_BYTES
+#define RSS_THUMB_MAX_BYTES 24576
+#endif
+#ifndef RSS_THUMB_RETRY_MS
+#define RSS_THUMB_RETRY_MS 300000UL
+#endif
 static TwoWire I2C_MAIN(0);
 static TwoWire I2C_ALT(1);
 static bool g_backlightReady = false;
@@ -172,6 +185,10 @@ static uint32_t g_pwrButtonDownMs = 0;
 static bool g_pwrHoldReported = false;
 static int g_pwrLastRawLevel = -1;
 static uint32_t g_pwrReleaseCandidateMs = 0;
+static bool g_navFirstButtonDown = false;
+static uint32_t g_navFirstButtonDownMs = 0;
+static int g_navFirstLastRawLevel = -1;
+static uint32_t g_navFirstReleaseCandidateMs = 0;
 static bool g_softPowerOff = false;
 #if TEST_BATTERY
 static adc_oneshot_unit_handle_t g_battAdcHandle = nullptr;
@@ -600,15 +617,27 @@ static void setActiveUiThemeById(const char *id) {
 }
 
 #if TEST_WIFI
-static constexpr uint8_t RSS_MAX_ITEMS = 8;
+static constexpr uint8_t RSS_MAX_ITEMS = 9;
 static constexpr uint8_t RSS_FEED_SLOT_COUNT = 5;
 static constexpr uint8_t RSS_FEED_NAME_LEN = 24;
 static constexpr uint16_t RSS_FEED_URL_LEN = 280;
+static constexpr uint8_t RSS_DEFAULT_FEED_ITEMS = 3;
+static constexpr uint8_t WIKI_FEED_SLOT_COUNT = 3;
+static const char *kWikiFeedName[WIKI_FEED_SLOT_COUNT] = {
+    "Wiki Featured",
+    "Wiki OnThisDay",
+    "Wikinews"
+};
+static const char *kWikiFeedUrl[WIKI_FEED_SLOT_COUNT] = {
+    "https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=featured&feedformat=rss",
+    "https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday&feedformat=rss",
+    "https://en.wikinews.org/w/index.php?title=Special:NewsFeed&feed=rss"
+};
 
 struct RuntimeRssFeedConfig {
   char name[RSS_FEED_NAME_LEN];
   char url[RSS_FEED_URL_LEN];
-  uint8_t maxItems = RSS_MAX_ITEMS;
+  uint8_t maxItems = RSS_DEFAULT_FEED_ITEMS;
 };
 
 struct RuntimeNetConfig {
@@ -637,6 +666,7 @@ static uint8_t g_webQrDataBuf[qrcodegen_BUFFER_LEN_MAX];
 #endif
 
 static bool updateRssFromFeed(bool force);
+static bool updateWikiFromFeed(bool force);
 static bool updateWeatherFromApi(bool force);
 static void formatCityLabel(const char *src, char *out, size_t outLen);
 static const char *runtimeUiThemeId();
@@ -673,8 +703,12 @@ struct RssItem {
   char title[220];
   char link[280];
   char pubDate[64];
+  char summary[420];
+  char imageUrl[340];
   char shortLink[96];
   uint8_t feedSlot = 0xFF;
+  bool wikiMetaReady = false;
+  bool wikiMetaTried = false;
   bool shortReady = false;
   bool shortTried = false;
 };
@@ -691,6 +725,7 @@ struct RssState {
   int lastHttpCode = 0;
 };
 static RssState g_rss = {};
+static RssState g_wiki = {};
 static RssItem g_rssParseBuf[RSS_MAX_ITEMS];
 struct RssShortCacheEntry {
   char longUrl[280];
@@ -718,6 +753,25 @@ struct RssFaviconCacheEntry {
   bool failed = false;
 };
 static RssFaviconCacheEntry g_rssFaviconCache[RSS_FAVICON_CACHE_SIZE];
+struct RssThumbCacheEntry {
+  char imageUrl[340];
+  uint8_t *imgData = nullptr;
+  size_t imgSize = 0;
+  uint16_t imgW = 0;
+  uint16_t imgH = 0;
+  RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
+  uint32_t lastAttemptMs = 0;
+  uint32_t lastUsedMs = 0;
+  bool valid = false;
+  bool ready = false;
+  bool failed = false;
+};
+static RssThumbCacheEntry g_rssThumbCache[RSS_THUMB_CACHE_SIZE];
+static uint8_t g_wikiFaviconPreloadIndex = 0;
+static uint32_t g_wikiFaviconPreloadLastMs = 0;
+static uint8_t g_wikiThumbPreloadIndex = 0;
+static uint32_t g_wikiThumbPreloadLastMs = 0;
+static uint32_t g_wikiMetaPreloadLastMs = 0;
 #endif
 
 #if TEST_NTP
@@ -737,6 +791,7 @@ enum UiPageMode : uint8_t {
   UI_PAGE_INFO = 0,
   UI_PAGE_HOME = 1,
   UI_PAGE_AUX = 2,
+  UI_PAGE_WIKI = 3,
 };
 static UiPageMode g_uiPageMode = UI_PAGE_HOME;
 static bool g_uiNeedsRedraw = true;
@@ -812,6 +867,8 @@ static lv_obj_t *g_lvglAuxSourceBadgeText = nullptr;
 static lv_obj_t *g_lvglAuxSourceSite = nullptr;
 static lv_obj_t *g_lvglAuxWhen = nullptr;
 static lv_obj_t *g_lvglAuxNews = nullptr;
+static lv_obj_t *g_lvglAuxHeroFrame = nullptr;
+static lv_obj_t *g_lvglAuxHeroImg = nullptr;
 static lv_obj_t *g_lvglAuxMeta = nullptr;
 static lv_obj_t *g_lvglAuxQrOverlay = nullptr;
 static lv_obj_t *g_lvglAuxQrHint = nullptr;
@@ -821,9 +878,18 @@ static lv_obj_t *g_lvglAuxQr = nullptr;
 static int16_t g_lvglAuxLastItemShown = -1;
 static char g_lvglAuxLastQrPayload[280] = {0};
 static bool g_lvglAuxQrModalOpen = false;
+static int16_t g_lvglAuxNewsBaseX = 0;
+static int16_t g_lvglAuxNewsBaseY = 0;
+static int16_t g_lvglAuxNewsBaseW = 0;
+static int16_t g_lvglAuxNewsBaseH = 0;
+static int16_t g_lvglAuxHeroW = 0;
+static int16_t g_lvglAuxHeroH = 0;
 static lv_img_dsc_t g_rssFaviconDsc[RSS_FAVICON_CACHE_SIZE];
+static lv_img_dsc_t g_rssThumbDsc[RSS_THUMB_CACHE_SIZE];
 static uint8_t g_rssFaviconPreloadIndex = 0;
 static uint32_t g_rssFaviconPreloadLastMs = 0;
+static uint8_t g_rssThumbPreloadIndex = 0;
+static uint32_t g_rssThumbPreloadLastMs = 0;
 static uint32_t g_lvglPageAnimUntilMs = 0;
 static uint32_t g_lvglLastRunMs = 0;
 static bool g_lvglPageDragActive = false;
@@ -933,6 +999,7 @@ static constexpr int16_t DB_CHUNK_ROWS = 64;
 #endif
 
 static int detectTca9554Addr();
+static void setUiPage(UiPageMode mode);
 static bool isPwrButtonPressed();
 static void setBacklightPercent(uint8_t percent);
 
@@ -1308,6 +1375,15 @@ static bool isPwrButtonPressed() {
 #endif
 }
 
+static bool isNavFirstButtonPressed() {
+  const int level = gpio_get_level((gpio_num_t)NAV_FIRST_BUTTON_PIN);
+#if NAV_FIRST_BUTTON_ACTIVE_LOW
+  return (level == 0);
+#else
+  return (level != 0);
+#endif
+}
+
 static void preparePowerButtonPin() {
   pinMode(PWR_BUTTON_PIN, PWR_BUTTON_ACTIVE_LOW ? INPUT_PULLUP : INPUT_PULLDOWN);
   g_pwrLastRawLevel = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
@@ -1315,6 +1391,15 @@ static void preparePowerButtonPin() {
                 PWR_BUTTON_PIN,
                 g_pwrLastRawLevel,
                 PWR_BUTTON_ACTIVE_LOW ? 1 : 0);
+}
+
+static void prepareNavFirstButtonPin() {
+  pinMode(NAV_FIRST_BUTTON_PIN, NAV_FIRST_BUTTON_ACTIVE_LOW ? INPUT_PULLUP : INPUT_PULLDOWN);
+  g_navFirstLastRawLevel = gpio_get_level((gpio_num_t)NAV_FIRST_BUTTON_PIN);
+  Serial.printf("[NAV] first-btn init pin=%d raw=%d active_low=%d\n",
+                NAV_FIRST_BUTTON_PIN,
+                g_navFirstLastRawLevel,
+                NAV_FIRST_BUTTON_ACTIVE_LOW ? 1 : 0);
 }
 
 static bool setSystemEnableThroughTca9554(bool enableOn) {
@@ -1489,6 +1574,56 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
     g_pwrHoldReported = false;
     g_pwrReleaseCandidateMs = 0;
   }
+}
+
+static void onNavFirstButtonShortPress(uint32_t nowMs) {
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
+  markUserInteraction(nowMs);
+  if (g_lvglReady && g_lvglScreenSaverActive) {
+    lvglSetScreenSaverActive(false);
+  }
+#else
+  (void)nowMs;
+#endif
+  setUiPage(UI_PAGE_HOME);
+  Serial.println("[NAV] BOOT short press -> first main view (HOME).");
+}
+
+static void handleNavFirstButtonLoop(uint32_t nowMs) {
+  const int rawLevel = gpio_get_level((gpio_num_t)NAV_FIRST_BUTTON_PIN);
+  if (rawLevel != g_navFirstLastRawLevel) {
+    Serial.printf("[NAV] first-btn raw level change: %d -> %d\n", g_navFirstLastRawLevel, rawLevel);
+    g_navFirstLastRawLevel = rawLevel;
+  }
+
+  const bool pressed = isNavFirstButtonPressed();
+  if (pressed) {
+    g_navFirstReleaseCandidateMs = 0;
+    if (!g_navFirstButtonDown) {
+      g_navFirstButtonDown = true;
+      g_navFirstButtonDownMs = nowMs;
+    }
+    return;
+  }
+
+  if (!g_navFirstButtonDown) return;
+  if (g_navFirstReleaseCandidateMs == 0) {
+    g_navFirstReleaseCandidateMs = nowMs;
+    return;
+  }
+  if ((nowMs - g_navFirstReleaseCandidateMs) < (uint32_t)NAV_BUTTON_RELEASE_DEBOUNCE_MS) {
+    return;
+  }
+
+  const uint32_t heldMs = g_navFirstReleaseCandidateMs - g_navFirstButtonDownMs;
+  if (heldMs <= (uint32_t)NAV_BUTTON_TAP_MAX_MS) {
+    onNavFirstButtonShortPress(nowMs);
+  } else {
+    Serial.printf("[NAV] first-btn long press ignored (%lu ms)\n", (unsigned long)heldMs);
+  }
+
+  g_navFirstButtonDown = false;
+  g_navFirstReleaseCandidateMs = 0;
 }
 
 static void handleWakeHoldGate() {
@@ -2304,7 +2439,7 @@ static void resetRuntimeRssFeedsToDefaults(RuntimeNetConfig &cfg) {
     defaultRssFeedName(i, defName, sizeof(defName));
     copyStringSafe(cfg.rssFeeds[i].name, sizeof(cfg.rssFeeds[i].name), defName);
     cfg.rssFeeds[i].url[0] = '\0';
-    cfg.rssFeeds[i].maxItems = RSS_MAX_ITEMS;
+    cfg.rssFeeds[i].maxItems = RSS_DEFAULT_FEED_ITEMS;
   }
   copyStringSafe(cfg.rssFeeds[0].url, sizeof(cfg.rssFeeds[0].url), RSS_FEED_URL);
 }
@@ -2433,7 +2568,7 @@ static void loadRuntimeNetConfigFromNvs() {
 
     buildRssNvsKey(key, sizeof(key), i, "max");
     if (prefs.isKey(key)) {
-      const uint8_t maxItems = prefs.getUChar(key, RSS_MAX_ITEMS);
+      const uint8_t maxItems = prefs.getUChar(key, RSS_DEFAULT_FEED_ITEMS);
       g_runtimeNetConfig.rssFeeds[i].maxItems = clampRssFeedMaxItems(maxItems);
       loadedAny = true;
     }
@@ -2630,7 +2765,7 @@ static uint8_t runtimeRssActiveMaxItems() {
   ensureRuntimeNetConfig();
   const int idx = runtimeFirstConfiguredRssFeedIndex();
   if (idx >= 0) return clampRssFeedMaxItems(g_runtimeNetConfig.rssFeeds[idx].maxItems);
-  return RSS_MAX_ITEMS;
+  return RSS_DEFAULT_FEED_ITEMS;
 }
 
 #if WEB_CONFIG_ENABLED
@@ -3037,7 +3172,7 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += F("\",url:\"");
     appendJsonEscaped(html, feed ? feed->url : "");
     html += F("\",max:");
-    html += (unsigned)(feed ? clampRssFeedMaxItems(feed->maxItems) : RSS_MAX_ITEMS);
+    html += (unsigned)(feed ? clampRssFeedMaxItems(feed->maxItems) : RSS_DEFAULT_FEED_ITEMS);
     html += F("}");
   }
   html += F("];");
@@ -3116,7 +3251,7 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
     out += F("\",\"url\":\"");
     appendJsonEscaped(out, feed ? feed->url : "");
     out += F("\",\"max_items\":");
-    out += (unsigned)(feed ? clampRssFeedMaxItems(feed->maxItems) : RSS_MAX_ITEMS);
+    out += (unsigned)(feed ? clampRssFeedMaxItems(feed->maxItems) : RSS_DEFAULT_FEED_ITEMS);
     out += '}';
   }
   out += F("]},\"branding\":{\"logo_url\":\"");
@@ -4823,6 +4958,150 @@ static bool extractXmlTagText(const String &xml, const char *tag, String &out) {
   return out.length() > 0;
 }
 
+static bool extractXmlTagAttribute(const String &xml, const char *tag, const char *attr, String &out) {
+  if (!tag || !tag[0] || !attr || !attr[0]) return false;
+  const String openTag = String("<") + tag;
+  int cursor = 0;
+  while (true) {
+    const int t0 = xml.indexOf(openTag, cursor);
+    if (t0 < 0) return false;
+    const int t1 = xml.indexOf('>', t0);
+    if (t1 < 0) return false;
+    const String node = xml.substring(t0, t1 + 1);
+    const String needle = String(attr) + "=";
+    int a0 = node.indexOf(needle);
+    if (a0 >= 0) {
+      a0 += (int)needle.length();
+      if (a0 < (int)node.length()) {
+        const char quote = node.charAt(a0);
+        if (quote == '"' || quote == '\'') {
+          ++a0;
+          const int a1 = node.indexOf(quote, a0);
+          if (a1 > a0) {
+            out = node.substring(a0, a1);
+            out.trim();
+            out.replace("&amp;", "&");
+            out.replace("&quot;", "\"");
+            out.replace("&apos;", "'");
+            out.replace("&#39;", "'");
+            if (out.startsWith("//")) out = String("https:") + out;
+            return startsWithHttp(out.c_str());
+          }
+        }
+      }
+    }
+    cursor = t1 + 1;
+  }
+}
+
+static void decodeHtmlMarkupEntities(String &text) {
+  text.replace("&lt;", "<");
+  text.replace("&gt;", ">");
+  text.replace("&quot;", "\"");
+  text.replace("&apos;", "'");
+  text.replace("&#39;", "'");
+  text.replace("&amp;", "&");
+}
+
+static bool extractImgSrcFromHtml(const String &html, String &out) {
+  int cursor = 0;
+  while (true) {
+    int img0 = html.indexOf("<img", cursor);
+    if (img0 < 0) return false;
+    int img1 = html.indexOf('>', img0);
+    if (img1 < 0) return false;
+    const String node = html.substring(img0, img1 + 1);
+    int src0 = node.indexOf("src=");
+    if (src0 >= 0) {
+      src0 += 4;
+      if (src0 < (int)node.length()) {
+        const char quote = node.charAt(src0);
+        if (quote == '"' || quote == '\'') {
+          ++src0;
+          const int src1 = node.indexOf(quote, src0);
+          if (src1 > src0) {
+            out = node.substring(src0, src1);
+            out.trim();
+            out.replace("&amp;", "&");
+            if (out.startsWith("//")) out = String("https:") + out;
+            return startsWithHttp(out.c_str());
+          }
+        }
+      }
+    }
+    cursor = img1 + 1;
+  }
+}
+
+static bool extractFirstWikiArticleHrefFromHtml(const String &html, String &out) {
+  int cursor = 0;
+  while (true) {
+    int href0 = html.indexOf("href=", cursor);
+    if (href0 < 0) return false;
+    href0 += 5;
+    if (href0 >= (int)html.length()) return false;
+    const char quote = html.charAt(href0);
+    if (quote != '"' && quote != '\'') {
+      cursor = href0;
+      continue;
+    }
+    ++href0;
+    const int href1 = html.indexOf(quote, href0);
+    if (href1 <= href0) return false;
+    String href = html.substring(href0, href1);
+    href.trim();
+    if (href.startsWith("/wiki/") &&
+        !href.startsWith("/wiki/Special:") &&
+        !href.startsWith("/wiki/File:") &&
+        !href.startsWith("/wiki/Help:") &&
+        !href.startsWith("/wiki/Template:") &&
+        !href.startsWith("/wiki/Wikipedia:")) {
+      out = href;
+      return true;
+    }
+    if ((href.startsWith("https://") || href.startsWith("http://")) &&
+        href.indexOf(".wikipedia.org/wiki/") > 0 &&
+        href.indexOf("/wiki/Special:") < 0 &&
+        href.indexOf("/wiki/File:") < 0) {
+      out = href;
+      return true;
+    }
+    cursor = href1 + 1;
+  }
+}
+
+static bool resolveWikipediaArticleUrlFromDescription(const String &descriptionRaw, const String &feedItemLink, String &outUrl) {
+  String html = descriptionRaw;
+  decodeHtmlMarkupEntities(html);
+  String href;
+  if (!extractFirstWikiArticleHrefFromHtml(html, href)) return false;
+  if (href.startsWith("http://") || href.startsWith("https://")) {
+    outUrl = href;
+    return true;
+  }
+  if (!href.startsWith("/")) return false;
+
+  const int scheme = feedItemLink.indexOf("://");
+  const int hostStart = (scheme >= 0) ? (scheme + 3) : 0;
+  const int hostEnd = feedItemLink.indexOf('/', hostStart);
+  if (hostEnd <= hostStart) return false;
+  const String origin = feedItemLink.substring(0, hostEnd);
+  outUrl = origin + href;
+  return true;
+}
+
+static bool extractRssItemImageUrl(const String &itemXml, String &out) {
+  if (extractXmlTagAttribute(itemXml, "media:thumbnail", "url", out)) return true;
+  if (extractXmlTagAttribute(itemXml, "media:content", "url", out)) return true;
+  if (extractXmlTagAttribute(itemXml, "enclosure", "url", out)) return true;
+  String description;
+  if (extractXmlTagText(itemXml, "description", description)) {
+    decodeHtmlMarkupEntities(description);
+    if (extractImgSrcFromHtml(description, out)) return true;
+  }
+  return false;
+}
+
 static uint8_t parseRssItems(const String &xml, RssItem *items, uint8_t maxItems) {
   uint8_t count = 0;
   int cursor = 0;
@@ -4837,17 +5116,47 @@ static uint8_t parseRssItems(const String &xml, RssItem *items, uint8_t maxItems
     const String itemXml = xml.substring(itemStart, itemEnd);
     cursor = itemEnd + 7;
 
-    String title, link, pubDate;
+    String title, link, pubDate, summary, imageUrl;
     if (!extractXmlTagText(itemXml, "title", title)) continue;
     (void)extractXmlTagText(itemXml, "link", link);
     (void)extractXmlTagText(itemXml, "pubDate", pubDate);
+    if (!extractXmlTagText(itemXml, "description", summary)) {
+      if (!extractXmlTagText(itemXml, "content:encoded", summary)) {
+        (void)extractXmlTagText(itemXml, "summary", summary);
+      }
+    }
+    (void)extractRssItemImageUrl(itemXml, imageUrl);
+    const String descriptionRaw = summary;
     normalizeRssText(title);
     normalizeRssText(pubDate);
+    normalizeRssText(summary);
+    if (summary.length() > 0 && title.length() > 0) {
+      String t = title;
+      String s = summary;
+      t.toLowerCase();
+      s.toLowerCase();
+      if (s.startsWith(t)) {
+        summary.remove(0, title.length());
+        summary.trim();
+        if (summary.startsWith("-")) {
+          summary.remove(0, 1);
+          summary.trim();
+        }
+      }
+    }
     link.trim();
     link.replace("&amp;", "&");
     link.replace("&quot;", "\"");
     link.replace("&apos;", "'");
     link.replace("&#39;", "'");
+    if (link.indexOf("/wiki/Special:FeedItem/") >= 0) {
+      String articleUrl;
+      if (resolveWikipediaArticleUrlFromDescription(descriptionRaw, link, articleUrl)) {
+        link = articleUrl;
+      }
+    }
+    imageUrl.trim();
+    imageUrl.replace("&amp;", "&");
 
     strncpy(items[count].title, title.c_str(), sizeof(items[count].title) - 1);
     items[count].title[sizeof(items[count].title) - 1] = '\0';
@@ -4855,6 +5164,12 @@ static uint8_t parseRssItems(const String &xml, RssItem *items, uint8_t maxItems
     items[count].link[sizeof(items[count].link) - 1] = '\0';
     strncpy(items[count].pubDate, pubDate.c_str(), sizeof(items[count].pubDate) - 1);
     items[count].pubDate[sizeof(items[count].pubDate) - 1] = '\0';
+    strncpy(items[count].summary, summary.c_str(), sizeof(items[count].summary) - 1);
+    items[count].summary[sizeof(items[count].summary) - 1] = '\0';
+    strncpy(items[count].imageUrl, imageUrl.c_str(), sizeof(items[count].imageUrl) - 1);
+    items[count].imageUrl[sizeof(items[count].imageUrl) - 1] = '\0';
+    items[count].wikiMetaReady = false;
+    items[count].wikiMetaTried = false;
     ++count;
   }
   return count;
@@ -5054,9 +5369,9 @@ static bool rssShortenViaJsonApi(const char *endpoint,
   return parsed;
 }
 
-static bool rssTryShortenUrl(uint8_t idx) {
-  if (idx >= g_rss.itemCount) return false;
-  RssItem &it = g_rss.items[idx];
+static bool rssTryShortenUrlForState(RssState &state, uint8_t idx, const char *logPrefix) {
+  if (idx >= state.itemCount) return false;
+  RssItem &it = state.items[idx];
   if (!it.link[0]) return false;
   if (it.shortReady && it.shortLink[0]) return true;
   char cachedShort[sizeof(it.shortLink)] = {0};
@@ -5068,7 +5383,7 @@ static bool rssTryShortenUrl(uint8_t idx) {
     return true;
   }
   const uint32_t now = millis();
-  if (it.shortTried && (now - g_rss.lastShortenAttemptMs) < RSS_SHORTENER_RETRY_MS) return false;
+  if (it.shortTried && (now - state.lastShortenAttemptMs) < RSS_SHORTENER_RETRY_MS) return false;
   if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
 
   int codeApi = 0;
@@ -5106,7 +5421,7 @@ static bool rssTryShortenUrl(uint8_t idx) {
   }
 #endif
   it.shortTried = true;
-  g_rss.lastShortenAttemptMs = now;
+  state.lastShortenAttemptMs = now;
   if (!ok) {
     if (!g_shortenerDnsDiagDone && codeApi == -1 && codeAlt == -1 && codeApiHost == -1 && codeApiHostAlt == -1) {
       g_shortenerDnsDiagDone = true;
@@ -5135,7 +5450,8 @@ static bool rssTryShortenUrl(uint8_t idx) {
       Serial.printf("[RSS][NET] tls api.spoo.me:443 ok=%d\n", tlsApi ? 1 : 0);
       if (tlsApi) tls.stop();
     }
-    Serial.printf("[RSS] short fail idx=%u api=%d alt=%d apiHost=%d apiHostAlt=%d http=%d httpAlt=%d\n",
+    Serial.printf("[%s] short fail idx=%u api=%d alt=%d apiHost=%d apiHostAlt=%d http=%d httpAlt=%d\n",
+                  logPrefix ? logPrefix : "RSS",
                   (unsigned)(idx + 1), codeApi, codeAlt, codeApiHost, codeApiHostAlt,
 #if RSS_SHORTENER_ALLOW_HTTP_FALLBACK
                   codeHttp, codeHttpAlt);
@@ -5152,11 +5468,20 @@ static bool rssTryShortenUrl(uint8_t idx) {
 #if TEST_NTP
   g_uiNeedsRedraw = true;
 #endif
-  Serial.printf("[RSS] short %u -> %s via %s\n",
+  Serial.printf("[%s] short %u -> %s via %s\n",
+                logPrefix ? logPrefix : "RSS",
                 (unsigned)(idx + 1),
                 it.shortLink,
                 usedEndpoint ? usedEndpoint : "endpoint-unknown");
   return true;
+}
+
+static bool rssTryShortenUrl(uint8_t idx) {
+  return rssTryShortenUrlForState(g_rss, idx, "RSS");
+}
+
+static bool wikiTryShortenUrl(uint8_t idx) {
+  return rssTryShortenUrlForState(g_wiki, idx, "WIKI");
 }
 
 static void buildRssWhenLabel(const char *pubDate, char *out, size_t outLen) {
@@ -5177,6 +5502,154 @@ static void buildRssWhenLabel(const char *pubDate, char *out, size_t outLen) {
   p.trim();
   if (p.length() > 22) p = p.substring(0, 22) + "...";
   snprintf(out, outLen, "%s", p.c_str());
+}
+
+static bool extractJsonObjectFieldLoose(const String &json, const char *key, String &out) {
+  int p = json.indexOf(key);
+  if (p < 0) return false;
+  p = json.indexOf('{', p);
+  if (p < 0) return false;
+  int depth = 0;
+  bool inString = false;
+  bool escape = false;
+  for (int i = p; i < (int)json.length(); ++i) {
+    const char c = json[i];
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (c == '\\') {
+        escape = true;
+      } else if (c == '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (c == '"') {
+      inString = true;
+      continue;
+    }
+    if (c == '{') {
+      ++depth;
+      continue;
+    }
+    if (c == '}') {
+      --depth;
+      if (depth == 0) {
+        out = json.substring(p, i + 1);
+        return out.length() > 0;
+      }
+    }
+  }
+  return false;
+}
+
+static bool rssExtractWikipediaArticleRef(const char *url, String &hostOut, String &titlePathOut) {
+  if (!url || !url[0]) return false;
+  String full(url);
+  int scheme = full.indexOf("://");
+  int hostStart = (scheme >= 0) ? (scheme + 3) : 0;
+  int hostEnd = full.indexOf('/', hostStart);
+  if (hostEnd < 0) return false;
+  String host = full.substring(hostStart, hostEnd);
+  host.toLowerCase();
+  if (host.startsWith("www.")) host.remove(0, 4);
+  if (!host.endsWith(".wikipedia.org")) return false;
+  String path = full.substring(hostEnd);
+  int q = path.indexOf('?');
+  if (q >= 0) path = path.substring(0, q);
+  int h = path.indexOf('#');
+  if (h >= 0) path = path.substring(0, h);
+  if (!path.startsWith("/wiki/")) return false;
+  String titlePath = path.substring(6);
+  titlePath.trim();
+  if (titlePath.length() == 0) return false;
+  if (titlePath.indexOf(':') >= 0) return false;
+  hostOut = host;
+  titlePathOut = titlePath;
+  return true;
+}
+
+static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSummary, String &outImageUrl) {
+  outSummary = "";
+  outImageUrl = "";
+  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
+
+  String wikiHost, wikiTitlePath;
+  if (!rssExtractWikipediaArticleRef(articleUrl, wikiHost, wikiTitlePath)) return false;
+
+  const String apiUrl = String("https://") + wikiHost + "/api/rest_v1/page/summary/" + wikiTitlePath;
+  WiFiClientSecure tls;
+  tls.setInsecure();
+  HTTPClient http;
+  http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
+  http.setTimeout(RSS_HTTP_TIMEOUT_MS);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  if (!http.begin(tls, apiUrl)) return false;
+  http.addHeader("Accept", "application/json");
+  http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
+  const int code = http.GET();
+  if (code != HTTP_CODE_OK) {
+    http.end();
+    return false;
+  }
+  const String body = http.getString();
+  http.end();
+  if (body.length() == 0) return false;
+
+  String summary;
+  if (extractJsonStringFieldLoose(body, "\"extract\"", summary)) {
+    normalizeRssText(summary);
+    if (summary.length() > 0) outSummary = summary;
+  }
+
+  String thumbObj;
+  if (extractJsonObjectFieldLoose(body, "\"thumbnail\"", thumbObj)) {
+    String source;
+    if (extractJsonStringFieldLoose(thumbObj, "\"source\"", source)) {
+      source.trim();
+      if (startsWithHttp(source.c_str())) outImageUrl = source;
+    }
+  }
+  if (outImageUrl.length() == 0) {
+    String originalObj;
+    if (extractJsonObjectFieldLoose(body, "\"originalimage\"", originalObj)) {
+      String source;
+      if (extractJsonStringFieldLoose(originalObj, "\"source\"", source)) {
+        source.trim();
+        if (startsWithHttp(source.c_str())) outImageUrl = source;
+      }
+    }
+  }
+  return (outSummary.length() > 0) || (outImageUrl.length() > 0);
+}
+
+static bool rssTryEnrichItemWikipediaMeta(RssItem &item) {
+  if (!item.link[0]) return false;
+  if (item.wikiMetaTried && item.wikiMetaReady) return false;
+  if (item.summary[0] && item.imageUrl[0]) {
+    item.wikiMetaReady = true;
+    item.wikiMetaTried = true;
+    return false;
+  }
+
+  item.wikiMetaTried = true;
+  String summary;
+  String imageUrl;
+  if (!rssFetchWikipediaSummaryMeta(item.link, summary, imageUrl)) return false;
+
+  bool changed = false;
+  if (!item.summary[0] && summary.length() > 0) {
+    strncpy(item.summary, summary.c_str(), sizeof(item.summary) - 1);
+    item.summary[sizeof(item.summary) - 1] = '\0';
+    changed = true;
+  }
+  if (!item.imageUrl[0] && imageUrl.length() > 0) {
+    strncpy(item.imageUrl, imageUrl.c_str(), sizeof(item.imageUrl) - 1);
+    item.imageUrl[sizeof(item.imageUrl) - 1] = '\0';
+    changed = true;
+  }
+  item.wikiMetaReady = item.summary[0] || item.imageUrl[0];
+  return changed;
 }
 
 static void extractRssHost(const char *url, char *outHost, size_t outLen) {
@@ -5359,8 +5832,9 @@ static bool rssDetectImageFormat(const uint8_t *data, size_t size, RssFaviconFor
   return false;
 }
 
-static bool rssFetchHttpBinary(const String &url, uint8_t **outData, size_t *outSize, RssFaviconFormat *outFmt) {
+static bool rssFetchHttpBinaryLimited(const String &url, size_t maxBytes, uint8_t **outData, size_t *outSize, RssFaviconFormat *outFmt) {
   if (!outData || !outSize || !outFmt) return false;
+  if (maxBytes < 1024U) return false;
   *outData = nullptr;
   *outSize = 0;
   *outFmt = RSS_FAV_FMT_NONE;
@@ -5381,12 +5855,12 @@ static bool rssFetchHttpBinary(const String &url, uint8_t **outData, size_t *out
 
   WiFiClient *stream = http.getStreamPtr();
   const int contentLen = http.getSize();
-  if (contentLen > (int)RSS_FAVICON_MAX_BYTES) {
+  if (contentLen > (int)maxBytes) {
     http.end();
     return false;
   }
 
-  uint8_t *buf = (uint8_t*)malloc(RSS_FAVICON_MAX_BYTES);
+  uint8_t *buf = (uint8_t*)malloc(maxBytes);
   if (!buf) {
     http.end();
     return false;
@@ -5404,7 +5878,7 @@ static bool rssFetchHttpBinary(const String &url, uint8_t **outData, size_t *out
     waitStart = millis();
     size_t toRead = avail;
     if (toRead > 256U) toRead = 256U;
-    if ((total + toRead) > RSS_FAVICON_MAX_BYTES) {
+    if ((total + toRead) > maxBytes) {
       free(buf);
       http.end();
       return false;
@@ -5425,6 +5899,10 @@ static bool rssFetchHttpBinary(const String &url, uint8_t **outData, size_t *out
   *outSize = total;
   *outFmt = fmt;
   return true;
+}
+
+static bool rssFetchHttpBinary(const String &url, uint8_t **outData, size_t *outSize, RssFaviconFormat *outFmt) {
+  return rssFetchHttpBinaryLimited(url, RSS_FAVICON_MAX_BYTES, outData, outSize, outFmt);
 }
 
 static bool rssImageReadSize(const uint8_t *data, size_t size, RssFaviconFormat fmt, uint16_t *outW, uint16_t *outH) {
@@ -5707,6 +6185,135 @@ static int rssFaviconEnsureDomain(const char *domain) {
   return idx;
 }
 
+static void rssThumbCacheReleaseAt(size_t idx) {
+  if (idx >= RSS_THUMB_CACHE_SIZE) return;
+  RssThumbCacheEntry &e = g_rssThumbCache[idx];
+  if (e.imgData) {
+    free(e.imgData);
+    e.imgData = nullptr;
+  }
+  e.imgSize = 0;
+  e.imgW = 0;
+  e.imgH = 0;
+  e.fmt = RSS_FAV_FMT_NONE;
+  e.imageUrl[0] = '\0';
+  e.lastAttemptMs = 0;
+  e.lastUsedMs = 0;
+  e.valid = false;
+  e.ready = false;
+  e.failed = false;
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  memset(&g_rssThumbDsc[idx], 0, sizeof(g_rssThumbDsc[idx]));
+#endif
+}
+
+static int rssThumbCacheFind(const char *imageUrl) {
+  if (!imageUrl || !imageUrl[0]) return -1;
+  for (size_t i = 0; i < RSS_THUMB_CACHE_SIZE; ++i) {
+    const RssThumbCacheEntry &e = g_rssThumbCache[i];
+    if (e.valid && strcmp(e.imageUrl, imageUrl) == 0) return (int)i;
+  }
+  return -1;
+}
+
+static int rssThumbCacheAcquire(const char *imageUrl) {
+  if (!imageUrl || !imageUrl[0]) return -1;
+  const int existing = rssThumbCacheFind(imageUrl);
+  if (existing >= 0) return existing;
+
+  int freeIdx = -1;
+  int oldestIdx = 0;
+  uint32_t oldestAge = 0;
+  const uint32_t now = millis();
+  for (size_t i = 0; i < RSS_THUMB_CACHE_SIZE; ++i) {
+    if (!g_rssThumbCache[i].valid) {
+      freeIdx = (int)i;
+      break;
+    }
+    const uint32_t age = now - g_rssThumbCache[i].lastUsedMs;
+    if ((int)i == 0 || age > oldestAge) {
+      oldestAge = age;
+      oldestIdx = (int)i;
+    }
+  }
+  const int idx = (freeIdx >= 0) ? freeIdx : oldestIdx;
+  if (g_rssThumbCache[idx].valid) rssThumbCacheReleaseAt((size_t)idx);
+  RssThumbCacheEntry &e = g_rssThumbCache[idx];
+  strncpy(e.imageUrl, imageUrl, sizeof(e.imageUrl) - 1);
+  e.imageUrl[sizeof(e.imageUrl) - 1] = '\0';
+  e.valid = true;
+  e.lastUsedMs = now;
+  return idx;
+}
+
+static int rssThumbEnsureUrl(const char *imageUrl) {
+  if (!imageUrl || !imageUrl[0]) return -1;
+  const int idx = rssThumbCacheAcquire(imageUrl);
+  if (idx < 0) return -1;
+  RssThumbCacheEntry &e = g_rssThumbCache[idx];
+  e.lastUsedMs = millis();
+  if (e.ready && e.imgData && e.imgSize > 0) return idx;
+
+  const uint32_t now = millis();
+  if (e.failed && (now - e.lastAttemptMs) < RSS_THUMB_RETRY_MS) return idx;
+  e.lastAttemptMs = now;
+
+  uint8_t *img = nullptr;
+  size_t imgSize = 0;
+  RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
+  if (!rssFetchHttpBinaryLimited(String(imageUrl), RSS_THUMB_MAX_BYTES, &img, &imgSize, &fmt)) {
+    e.failed = true;
+    return idx;
+  }
+
+  uint16_t imgW = 0;
+  uint16_t imgH = 0;
+  if (!rssImageReadSize(img, imgSize, fmt, &imgW, &imgH)) {
+    free(img);
+    e.failed = true;
+    return idx;
+  }
+
+  if (e.imgData) free(e.imgData);
+  e.imgData = img;
+  e.imgSize = imgSize;
+  e.imgW = imgW;
+  e.imgH = imgH;
+  e.fmt = fmt;
+  e.ready = true;
+  e.failed = false;
+
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  memset(&g_rssThumbDsc[idx], 0, sizeof(g_rssThumbDsc[idx]));
+  g_rssThumbDsc[idx].header.cf = (fmt == RSS_FAV_FMT_PNG) ? LV_IMG_CF_RAW_ALPHA : LV_IMG_CF_RAW;
+  g_rssThumbDsc[idx].header.w = e.imgW;
+  g_rssThumbDsc[idx].header.h = e.imgH;
+  g_rssThumbDsc[idx].data_size = (uint32_t)e.imgSize;
+  g_rssThumbDsc[idx].data = e.imgData;
+#endif
+  Serial.printf("[RSS] thumb bytes=%u %ux%u %s\n",
+                (unsigned)e.imgSize,
+                (unsigned)e.imgW,
+                (unsigned)e.imgH,
+                imageUrl);
+  return idx;
+}
+
+static void rssThumbCachePruneToCurrentFeed(const RssItem *items, uint8_t count) {
+  for (size_t i = 0; i < RSS_THUMB_CACHE_SIZE; ++i) {
+    RssThumbCacheEntry &e = g_rssThumbCache[i];
+    if (!e.valid || !e.imageUrl[0]) continue;
+    bool keep = false;
+    for (uint8_t k = 0; k < count; ++k) {
+      if (items[k].imageUrl[0] && strcmp(items[k].imageUrl, e.imageUrl) == 0) {
+        keep = true;
+        break;
+      }
+    }
+    if (!keep) rssThumbCacheReleaseAt(i);
+  }
+}
+
 static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint8_t cap, int *httpCodeOut) {
   if (httpCodeOut) *httpCodeOut = -1;
   if (!feedUrl || !feedUrl[0] || !outItems || cap == 0) return 0;
@@ -5808,19 +6415,26 @@ static bool updateRssFromFeed(bool force) {
   }
   rssShortCacheRetainCurrentFeedLinks(g_rss.items, count);
   rssFaviconCachePruneToCurrentFeed(g_rss.items, count);
+  rssThumbCachePruneToCurrentFeed(g_rss.items, count);
   if (count < RSS_MAX_ITEMS) {
     for (uint8_t i = count; i < RSS_MAX_ITEMS; ++i) {
       g_rss.items[i].title[0] = '\0';
       g_rss.items[i].link[0] = '\0';
       g_rss.items[i].pubDate[0] = '\0';
+      g_rss.items[i].summary[0] = '\0';
+      g_rss.items[i].imageUrl[0] = '\0';
       g_rss.items[i].shortLink[0] = '\0';
       g_rss.items[i].feedSlot = 0xFF;
+      g_rss.items[i].wikiMetaReady = false;
+      g_rss.items[i].wikiMetaTried = false;
       g_rss.items[i].shortReady = false;
       g_rss.items[i].shortTried = false;
     }
   }
   g_rss.currentIndex = 0;
   g_rss.lastRotateMs = now;
+  g_rssThumbPreloadIndex = 0;
+  g_rssThumbPreloadLastMs = 0;
   g_rss.valid = true;
   g_rss.lastFetchMs = now;
   if (changed) {
@@ -5846,6 +6460,151 @@ static bool updateRssFromFeed(bool force) {
   return true;
 }
 
+static bool updateWikiFromFeed(bool force) {
+  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
+  const uint32_t now = millis();
+  const uint32_t waitMs = g_wiki.valid ? rssRefreshIntervalByEnergy() : rssRetryIntervalByEnergy();
+  if (!force && g_wiki.lastAttemptMs != 0 && (now - g_wiki.lastAttemptMs) < waitMs) return g_wiki.valid;
+  g_wiki.lastAttemptMs = now;
+
+  memset(g_rssParseBuf, 0, sizeof(g_rssParseBuf));
+  uint8_t count = 0;
+  uint8_t feedsTried = 0;
+  uint8_t feedsWithItems = 0;
+  int firstHttpErr = 0;
+
+  for (uint8_t slot = 0; slot < WIKI_FEED_SLOT_COUNT && count < RSS_MAX_ITEMS; ++slot) {
+    const char *feedUrl = kWikiFeedUrl[slot];
+    if (!startsWithHttp(feedUrl)) continue;
+    ++feedsTried;
+
+    const uint8_t remaining = (uint8_t)(RSS_MAX_ITEMS - count);
+    uint8_t feedCap = RSS_DEFAULT_FEED_ITEMS;
+    if (feedCap > remaining) feedCap = remaining;
+    int httpCode = 0;
+    const uint8_t got = fetchRssItemsFromUrl(feedUrl, &g_rssParseBuf[count], feedCap, &httpCode);
+    if (got > 0) {
+      for (uint8_t k = 0; k < got; ++k) {
+        g_rssParseBuf[count + k].feedSlot = slot;
+      }
+      count = (uint8_t)(count + got);
+      ++feedsWithItems;
+    } else if (firstHttpErr == 0 && httpCode != 0) {
+      firstHttpErr = httpCode;
+    }
+  }
+
+  if (count == 0) {
+    g_wiki.lastHttpCode = (firstHttpErr != 0) ? firstHttpErr : -1;
+    return false;
+  }
+
+  g_wiki.lastHttpCode = HTTP_CODE_OK;
+  const bool changed =
+      (!g_wiki.valid) ||
+      (g_wiki.itemCount != count) ||
+      (strncmp(g_wiki.items[0].title, g_rssParseBuf[0].title, sizeof(g_wiki.items[0].title) - 1) != 0);
+
+  g_wiki.itemCount = count;
+  for (uint8_t i = 0; i < count; ++i) {
+    g_wiki.items[i] = g_rssParseBuf[i];
+    char cachedShort[sizeof(g_wiki.items[i].shortLink)] = {0};
+    if (g_wiki.items[i].link[0] && rssShortCacheLookup(g_wiki.items[i].link, cachedShort, sizeof(cachedShort))) {
+      strncpy(g_wiki.items[i].shortLink, cachedShort, sizeof(g_wiki.items[i].shortLink) - 1);
+      g_wiki.items[i].shortLink[sizeof(g_wiki.items[i].shortLink) - 1] = '\0';
+      g_wiki.items[i].shortReady = true;
+      g_wiki.items[i].shortTried = true;
+    }
+  }
+  if (count < RSS_MAX_ITEMS) {
+    for (uint8_t i = count; i < RSS_MAX_ITEMS; ++i) {
+      g_wiki.items[i].title[0] = '\0';
+      g_wiki.items[i].link[0] = '\0';
+      g_wiki.items[i].pubDate[0] = '\0';
+      g_wiki.items[i].summary[0] = '\0';
+      g_wiki.items[i].imageUrl[0] = '\0';
+      g_wiki.items[i].shortLink[0] = '\0';
+      g_wiki.items[i].feedSlot = 0xFF;
+      g_wiki.items[i].wikiMetaReady = false;
+      g_wiki.items[i].wikiMetaTried = false;
+      g_wiki.items[i].shortReady = false;
+      g_wiki.items[i].shortTried = false;
+    }
+  }
+  g_wiki.currentIndex = 0;
+  g_wiki.lastRotateMs = now;
+  g_wiki.valid = true;
+  g_wiki.lastFetchMs = now;
+  g_wikiMetaPreloadLastMs = 0;
+  g_wikiThumbPreloadIndex = 0;
+  g_wikiThumbPreloadLastMs = 0;
+  g_wikiFaviconPreloadIndex = 0;
+  g_wikiFaviconPreloadLastMs = 0;
+  if (changed && g_uiPageMode == UI_PAGE_WIKI) {
+    g_lvglAuxLastItemShown = -1;
+    g_lvglAuxLastQrPayload[0] = '\0';
+#if TEST_NTP
+    g_uiNeedsRedraw = true;
+#endif
+  }
+  struct tm tinfo;
+  if (getLocalTime(&tinfo, 50)) {
+    snprintf(g_wiki.fetchedAt, sizeof(g_wiki.fetchedAt), "%02d/%02d %02d:%02d",
+             tinfo.tm_mday, tinfo.tm_mon + 1, tinfo.tm_hour, tinfo.tm_min);
+  } else {
+    strncpy(g_wiki.fetchedAt, "--/-- --:--", sizeof(g_wiki.fetchedAt) - 1);
+    g_wiki.fetchedAt[sizeof(g_wiki.fetchedAt) - 1] = '\0';
+  }
+  Serial.printf("[WIKI] feeds=%u/%u items=%u first='%s'\n",
+                (unsigned)feedsWithItems,
+                (unsigned)feedsTried,
+                (unsigned)g_wiki.itemCount,
+                g_wiki.items[0].title);
+  return true;
+}
+
+static bool contentAdvanceToNextFeed(RssState &state, uint8_t feedSlotCount) {
+  if (!state.valid || state.itemCount == 0 || feedSlotCount == 0) return false;
+  int16_t firstIdx[RSS_FEED_SLOT_COUNT];
+  for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) firstIdx[i] = -1;
+
+  uint8_t curSlot = 0xFF;
+  if (state.currentIndex < state.itemCount) curSlot = state.items[state.currentIndex].feedSlot;
+
+  for (uint8_t i = 0; i < state.itemCount; ++i) {
+    const uint8_t slot = state.items[i].feedSlot;
+    if (slot < RSS_FEED_SLOT_COUNT && firstIdx[slot] < 0) firstIdx[slot] = (int16_t)i;
+  }
+
+  if (curSlot >= feedSlotCount) {
+    for (uint8_t s = 0; s < feedSlotCount; ++s) {
+      if (firstIdx[s] >= 0) {
+        state.currentIndex = (uint8_t)firstIdx[s];
+        state.lastRotateMs = millis();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  for (uint8_t step = 1; step < feedSlotCount; ++step) {
+    const uint8_t nextSlot = (uint8_t)((curSlot + step) % feedSlotCount);
+    if (firstIdx[nextSlot] >= 0) {
+      state.currentIndex = (uint8_t)firstIdx[nextSlot];
+      state.lastRotateMs = millis();
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool contentAdvanceToNextItem(RssState &state) {
+  if (!state.valid || state.itemCount <= 1) return false;
+  state.currentIndex = (uint8_t)((state.currentIndex + 1) % state.itemCount);
+  state.lastRotateMs = millis();
+  return true;
+}
+
 static void rssResolveSourceHost(const RssItem &item, char *outHost, size_t outLen) {
   if (!outHost || outLen == 0) return;
   outHost[0] = '\0';
@@ -5860,47 +6619,19 @@ static void rssResolveSourceHost(const RssItem &item, char *outHost, size_t outL
 }
 
 static bool rssAdvanceToNextFeed() {
-  if (!g_rss.valid || g_rss.itemCount == 0) return false;
-  int16_t firstIdx[RSS_FEED_SLOT_COUNT];
-  for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) firstIdx[i] = -1;
-
-  uint8_t curSlot = 0xFF;
-  if (g_rss.currentIndex < g_rss.itemCount) {
-    curSlot = g_rss.items[g_rss.currentIndex].feedSlot;
-  }
-
-  for (uint8_t i = 0; i < g_rss.itemCount; ++i) {
-    const uint8_t slot = g_rss.items[i].feedSlot;
-    if (slot < RSS_FEED_SLOT_COUNT && firstIdx[slot] < 0) firstIdx[slot] = (int16_t)i;
-  }
-
-  if (curSlot >= RSS_FEED_SLOT_COUNT) {
-    for (uint8_t s = 0; s < RSS_FEED_SLOT_COUNT; ++s) {
-      if (firstIdx[s] >= 0) {
-        g_rss.currentIndex = (uint8_t)firstIdx[s];
-        g_rss.lastRotateMs = millis();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  for (uint8_t step = 1; step < RSS_FEED_SLOT_COUNT; ++step) {
-    const uint8_t nextSlot = (uint8_t)((curSlot + step) % RSS_FEED_SLOT_COUNT);
-    if (firstIdx[nextSlot] >= 0) {
-      g_rss.currentIndex = (uint8_t)firstIdx[nextSlot];
-      g_rss.lastRotateMs = millis();
-      return true;
-    }
-  }
-  return false;
+  return contentAdvanceToNextFeed(g_rss, RSS_FEED_SLOT_COUNT);
 }
 
 static bool rssAdvanceToNextItem() {
-  if (!g_rss.valid || g_rss.itemCount <= 1) return false;
-  g_rss.currentIndex = (uint8_t)((g_rss.currentIndex + 1) % g_rss.itemCount);
-  g_rss.lastRotateMs = millis();
-  return true;
+  return contentAdvanceToNextItem(g_rss);
+}
+
+static bool wikiAdvanceToNextFeed() {
+  return contentAdvanceToNextFeed(g_wiki, WIKI_FEED_SLOT_COUNT);
+}
+
+static bool wikiAdvanceToNextItem() {
+  return contentAdvanceToNextItem(g_wiki);
 }
 
 static void rssPreloadFaviconStep() {
@@ -5928,6 +6659,111 @@ static void rssPreloadFaviconStep() {
     }
   }
   g_rssFaviconPreloadIndex = (uint8_t)((g_rssFaviconPreloadIndex + 1) % g_rss.itemCount);
+}
+
+static void rssPreloadThumbStep() {
+  if (!g_rss.valid || g_rss.itemCount == 0) return;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
+
+  const uint32_t now = millis();
+  if ((now - g_rssThumbPreloadLastMs) < 2400UL) return;
+  g_rssThumbPreloadLastMs = now;
+
+  for (uint8_t tries = 0; tries < g_rss.itemCount; ++tries) {
+    const uint8_t idx = (uint8_t)((g_rssThumbPreloadIndex + tries) % g_rss.itemCount);
+    RssItem &item = g_rss.items[idx];
+    if (!item.imageUrl[0]) continue;
+    const int cacheIdx = rssThumbCacheFind(item.imageUrl);
+    const bool ready = (cacheIdx >= 0) &&
+                       g_rssThumbCache[cacheIdx].ready &&
+                       g_rssThumbCache[cacheIdx].imgData &&
+                       g_rssThumbCache[cacheIdx].imgSize > 0;
+    if (!ready) {
+      (void)rssThumbEnsureUrl(item.imageUrl);
+      g_rssThumbPreloadIndex = (uint8_t)((idx + 1) % g_rss.itemCount);
+      return;
+    }
+  }
+  g_rssThumbPreloadIndex = (uint8_t)((g_rssThumbPreloadIndex + 1) % g_rss.itemCount);
+}
+
+static void wikiPreloadFaviconStep() {
+  if (!g_wiki.valid || g_wiki.itemCount == 0) return;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
+
+  const uint32_t now = millis();
+  if ((now - g_wikiFaviconPreloadLastMs) < 2200UL) return;
+  g_wikiFaviconPreloadLastMs = now;
+
+  for (uint8_t tries = 0; tries < g_wiki.itemCount; ++tries) {
+    const uint8_t idx = (uint8_t)((g_wikiFaviconPreloadIndex + tries) % g_wiki.itemCount);
+    char host[96];
+    extractRssHost(g_wiki.items[idx].link, host, sizeof(host));
+    if (!host[0] || strcmp(host, "unknown") == 0) continue;
+    const int cacheIdx = rssFaviconCacheFind(host);
+    const bool ready = (cacheIdx >= 0) &&
+                       g_rssFaviconCache[cacheIdx].ready &&
+                       g_rssFaviconCache[cacheIdx].pngData &&
+                       g_rssFaviconCache[cacheIdx].pngSize > 0;
+    if (!ready) {
+      (void)rssFaviconEnsureDomain(host);
+      g_wikiFaviconPreloadIndex = (uint8_t)((idx + 1) % g_wiki.itemCount);
+      return;
+    }
+  }
+  g_wikiFaviconPreloadIndex = (uint8_t)((g_wikiFaviconPreloadIndex + 1) % g_wiki.itemCount);
+}
+
+static void wikiPreloadMetaStep() {
+  if (!g_wiki.valid || g_wiki.itemCount == 0) return;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
+  const uint32_t now = millis();
+  if ((now - g_wikiMetaPreloadLastMs) < 2500UL) return;
+  g_wikiMetaPreloadLastMs = now;
+
+  for (uint8_t i = 0; i < g_wiki.itemCount; ++i) {
+    RssItem &item = g_wiki.items[i];
+    if (item.wikiMetaTried && item.wikiMetaReady) continue;
+    if (item.summary[0] && item.imageUrl[0]) {
+      item.wikiMetaReady = true;
+      item.wikiMetaTried = true;
+      continue;
+    }
+    if (rssTryEnrichItemWikipediaMeta(item)) {
+      if (i == g_wiki.currentIndex && g_uiPageMode == UI_PAGE_WIKI) {
+#if TEST_NTP
+        g_uiNeedsRedraw = true;
+#endif
+      }
+      return;
+    }
+  }
+}
+
+static void wikiPreloadThumbStep() {
+  if (!g_wiki.valid || g_wiki.itemCount == 0) return;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
+
+  const uint32_t now = millis();
+  if ((now - g_wikiThumbPreloadLastMs) < 2400UL) return;
+  g_wikiThumbPreloadLastMs = now;
+
+  for (uint8_t tries = 0; tries < g_wiki.itemCount; ++tries) {
+    const uint8_t idx = (uint8_t)((g_wikiThumbPreloadIndex + tries) % g_wiki.itemCount);
+    RssItem &item = g_wiki.items[idx];
+    if (!item.imageUrl[0]) continue;
+    const int cacheIdx = rssThumbCacheFind(item.imageUrl);
+    const bool ready = (cacheIdx >= 0) &&
+                       g_rssThumbCache[cacheIdx].ready &&
+                       g_rssThumbCache[cacheIdx].imgData &&
+                       g_rssThumbCache[cacheIdx].imgSize > 0;
+    if (!ready) {
+      (void)rssThumbEnsureUrl(item.imageUrl);
+      g_wikiThumbPreloadIndex = (uint8_t)((idx + 1) % g_wiki.itemCount);
+      return;
+    }
+  }
+  g_wikiThumbPreloadIndex = (uint8_t)((g_wikiThumbPreloadIndex + 1) % g_wiki.itemCount);
 }
 
 static void runRssShortenerDiag() {
@@ -6288,6 +7124,7 @@ static bool lvglAuxQrButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxRefreshButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxNextFeedButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y);
+static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxQrModalIsOpen();
 static void lvglUpdateWiFiBars(bool force);
 static void lvglCenterClockSentenceLabel();
@@ -6299,12 +7136,18 @@ static void lvglSetAuxNextFeedButtonPressed(bool pressed);
 static void lvglSetAuxQrModalOpen(bool open);
 #endif
 
+static bool uiPageUsesAuxDeck(UiPageMode mode) {
+  return (mode == UI_PAGE_AUX) || (mode == UI_PAGE_WIKI);
+}
+
 static const char* uiPageName(UiPageMode mode) {
   switch (mode) {
     case UI_PAGE_INFO:
       return "INFO";
     case UI_PAGE_AUX:
       return "AUX";
+    case UI_PAGE_WIKI:
+      return "WIKI";
     case UI_PAGE_HOME:
     default:
       return "HOME";
@@ -6316,6 +7159,7 @@ static int8_t uiPageOrdinal(UiPageMode mode) {
     case UI_PAGE_INFO: return 0;
     case UI_PAGE_HOME: return 1;
     case UI_PAGE_AUX: return 2;
+    case UI_PAGE_WIKI: return 2;
     default: return 1;
   }
 }
@@ -6373,6 +7217,12 @@ static bool lvglAuxNextFeedButtonContainsPoint(int16_t x, int16_t y) {
 
 static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y) {
   return lvglContainsPoint(g_lvglAuxNews, x, y);
+}
+
+static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y) {
+  if (!g_lvglAuxHeroFrame) return false;
+  if (lv_obj_has_flag(g_lvglAuxHeroFrame, LV_OBJ_FLAG_HIDDEN)) return false;
+  return lvglContainsPoint(g_lvglAuxHeroFrame, x, y);
 }
 
 static bool lvglAuxQrModalIsOpen() {
@@ -6815,6 +7665,11 @@ static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y) {
   (void)y;
   return false;
 }
+static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y) {
+  (void)x;
+  (void)y;
+  return false;
+}
 static bool lvglAuxQrModalIsOpen() { return false; }
 static void lvglSetAuxQrButtonPressed(bool pressed) { (void)pressed; }
 static void lvglSetAuxRefreshButtonPressed(bool pressed) { (void)pressed; }
@@ -6826,7 +7681,12 @@ static void lvglSetAuxQrModalOpen(bool open) {
 
 static void setUiPage(UiPageMode mode) {
   if (g_uiPageMode == mode) return;
-  if (mode != UI_PAGE_AUX) lvglSetAuxQrModalOpen(false);
+  if (!uiPageUsesAuxDeck(mode)) lvglSetAuxQrModalOpen(false);
+  if (uiPageUsesAuxDeck(g_uiPageMode) && uiPageUsesAuxDeck(mode) && g_uiPageMode != mode) {
+    lvglSetAuxQrModalOpen(false);
+    g_lvglAuxLastItemShown = -1;
+    g_lvglAuxLastQrPayload[0] = '\0';
+  }
   g_uiPageMode = mode;
   g_uiNeedsRedraw = true;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
@@ -6846,6 +7706,14 @@ static void toggleUiPage() {
     return;
   }
   setUiPage(UI_PAGE_HOME);
+}
+
+static void jumpToFirstMainView() {
+  setUiPage(UI_PAGE_HOME);
+}
+
+static void jumpToLastMainView() {
+  setUiPage(UI_PAGE_WIKI);
 }
 
 static void toggleClockMode() {
@@ -7603,7 +8471,7 @@ static void handleTouchSwipeInput() {
       g_touchStartMs = now;
       g_touchPageDragging = false;
       g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
-      if (g_uiPageMode == UI_PAGE_AUX) {
+      if (uiPageUsesAuxDeck(g_uiPageMode)) {
         if (lvglAuxQrButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_QR;
         else if (lvglAuxRefreshButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_REFRESH;
         else if (lvglAuxNextFeedButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_NEXT;
@@ -7667,7 +8535,9 @@ static void handleTouchSwipeInput() {
   if (touchAuxBtnDown != TOUCH_AUX_BTN_NONE) {
     Serial.printf("[TOUCH] btn-up kind=%u tap=%d dx=%d dy=%d dur=%lums\n",
                   (unsigned)touchAuxBtnDown, isBtnTap ? 1 : 0, dx, dy, (unsigned long)durMs);
-    if (isBtnTap && g_uiPageMode == UI_PAGE_AUX) {
+    if (isBtnTap && uiPageUsesAuxDeck(g_uiPageMode)) {
+      RssState &content = (g_uiPageMode == UI_PAGE_WIKI) ? g_wiki : g_rss;
+      const char *tag = (g_uiPageMode == UI_PAGE_WIKI) ? "wiki" : "rss";
       if (touchAuxBtnDown == TOUCH_AUX_BTN_QR) {
         if (lvglAuxQrModalIsOpen()) {
           lvglSetAuxQrModalOpen(false);
@@ -7686,25 +8556,27 @@ static void handleTouchSwipeInput() {
           lv_label_set_text(g_lvglAuxStatus, "SKIP");
           lvglForceLabelVisible(g_lvglAuxStatus);
         }
-        const bool moved = rssAdvanceToNextItem();
+        const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextItem() : rssAdvanceToNextItem();
         if (moved) g_uiNeedsRedraw = true;
-        Serial.printf("[TOUCH] rss-skip moved=%d idx=%u/%u\n",
+        Serial.printf("[TOUCH] %s-skip moved=%d idx=%u/%u\n",
+                      tag,
                       moved ? 1 : 0,
-                      (unsigned)(g_rss.currentIndex + 1),
-                      (unsigned)g_rss.itemCount);
+                      (unsigned)(content.currentIndex + 1),
+                      (unsigned)content.itemCount);
 #endif
       } else if (touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) {
 #if TEST_WIFI && RSS_ENABLED
         if (g_lvglAuxStatus) {
-          lv_label_set_text(g_lvglAuxStatus, "NXT");
+          lv_label_set_text(g_lvglAuxStatus, "FEED");
           lvglForceLabelVisible(g_lvglAuxStatus);
         }
-        const bool moved = rssAdvanceToNextFeed();
+        const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextFeed() : rssAdvanceToNextFeed();
         if (moved) g_uiNeedsRedraw = true;
-        Serial.printf("[TOUCH] rss-next-feed moved=%d idx=%u/%u\n",
+        Serial.printf("[TOUCH] %s-next-feed moved=%d idx=%u/%u\n",
+                      tag,
                       moved ? 1 : 0,
-                      (unsigned)(g_rss.currentIndex + 1),
-                      (unsigned)g_rss.itemCount);
+                      (unsigned)(content.currentIndex + 1),
+                      (unsigned)content.itemCount);
 #endif
       }
     }
@@ -7717,7 +8589,7 @@ static void handleTouchSwipeInput() {
     g_touchPageDragging = false;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
     g_lvglPageDragActive = false;
-    if (g_uiPageMode == UI_PAGE_AUX && lvglAuxQrModalIsOpen()) {
+    if (uiPageUsesAuxDeck(g_uiPageMode) && lvglAuxQrModalIsOpen()) {
       lvglApplyPageVisibility(true);
       g_touchAwaitRelease = true;
       g_touchReleaseStartMs = 0;
@@ -7726,7 +8598,17 @@ static void handleTouchSwipeInput() {
       return;
     }
     if (durMs <= 3000 && pageSwipe && ((millis() - g_lastSwipeToggleMs) >= 140)) {
-      const bool moved = stepUiPage((dx < 0) ? 1 : -1, false);
+      const int8_t dir = (dx < 0) ? 1 : -1;
+      bool moved = false;
+      if (dir > 0 && g_uiPageMode == UI_PAGE_AUX) {
+        setUiPage(UI_PAGE_WIKI);
+        moved = true;
+      } else if (dir < 0 && g_uiPageMode == UI_PAGE_WIKI) {
+        setUiPage(UI_PAGE_AUX);
+        moved = true;
+      } else {
+        moved = stepUiPage(dir, false);
+      }
       g_lastSwipeToggleMs = millis();
       g_touchAwaitRelease = true;
       g_touchReleaseStartMs = 0;
@@ -7744,7 +8626,7 @@ static void handleTouchSwipeInput() {
   }
 
   if (durMs > 3000) return;
-  if (g_uiPageMode == UI_PAGE_AUX && lvglAuxQrModalIsOpen()) {
+  if (uiPageUsesAuxDeck(g_uiPageMode) && lvglAuxQrModalIsOpen()) {
     if (durMs <= 2500) {
       lvglSetAuxQrModalOpen(false);
       Serial.println("[TOUCH] qr-close-overlay");
@@ -7755,35 +8637,51 @@ static void handleTouchSwipeInput() {
   }
   if ((millis() - g_lastSwipeToggleMs) < 140) return;
 
-  // Primary gesture: horizontal swipe changes page (INFO <-> HOME <-> AUX).
+  // Primary gesture: horizontal swipe changes page (INFO <-> HOME <-> AUX/WIKI).
   if (pageSwipe) {
-    const bool moved = stepUiPage((dx < 0) ? 1 : -1, false);
+    const int8_t dir = (dx < 0) ? 1 : -1;
+    bool moved = false;
+    if (dir > 0 && g_uiPageMode == UI_PAGE_AUX) {
+      setUiPage(UI_PAGE_WIKI);
+      moved = true;
+    } else if (dir < 0 && g_uiPageMode == UI_PAGE_WIKI) {
+      setUiPage(UI_PAGE_AUX);
+      moved = true;
+    } else {
+      moved = stepUiPage(dir, false);
+    }
     g_lastSwipeToggleMs = millis();
     g_touchAwaitRelease = true;
     g_touchReleaseStartMs = 0;
-    const char *dir = (dx < 0) ? "LEFT" : "RIGHT";
+    const char *dirLabel = (dx < 0) ? "LEFT" : "RIGHT";
     Serial.printf("[TOUCH] swipe %s dx=%d dy=%d dur=%lums -> page=%s moved=%d\n",
-                  dir, dx, dy, (unsigned long)durMs, uiPageName(g_uiPageMode), moved ? 1 : 0);
+                  dirLabel, dx, dy, (unsigned long)durMs, uiPageName(g_uiPageMode), moved ? 1 : 0);
     return;
   }
 
-  // AUX ergonomics: tap on current news advances to next RSS item.
-  if (isTap && g_uiPageMode == UI_PAGE_AUX && lvglAuxNewsContainsPoint(g_touchStartX, g_touchStartY)) {
+  // AUX/WIKI ergonomics: tap on current news advances to next item.
+  if (isTap && uiPageUsesAuxDeck(g_uiPageMode) &&
+      (lvglAuxNewsContainsPoint(g_touchStartX, g_touchStartY) ||
+       lvglAuxHeroContainsPoint(g_touchStartX, g_touchStartY))) {
 #if TEST_WIFI && RSS_ENABLED
-    if (rssAdvanceToNextItem()) {
+    const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextItem() : rssAdvanceToNextItem();
+    RssState &content = (g_uiPageMode == UI_PAGE_WIKI) ? g_wiki : g_rss;
+    const char *tag = (g_uiPageMode == UI_PAGE_WIKI) ? "wiki" : "rss";
+    if (moved) {
       g_uiNeedsRedraw = true;
       g_touchAwaitRelease = true;
       g_touchReleaseStartMs = 0;
-      Serial.printf("[TOUCH] aux-news-tap -> rss %u/%u\n",
-                    (unsigned)(g_rss.currentIndex + 1),
-                    (unsigned)g_rss.itemCount);
+      Serial.printf("[TOUCH] aux-news-tap -> %s %u/%u\n",
+                    tag,
+                    (unsigned)(content.currentIndex + 1),
+                    (unsigned)content.itemCount);
       return;
     }
 #endif
   }
 
-  // In AUX, ignore neutral taps that are not on actionable regions.
-  if (isTap && g_uiPageMode == UI_PAGE_AUX) return;
+  // In AUX/WIKI, ignore neutral taps that are not on actionable regions.
+  if (isTap && uiPageUsesAuxDeck(g_uiPageMode)) return;
 
   // Fallback gesture: quick tap anywhere on left panel toggles clock mode.
   if (isTap &&
@@ -9429,13 +10327,12 @@ static void lvglUpdateWiFiBars(bool force) {
   }
 }
 
-static void formatRssTitleThreeLines(const char *title, lv_obj_t *label, char *out, size_t outLen) {
+static void formatRssTextToLabelBounds(const char *text, lv_obj_t *label, char *out, size_t outLen) {
   if (!out || outLen == 0) return;
   out[0] = '\0';
-  if (!title || !title[0]) return;
+  if (!text || !text[0]) return;
 
-  constexpr uint8_t kMaxLines = 3;
-  String src(title);
+  String src(text);
   src.trim();
   if (src.length() == 0) return;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
@@ -9444,16 +10341,17 @@ static void formatRssTitleThreeLines(const char *title, lv_obj_t *label, char *o
     const lv_font_t *font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
     const lv_coord_t lineSpace = lv_obj_get_style_text_line_space(label, LV_PART_MAIN);
     const lv_coord_t lineH = font ? lv_font_get_line_height(font) : 22;
-    const lv_coord_t maxH = (lineH * kMaxLines) + (lineSpace * (kMaxLines - 1));
+    lv_coord_t maxH = lv_obj_get_height(label);
+    if (maxH < lineH) maxH = (lineH * 3) + (lineSpace * 2);
 
     String candidate = src;
-    auto fitsInThreeLines = [&](const String &s) -> bool {
+    auto fitsInBounds = [&](const String &s) -> bool {
       lv_label_set_text(label, s.c_str());
       lv_obj_update_layout(lv_scr_act());
       return lv_obj_get_content_height(label) <= maxH;
     };
 
-    if (fitsInThreeLines(candidate)) {
+    if (fitsInBounds(candidate)) {
       strncpy(out, candidate.c_str(), outLen - 1);
       out[outLen - 1] = '\0';
       return;
@@ -9466,7 +10364,7 @@ static void formatRssTitleThreeLines(const char *title, lv_obj_t *label, char *o
       String trial = candidate;
       trial.trim();
       trial += "...";
-      if (fitsInThreeLines(trial)) {
+      if (fitsInBounds(trial)) {
         strncpy(out, trial.c_str(), outLen - 1);
         out[outLen - 1] = '\0';
         return;
@@ -9483,15 +10381,68 @@ static void formatRssTitleThreeLines(const char *title, lv_obj_t *label, char *o
   out[outLen - 1] = '\0';
 }
 
+static void buildRssStoryBlock(const RssItem &item, lv_obj_t *label, char *out, size_t outLen) {
+  if (!out || outLen == 0) return;
+  out[0] = '\0';
+
+  String story;
+  if (item.title[0]) {
+    story = item.title;
+  }
+  String summary(item.summary);
+  summary.trim();
+  if (summary.length() > 0) {
+    if (story.length() > 0) story += "\n";
+    story += summary;
+  }
+  story.trim();
+  if (story.length() == 0) {
+    strncpy(out, activeUiStrings()->rssSyncing, outLen - 1);
+    out[outLen - 1] = '\0';
+    return;
+  }
+  formatRssTextToLabelBounds(story.c_str(), label, out, outLen);
+}
+
+static const char *wikiFeedUiName(uint8_t slot) {
+  switch (slot) {
+    case 0: return "Featured";
+    case 1: return "On this day";
+    case 2: return "Wikinews";
+    default: return "Wikipedia";
+  }
+}
+
+static const char *wikiFeedUiBadge(uint8_t slot) {
+  switch (slot) {
+    case 0: return "WF";
+    case 1: return "WD";
+    case 2: return "WN";
+    default: return "W";
+  }
+}
+
+static uint32_t wikiFeedUiColorHex(uint8_t slot) {
+  switch (slot) {
+    case 0: return 0x295FA8;
+    case 1: return 0x2D7D64;
+    case 2: return 0x7A3FA8;
+    default: return 0x2B468E;
+  }
+}
+
 static void lvglUpdateAuxRss(bool force) {
   if (!g_lvglAuxNews) return;
+  const bool wikiMode = (g_uiPageMode == UI_PAGE_WIKI);
+  RssState &content = wikiMode ? g_wiki : g_rss;
+  const char *contentTag = wikiMode ? "WIKI" : "RSS";
 #if TEST_WIFI && RSS_ENABLED
   const uint32_t now = millis();
-  if (g_wifiConnected && g_rss.valid && g_rss.itemCount > 1 && g_rss.lastRotateMs != 0 &&
+  if (g_wifiConnected && content.valid && content.itemCount > 1 && content.lastRotateMs != 0 &&
       !lvglAuxQrModalIsOpen() &&
-      (now - g_rss.lastRotateMs) >= RSS_ROTATE_MS) {
-    g_rss.currentIndex = (uint8_t)((g_rss.currentIndex + 1) % g_rss.itemCount);
-    g_rss.lastRotateMs = now;
+      (now - content.lastRotateMs) >= RSS_ROTATE_MS) {
+    content.currentIndex = (uint8_t)((content.currentIndex + 1) % content.itemCount);
+    content.lastRotateMs = now;
     force = true;
   }
 #endif
@@ -9506,20 +10457,25 @@ static void lvglUpdateAuxRss(bool force) {
   char siteHost[96];
   uint32_t siteColorHex = 0x2B468E;
   uint32_t siteTextHex = 0xFFFFFF;
+  bool sourceLineSet = false;
   int faviconIdx = -1;
   bool faviconReady = false;
+  int thumbIdx = -1;
+  bool thumbReady = false;
+  bool thumbVisible = false;
   title3[0] = '\0';
   whenLine[0] = '\0';
   status[0] = '\0';
   meta[0] = '\0';
-  strncpy(siteShort, "RSS", sizeof(siteShort) - 1);
+  strncpy(siteShort, wikiMode ? "WIKI" : "RSS", sizeof(siteShort) - 1);
   siteShort[sizeof(siteShort) - 1] = '\0';
   strncpy(siteBadge, "R", sizeof(siteBadge) - 1);
   siteBadge[sizeof(siteBadge) - 1] = '\0';
   sourceLine[0] = '\0';
-  strncpy(siteHost, "rss", sizeof(siteHost) - 1);
+  strncpy(siteHost, wikiMode ? "wiki" : "rss", sizeof(siteHost) - 1);
   siteHost[sizeof(siteHost) - 1] = '\0';
   int16_t showIndex = -1;
+  if (g_lvglAuxTitle) lv_label_set_text(g_lvglAuxTitle, wikiMode ? "ScryBar Wiki" : "ScryBar RSS");
 
 #if TEST_WIFI && RSS_ENABLED
   if (!g_wifiConnected) {
@@ -9528,15 +10484,15 @@ static void lvglUpdateAuxRss(bool force) {
     strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
     whenLine[sizeof(whenLine) - 1] = '\0';
     snprintf(status, sizeof(status), "OFF");
-    snprintf(meta, sizeof(meta), "Ultimo fetch: %s", g_rss.lastFetchMs ? g_rss.fetchedAt : "--/-- --:--");
-  } else if (g_rss.valid && g_rss.itemCount > 0) {
-    showIndex = (int16_t)(g_rss.currentIndex % g_rss.itemCount);
-    formatRssTitleThreeLines(g_rss.items[showIndex].title, g_lvglAuxNews, title3, sizeof(title3));
-    buildRssWhenLabel(g_rss.items[showIndex].pubDate, whenLine, sizeof(whenLine));
-    snprintf(status, sizeof(status), "%u/%u", (unsigned)(showIndex + 1), (unsigned)g_rss.itemCount);
+    snprintf(meta, sizeof(meta), "Ultimo fetch: %s", content.lastFetchMs ? content.fetchedAt : "--/-- --:--");
+  } else if (content.valid && content.itemCount > 0) {
+    showIndex = (int16_t)(content.currentIndex % content.itemCount);
+    buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3));
+    buildRssWhenLabel(content.items[showIndex].pubDate, whenLine, sizeof(whenLine));
+    snprintf(status, sizeof(status), "%u/%u", (unsigned)(showIndex + 1), (unsigned)content.itemCount);
     uint32_t rotateLeftSec = 0;
-    if (g_rss.lastRotateMs != 0) {
-      const uint32_t elapsed = now - g_rss.lastRotateMs;
+    if (content.lastRotateMs != 0) {
+      const uint32_t elapsed = now - content.lastRotateMs;
       if (elapsed >= RSS_ROTATE_MS) {
         rotateLeftSec = 0;
       } else {
@@ -9544,25 +10500,36 @@ static void lvglUpdateAuxRss(bool force) {
       }
     }
     if (lvglAuxQrModalIsOpen()) {
-      snprintf(meta, sizeof(meta), "Fetch %s | QR", g_rss.fetchedAt);
+      snprintf(meta, sizeof(meta), "Fetch %s | QR", content.fetchedAt);
     } else {
-      snprintf(meta, sizeof(meta), "Fetch %s | %lus", g_rss.fetchedAt, (unsigned long)rotateLeftSec);
+      snprintf(meta, sizeof(meta), "Fetch %s | %lus", content.fetchedAt, (unsigned long)rotateLeftSec);
     }
-    rssResolveSourceHost(g_rss.items[showIndex], siteHost, sizeof(siteHost));
-    buildRssSiteShortName(siteHost, siteShort, sizeof(siteShort));
-    buildRssSiteBadge(siteShort, siteBadge, sizeof(siteBadge));
-    siteColorHex = rssSiteColorHexFromHost(siteHost);
-    if (strcmp(siteShort, "ANSA") == 0) {
-      siteColorHex = 0xFFFFFF;
-      siteTextHex = 0x1B3C86;
+    if (wikiMode) {
+      const uint8_t wikiSlot = content.items[showIndex].feedSlot;
+      extractRssHost(content.items[showIndex].link, siteHost, sizeof(siteHost));
+      copyStringSafe(siteShort, sizeof(siteShort), "WIKI");
+      copyStringSafe(siteBadge, sizeof(siteBadge), wikiFeedUiBadge(wikiSlot));
+      siteColorHex = wikiFeedUiColorHex(wikiSlot);
+      siteTextHex = 0xFFFFFF;
+      snprintf(sourceLine, sizeof(sourceLine), "%s", wikiFeedUiName(wikiSlot));
+      sourceLineSet = true;
+    } else {
+      rssResolveSourceHost(content.items[showIndex], siteHost, sizeof(siteHost));
+      buildRssSiteShortName(siteHost, siteShort, sizeof(siteShort));
+      buildRssSiteBadge(siteShort, siteBadge, sizeof(siteBadge));
+      siteColorHex = rssSiteColorHexFromHost(siteHost);
+      if (strcmp(siteShort, "ANSA") == 0) {
+        siteColorHex = 0xFFFFFF;
+        siteTextHex = 0x1B3C86;
+      }
     }
-  } else if (g_rss.lastHttpCode != 0) {
+  } else if (content.lastHttpCode != 0) {
     strncpy(title3, activeUiStrings()->rssFeedError, sizeof(title3) - 1);
     title3[sizeof(title3) - 1] = '\0';
     strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
     whenLine[sizeof(whenLine) - 1] = '\0';
-    snprintf(status, sizeof(status), "ERR %d", g_rss.lastHttpCode);
-    snprintf(meta, sizeof(meta), "Fetch %s", g_rss.lastFetchMs ? g_rss.fetchedAt : "--/-- --:--");
+    snprintf(status, sizeof(status), "ERR %d", content.lastHttpCode);
+    snprintf(meta, sizeof(meta), "Fetch %s", content.lastFetchMs ? content.fetchedAt : "--/-- --:--");
   } else {
     strncpy(title3, activeUiStrings()->rssSyncing, sizeof(title3) - 1);
     title3[sizeof(title3) - 1] = '\0';
@@ -9587,13 +10554,62 @@ static void lvglUpdateAuxRss(bool force) {
   snprintf(meta, sizeof(meta), "Fetch --/-- --:--");
 #endif
 
-  snprintf(sourceLine, sizeof(sourceLine), "%s", siteShort);
+  if (!sourceLineSet) snprintf(sourceLine, sizeof(sourceLine), "%s", siteShort);
   if (siteHost[0]) {
     faviconIdx = rssFaviconCacheFind(siteHost);
     faviconReady = (faviconIdx >= 0) &&
                    g_rssFaviconCache[faviconIdx].ready &&
                    (g_rssFaviconCache[faviconIdx].pngData != nullptr) &&
                    (g_rssFaviconCache[faviconIdx].pngSize > 0);
+  }
+  if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
+    const RssItem &item = content.items[showIndex];
+    if (item.imageUrl[0]) {
+      thumbIdx = rssThumbCacheFind(item.imageUrl);
+      thumbReady = (thumbIdx >= 0) &&
+                   g_rssThumbCache[thumbIdx].ready &&
+                   (g_rssThumbCache[thumbIdx].imgData != nullptr) &&
+                   (g_rssThumbCache[thumbIdx].imgSize > 0);
+    }
+  }
+  thumbVisible = thumbReady && g_lvglAuxHeroFrame && g_lvglAuxHeroImg;
+
+  if (g_lvglAuxNews && g_lvglAuxNewsBaseW > 0 && g_lvglAuxNewsBaseH > 0) {
+    if (thumbVisible) {
+      int16_t compactW = g_lvglAuxNewsBaseW - g_lvglAuxHeroW - 8;
+      if (compactW < 96) compactW = 96;
+      lv_obj_set_pos(g_lvglAuxNews, g_lvglAuxNewsBaseX, g_lvglAuxNewsBaseY);
+      lv_obj_set_size(g_lvglAuxNews, compactW, g_lvglAuxNewsBaseH);
+    } else {
+      lv_obj_set_pos(g_lvglAuxNews, g_lvglAuxNewsBaseX, g_lvglAuxNewsBaseY);
+      lv_obj_set_size(g_lvglAuxNews, g_lvglAuxNewsBaseW, g_lvglAuxNewsBaseH);
+    }
+  }
+
+  if (g_lvglAuxHeroFrame) {
+    if (thumbVisible) {
+      lv_obj_clear_flag(g_lvglAuxHeroFrame, LV_OBJ_FLAG_HIDDEN);
+      if (g_lvglAuxHeroImg) {
+        lv_img_set_src(g_lvglAuxHeroImg, &g_rssThumbDsc[thumbIdx]);
+        lv_obj_clear_flag(g_lvglAuxHeroImg, LV_OBJ_FLAG_HIDDEN);
+        const uint16_t w = g_rssThumbCache[thumbIdx].imgW ? g_rssThumbCache[thumbIdx].imgW : (uint16_t)g_lvglAuxHeroW;
+        const uint16_t h = g_rssThumbCache[thumbIdx].imgH ? g_rssThumbCache[thumbIdx].imgH : (uint16_t)g_lvglAuxHeroH;
+        uint32_t zx = ((uint32_t)g_lvglAuxHeroW * 256UL) / w;
+        uint32_t zy = ((uint32_t)g_lvglAuxHeroH * 256UL) / h;
+        uint16_t z = (uint16_t)((zx < zy) ? zx : zy);
+        if (z < 72) z = 72;
+        if (z > 1024) z = 1024;
+        lv_img_set_zoom(g_lvglAuxHeroImg, z);
+        lv_obj_center(g_lvglAuxHeroImg);
+      }
+    } else {
+      lv_obj_add_flag(g_lvglAuxHeroFrame, LV_OBJ_FLAG_HIDDEN);
+      if (g_lvglAuxHeroImg) lv_obj_add_flag(g_lvglAuxHeroImg, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+
+  if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
+    buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3));
   }
 
   sanitizeAsciiBuffer(title3, sizeof(title3));
@@ -9654,12 +10670,15 @@ static void lvglUpdateAuxRss(bool force) {
       lv_obj_clear_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
       lv_obj_move_foreground(g_lvglAuxQrOverlay);
       if (g_lvglAuxQr) {
-        const char *url = "https://ansa.it";
+        const char *url = wikiMode ? "https://en.wikipedia.org" : "https://ansa.it";
         bool qrReady = false;
         int16_t qrIndex = -1;
-        if (showIndex >= 0 && showIndex < (int16_t)g_rss.itemCount) {
-          RssItem &item = g_rss.items[showIndex];
-          if (!item.shortReady) (void)rssTryShortenUrl((uint8_t)showIndex);
+        if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
+          RssItem &item = content.items[showIndex];
+          if (!item.shortReady) {
+            if (wikiMode) (void)wikiTryShortenUrl((uint8_t)showIndex);
+            else (void)rssTryShortenUrl((uint8_t)showIndex);
+          }
           if (item.shortReady && item.shortLink[0]) {
             url = item.shortLink;
             qrReady = true;
@@ -9673,8 +10692,8 @@ static void lvglUpdateAuxRss(bool force) {
             strncpy(g_lvglAuxLastQrPayload, url, sizeof(g_lvglAuxLastQrPayload) - 1);
             g_lvglAuxLastQrPayload[sizeof(g_lvglAuxLastQrPayload) - 1] = '\0';
             g_lvglAuxLastItemShown = qrIndex;
-            if (qrIndex >= 0) Serial.printf("[RSS] qr %u -> %s\n", (unsigned)(qrIndex + 1), url);
-            else Serial.printf("[RSS] qr fallback -> %s\n", url);
+            if (qrIndex >= 0) Serial.printf("[%s] qr %u -> %s\n", contentTag, (unsigned)(qrIndex + 1), url);
+            else Serial.printf("[%s] qr fallback -> %s\n", contentTag, url);
           }
           lv_obj_clear_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
           if (g_lvglAuxQrHint) lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->touchToCloseAnywhere);
@@ -10952,11 +11971,43 @@ static bool initLvglUi() {
   lv_label_set_long_mode(g_lvglAuxNews, LV_LABEL_LONG_WRAP);
   const int16_t newsY = sourceRowY + sourceBlockH + 5;  // notizia +5px verso il basso
   const int16_t newsH = (auxCardH - 24) - newsY;
+  const int16_t heroW = 132;
+  int16_t heroH = newsH - 4;
+  if (heroH > 94) heroH = 94;
+  if (heroH < 68) heroH = 68;
+  int16_t heroX = leftPaneX + leftPaneW - heroW;
+  if (heroX < leftPaneX) heroX = leftPaneX;
+  const int16_t heroY = newsY;
   lv_obj_set_size(g_lvglAuxNews, leftPaneW, newsH);
   lv_obj_set_pos(g_lvglAuxNews, leftPaneX, newsY);
   lv_obj_set_style_text_align(g_lvglAuxNews, LV_TEXT_ALIGN_LEFT, 0);
   lv_label_set_text(g_lvglAuxNews, activeUiStrings()->rssSyncing);
   lvglForceLabelVisible(g_lvglAuxNews);
+  g_lvglAuxNewsBaseX = leftPaneX;
+  g_lvglAuxNewsBaseY = newsY;
+  g_lvglAuxNewsBaseW = leftPaneW;
+  g_lvglAuxNewsBaseH = newsH;
+  g_lvglAuxHeroW = heroW;
+  g_lvglAuxHeroH = heroH;
+
+  g_lvglAuxHeroFrame = lv_obj_create(g_lvglAuxCard);
+  lv_obj_set_size(g_lvglAuxHeroFrame, heroW, heroH);
+  lv_obj_set_pos(g_lvglAuxHeroFrame, heroX, heroY);
+  lv_obj_set_style_bg_color(g_lvglAuxHeroFrame, lv_color_hex(0x14213D), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglAuxHeroFrame, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglAuxHeroFrame, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(g_lvglAuxHeroFrame, lv_color_hex(0x253764), LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglAuxHeroFrame, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglAuxHeroFrame, kBadgeRadius, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_lvglAuxHeroFrame, true, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_lvglAuxHeroFrame, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglAuxHeroFrame, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(g_lvglAuxHeroFrame, LV_OBJ_FLAG_HIDDEN);
+
+  g_lvglAuxHeroImg = lv_img_create(g_lvglAuxHeroFrame);
+  lv_obj_center(g_lvglAuxHeroImg);
+  lv_obj_add_flag(g_lvglAuxHeroImg, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_clear_flag(g_lvglAuxHeroImg, LV_OBJ_FLAG_SCROLLABLE);
 
   g_lvglAuxMeta = lv_label_create(g_lvglAuxHeader);
   lv_obj_set_style_text_font(g_lvglAuxMeta, lvglFontSmall(), 0);
@@ -11149,7 +12200,7 @@ static void updateLvglUi(bool force) {
 #endif
     return;
   }
-  if (g_uiPageMode == UI_PAGE_AUX) {
+  if (uiPageUsesAuxDeck(g_uiPageMode)) {
     lvglUpdateAuxRss(force);
     g_lastClockSecond = timeinfo.tm_sec;
     g_lastDateKey = dateKey;
@@ -11766,7 +12817,7 @@ static void handleSerialCommand(const char *line) {
   cmd.toUpperCase();
 
   if (cmd == "HELP") {
-    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEW0, VIEW1, VIEW2, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, THEME, THEME <id>, LANG, LANG <code>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG, WIFIDIRECT, WIFIDIRECT <off|auto|on>");
+    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEWFIRST, VIEWLAST, VIEW0, VIEW1, VIEW2, VIEW3, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, VIEWWIKI, THEME, THEME <id>, LANG, LANG <code>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, NAVSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG, WIFIDIRECT, WIFIDIRECT <off|auto|on>");
     return;
   }
 
@@ -11785,6 +12836,18 @@ static void handleSerialCommand(const char *line) {
     return;
   }
 
+  if (cmd == "VIEWFIRST" || cmd == "VIEWHOMEFIRST") {
+    jumpToFirstMainView();
+    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+    return;
+  }
+
+  if (cmd == "VIEWLAST" || cmd == "VIEWAUXLAST" || cmd == "VIEWRSSLAST") {
+    jumpToLastMainView();
+    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+    return;
+  }
+
   if (cmd == "VIEW0" || cmd == "VIEWINFO") {
     setUiPage(UI_PAGE_INFO);
     Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
@@ -11799,6 +12862,12 @@ static void handleSerialCommand(const char *line) {
 
   if (cmd == "VIEW2" || cmd == "VIEWAUX" || cmd == "VIEWRSS") {
     setUiPage(UI_PAGE_AUX);
+    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+    return;
+  }
+
+  if (cmd == "VIEW3" || cmd == "VIEWWIKI") {
+    setUiPage(UI_PAGE_WIKI);
     Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
     return;
   }
@@ -11921,6 +12990,15 @@ static void handleSerialCommand(const char *line) {
                   raw,
                   isPwrButtonPressed() ? 1 : 0,
                   g_pwrButtonDown ? (unsigned long)(millis() - g_pwrButtonDownMs) : 0UL);
+    return;
+  }
+  if (cmd == "NAVSTAT") {
+    const int raw = gpio_get_level((gpio_num_t)NAV_FIRST_BUTTON_PIN);
+    Serial.printf("[NAV] stat pin=%d raw=%d pressed=%d hold_ms=%lu\n",
+                  NAV_FIRST_BUTTON_PIN,
+                  raw,
+                  isNavFirstButtonPressed() ? 1 : 0,
+                  g_navFirstButtonDown ? (unsigned long)(millis() - g_navFirstButtonDownMs) : 0UL);
     return;
   }
 
@@ -12151,6 +13229,7 @@ void setup() {
   Serial.begin(SERIAL_BAUDRATE);
   delay(1200);
   preparePowerButtonPin();
+  prepareNavFirstButtonPin();
   ensureSystemPowerLatchOnBoot();
   handleWakeHoldGate();
 #if TEST_BATTERY
@@ -12229,7 +13308,12 @@ void setup() {
     updateWeatherFromApi(true);
 #if TEST_WIFI && RSS_ENABLED
     updateRssFromFeed(false);  // preload RSS once at boot while still on HOME
+    updateWikiFromFeed(false); // preload WIKI once at boot while still on HOME
     rssPreloadFaviconStep();
+    rssPreloadThumbStep();
+    wikiPreloadMetaStep();
+    wikiPreloadFaviconStep();
+    wikiPreloadThumbStep();
 #endif
   } else {
     Serial.println("[NTP] WiFi non ancora connesso: sync deferred in loop.");
@@ -12247,6 +13331,7 @@ void loop() {
   const uint32_t now = millis();
 
   handlePowerButtonLoop(now);
+  handleNavFirstButtonLoop(now);
   pollSerialCommands();
 #if TEST_WIFI
   handleWiFiReconnectLoop(now);
@@ -12287,12 +13372,23 @@ void loop() {
   updateWeatherFromApi(false);
 #if TEST_WIFI && RSS_ENABLED
 #if TEST_LVGL_UI && DISPLAY_BACKEND_ESP_LCD
-  if (g_uiPageMode != UI_PAGE_AUX) {
-    updateRssFromFeed(false);  // background preload/refresh outside AUX to avoid swipe stalls
+  if (!uiPageUsesAuxDeck(g_uiPageMode)) {
+    updateRssFromFeed(false);   // background preload/refresh outside AUX/WIKI to avoid swipe stalls
+    updateWikiFromFeed(false);  // background preload/refresh outside AUX/WIKI to avoid swipe stalls
     rssPreloadFaviconStep();
+    rssPreloadThumbStep();
+    wikiPreloadMetaStep();
+    wikiPreloadFaviconStep();
+    wikiPreloadThumbStep();
   }
 #else
   updateRssFromFeed(false);
+  updateWikiFromFeed(false);
+  rssPreloadFaviconStep();
+  rssPreloadThumbStep();
+  wikiPreloadMetaStep();
+  wikiPreloadFaviconStep();
+  wikiPreloadThumbStep();
 #endif
 #endif
   handleTouchSwipeInput();

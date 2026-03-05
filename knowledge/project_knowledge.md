@@ -87,6 +87,7 @@ Use them to confirm a flash landed (`[FW] Build=...` at boot).
 - Wi-Fi direct mode: `g_wifiSetupMode` (`wifi_setup_mode` in web/API payloads, values `off|auto|on`)
 - Weather city/lat/lon
 - RSS feed slots (multi-feed)
+- Dedicated Wiki deck (fixed 3-source rotation, separate from RSS runtime slots)
 - Branding logo URL
 
 Apply paths:
@@ -320,6 +321,21 @@ Discard touch frames where:
 - Any coordinate ≥ `0x0FFF`
 - Raw coords outside panel bounds
 
+## View Model and Navigation
+
+- Runtime pages: `INFO`, `HOME`, `AUX` (RSS), `WIKI`.
+- Swipe graph:
+  - `INFO <-> HOME <-> AUX <-> WIKI`
+  - `AUX/WIKI` share the same content deck widgets and controls.
+- AUX/WIKI controls:
+  - `SKIP` = next item
+  - `NXT` = next feed
+  - `QR` = modal on-demand (not always visible)
+- Physical buttons (current mapping):
+  - `PWR` short press: screensaver
+  - `BOOT` short press: jump to `HOME`
+  - `RST`: hardware reset
+
 ## Power Policy
 
 - Long-press 5s: soft-off (wakeup via long-press)
@@ -335,9 +351,12 @@ Discard touch frames where:
 | `THEME` | Print current theme + list |
 | `THEME <id>` | Switch theme at runtime (and persist) |
 | `VIEW` | Toggle HOME ↔ AUX |
+| `VIEWFIRST` | Jump to first main view (`HOME`, INFO excluded) |
+| `VIEWLAST` | Jump to last main view (`WIKI`) |
 | `VIEW0` / `VIEWINFO` | Force INFO page |
 | `VIEW1` / `VIEWHOME` | Force HOME page |
 | `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
+| `VIEW3` / `VIEWWIKI` | Force WIKI page |
 | `SNAP` | Emit framebuffer snapshot protocol |
 | `BATSTAT` | Print battery status |
 | `SAVERON` / `SAVEROFF` | Toggle screensaver |

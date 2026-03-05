@@ -134,6 +134,10 @@
 #define RSS_FAVICON_CACHE_SIZE 12
 #define RSS_FAVICON_MAX_BYTES 8192
 #define RSS_FAVICON_RETRY_MS 300000UL
+// Runtime thumbnail cache for AUX/Wiki cards.
+#define RSS_THUMB_CACHE_SIZE 3
+#define RSS_THUMB_MAX_BYTES 24576
+#define RSS_THUMB_RETRY_MS 300000UL
 
 // --- Word Clock ---
 #define WORD_CLOCK_LANG_DEFAULT "it"   // "it" | "tlh" | future codes
@@ -196,6 +200,14 @@
 #define PWR_HOLD_SHUTDOWN_MS 5000
 #define PWR_HOLD_WAKE_MS 5000
 #define PWR_RELEASE_DEBOUNCE_MS 120
+
+// --- Navigation button shortcuts (main views only, INFO excluded) ---
+// On this board BOOT key is GPIO0 (active low).
+// Single click -> jump to first main view (HOME).
+#define NAV_FIRST_BUTTON_PIN 0
+#define NAV_FIRST_BUTTON_ACTIVE_LOW 1
+#define NAV_BUTTON_RELEASE_DEBOUNCE_MS 80
+#define NAV_BUTTON_TAP_MAX_MS 1200
 
 // Battery ADC monitor (vendor ADC test uses ADC1 channel 3 with x3 divider).
 #define BATTERY_ADC_CHANNEL 3

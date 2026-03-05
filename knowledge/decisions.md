@@ -205,3 +205,11 @@ Entry format:
 - Context: Theme typography can be stylized or uppercase-heavy, making password entry visually ambiguous during provisioning.
 - Decision: Enforce monospaced rendering for `wifi_new_password` regardless of theme and add explicit eye toggle for show/hide state in web config UI.
 - Impact/Tradeoffs: Better operator accuracy and faster debugging in field setups, with negligible UI complexity increase.
+
+---
+
+## 2026-03-05 - Keep RSS Deck Stable and Add Wiki as Dedicated View
+
+- Context: Wiki ingestion was introduced as content expansion, but a regression risked replacing existing RSS runtime feeds/userspace behavior.
+- Decision: Preserve AUX/RSS behavior unchanged (runtime-configurable up to 5 feeds) and add Wiki as a separate dedicated view (`UI_PAGE_WIKI`) with its own fixed 3-source rotation and independent state.
+- Impact/Tradeoffs: Existing RSS operators keep their current feed setup and controls; Wiki adds extra value without configuration churn. Slightly higher code/UI complexity is accepted to isolate concerns and avoid regressions.

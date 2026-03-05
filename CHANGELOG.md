@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-03-05
+
+### Firmware DB-M0-r151
+- Restored AUX/RSS behavior without replacing user RSS feeds.
+- Added dedicated `WIKI` view (`VIEW3` / `VIEWWIKI`) separate from AUX/RSS.
+- Wiki view now follows AUX interaction model:
+  - `SKIP` -> next article
+  - `NXT` -> next feed family
+  - `QR` only on demand
+- Added Wiki content enrichment and media UX:
+  - article summary + title rendering
+  - right-side remote thumbnail when available
+  - feed-family badge/label for clearer context (`Featured`, `On this day`, `Wikinews`)
+- Navigation updates:
+  - `VIEWFIRST` / `VIEWLAST`
+  - physical `BOOT` short press mapped to jump `HOME`
+  - `PWR` short press keeps screensaver behavior
+
 ## 2026-02-13
 
 ### Firmware DB-M0-r132
