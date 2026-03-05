@@ -2509,7 +2509,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   {
     // Helper macro-style: emit one <option> with runtime selected check
     struct { const char *code; const char *label; } kLangsFun[] = {
-      {"genz", "Italiano Gen Z"},
+      {"bellazio", "Bellazio"},
       {"val",  "Valley Girl"},
       {"l33t", "1337 5P34K"},
       {"sha",  "Shakespearean English"},
@@ -2872,7 +2872,7 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   if (g_webConfigServer.hasArg("wc_lang")) {
     hasInput = true;
     const String lang = g_webConfigServer.arg("wc_lang");
-    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "nap", "l33t", "sha", "val", "genz", nullptr};
+    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "nap", "l33t", "sha", "val", "bellazio", nullptr};
     bool valid = false;
     for (int i = 0; kAllowed[i]; i++) { if (lang == kAllowed[i]) { valid = true; break; } }
     if (valid) {
@@ -3723,9 +3723,9 @@ static const char* weatherCodeUiLabelVal(int code) {
 }
 
 // ---------------------------------------------------------------------------
-// Italian Gen Z weather labels
+// Italian Bellazio weather labels
 // ---------------------------------------------------------------------------
-static const char* weatherCodeShortGenz(int code) {
+static const char* weatherCodeShortBellazio(int code) {
   if (code == 0 || code == 1) return "Sereno";
   if (code == 2) return "Nuvoloso";
   if (code == 3) return "Coperto";
@@ -3736,7 +3736,7 @@ static const char* weatherCodeShortGenz(int code) {
   return "N/D";
 }
 
-static const char* weatherCodeUiLabelGenz(int code) {
+static const char* weatherCodeUiLabelBellazio(int code) {
   if (code == 0) return "Sereno ngl";
   if (code == 1) return "Sole, tipo";
   if (code == 2) return "Un po' nuv.";
@@ -3780,7 +3780,7 @@ static const char* weatherCodeUiLabel(int code) {
   if (strcmp(g_wordClockLang, "l33t") == 0) return weatherCodeUiLabelL33t(code);
   if (strcmp(g_wordClockLang, "sha")  == 0) return weatherCodeUiLabelSha (code);
   if (strcmp(g_wordClockLang, "val")  == 0) return weatherCodeUiLabelVal (code);
-  if (strcmp(g_wordClockLang, "genz") == 0) return weatherCodeUiLabelGenz(code);
+  if (strcmp(g_wordClockLang, "bellazio") == 0) return weatherCodeUiLabelBellazio(code);
   return weatherCodeUiLabelIt(code);
 }
 
@@ -3797,7 +3797,7 @@ static const char* weatherCodeShort(int code) {
   if (strcmp(g_wordClockLang, "l33t") == 0) return weatherCodeShortL33t(code);
   if (strcmp(g_wordClockLang, "sha")  == 0) return weatherCodeShortSha (code);
   if (strcmp(g_wordClockLang, "val")  == 0) return weatherCodeShortVal (code);
-  if (strcmp(g_wordClockLang, "genz") == 0) return weatherCodeShortGenz(code);
+  if (strcmp(g_wordClockLang, "bellazio") == 0) return weatherCodeShortBellazio(code);
   return weatherCodeShortIt(code);
 }
 
@@ -6279,7 +6279,7 @@ static const char *const kSaverQuotesVal[] = {
     "I am not lazy, I am vibing in thought.",
 };
 
-static const char *const kSaverQuotesGenz[] = {
+static const char *const kSaverQuotesBellazio[] = {
     "Bro, mastico e overpenso pesante.",
     "Zio, quattro stomaci e zero lore.",
     "Dai, free will finisce al recinto.",
@@ -6304,7 +6304,7 @@ static void lvglScreenSaverQuotePackForLang(const char *const **items, uint8_t *
   if (strcmp(g_wordClockLang, "l33t") == 0) { *items = kSaverQuotesL33t; *count = (uint8_t)(sizeof(kSaverQuotesL33t) / sizeof(kSaverQuotesL33t[0])); return; }
   if (strcmp(g_wordClockLang, "sha") == 0) { *items = kSaverQuotesSha; *count = (uint8_t)(sizeof(kSaverQuotesSha) / sizeof(kSaverQuotesSha[0])); return; }
   if (strcmp(g_wordClockLang, "val") == 0) { *items = kSaverQuotesVal; *count = (uint8_t)(sizeof(kSaverQuotesVal) / sizeof(kSaverQuotesVal[0])); return; }
-  if (strcmp(g_wordClockLang, "genz") == 0) { *items = kSaverQuotesGenz; *count = (uint8_t)(sizeof(kSaverQuotesGenz) / sizeof(kSaverQuotesGenz[0])); return; }
+  if (strcmp(g_wordClockLang, "bellazio") == 0) { *items = kSaverQuotesBellazio; *count = (uint8_t)(sizeof(kSaverQuotesBellazio) / sizeof(kSaverQuotesBellazio[0])); return; }
 }
 
 static void lvglScreenSaverSetBalloonText() {
@@ -7694,9 +7694,9 @@ static void composeWordClockSentenceVal(const tm &timeinfo, char *out, size_t ou
   else               { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Only %d to %s, so ugh", 60 - m5, wordHourVal(nh)); }
 }
 
-// --- Italian Gen Z scazzata word clock ---
+// --- Italian Bellazio scazzata word clock ---
 
-static const char* wordHourGenz(int h12) {
+static const char* wordHourBellazio(int h12) {
   switch (h12) {
     case 1:  return "una";
     case 2:  return "due";
@@ -7713,7 +7713,7 @@ static const char* wordHourGenz(int h12) {
   }
 }
 
-static const char* wordMinuteGenz(int m) {
+static const char* wordMinuteBellazio(int m) {
   switch (m) {
     case 5:  return "cinque";
     case 10: return "dieci";
@@ -7725,74 +7725,91 @@ static const char* wordMinuteGenz(int m) {
   }
 }
 
-static const char* genzLead(uint8_t vibe) {
-  switch (vibe % 6) {
-    case 0: return "dai";
-    case 1: return "bro";
-    case 2: return "zio";
-    case 3: return "raga";
-    case 4: return "fra";
-    default: return "amo";
-  }
-}
+static const char* const kBellazioLeads[] = {
+  "Dai,",
+  "Bro,",
+  "Zio,",
+  "Raga,",
+  "Fra,",
+  "Amo,",
+  "Senti,",
+  "Aspetta,",
+  "Guarda,",
+  "Ok raga,",
+  "Minchia spettacolo,",
+  "No vabb\xC3\xA9,"
+};
 
-static const char* genzCloser(uint8_t vibe) {
-  switch (vibe % 6) {
-    case 0: return "no cap";
-    case 1: return "onesto";
-    case 2: return "ngl";
-    case 3: return "fr";
-    case 4: return "real";
-    default: return "ti giuro";
-  }
-}
+struct BellazioCloser {
+  const char* text;
+  const char* type;
+};
 
-static void composeWordClockSentenceGenz(const tm &timeinfo, char *out, size_t outLen) {
+static const BellazioCloser kBellazioClosers[] = {
+  {"Onesto.", "punto"},
+  {"No cap.", "punto"},
+  {"Fr.", "punto"},
+  {"Ngl.", "punto"},
+  {"Ti giuro.", "punto"},
+  {"For real.", "punto"},
+  {"Assurdo.", "punto"},
+  {"Pazzesco.", "punto"},
+  {"Bestiale.", "punto"},
+  {"\xC3\x88 una roba.", "punto"},
+  {"Boh.", "punto"},
+  {"Tipo.", "punto"},
+  {"Adorooo!", "punto"},
+  {"Giuro\xE2\x80\xA6", "ellissi"},
+  {"Sul serio\xE2\x80\xA6", "ellissi"},
+  {"Tipo\xE2\x80\xA6", "ellissi"},
+  {"Cio\xC3\xA8\xE2\x80\xA6", "ellissi"},
+  {"Mah\xE2\x80\xA6", "ellissi"},
+  {"Ma anche no\xE2\x80\xA6", "ellissi"},
+};
+
+static void composeWordClockSentenceBellazio(const tm &timeinfo, char *out, size_t outLen) {
   int h12 = timeinfo.tm_hour % 12;
   if (h12 == 0) h12 = 12;
   int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
   if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
   int nh = (h12 % 12) + 1;
-  const char* hr  = wordHourGenz(h12);
-  const char* nhr = wordHourGenz(nh);
+  const char* hr  = wordHourBellazio(h12);
+  const char* nhr = wordHourBellazio(nh);
   bool sing   = (h12 == 1);   // l'una vs le X
   bool nhSing = (nh  == 1);
-  const uint8_t vibe = (uint8_t)((timeinfo.tm_wday * 3 + h12 + (m5 / 5)) % 6);
-  const char *lead = genzLead(vibe);
-  const char *closer = genzCloser(vibe);
-  const bool robaTipo = (vibe == 4);
+  const size_t leadCount = sizeof(kBellazioLeads) / sizeof(kBellazioLeads[0]);
+  const size_t closerCount = sizeof(kBellazioClosers) / sizeof(kBellazioClosers[0]);
+  const uint16_t leadSeed = (uint16_t)(timeinfo.tm_yday + (h12 * 13) + timeinfo.tm_min);
+  const uint16_t closerSeed = (uint16_t)((timeinfo.tm_yday * 3) + (timeinfo.tm_wday * 11) + (h12 * 5) + (m5 / 5));
+  const char* lead = kBellazioLeads[leadSeed % leadCount];
+  const BellazioCloser* closer = &kBellazioClosers[closerSeed % closerCount];
+  (void)closer->type;
 
+  char timePhrase[72];
+  timePhrase[0] = '\0';
   if (m5 == 0) {
-    if (sing) snprintf(out, outLen, "%s, e' l'%s %s", lead, hr, closer);
-    else      snprintf(out, outLen, "%s, sono le %s %s", lead, hr, closer);
+    if (sing) snprintf(timePhrase, sizeof(timePhrase), "e' l'%s", hr);
+    else      snprintf(timePhrase, sizeof(timePhrase), "sono le %s", hr);
   } else if (m5 == 15) {
-    if (sing) snprintf(out, outLen, "%s, l'%s e un quarto %s", lead, hr, closer);
-    else      snprintf(out, outLen, "%s, le %s e un quarto %s", lead, hr, closer);
+    if (sing) snprintf(timePhrase, sizeof(timePhrase), "l'%s e un quarto", hr);
+    else      snprintf(timePhrase, sizeof(timePhrase), "le %s e un quarto", hr);
   } else if (m5 == 30) {
-    if (robaTipo) {
-      if (sing) snprintf(out, outLen, "una roba tipo l'%s e mezza %s", hr, closer);
-      else      snprintf(out, outLen, "una roba tipo le %s e mezza %s", hr, closer);
-    } else {
-      if (sing) snprintf(out, outLen, "%s, l'%s e mezza %s", lead, hr, closer);
-      else      snprintf(out, outLen, "%s, le %s e mezza %s", lead, hr, closer);
-    }
+    if (sing) snprintf(timePhrase, sizeof(timePhrase), "l'%s e mezza", hr);
+    else      snprintf(timePhrase, sizeof(timePhrase), "le %s e mezza", hr);
   } else if (m5 >= 45) {
-    if (nhSing) snprintf(out, outLen, "%s, sara' l'%s tra poco %s", lead, nhr, closer);
-    else        snprintf(out, outLen, "%s, saranno le %s tra poco %s", lead, nhr, closer);
+    if (nhSing) snprintf(timePhrase, sizeof(timePhrase), "sara' l'%s tra poco", nhr);
+    else        snprintf(timePhrase, sizeof(timePhrase), "saranno le %s tra poco", nhr);
   } else if (m5 < 30) {
-    const char *mm = wordMinuteGenz(m5);
-    if (robaTipo) {
-      if (sing) snprintf(out, outLen, "una roba tipo l'%s e %s %s", hr, mm, closer);
-      else      snprintf(out, outLen, "una roba tipo le %s e %s %s", hr, mm, closer);
-    } else {
-      if (sing) snprintf(out, outLen, "%s, l'%s e %s %s", lead, hr, mm, closer);
-      else      snprintf(out, outLen, "%s, le %s e %s %s", lead, hr, mm, closer);
-    }
+    const char *mm = wordMinuteBellazio(m5);
+    if (sing) snprintf(timePhrase, sizeof(timePhrase), "l'%s e %s", hr, mm);
+    else      snprintf(timePhrase, sizeof(timePhrase), "le %s e %s", hr, mm);
   } else {
-    const char *mm = wordMinuteGenz(60 - m5);
-    if (nhSing) snprintf(out, outLen, "%s, mancano %s all'%s %s", lead, mm, nhr, closer);
-    else        snprintf(out, outLen, "%s, mancano %s alle %s %s", lead, mm, nhr, closer);
+    const char *mm = wordMinuteBellazio(60 - m5);
+    if (nhSing) snprintf(timePhrase, sizeof(timePhrase), "mancano %s all'%s", mm, nhr);
+    else        snprintf(timePhrase, sizeof(timePhrase), "mancano %s alle %s", mm, nhr);
   }
+
+  snprintf(out, outLen, "%s %s. %s", lead, timePhrase, closer->text);
 }
 
 // --- Language dispatcher ---
@@ -7810,7 +7827,7 @@ static void composeWordClockSentenceActive(const tm &timeinfo, char *out, size_t
   else if (strcmp(g_wordClockLang, "l33t") == 0) composeWordClockSentenceL33t(timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "sha")  == 0) composeWordClockSentenceSha (timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "val")  == 0) composeWordClockSentenceVal (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "genz") == 0) composeWordClockSentenceGenz(timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "bellazio") == 0) composeWordClockSentenceBellazio(timeinfo, out, outLen);
   else                                            composeWordClockSentenceIt  (timeinfo, out, outLen);
 }
 
@@ -7827,7 +7844,7 @@ static const UiStrings* activeUiStrings() {
   if (strcmp(g_wordClockLang, "l33t") == 0) return &kUiLang_l33t;
   if (strcmp(g_wordClockLang, "sha")  == 0) return &kUiLang_sha;
   if (strcmp(g_wordClockLang, "val")  == 0) return &kUiLang_val;
-  if (strcmp(g_wordClockLang, "genz") == 0) return &kUiLang_genz;
+  if (strcmp(g_wordClockLang, "bellazio") == 0) return &kUiLang_bellazio;
   return &kUiLang_it;
 }
 
@@ -8934,7 +8951,7 @@ static void formatDateVal(const tm &timeinfo, char *out, size_t outLen) {
     timeinfo.tm_year+1900);
 }
 
-static void formatDateGenz(const tm &timeinfo, char *out, size_t outLen) {
+static void formatDateBellazio(const tm &timeinfo, char *out, size_t outLen) {
   static const char* kWeekday[] = {"Domenica","Lunedi","Martedi","Mercoledi","Giovedi","Venerdi","Sabato"};
   static const char* kMonth[] = {"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"};
   snprintf(out, outLen, "%s %d %s %d",
@@ -8957,7 +8974,7 @@ static void formatDateActive(const tm &timeinfo, char *out, size_t outLen) {
   else if (strcmp(g_wordClockLang, "l33t") == 0) formatDateL33t(timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "sha")  == 0) formatDateSha (timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "val")  == 0) formatDateVal (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "genz") == 0) formatDateGenz(timeinfo, out, outLen);
+  else if (strcmp(g_wordClockLang, "bellazio") == 0) formatDateBellazio(timeinfo, out, outLen);
   else                                            formatDateIt  (timeinfo, out, outLen);
 }
 

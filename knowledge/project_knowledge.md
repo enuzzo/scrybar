@@ -203,11 +203,11 @@ This keeps clock text visually full across resolutions/themes without clipping.
 Supported 14 language codes:
 
 - Standard: `it`, `en`, `fr`, `de`, `es`, `pt`, `la`, `eo`, `nap`, `tlh`
-- Creative/fun: `l33t`, `sha`, `val`, `genz`
+- Creative/fun: `l33t`, `sha`, `val`, `bellazio`
 
-Gen Z sentence style rule:
+Bellazio sentence style rule:
 
-- `genz` keeps slang always-on with rotating lead/closer expressions (for variety), while preserving correct Italian grammar (`all'` / `alle`) and writing minute values in words (not digits).
+- `bellazio` keeps slang always-on with rotating lead/closer expressions (for variety), while preserving correct Italian grammar (`all'` / `alle`) and writing minute values in words (not digits).
 
 Screensaver thought localization rule:
 

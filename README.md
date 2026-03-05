@@ -16,11 +16,11 @@
 > Yes, that is cyberpunk in Latin. If you want neon UI saying *Hora septima est*, ScryBar will not judge.
 
 > A mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture.
-> It tells time in fourteen languages — Italian, English, French, German, Spanish, Portuguese, Latin, Esperanto, Neapolitan, Klingon, 1337, Shakespearean, Valley Girl, and Italian Gen Z — like it's poetry,
+> It tells time in fourteen languages — Italian, English, French, German, Spanish, Portuguese, Latin, Esperanto, Neapolitan, Klingon, 1337, Shakespearean, Valley Girl, and Bellazio — like it's poetry,
 > checks weather you could learn by opening a window, and scrolls news you've already read.
 > All of this on an ESP32 that didn't ask for this life.
 
-**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, three swipeable views, and a word clock that composes real sentences in fourteen languages — from Italian and Latin to Klingon, 1337 Speak, Shakespearean English, and Italian Gen Z — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
+**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, three swipeable views, and a word clock that composes real sentences in fourteen languages — from Italian and Latin to Klingon, 1337 Speak, Shakespearean English, and Bellazio — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
 
 The name comes from *scrying*: the practice of seeing what matters from afar. That is what ScryBar does from your desk.
 
@@ -86,7 +86,7 @@ Three views, navigated by swipe. Left or right, like flipping pages. There is no
   └───────────────────────────────────────────────────┘
 ```
 
-**HOME** — Word clock in natural sentence form, switchable across 14 languages: Italiano, English, Français, Deutsch, Español, Português, Latina, Esperanto, Napoletano, tlhIngan Hol (Klingon), 1337 Speak, Shakespearean English, Valley Girl, and Italiano Gen Z. Not uppercase tiles — actual grammar, composed at runtime. Plus weather icon, temperature, and humidity. Typography is theme-driven at runtime (Montserrat/Space Mono/Delius Unicase/Chakra Petch/IBM Plex Mono) with auto-fit sizing so the sentence always fills the panel cleanly.
+**HOME** — Word clock in natural sentence form, switchable across 14 languages: Italiano, English, Français, Deutsch, Español, Português, Latina, Esperanto, Napoletano, tlhIngan Hol (Klingon), 1337 Speak, Shakespearean English, Valley Girl, and Bellazio. Not uppercase tiles — actual grammar, composed at runtime. Plus weather icon, temperature, and humidity. Typography is theme-driven at runtime (Montserrat/Space Mono/Delius Unicase/Chakra Petch/IBM Plex Mono) with auto-fit sizing so the sentence always fills the panel cleanly.
 
 **AUX** — RSS rotation. Up to 5 configurable feeds. Each headline cycles with source name and a QR code that deep-links to the article. You won't scan it most of the time. It is there when you want it.
 
@@ -102,7 +102,7 @@ The word clock composes time as a real sentence, not a grid of lit tiles. All 14
 
 | Code | Language | Example (3:15) |
 |---|---|---|
-| `genz` | Italiano Gen Z | *tipo le tre e un quarto* |
+| `bellazio` | Bellazio | *Raga, le tre e un quarto. For real.* |
 | `val` | Valley Girl | *It's like quarter past three, totally* |
 | `l33t` | 1337 Speak | *1T'5 QU4R73R P457 7HR33* |
 | `sha` | Shakespearean English | *Verily, 'tis quarter past three* |

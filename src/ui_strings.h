@@ -265,9 +265,9 @@ static const UiStrings kUiLang_val = {
 };
 
 // ---------------------------------------------------------------------------
-// Italian Gen Z scazzata (genz)
+// Italian Bellazio scazzata (bellazio)
 // ---------------------------------------------------------------------------
-static const UiStrings kUiLang_genz = {
+static const UiStrings kUiLang_bellazio = {
     /* windFmt              */ "Vento %.0f km/h",
     /* windNa               */ "Vento boh",
     /* forecast3h           */ "Fra 3h tipo: %s",

@@ -37,11 +37,11 @@
 ## Architettura UI Localization
 
 - `g_wordClockLang` è il pivot lingua globale (word clock + tutta la display UI).
-- `src/ui_strings.h` — struct `UiStrings` + **14 istanze** (`kUiLang_it/en/fr/de/es/pt/la/eo/nap/tlh/l33t/sha/val/genz`).
+- `src/ui_strings.h` — struct `UiStrings` + **14 istanze** (`kUiLang_it/en/fr/de/es/pt/la/eo/nap/tlh/l33t/sha/val/bellazio`).
 - `activeUiStrings()` — dispatcher runtime in `scrybar.ino`.
 - `weatherCodeUiLabel(code)` / `weatherCodeShort(code)` — dispatcher per label meteo.
 - Web UI rimane in inglese per design.
-- Selettore lingua nella web config si chiama **"System Language"**; lingue divise in `<optgroup>`: "Creative & Constructed" (genz, val, l33t, sha, nap, eo, la, tlh) e "Modern Languages" (en, it, es, fr, de, pt).
+- Selettore lingua nella web config si chiama **"System Language"**; lingue divise in `<optgroup>`: "Creative & Constructed" (bellazio, val, l33t, sha, nap, eo, la, tlh) e "Modern Languages" (en, it, es, fr, de, pt).
 - **Recipe per aggiungere una lingua**: aggiungi `composeWordClockSentence*`, `weatherCodeShort*`, `weatherCodeUiLabel*`, `formatDate*`, `kUiLang_*`, registra in `kAllowed[]`, `kLangsFun[]`/`kLangsStd[]`, e tutti e 5 i dispatcher.
 
 ## Napoletano (nap) — vocabolario autentico (r140)
