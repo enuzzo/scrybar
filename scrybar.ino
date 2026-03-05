@@ -725,6 +725,9 @@ static bool g_ntpSynced = false;
 static int g_lastClockSecond = -1;
 static int g_lastDateKey = -1;
 static bool g_clockStaticDrawn = false;
+static uint32_t g_bellazioLastMinuteKey = 0xFFFFFFFFu;
+static uint8_t g_bellazioLastLeadIdx = 0;
+static uint8_t g_bellazioLastCloserIdx = 0;
 enum UiClockMode : uint8_t {
   UI_CLOCK_MODE_CLOCKCLOCK = 0,
   UI_CLOCK_MODE_WORDCLOCK = 1,
@@ -8694,6 +8697,15 @@ static const BellazioCloser kBellazioClosers[] = {
   {"Ti lovvo.", "punto"},
 };
 
+static uint32_t bellazioMixSeed(uint32_t v) {
+  v ^= v >> 16;
+  v *= 0x7feb352dUL;
+  v ^= v >> 15;
+  v *= 0x846ca68bUL;
+  v ^= v >> 16;
+  return v;
+}
+
 static const char* bellazioCloserSeparator(const char* type) {
   if (!type) return ". ";
   if (strcmp(type, "virgola") == 0) return ", ";
@@ -8713,10 +8725,22 @@ static void composeWordClockSentenceBellazio(const tm &timeinfo, char *out, size
   bool nhSing = (nh  == 1);
   const size_t leadCount = sizeof(kBellazioLeads) / sizeof(kBellazioLeads[0]);
   const size_t closerCount = sizeof(kBellazioClosers) / sizeof(kBellazioClosers[0]);
-  const uint16_t leadSeed = (uint16_t)(timeinfo.tm_yday + (h12 * 13) + timeinfo.tm_min);
-  const uint16_t closerSeed = (uint16_t)((timeinfo.tm_yday * 3) + (timeinfo.tm_wday * 11) + (h12 * 5) + (m5 / 5));
-  const char* lead = kBellazioLeads[leadSeed % leadCount];
-  const BellazioCloser* closer = &kBellazioClosers[closerSeed % closerCount];
+  const uint32_t minuteKey = (uint32_t)((timeinfo.tm_yday * 1440) + (timeinfo.tm_hour * 60) + timeinfo.tm_min);
+  if (minuteKey != g_bellazioLastMinuteKey) {
+    size_t nextLeadIdx = (size_t)(bellazioMixSeed(minuteKey ^ 0xA53C9E5Du) % (uint32_t)leadCount);
+    size_t nextCloserIdx = (size_t)(bellazioMixSeed(minuteKey ^ 0x61C88647u) % (uint32_t)closerCount);
+    if (leadCount > 1 && nextLeadIdx == g_bellazioLastLeadIdx) {
+      nextLeadIdx = (nextLeadIdx + 1 + (minuteKey % (leadCount - 1))) % leadCount;
+    }
+    if (closerCount > 1 && nextCloserIdx == g_bellazioLastCloserIdx) {
+      nextCloserIdx = (nextCloserIdx + 1 + (minuteKey % (closerCount - 1))) % closerCount;
+    }
+    g_bellazioLastLeadIdx = (uint8_t)nextLeadIdx;
+    g_bellazioLastCloserIdx = (uint8_t)nextCloserIdx;
+    g_bellazioLastMinuteKey = minuteKey;
+  }
+  const char* lead = kBellazioLeads[g_bellazioLastLeadIdx % leadCount];
+  const BellazioCloser* closer = &kBellazioClosers[g_bellazioLastCloserIdx % closerCount];
   const char* closerSep = bellazioCloserSeparator(closer->type);
 
   char timePhrase[72];
