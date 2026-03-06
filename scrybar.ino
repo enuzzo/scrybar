@@ -1000,13 +1000,24 @@ static esp_lcd_panel_io_handle_t g_panelIo = nullptr;
 static esp_lcd_panel_handle_t g_panel = nullptr;
 static SemaphoreHandle_t g_dispFlushSem = nullptr;
 static uint16_t *g_canvasBuf = nullptr;  // logical 640x172
-static uint16_t *g_rotBuf = nullptr;     // native 172x640
-static uint16_t *g_dmaBuf = nullptr;     // native chunk (172x64)
+// g_rotBuf eliminated — rotation now done directly into DMA chunks
+static uint16_t *g_dmaBuf = nullptr;     // native chunk (172x64) — ping
+static uint16_t *g_dmaBuf2 = nullptr;    // native chunk (172x64) — pong
 static constexpr int16_t DB_CANVAS_W = LCD_HEIGHT;  // 640
 static constexpr int16_t DB_CANVAS_H = LCD_WIDTH;   // 172
 static constexpr int16_t DB_NATIVE_W = LCD_WIDTH;   // 172
 static constexpr int16_t DB_NATIVE_H = LCD_HEIGHT;  // 640
 static constexpr int16_t DB_CHUNK_ROWS = 64;
+
+// --- Frame performance counters (lightweight, no per-frame logging) ---
+static uint32_t g_perfFlushCount = 0;
+static uint32_t g_perfFlushTotalUs = 0;
+static uint32_t g_perfFlushMaxUs = 0;
+static uint32_t g_perfLvglFrameCount = 0;
+static uint32_t g_perfLvglTotalUs = 0;
+static uint32_t g_perfLvglMaxUs = 0;
+static uint32_t g_perfLastResetMs = 0;
+static bool g_canvasDirty = false;  // set by flush callback, cleared after dispFlush
 #endif
 
 static int detectTca9554Addr();
@@ -1293,6 +1304,21 @@ static void printRuntimeSummary(uint32_t nowMs) {
                 pwrRaw,
                 pwrPressed,
                 meteoBuf);
+
+#if TEST_LVGL_UI && TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
+  {
+    const uint32_t window = nowMs - g_perfLastResetMs;
+    const uint32_t flushAvg = g_perfFlushCount ? (g_perfFlushTotalUs / g_perfFlushCount) : 0;
+    const uint32_t lvglAvg = g_perfLvglFrameCount ? (g_perfLvglTotalUs / g_perfLvglFrameCount) : 0;
+    const uint32_t fps = (window > 0 && g_perfFlushCount > 0) ? (g_perfFlushCount * 1000UL / window) : 0;
+    Serial.printf("[PERF] window=%lums flush=%lu frames avg=%luus max=%luus lvgl_handler=%lu calls avg=%luus max=%luus fps=%lu\n",
+                  window, g_perfFlushCount, flushAvg, g_perfFlushMaxUs,
+                  g_perfLvglFrameCount, lvglAvg, g_perfLvglMaxUs, fps);
+    g_perfFlushCount = 0; g_perfFlushTotalUs = 0; g_perfFlushMaxUs = 0;
+    g_perfLvglFrameCount = 0; g_perfLvglTotalUs = 0; g_perfLvglMaxUs = 0;
+    g_perfLastResetMs = nowMs;
+  }
+#endif
 }
 
 static bool i2cReadReg(TwoWire &bus, uint8_t addr, uint8_t reg, uint8_t &value) {
@@ -1705,29 +1731,59 @@ static void dispFillScreen(uint16_t color) {
   for (int i = 0; i < (DB_CANVAS_W * DB_CANVAS_H); ++i) g_canvasBuf[i] = color;
 }
 
-static bool dispFlush() {
-  if (!g_panel || !g_canvasBuf || !g_rotBuf || !g_dmaBuf || !g_dispFlushSem) return false;
-
-  uint32_t idx = 0;
-  for (int16_t j = 0; j < DB_CANVAS_W; ++j) {
-    for (int16_t i = 0; i < DB_CANVAS_H; ++i) {
-      g_rotBuf[idx++] = g_canvasBuf[(DB_CANVAS_W * (DB_CANVAS_H - i - 1)) + j];
+// Tile-based transpose+flip of one chunk from canvasBuf into a DMA buffer.
+// 8×8 tiles reduce PSRAM cache misses ~8× vs pixel-by-pixel stride.
+static inline void dispRotateChunk(uint16_t *dst, int16_t colBase) {
+  constexpr int T = 8;
+  for (int16_t dj0 = 0; dj0 < DB_CHUNK_ROWS; dj0 += T) {
+    for (int16_t di0 = 0; di0 < DB_CANVAS_H; di0 += T) {
+      const int16_t diEnd = (di0 + T <= DB_CANVAS_H) ? (di0 + T) : DB_CANVAS_H;
+      for (int16_t dj = dj0; dj < dj0 + T; ++dj) {
+        uint16_t *d = &dst[dj * DB_NATIVE_W + di0];
+        for (int16_t di = di0; di < diEnd; ++di) {
+          d[di - di0] = g_canvasBuf[(DB_CANVAS_H - 1 - di) * DB_CANVAS_W + colBase + dj];
+        }
+      }
     }
   }
+}
 
-  const int chunks = DB_NATIVE_H / DB_CHUNK_ROWS;
-  const int pixelsPerChunk = DB_NATIVE_W * DB_CHUNK_ROWS;
-  const size_t bytesPerChunk = pixelsPerChunk * sizeof(uint16_t);
-  uint16_t *map = g_rotBuf;
+static bool dispFlush() {
+  if (!g_panel || !g_canvasBuf || !g_dmaBuf || !g_dmaBuf2 || !g_dispFlushSem) return false;
 
+  const uint32_t t0 = micros();
+  const int chunks = DB_NATIVE_H / DB_CHUNK_ROWS;  // 640/64 = 10
+  uint16_t *bufCur = g_dmaBuf;
+  uint16_t *bufNext = g_dmaBuf2;
+
+  // Rotate first chunk (no DMA overlap yet)
+  dispRotateChunk(bufCur, 0);
+
+  // Start DMA on first chunk
   xSemaphoreGive(g_dispFlushSem);
-  for (int c = 0; c < chunks; ++c) {
-    xSemaphoreTake(g_dispFlushSem, portMAX_DELAY);
-    memcpy(g_dmaBuf, map, bytesPerChunk);
-    esp_lcd_panel_draw_bitmap(g_panel, 0, c * DB_CHUNK_ROWS, DB_NATIVE_W, (c + 1) * DB_CHUNK_ROWS, g_dmaBuf);
-    map += pixelsPerChunk;
-  }
   xSemaphoreTake(g_dispFlushSem, portMAX_DELAY);
+  esp_lcd_panel_draw_bitmap(g_panel, 0, 0, DB_NATIVE_W, DB_CHUNK_ROWS, bufCur);
+
+  // Pipeline: rotate chunk c into bufNext while DMA sends chunk c-1 from bufCur
+  for (int c = 1; c < chunks; ++c) {
+    dispRotateChunk(bufNext, c * DB_CHUNK_ROWS);
+
+    xSemaphoreTake(g_dispFlushSem, portMAX_DELAY);
+    esp_lcd_panel_draw_bitmap(g_panel, 0, c * DB_CHUNK_ROWS, DB_NATIVE_W, (c + 1) * DB_CHUNK_ROWS, bufNext);
+
+    uint16_t *tmp = bufCur;
+    bufCur = bufNext;
+    bufNext = tmp;
+  }
+
+  // Wait for last DMA to complete
+  xSemaphoreTake(g_dispFlushSem, portMAX_DELAY);
+
+  const uint32_t dt = micros() - t0;
+  g_perfFlushCount++;
+  g_perfFlushTotalUs += dt;
+  if (dt > g_perfFlushMaxUs) g_perfFlushMaxUs = dt;
+
   return true;
 }
 #endif
@@ -1818,9 +1874,9 @@ static bool initDisplay() {
 #endif
 
   g_canvasBuf = (uint16_t *)heap_caps_malloc(DB_CANVAS_W * DB_CANVAS_H * sizeof(uint16_t), MALLOC_CAP_SPIRAM);
-  g_rotBuf = (uint16_t *)heap_caps_malloc(DB_CANVAS_W * DB_CANVAS_H * sizeof(uint16_t), MALLOC_CAP_SPIRAM);
   g_dmaBuf = (uint16_t *)heap_caps_malloc(DB_NATIVE_W * DB_CHUNK_ROWS * sizeof(uint16_t), MALLOC_CAP_DMA);
-  if (!g_canvasBuf || !g_rotBuf || !g_dmaBuf) {
+  g_dmaBuf2 = (uint16_t *)heap_caps_malloc(DB_NATIVE_W * DB_CHUNK_ROWS * sizeof(uint16_t), MALLOC_CAP_DMA);
+  if (!g_canvasBuf || !g_dmaBuf || !g_dmaBuf2) {
     Serial.println("[ERR] display buffers alloc failed.");
     return false;
   }
@@ -8004,10 +8060,8 @@ static void setUiPage(UiPageMode mode) {
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
   if (g_lvglReady) {
     lvglApplyPageVisibility(true);
-    if (g_lvglInfoRoot) lv_obj_invalidate(g_lvglInfoRoot);
-    if (g_lvglHomeRoot) lv_obj_invalidate(g_lvglHomeRoot);
-    if (g_lvglAuxRoot) lv_obj_invalidate(g_lvglAuxRoot);
-    lv_timer_handler();
+    // Content will be redrawn naturally by the next runLvglLoop() cycle.
+    // No forced invalidate+flush here — let the slide animation complete first.
   }
 #endif
 }
@@ -11107,7 +11161,7 @@ static void lvglStartSlideAnim(lv_obj_t *obj, int32_t fromX, int32_t toX, uint16
   lv_anim_set_exec_cb(&a, lvglSetObjXAnim);
   lv_anim_set_values(&a, fromX, toX);
   lv_anim_set_time(&a, durMs);
-  lv_anim_set_path_cb(&a, lv_anim_path_linear);
+  lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
   lv_anim_start(&a);
 }
 
@@ -11128,12 +11182,17 @@ static void lvglApplyPageVisibility(bool animate) {
   if (!animate) {
     if (g_lvglPageDragActive) return;
     if (now < g_lvglPageAnimUntilMs) return;
+    // Only update positions if they actually changed — avoids constant LVGL invalidation.
+    const bool infoOk = (lv_obj_get_x(g_lvglInfoRoot) == (lv_coord_t)infoTargetX);
+    const bool homeOk = (lv_obj_get_x(g_lvglHomeRoot) == (lv_coord_t)homeTargetX);
+    const bool auxOk  = (lv_obj_get_x(g_lvglAuxRoot)  == (lv_coord_t)auxTargetX);
+    if (infoOk && homeOk && auxOk) return;
     lv_anim_del(g_lvglInfoRoot, lvglSetObjXAnim);
     lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
     lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
-    lv_obj_set_pos(g_lvglInfoRoot, (lv_coord_t)infoTargetX, 0);
-    lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)homeTargetX, 0);
-    lv_obj_set_pos(g_lvglAuxRoot, (lv_coord_t)auxTargetX, 0);
+    if (!infoOk) lv_obj_set_pos(g_lvglInfoRoot, (lv_coord_t)infoTargetX, 0);
+    if (!homeOk) lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)homeTargetX, 0);
+    if (!auxOk)  lv_obj_set_pos(g_lvglAuxRoot,  (lv_coord_t)auxTargetX, 0);
     if (abs(infoTargetX) > w) lv_obj_add_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
     if (abs(homeTargetX) > w) lv_obj_add_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
     if (abs(auxTargetX) > w) lv_obj_add_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
@@ -11141,7 +11200,7 @@ static void lvglApplyPageVisibility(bool animate) {
     return;
   }
 
-  constexpr uint16_t kSlideMs = 95;
+  constexpr uint16_t kSlideMs = 250;
   const int32_t infoFromX = lv_obj_get_x(g_lvglInfoRoot);
   const int32_t homeFromX = lv_obj_get_x(g_lvglHomeRoot);
   const int32_t auxFromX = lv_obj_get_x(g_lvglAuxRoot);
@@ -11578,7 +11637,7 @@ static void lvglDisplayFlushCb(lv_disp_drv_t *drv, const lv_area_t *area, lv_col
     src += w;
   }
 
-  dispFlush();
+  g_canvasDirty = true;
   lv_disp_flush_ready(drv);
 }
 
@@ -11604,7 +11663,7 @@ static bool initLvglUi() {
   g_lvglDispDrv.ver_res = cH;
   g_lvglDispDrv.flush_cb = lvglDisplayFlushCb;
   g_lvglDispDrv.draw_buf = &g_lvglDrawBuf;
-  g_lvglDispDrv.full_refresh = 1;
+  g_lvglDispDrv.full_refresh = 0;
   lv_disp_t *disp = lv_disp_drv_register(&g_lvglDispDrv);
 
   lv_disp_set_theme(disp, nullptr);
@@ -12554,14 +12613,6 @@ static void updateLvglUi(bool force) {
     g_lastClockSecond = timeinfo.tm_sec;
     g_lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
-    if (g_lvglInfoCard) lv_obj_invalidate(g_lvglInfoCard);
-    if (g_lvglInfoTitle) lv_obj_invalidate(g_lvglInfoTitle);
-    if (g_lvglInfoEndpoint) lv_obj_invalidate(g_lvglInfoEndpoint);
-    if (g_lvglInfoBodyLeft) lv_obj_invalidate(g_lvglInfoBodyLeft);
-    if (g_lvglInfoBodyRight) lv_obj_invalidate(g_lvglInfoBodyRight);
-#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
-    if (g_lvglInfoWebQr) lv_obj_invalidate(g_lvglInfoWebQr);
-#endif
     return;
   }
   if (uiPageUsesAuxDeck(g_uiPageMode)) {
@@ -12569,11 +12620,6 @@ static void updateLvglUi(bool force) {
     g_lastClockSecond = timeinfo.tm_sec;
     g_lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
-    if (g_lvglAuxCard) lv_obj_invalidate(g_lvglAuxCard);
-    if (g_lvglAuxWhen) lv_obj_invalidate(g_lvglAuxWhen);
-    if (g_lvglAuxNews) lv_obj_invalidate(g_lvglAuxNews);
-    if (g_lvglAuxMeta) lv_obj_invalidate(g_lvglAuxMeta);
-    if (g_lvglAuxStatus) lv_obj_invalidate(g_lvglAuxStatus);
     return;
   }
   char sentence[96], d1[48];
@@ -12728,12 +12774,8 @@ static void updateLvglUi(bool force) {
   g_lastDateKey = dateKey;
   g_uiNeedsRedraw = false;
 
-  if (g_lvglClockBlock) lv_obj_invalidate(g_lvglClockBlock);
-  if (g_lvglWeatherCard) lv_obj_invalidate(g_lvglWeatherCard);
-  if (g_lvglClockL1) lv_obj_invalidate(g_lvglClockL1);
-  if (g_lvglIcon) lv_obj_invalidate(g_lvglIcon);
-  if (g_lvglTemp) lv_obj_invalidate(g_lvglTemp);
-  if (g_lvglDesc) lv_obj_invalidate(g_lvglDesc);
+  // No manual invalidation needed — lv_label_set_text / lv_img_set_src
+  // already invalidate their objects when content actually changes.
 }
 
 static void runLvglLoop() {
@@ -12749,7 +12791,17 @@ static void runLvglLoop() {
   lv_tick_inc(elapsed);
   lvglApplyPageVisibility(false);
   lvglUpdateWiFiBars(false);
+
+  const uint32_t t0 = micros();
   lv_timer_handler();
+  if (g_canvasDirty) {
+    dispFlush();
+    g_canvasDirty = false;
+  }
+  const uint32_t dt = micros() - t0;
+  g_perfLvglFrameCount++;
+  g_perfLvglTotalUs += dt;
+  if (dt > g_perfLvglMaxUs) g_perfLvglMaxUs = dt;
 }
 #endif
 
