@@ -184,7 +184,10 @@ static bool g_pwrButtonDown = false;
 static uint32_t g_pwrButtonDownMs = 0;
 static bool g_pwrHoldReported = false;
 static int g_pwrLastRawLevel = -1;
+static uint32_t g_pwrPressCandidateMs = 0;
 static uint32_t g_pwrReleaseCandidateMs = 0;
+static constexpr uint32_t kPwrPressDebounceMs = 45UL;
+static constexpr uint32_t kPwrShortPressMinMs = 90UL;
 static bool g_navFirstButtonDown = false;
 static uint32_t g_navFirstButtonDownMs = 0;
 static int g_navFirstLastRawLevel = -1;
@@ -668,6 +671,7 @@ static uint8_t g_webQrDataBuf[qrcodegen_BUFFER_LEN_MAX];
 static bool updateRssFromFeed(bool force);
 static bool updateWikiFromFeed(bool force);
 static bool updateWeatherFromApi(bool force);
+static void handleWebConfigServerLoop();
 static void formatCityLabel(const char *src, char *out, size_t outLen);
 static const char *runtimeUiThemeId();
 static const char *runtimeUiThemeLabel();
@@ -679,6 +683,12 @@ static void markUserInteraction(uint32_t nowMs);
 static void lvglSetScreenSaverActive(bool on);
 static void handleScreenSaverLoop(uint32_t nowMs);
 #endif
+
+static inline void pumpWebUiDuringIo() {
+#if TEST_WIFI
+  handleWebConfigServerLoop();
+#endif
+}
 
 struct WeatherState {
   bool valid = false;
@@ -772,6 +782,7 @@ static uint32_t g_wikiFaviconPreloadLastMs = 0;
 static uint8_t g_wikiThumbPreloadIndex = 0;
 static uint32_t g_wikiThumbPreloadLastMs = 0;
 static uint32_t g_wikiMetaPreloadLastMs = 0;
+static uint32_t g_wikiVisiblePreloadLastMs = 0;
 #endif
 
 #if TEST_NTP
@@ -1543,8 +1554,15 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
   if (pressed) {
     g_pwrReleaseCandidateMs = 0;
     if (!g_pwrButtonDown) {
+      if (g_pwrPressCandidateMs == 0) {
+        g_pwrPressCandidateMs = nowMs;
+        return;
+      }
+      if ((nowMs - g_pwrPressCandidateMs) < kPwrPressDebounceMs) {
+        return;
+      }
       g_pwrButtonDown = true;
-      g_pwrButtonDownMs = nowMs;
+      g_pwrButtonDownMs = g_pwrPressCandidateMs;
       g_pwrHoldReported = false;
       Serial.println("[PWR] Button down.");
     } else {
@@ -1554,26 +1572,32 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
         Serial.printf("[PWR] Keep holding (%lu/%d ms)\n", (unsigned long)heldMs, PWR_HOLD_SHUTDOWN_MS);
       }
     }
-  } else if (g_pwrButtonDown) {
-    if (g_pwrReleaseCandidateMs == 0) {
-      g_pwrReleaseCandidateMs = nowMs;
-      return;
-    }
-    if ((nowMs - g_pwrReleaseCandidateMs) < (uint32_t)PWR_RELEASE_DEBOUNCE_MS) {
-      return;
-    }
-
-    const uint32_t heldMs = g_pwrReleaseCandidateMs - g_pwrButtonDownMs;
-    if (heldMs >= (uint32_t)PWR_HOLD_SHUTDOWN_MS) {
-      shutdownFromPowerButton(false);
-    } else {
-      Serial.printf("[PWR] Short press (%lu ms).\n", (unsigned long)heldMs);
-      onPowerButtonShortPress(nowMs);
-    }
-    g_pwrButtonDown = false;
-    g_pwrHoldReported = false;
-    g_pwrReleaseCandidateMs = 0;
+    return;
   }
+
+  g_pwrPressCandidateMs = 0;
+  if (!g_pwrButtonDown) return;
+
+  if (g_pwrReleaseCandidateMs == 0) {
+    g_pwrReleaseCandidateMs = nowMs;
+    return;
+  }
+  if ((nowMs - g_pwrReleaseCandidateMs) < (uint32_t)PWR_RELEASE_DEBOUNCE_MS) {
+    return;
+  }
+
+  const uint32_t heldMs = g_pwrReleaseCandidateMs - g_pwrButtonDownMs;
+  if (heldMs >= (uint32_t)PWR_HOLD_SHUTDOWN_MS) {
+    shutdownFromPowerButton(false);
+  } else if (heldMs >= kPwrShortPressMinMs) {
+    Serial.printf("[PWR] Short press (%lu ms).\n", (unsigned long)heldMs);
+    onPowerButtonShortPress(nowMs);
+  } else {
+    Serial.printf("[PWR] Ignored bounce/glitch (%lu ms).\n", (unsigned long)heldMs);
+  }
+  g_pwrButtonDown = false;
+  g_pwrHoldReported = false;
+  g_pwrReleaseCandidateMs = 0;
 }
 
 static void onNavFirstButtonShortPress(uint32_t nowMs) {
@@ -2891,8 +2915,10 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("<title>ScryBar Control Surface</title>");
   html += F("<link rel='preconnect' href='https://fonts.googleapis.com'>");
   html += F("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>");
-  html += F("<link href='https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap' rel='stylesheet'>");
-  html += F("<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css'>");
+  // Load remote CSS asynchronously so UI stays paintable even if CDN/fonts are slow or blocked.
+  html += F("<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap' media='print' onload=\"this.media='all'\">");
+  html += F("<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css' media='print' onload=\"this.media='all'\">");
+  html += F("<noscript><link href='https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap' rel='stylesheet'><link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css'></noscript>");
   html += F("<style>");
   // Tron-grid animated background; tuned to stay visible on mobile while keeping form readability.
   appendWebThemeCssVars(html, webTheme);
@@ -4899,25 +4925,39 @@ static void sanitizeAsciiBuffer(char *buf, size_t bufLen) {
 }
 
 #if RSS_ENABLED
-static void normalizeRssText(String &text) {
-  String noTags;
-  noTags.reserve(text.length());
+static void stripHtmlTags(String &text) {
+  String out;
+  out.reserve(text.length());
   bool inTag = false;
   for (int i = 0; i < (int)text.length(); ++i) {
     const char c = text[i];
-    if (c == '<') { inTag = true; continue; }
-    if (c == '>') { inTag = false; continue; }
-    if (!inTag) noTags += c;
+    if (c == '<') {
+      inTag = true;
+      if (out.length() > 0 && out[out.length() - 1] != ' ') out += ' ';
+      continue;
+    }
+    if (c == '>') {
+      inTag = false;
+      continue;
+    }
+    if (!inTag) out += c;
   }
+  text = out;
+}
 
-  decodeHtmlEntitiesToAscii(noTags);
-  foldUtf8ToAscii(noTags);
+static void normalizeRssText(String &text) {
+  String cleaned = text;
+  decodeHtmlEntitiesToAscii(cleaned);
+  stripHtmlTags(cleaned);
+  decodeHtmlEntitiesToAscii(cleaned);
+  stripHtmlTags(cleaned);
+  foldUtf8ToAscii(cleaned);
 
   String collapsed;
-  collapsed.reserve(noTags.length());
+  collapsed.reserve(cleaned.length());
   bool prevSpace = true;
-  for (int i = 0; i < (int)noTags.length(); ++i) {
-    char c = noTags[i];
+  for (int i = 0; i < (int)cleaned.length(); ++i) {
+    char c = cleaned[i];
     if ((uint8_t)c <= 0x20U) c = ' ';
     const bool isSpace = (c == ' ');
     if (isSpace) {
@@ -5774,6 +5814,7 @@ static void rssFaviconCacheReleaseAt(size_t idx) {
   e.ready = false;
   e.failed = false;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  lv_img_cache_invalidate_src(&g_rssFaviconDsc[idx]);
   memset(&g_rssFaviconDsc[idx], 0, sizeof(g_rssFaviconDsc[idx]));
 #endif
 }
@@ -5832,6 +5873,92 @@ static bool rssDetectImageFormat(const uint8_t *data, size_t size, RssFaviconFor
   return false;
 }
 
+// Some LVGL builds struggle with remote JPEG thumbs; prefer Wikimedia PNG thumbs when possible.
+static bool rssBuildWikimediaPngThumbUrl(const char *imageUrl, String &outUrl) {
+  outUrl = "";
+  if (!imageUrl || !imageUrl[0]) return false;
+  String url(imageUrl);
+  url.trim();
+  if (url.length() == 0) return false;
+  if (url.indexOf("upload.wikimedia.org/") < 0) return false;
+  if (url.indexOf("/thumb/") < 0) return false;
+
+  const int q = url.indexOf('?');
+  if (q >= 0) url = url.substring(0, q);
+  const int h = url.indexOf('#');
+  if (h >= 0) url = url.substring(0, h);
+
+  const int lastSlash = url.lastIndexOf('/');
+  if (lastSlash < 0 || lastSlash + 1 >= (int)url.length()) return false;
+  const String tail = url.substring(lastSlash + 1);  // e.g. 250px-File.jpg
+  const int pxPos = tail.indexOf("px-");
+  if (pxPos <= 0) return false;
+
+  String filename = tail.substring(pxPos + 3);  // File.jpg
+  if (filename.length() < 6) return false;
+  String filenameLower = filename;
+  filenameLower.toLowerCase();
+  if (!(filenameLower.endsWith(".jpg") || filenameLower.endsWith(".jpeg") || filenameLower.endsWith(".jpe"))) {
+    return false;
+  }
+
+  const int dot = filename.lastIndexOf('.');
+  if (dot <= 0) return false;
+  filename = filename.substring(0, dot) + ".png";
+
+  // 160px is enough for our right-side hero while keeping payload smaller than 250px variants.
+  outUrl = url.substring(0, lastSlash + 1) + "160px-" + filename;
+  return outUrl.length() > 0;
+}
+
+// LVGL's split-jpeg decoder accepts JPEGs that start with a JFIF APP0 marker.
+// Wikimedia (and many modern sources) often start with EXIF APP1 instead.
+// To maximize compatibility, inject a tiny JFIF APP0 segment after SOI when missing.
+static bool rssEnsureJfifForLvglJpeg(uint8_t **data, size_t *size, RssFaviconFormat fmt) {
+  if (!data || !size || !(*data) || *size < 4) return false;
+  if (fmt != RSS_FAV_FMT_JPG) return true;
+
+  const uint8_t *src = *data;
+  if (!(src[0] == 0xFF && src[1] == 0xD8 && src[2] == 0xFF)) return false;
+
+  const bool alreadyJfif =
+      (*size >= 10) &&
+      (src[3] == 0xE0) &&
+      (src[4] == 0x00) &&
+      (src[5] == 0x10) &&
+      (src[6] == 'J') &&
+      (src[7] == 'F') &&
+      (src[8] == 'I') &&
+      (src[9] == 'F');
+  if (alreadyJfif) return true;
+
+  static const uint8_t kJfifApp0[18] = {
+      0xFF, 0xE0, 0x00, 0x10,  // APP0 marker + length
+      0x4A, 0x46, 0x49, 0x46, 0x00,  // "JFIF\0"
+      0x01, 0x01,  // version 1.01
+      0x00,        // units
+      0x00, 0x01,  // X density
+      0x00, 0x01,  // Y density
+      0x00, 0x00   // no thumbnail
+  };
+
+  const size_t newSize = *size + sizeof(kJfifApp0);
+  uint8_t *patched = (uint8_t*)heap_caps_malloc(newSize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!patched) patched = (uint8_t*)heap_caps_malloc(newSize, MALLOC_CAP_8BIT);
+  if (!patched) return false;
+
+  // Keep SOI, inject APP0 JFIF, then append original payload from first marker onward.
+  patched[0] = src[0];
+  patched[1] = src[1];
+  memcpy(patched + 2, kJfifApp0, sizeof(kJfifApp0));
+  memcpy(patched + 2 + sizeof(kJfifApp0), src + 2, *size - 2);
+
+  free(*data);
+  *data = patched;
+  *size = newSize;
+  return true;
+}
+
 static bool rssFetchHttpBinaryLimited(const String &url, size_t maxBytes, uint8_t **outData, size_t *outSize, RssFaviconFormat *outFmt) {
   if (!outData || !outSize || !outFmt) return false;
   if (maxBytes < 1024U) return false;
@@ -5847,6 +5974,8 @@ static bool rssFetchHttpBinaryLimited(const String &url, size_t maxBytes, uint8_
   http.useHTTP10(true);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   if (!http.begin(tls, url)) return false;
+  http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
+  http.addHeader("Accept", "image/png,image/jpeg,image/*;q=0.9,*/*;q=0.6");
   const int code = http.GET();
   if (code != HTTP_CODE_OK) {
     http.end();
@@ -5860,7 +5989,11 @@ static bool rssFetchHttpBinaryLimited(const String &url, size_t maxBytes, uint8_
     return false;
   }
 
-  uint8_t *buf = (uint8_t*)malloc(maxBytes);
+  uint8_t *buf = (uint8_t*)heap_caps_malloc(maxBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!buf) {
+    // Fallback to any 8-bit capable RAM (including PSRAM) when internal heap is tight.
+    buf = (uint8_t*)heap_caps_malloc(maxBytes, MALLOC_CAP_8BIT);
+  }
   if (!buf) {
     http.end();
     return false;
@@ -5872,6 +6005,7 @@ static bool rssFetchHttpBinaryLimited(const String &url, size_t maxBytes, uint8_
     const size_t avail = stream->available();
     if (avail == 0) {
       if ((millis() - waitStart) > (uint32_t)RSS_HTTP_TIMEOUT_MS) break;
+      pumpWebUiDuringIo();
       delay(1);
       continue;
     }
@@ -5886,6 +6020,7 @@ static bool rssFetchHttpBinaryLimited(const String &url, size_t maxBytes, uint8_
     const int n = stream->readBytes((char*)(buf + total), toRead);
     if (n <= 0) break;
     total += (size_t)n;
+    pumpWebUiDuringIo();
   }
   http.end();
 
@@ -6151,6 +6286,11 @@ static int rssFaviconEnsureDomain(const char *domain) {
     e.failed = true;
     return idx;
   }
+  if (!rssEnsureJfifForLvglJpeg(&png, &pngSize, fmt)) {
+    if (png) free(png);
+    e.failed = true;
+    return idx;
+  }
 
   if (e.pngData) free(e.pngData);
   uint16_t pngW = 0;
@@ -6169,6 +6309,7 @@ static int rssFaviconEnsureDomain(const char *domain) {
   e.failed = false;
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  lv_img_cache_invalidate_src(&g_rssFaviconDsc[idx]);
   memset(&g_rssFaviconDsc[idx], 0, sizeof(g_rssFaviconDsc[idx]));
   g_rssFaviconDsc[idx].header.cf = (fmt == RSS_FAV_FMT_PNG) ? LV_IMG_CF_RAW_ALPHA : LV_IMG_CF_RAW;
   g_rssFaviconDsc[idx].header.w = e.pngW;
@@ -6203,6 +6344,7 @@ static void rssThumbCacheReleaseAt(size_t idx) {
   e.ready = false;
   e.failed = false;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  lv_img_cache_invalidate_src(&g_rssThumbDsc[idx]);
   memset(&g_rssThumbDsc[idx], 0, sizeof(g_rssThumbDsc[idx]));
 #endif
 }
@@ -6261,8 +6403,31 @@ static int rssThumbEnsureUrl(const char *imageUrl) {
   uint8_t *img = nullptr;
   size_t imgSize = 0;
   RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
-  if (!rssFetchHttpBinaryLimited(String(imageUrl), RSS_THUMB_MAX_BYTES, &img, &imgSize, &fmt)) {
+  bool fetched = false;
+  String fetchUrl = String(imageUrl);
+  String wikiPngUrl;
+  if (rssBuildWikimediaPngThumbUrl(imageUrl, wikiPngUrl)) {
+    if (rssFetchHttpBinaryLimited(wikiPngUrl, RSS_THUMB_MAX_BYTES, &img, &imgSize, &fmt)) {
+      fetched = true;
+      fetchUrl = wikiPngUrl;
+    }
+  }
+  if (!fetched) {
+    if (rssFetchHttpBinaryLimited(String(imageUrl), RSS_THUMB_MAX_BYTES, &img, &imgSize, &fmt)) {
+      fetched = true;
+      fetchUrl = String(imageUrl);
+    }
+  }
+  if (!fetched) {
     e.failed = true;
+    Serial.printf("[RSS][THUMB][WARN] fetch failed url=%s\n", imageUrl);
+    return idx;
+  }
+  if (!rssEnsureJfifForLvglJpeg(&img, &imgSize, fmt)) {
+    if (img) free(img);
+    e.failed = true;
+    Serial.printf("[RSS][THUMB][WARN] jpeg jfif patch failed fmt=%u url=%s\n",
+                  (unsigned)fmt, fetchUrl.c_str());
     return idx;
   }
 
@@ -6271,6 +6436,8 @@ static int rssThumbEnsureUrl(const char *imageUrl) {
   if (!rssImageReadSize(img, imgSize, fmt, &imgW, &imgH)) {
     free(img);
     e.failed = true;
+    Serial.printf("[RSS][THUMB][WARN] decode size failed fmt=%u bytes=%u url=%s\n",
+                  (unsigned)fmt, (unsigned)imgSize, fetchUrl.c_str());
     return idx;
   }
 
@@ -6284,6 +6451,7 @@ static int rssThumbEnsureUrl(const char *imageUrl) {
   e.failed = false;
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  lv_img_cache_invalidate_src(&g_rssThumbDsc[idx]);
   memset(&g_rssThumbDsc[idx], 0, sizeof(g_rssThumbDsc[idx]));
   g_rssThumbDsc[idx].header.cf = (fmt == RSS_FAV_FMT_PNG) ? LV_IMG_CF_RAW_ALPHA : LV_IMG_CF_RAW;
   g_rssThumbDsc[idx].header.w = e.imgW;
@@ -6295,7 +6463,7 @@ static int rssThumbEnsureUrl(const char *imageUrl) {
                 (unsigned)e.imgSize,
                 (unsigned)e.imgW,
                 (unsigned)e.imgH,
-                imageUrl);
+                fetchUrl.c_str());
   return idx;
 }
 
@@ -6333,6 +6501,7 @@ static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint
   }
   if (!beginOk) return 0;
 
+  pumpWebUiDuringIo();
   const int code = http.GET();
   if (httpCodeOut) *httpCodeOut = code;
   if (code != HTTP_CODE_OK) {
@@ -6340,6 +6509,7 @@ static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint
     return 0;
   }
 
+  pumpWebUiDuringIo();
   String payload = http.getString();
   http.end();
   if (payload.length() <= 0) return 0;
@@ -6364,6 +6534,7 @@ static bool updateRssFromFeed(bool force) {
   for (uint8_t slot = 0; slot < RSS_FEED_SLOT_COUNT && count < RSS_MAX_ITEMS; ++slot) {
     const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(slot);
     if (!feed || !startsWithHttp(feed->url)) continue;
+    pumpWebUiDuringIo();
     ++feedsTried;
     ++configuredSeen;
 
@@ -6379,6 +6550,7 @@ static bool updateRssFromFeed(bool force) {
     if (feedCap > remaining) feedCap = remaining;
     int httpCode = 0;
     const uint8_t got = fetchRssItemsFromUrl(feed->url, &g_rssParseBuf[count], feedCap, &httpCode);
+    pumpWebUiDuringIo();
     if (got > 0) {
       for (uint8_t k = 0; k < got; ++k) {
         g_rssParseBuf[count + k].feedSlot = slot;
@@ -6476,6 +6648,7 @@ static bool updateWikiFromFeed(bool force) {
   for (uint8_t slot = 0; slot < WIKI_FEED_SLOT_COUNT && count < RSS_MAX_ITEMS; ++slot) {
     const char *feedUrl = kWikiFeedUrl[slot];
     if (!startsWithHttp(feedUrl)) continue;
+    pumpWebUiDuringIo();
     ++feedsTried;
 
     const uint8_t remaining = (uint8_t)(RSS_MAX_ITEMS - count);
@@ -6483,6 +6656,7 @@ static bool updateWikiFromFeed(bool force) {
     if (feedCap > remaining) feedCap = remaining;
     int httpCode = 0;
     const uint8_t got = fetchRssItemsFromUrl(feedUrl, &g_rssParseBuf[count], feedCap, &httpCode);
+    pumpWebUiDuringIo();
     if (got > 0) {
       for (uint8_t k = 0; k < got; ++k) {
         g_rssParseBuf[count + k].feedSlot = slot;
@@ -6764,6 +6938,65 @@ static void wikiPreloadThumbStep() {
     }
   }
   g_wikiThumbPreloadIndex = (uint8_t)((g_wikiThumbPreloadIndex + 1) % g_wiki.itemCount);
+}
+
+// Keep Wiki visuals progressing even while user stays on WIKI view.
+// Runs one lightweight preload action per tick on the currently visible item.
+static void wikiPreloadVisibleItemStep() {
+  if (g_uiPageMode != UI_PAGE_WIKI) return;
+  if (!g_wiki.valid || g_wiki.itemCount == 0) return;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
+
+  const uint32_t now = millis();
+  if ((now - g_wikiVisiblePreloadLastMs) < 2200UL) return;
+  g_wikiVisiblePreloadLastMs = now;
+
+  const uint8_t idx = (uint8_t)(g_wiki.currentIndex % g_wiki.itemCount);
+  RssItem &item = g_wiki.items[idx];
+
+  // 1) Enrich summary/image metadata first (one HTTP call max).
+  if ((!item.summary[0] || !item.imageUrl[0]) && !(item.wikiMetaTried && item.wikiMetaReady)) {
+    if (rssTryEnrichItemWikipediaMeta(item)) {
+#if TEST_NTP
+      g_uiNeedsRedraw = true;
+#endif
+    }
+    return;
+  }
+
+  // 2) Ensure hero thumbnail for the visible item (one HTTP call max).
+  if (item.imageUrl[0]) {
+    int cacheIdx = rssThumbCacheFind(item.imageUrl);
+    bool thumbReady = (cacheIdx >= 0) &&
+                      g_rssThumbCache[cacheIdx].ready &&
+                      g_rssThumbCache[cacheIdx].imgData &&
+                      g_rssThumbCache[cacheIdx].imgSize > 0;
+    if (!thumbReady) {
+      cacheIdx = rssThumbEnsureUrl(item.imageUrl);
+      thumbReady = (cacheIdx >= 0) &&
+                  g_rssThumbCache[cacheIdx].ready &&
+                  g_rssThumbCache[cacheIdx].imgData &&
+                  g_rssThumbCache[cacheIdx].imgSize > 0;
+      if (thumbReady) {
+#if TEST_NTP
+        g_uiNeedsRedraw = true;
+#endif
+      }
+      return;
+    }
+  }
+
+  // 3) Favicon for source badge/icon.
+  char host[96];
+  extractRssHost(item.link, host, sizeof(host));
+  if (host[0] && strcmp(host, "unknown") != 0) {
+    const int faviconIdx = rssFaviconCacheFind(host);
+    const bool faviconReady = (faviconIdx >= 0) &&
+                              g_rssFaviconCache[faviconIdx].ready &&
+                              g_rssFaviconCache[faviconIdx].pngData &&
+                              g_rssFaviconCache[faviconIdx].pngSize > 0;
+    if (!faviconReady) (void)rssFaviconEnsureDomain(host);
+  }
 }
 
 static void runRssShortenerDiag() {
@@ -7232,10 +7465,15 @@ static bool lvglAuxQrModalIsOpen() {
 static void lvglSetAuxQrButtonPressed(bool pressed) {
   if (!g_lvglAuxQrBtn) return;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const lv_color_t bg = lv_color_hex(pressed ? t.auxQrBtnPressedBg : t.auxQrBtnBg);
+  const uint32_t bgHex = lvglResolvedAuxButtonBg(
+      pressed ? t.auxQrBtnPressedBg : t.auxQrBtnBg,
+      pressed ? 0xFFF19A : 0xFFD34D);
+  const lv_color_t bg = lv_color_hex(bgHex);
   lv_obj_set_style_bg_color(g_lvglAuxQrBtn, bg, LV_PART_MAIN);
   if (g_lvglAuxQrBtnText) {
-    const lv_color_t fg = lv_color_hex(pressed ? t.auxQrBtnPressedText : t.auxQrBtnText);
+    const uint32_t fgHex = lvglResolvedAuxButtonText(
+        pressed ? t.auxQrBtnPressedText : t.auxQrBtnText, bgHex);
+    const lv_color_t fg = lv_color_hex(fgHex);
     lv_obj_set_style_text_color(g_lvglAuxQrBtnText, fg, 0);
   }
   lv_obj_invalidate(g_lvglAuxQrBtn);
@@ -7244,10 +7482,14 @@ static void lvglSetAuxQrButtonPressed(bool pressed) {
 static void lvglSetAuxRefreshButtonPressed(bool pressed) {
   if (!g_lvglAuxRefreshBtn) return;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const lv_color_t bg = lv_color_hex(pressed ? t.auxRefreshBtnPressedBg : t.auxRefreshBtnBg);
+  const uint32_t bgHex = lvglResolvedAuxButtonBg(
+      pressed ? t.auxRefreshBtnPressedBg : t.auxRefreshBtnBg,
+      pressed ? 0xB9ECFF : 0x6FD8FF);
+  const lv_color_t bg = lv_color_hex(bgHex);
   lv_obj_set_style_bg_color(g_lvglAuxRefreshBtn, bg, LV_PART_MAIN);
   if (g_lvglAuxRefreshBtnText) {
-    lv_obj_set_style_text_color(g_lvglAuxRefreshBtnText, lv_color_hex(t.auxRefreshBtnText), 0);
+    const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxRefreshBtnText, bgHex);
+    lv_obj_set_style_text_color(g_lvglAuxRefreshBtnText, lv_color_hex(fgHex), 0);
   }
   lv_obj_invalidate(g_lvglAuxRefreshBtn);
 }
@@ -7255,10 +7497,14 @@ static void lvglSetAuxRefreshButtonPressed(bool pressed) {
 static void lvglSetAuxNextFeedButtonPressed(bool pressed) {
   if (!g_lvglAuxNextFeedBtn) return;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const lv_color_t bg = lv_color_hex(pressed ? t.auxNextBtnPressedBg : t.auxNextBtnBg);
+  const uint32_t bgHex = lvglResolvedAuxButtonBg(
+      pressed ? t.auxNextBtnPressedBg : t.auxNextBtnBg,
+      pressed ? 0x9E8EFF : 0x7B63FF);
+  const lv_color_t bg = lv_color_hex(bgHex);
   lv_obj_set_style_bg_color(g_lvglAuxNextFeedBtn, bg, LV_PART_MAIN);
   if (g_lvglAuxNextFeedBtnText) {
-    lv_obj_set_style_text_color(g_lvglAuxNextFeedBtnText, lv_color_hex(t.auxNextBtnText), 0);
+    const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxNextBtnText, bgHex);
+    lv_obj_set_style_text_color(g_lvglAuxNextFeedBtnText, lv_color_hex(fgHex), 0);
   }
   lv_obj_invalidate(g_lvglAuxNextFeedBtn);
 }
@@ -7306,6 +7552,24 @@ static uint16_t lvglColorContrastLuma(uint32_t fg, uint32_t bg) {
   const uint16_t lf = lvglColorLuma(fg);
   const uint16_t lb = lvglColorLuma(bg);
   return (lf >= lb) ? (uint16_t)(lf - lb) : (uint16_t)(lb - lf);
+}
+
+static uint32_t lvglActivePanelBgForContrast() {
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  return lvglThemeIsCyberpunk() ? 0x091523 : t.panelBg;
+}
+
+static uint32_t lvglResolvedAuxButtonBg(uint32_t preferred, uint32_t fallback) {
+  const uint32_t panelBg = lvglActivePanelBgForContrast();
+  const uint16_t preferredContrast = lvglColorContrastLuma(preferred, panelBg);
+  if (preferredContrast >= 42u) return preferred;
+  const uint16_t fallbackContrast = lvglColorContrastLuma(fallback, panelBg);
+  return (fallbackContrast > preferredContrast) ? fallback : preferred;
+}
+
+static uint32_t lvglResolvedAuxButtonText(uint32_t preferred, uint32_t bg) {
+  if (lvglColorContrastLuma(preferred, bg) >= 96u) return preferred;
+  return (lvglColorLuma(bg) >= 128u) ? 0x111111 : 0xF5F5F5;
 }
 
 static uint32_t lvglResolvedSaverReadableText(const UiThemeLvglTokens &t) {
@@ -7556,7 +7820,13 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   if (g_lvglInfoWebQr) {
     lv_obj_t *infoQrParent = lv_obj_get_parent(g_lvglInfoWebQr);
-    const lv_coord_t infoQrSize = lv_obj_get_width(g_lvglInfoWebQr);
+    lv_coord_t infoQrSize = lv_obj_get_width(g_lvglInfoWebQr);
+    if (infoQrSize < 32 && infoQrParent) {
+      const lv_coord_t pw = lv_obj_get_width(infoQrParent);
+      const lv_coord_t ph = lv_obj_get_height(infoQrParent);
+      infoQrSize = ((pw < ph) ? pw : ph) - 4;
+    }
+    if (infoQrSize < 64) infoQrSize = 64;
     char infoPayload[sizeof(g_lvglInfoLastQrPayload)];
     char infoFallback[sizeof(g_lvglInfoLastQrPayload)] = "http://--:8080";
     if (g_wifiSetupApActive) wifiBuildSetupPortalUrl(infoFallback, sizeof(infoFallback));
@@ -7566,13 +7836,26 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
       g_lvglInfoLastQrPayload[0] ? g_lvglInfoLastQrPayload : infoFallback
     );
     lv_obj_del(g_lvglInfoWebQr);
-    g_lvglInfoWebQr = lv_qrcode_create(infoQrParent, infoQrSize, lv_color_hex(t.infoQrDark), lv_color_hex(t.infoQrLight));
+    const lv_color_t infoQrDark = lv_color_hex(t.infoQrDark);
+    const lv_color_t infoQrLight = lv_color_hex(t.infoQrLight);
+    g_lvglInfoWebQr = lv_qrcode_create(infoQrParent, infoQrSize, infoQrDark, infoQrLight);
     lv_obj_align(g_lvglInfoWebQr, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(g_lvglInfoWebQr, infoQrLight, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglInfoWebQr, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglInfoWebQr, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglInfoWebQr, lv_color_hex(t.infoHeaderBorder), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglInfoWebQr, LV_OPA_80, LV_PART_MAIN);
     lv_qrcode_update(g_lvglInfoWebQr, infoPayload, strlen(infoPayload));
   }
   if (g_lvglAuxQr) {
     lv_obj_t *auxQrParent = lv_obj_get_parent(g_lvglAuxQr);
-    const lv_coord_t auxQrSize = lv_obj_get_width(g_lvglAuxQr);
+    lv_coord_t auxQrSize = lv_obj_get_width(g_lvglAuxQr);
+    if (auxQrSize < 32 && auxQrParent) {
+      const lv_coord_t pw = lv_obj_get_width(auxQrParent);
+      const lv_coord_t ph = lv_obj_get_height(auxQrParent);
+      auxQrSize = ((pw < ph) ? pw : ph) - 4;
+    }
+    if (auxQrSize < 90) auxQrSize = 90;
     const bool auxQrHidden = lv_obj_has_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
     char auxPayload[sizeof(g_lvglAuxLastQrPayload)];
     copyStringSafe(
@@ -7581,8 +7864,15 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
       g_lvglAuxLastQrPayload[0] ? g_lvglAuxLastQrPayload : "https://ansa.it"
     );
     lv_obj_del(g_lvglAuxQr);
-    g_lvglAuxQr = lv_qrcode_create(auxQrParent, auxQrSize, lv_color_hex(t.auxQrDark), lv_color_hex(t.auxQrLight));
+    const lv_color_t auxQrDark = lv_color_hex(t.auxQrDark);
+    const lv_color_t auxQrLight = lv_color_hex(t.auxQrLight);
+    g_lvglAuxQr = lv_qrcode_create(auxQrParent, auxQrSize, auxQrDark, auxQrLight);
     lv_obj_center(g_lvglAuxQr);
+    lv_obj_set_style_bg_color(g_lvglAuxQr, auxQrLight, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglAuxQr, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglAuxQr, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglAuxQr, lv_color_hex(t.auxQrHint), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglAuxQr, LV_OPA_70, LV_PART_MAIN);
     lv_qrcode_update(g_lvglAuxQr, auxPayload, strlen(auxPayload));
     if (auxQrHidden) lv_obj_add_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
   }
@@ -7599,6 +7889,22 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglAuxNextFeedBtn) lv_obj_set_style_radius(g_lvglAuxNextFeedBtn, buttonRadius, LV_PART_MAIN);
   if (g_lvglAuxRefreshBtn) lv_obj_set_style_radius(g_lvglAuxRefreshBtn, buttonRadius, LV_PART_MAIN);
   if (g_lvglAuxQrBtn) lv_obj_set_style_radius(g_lvglAuxQrBtn, buttonRadius, LV_PART_MAIN);
+  const uint32_t btnBorderHex = (lvglColorContrastLuma(t.auxSourceText, panelBg) >= 36u) ? t.auxSourceText : 0xEAF0FF;
+  if (g_lvglAuxNextFeedBtn) {
+    lv_obj_set_style_border_width(g_lvglAuxNextFeedBtn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglAuxNextFeedBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglAuxNextFeedBtn, LV_OPA_80, LV_PART_MAIN);
+  }
+  if (g_lvglAuxRefreshBtn) {
+    lv_obj_set_style_border_width(g_lvglAuxRefreshBtn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglAuxRefreshBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglAuxRefreshBtn, LV_OPA_80, LV_PART_MAIN);
+  }
+  if (g_lvglAuxQrBtn) {
+    lv_obj_set_style_border_width(g_lvglAuxQrBtn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglAuxQrBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglAuxQrBtn, LV_OPA_80, LV_PART_MAIN);
+  }
   for (uint8_t i = 0; i < 4; ++i) {
     if (!g_lvglClockWiFiBars[i]) continue;
     lv_obj_set_style_radius(g_lvglClockWiFiBars[i], wifiBarRadius, LV_PART_MAIN);
@@ -7609,6 +7915,9 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglAuxNews) lv_obj_set_style_text_color(g_lvglAuxNews, lv_color_hex(t.auxText), 0);
   if (g_lvglAuxQrOverlay) lv_obj_set_style_bg_color(g_lvglAuxQrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
   if (g_lvglAuxQrHint) lv_obj_set_style_text_color(g_lvglAuxQrHint, lv_color_hex(t.auxQrHint), 0);
+  lvglSetAuxNextFeedButtonPressed(false);
+  lvglSetAuxRefreshButtonPressed(false);
+  lvglSetAuxQrButtonPressed(false);
 
   lvglApplyThemeFonts();
   lvglCenterClockSentenceLabel();
@@ -7688,6 +7997,9 @@ static void setUiPage(UiPageMode mode) {
     g_lvglAuxLastQrPayload[0] = '\0';
   }
   g_uiPageMode = mode;
+#if TEST_WIFI && RSS_ENABLED
+  if (mode == UI_PAGE_WIKI) g_wikiVisiblePreloadLastMs = 0;
+#endif
   g_uiNeedsRedraw = true;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
   if (g_lvglReady) {
@@ -8091,6 +8403,14 @@ static void lvglScreenSaverQuotePackForLang(const char *const **items, uint8_t *
   if (strcmp(g_wordClockLang, "bellazio") == 0) { *items = kSaverQuotesBellazio; *count = (uint8_t)(sizeof(kSaverQuotesBellazio) / sizeof(kSaverQuotesBellazio[0])); return; }
 }
 
+static void toUpperAsciiInPlace(char *s) {
+  if (!s) return;
+  for (size_t i = 0; s[i]; ++i) {
+    const unsigned char c = (unsigned char)s[i];
+    if (c >= 'a' && c <= 'z') s[i] = (char)(c - ('a' - 'A'));
+  }
+}
+
 static void lvglScreenSaverSetBalloonText() {
   if (!g_lvglScreenSaverBalloon) return;
   const char *const *quotes = nullptr;
@@ -8105,6 +8425,7 @@ static void lvglScreenSaverSetBalloonText() {
   const char *quote = quotes[g_lvglScreenSaverBalloonIdx];
   static char wrapped[256];
   lvglScreenSaverWrapQuote(quote, wrapped, sizeof(wrapped), lvglScreenSaverWrapCols(), kScreenSaverThoughtMaxLines);
+  if (strcmp(g_wordClockLang, "l33t") == 0) toUpperAsciiInPlace(wrapped);
   lv_label_set_text(g_lvglScreenSaverBalloon, wrapped);
   lv_obj_set_size(g_lvglScreenSaverBalloon, lvglScreenSaverEstimateBalloonWidth(wrapped), LV_SIZE_CONTENT);
   lv_obj_update_layout(g_lvglScreenSaverBalloon);
@@ -10381,12 +10702,12 @@ static void formatRssTextToLabelBounds(const char *text, lv_obj_t *label, char *
   out[outLen - 1] = '\0';
 }
 
-static void buildRssStoryBlock(const RssItem &item, lv_obj_t *label, char *out, size_t outLen) {
+static void buildRssStoryBlock(const RssItem &item, lv_obj_t *label, char *out, size_t outLen, bool includeTitle) {
   if (!out || outLen == 0) return;
   out[0] = '\0';
 
   String story;
-  if (item.title[0]) {
+  if (includeTitle && item.title[0]) {
     story = item.title;
   }
   String summary(item.summary);
@@ -10397,6 +10718,10 @@ static void buildRssStoryBlock(const RssItem &item, lv_obj_t *label, char *out, 
   }
   story.trim();
   if (story.length() == 0) {
+    if (item.title[0]) {
+      formatRssTextToLabelBounds(item.title, label, out, outLen);
+      return;
+    }
     strncpy(out, activeUiStrings()->rssSyncing, outLen - 1);
     out[outLen - 1] = '\0';
     return;
@@ -10434,6 +10759,7 @@ static uint32_t wikiFeedUiColorHex(uint8_t slot) {
 static void lvglUpdateAuxRss(bool force) {
   if (!g_lvglAuxNews) return;
   const bool wikiMode = (g_uiPageMode == UI_PAGE_WIKI);
+  const bool includeTitleInBody = !wikiMode;
   RssState &content = wikiMode ? g_wiki : g_rss;
   const char *contentTag = wikiMode ? "WIKI" : "RSS";
 #if TEST_WIFI && RSS_ENABLED
@@ -10487,7 +10813,7 @@ static void lvglUpdateAuxRss(bool force) {
     snprintf(meta, sizeof(meta), "Ultimo fetch: %s", content.lastFetchMs ? content.fetchedAt : "--/-- --:--");
   } else if (content.valid && content.itemCount > 0) {
     showIndex = (int16_t)(content.currentIndex % content.itemCount);
-    buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3));
+    buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3), includeTitleInBody);
     buildRssWhenLabel(content.items[showIndex].pubDate, whenLine, sizeof(whenLine));
     snprintf(status, sizeof(status), "%u/%u", (unsigned)(showIndex + 1), (unsigned)content.itemCount);
     uint32_t rotateLeftSec = 0;
@@ -10511,7 +10837,17 @@ static void lvglUpdateAuxRss(bool force) {
       copyStringSafe(siteBadge, sizeof(siteBadge), wikiFeedUiBadge(wikiSlot));
       siteColorHex = wikiFeedUiColorHex(wikiSlot);
       siteTextHex = 0xFFFFFF;
-      snprintf(sourceLine, sizeof(sourceLine), "%s", wikiFeedUiName(wikiSlot));
+      const char *feedName = wikiFeedUiName(wikiSlot);
+      snprintf(sourceLine, sizeof(sourceLine), "Wikipedia | %s", feedName);
+      if (lvglAuxQrModalIsOpen()) {
+        snprintf(meta, sizeof(meta), "%s | QR", feedName);
+      } else {
+        char titleHead[72];
+        copyStringSafe(titleHead, sizeof(titleHead),
+                       content.items[showIndex].title[0] ? content.items[showIndex].title : "-");
+        sanitizeAsciiBuffer(titleHead, sizeof(titleHead));
+        snprintf(meta, sizeof(meta), "%s | %s", feedName, titleHead);
+      }
       sourceLineSet = true;
     } else {
       rssResolveSourceHost(content.items[showIndex], siteHost, sizeof(siteHost));
@@ -10594,11 +10930,14 @@ static void lvglUpdateAuxRss(bool force) {
         lv_obj_clear_flag(g_lvglAuxHeroImg, LV_OBJ_FLAG_HIDDEN);
         const uint16_t w = g_rssThumbCache[thumbIdx].imgW ? g_rssThumbCache[thumbIdx].imgW : (uint16_t)g_lvglAuxHeroW;
         const uint16_t h = g_rssThumbCache[thumbIdx].imgH ? g_rssThumbCache[thumbIdx].imgH : (uint16_t)g_lvglAuxHeroH;
-        uint32_t zx = ((uint32_t)g_lvglAuxHeroW * 256UL) / w;
-        uint32_t zy = ((uint32_t)g_lvglAuxHeroH * 256UL) / h;
-        uint16_t z = (uint16_t)((zx < zy) ? zx : zy);
-        if (z < 72) z = 72;
-        if (z > 1024) z = 1024;
+        uint16_t z = 256;
+        if (g_rssThumbCache[thumbIdx].fmt != RSS_FAV_FMT_JPG) {
+          uint32_t zx = ((uint32_t)g_lvglAuxHeroW * 256UL) / w;
+          uint32_t zy = ((uint32_t)g_lvglAuxHeroH * 256UL) / h;
+          z = (uint16_t)((zx < zy) ? zx : zy);
+          if (z < 72) z = 72;
+          if (z > 1024) z = 1024;
+        }
         lv_img_set_zoom(g_lvglAuxHeroImg, z);
         lv_obj_center(g_lvglAuxHeroImg);
       }
@@ -10609,13 +10948,19 @@ static void lvglUpdateAuxRss(bool force) {
   }
 
   if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
-    buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3));
+    buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3), includeTitleInBody);
   }
 
   sanitizeAsciiBuffer(title3, sizeof(title3));
   sanitizeAsciiBuffer(whenLine, sizeof(whenLine));
   sanitizeAsciiBuffer(meta, sizeof(meta));
   sanitizeAsciiBuffer(sourceLine, sizeof(sourceLine));
+  char sourceWithWhen[140];
+  copyStringSafe(sourceWithWhen, sizeof(sourceWithWhen), sourceLine);
+  if (!wikiMode && whenLine[0] && strcmp(whenLine, "--/-- --:--") != 0) {
+    strncat(sourceWithWhen, " - ", sizeof(sourceWithWhen) - strlen(sourceWithWhen) - 1);
+    strncat(sourceWithWhen, whenLine, sizeof(sourceWithWhen) - strlen(sourceWithWhen) - 1);
+  }
 
   lv_label_set_text(g_lvglAuxNews, title3);
   lvglForceLabelVisible(g_lvglAuxNews);
@@ -10639,13 +10984,11 @@ static void lvglUpdateAuxRss(bool force) {
     }
   }
   if (g_lvglAuxSourceSite) {
-    lv_label_set_text(g_lvglAuxSourceSite, sourceLine);
+    lv_label_set_text(g_lvglAuxSourceSite, sourceWithWhen);
     lvglForceLabelVisible(g_lvglAuxSourceSite);
   }
   if (g_lvglAuxWhen) {
-    lv_label_set_text(g_lvglAuxWhen, whenLine);
-    lv_obj_clear_flag(g_lvglAuxWhen, LV_OBJ_FLAG_HIDDEN);
-    lvglForceLabelVisible(g_lvglAuxWhen);
+    lv_obj_add_flag(g_lvglAuxWhen, LV_OBJ_FLAG_HIDDEN);
   }
   if (g_lvglAuxSourceBadgeText) {
     lv_label_set_text(g_lvglAuxSourceBadgeText, siteBadge);
@@ -10669,19 +11012,20 @@ static void lvglUpdateAuxRss(bool force) {
     if (lvglAuxQrModalIsOpen()) {
       lv_obj_clear_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
       lv_obj_move_foreground(g_lvglAuxQrOverlay);
+      if (g_lvglAuxQrHint) lv_obj_clear_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
       if (g_lvglAuxQr) {
         const char *url = wikiMode ? "https://en.wikipedia.org" : "https://ansa.it";
-        bool qrReady = false;
+        bool qrReady = true;
         int16_t qrIndex = -1;
         if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
           RssItem &item = content.items[showIndex];
+          if (item.link[0]) url = item.link;  // Fallback immediato: non bloccare il QR in attesa dello short URL.
           if (!item.shortReady) {
             if (wikiMode) (void)wikiTryShortenUrl((uint8_t)showIndex);
             else (void)rssTryShortenUrl((uint8_t)showIndex);
           }
           if (item.shortReady && item.shortLink[0]) {
             url = item.shortLink;
-            qrReady = true;
           }
           qrIndex = showIndex;
         }
@@ -10696,20 +11040,28 @@ static void lvglUpdateAuxRss(bool force) {
             else Serial.printf("[%s] qr fallback -> %s\n", contentTag, url);
           }
           lv_obj_clear_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
-          if (g_lvglAuxQrHint) lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->touchToCloseAnywhere);
+          if (g_lvglAuxQrHint) {
+            lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->touchToCloseAnywhere);
+            lv_obj_clear_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
+          }
           if (g_lvglAuxStatus) lv_label_set_text(g_lvglAuxStatus, status);
         } else {
           lv_obj_add_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
-          if (g_lvglAuxQrHint) lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->generatingQr);
+          if (g_lvglAuxQrHint) {
+            lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->generatingQr);
+            lv_obj_clear_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
+          }
           if (g_lvglAuxStatus) lv_label_set_text(g_lvglAuxStatus, "QR...");
         }
       }
     } else {
       lv_obj_add_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
+      if (g_lvglAuxQrHint) lv_obj_add_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
     }
   }
 #else
   if (g_lvglAuxQrOverlay) lv_obj_add_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
+  if (g_lvglAuxQrHint) lv_obj_add_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
 #endif
 #endif
 }
@@ -11426,8 +11778,15 @@ static bool initLvglUi() {
 
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   // QR: centred in the right column
-  g_lvglInfoWebQr = lv_qrcode_create(infoColRight, infoQrSize, lv_color_hex(theme.infoQrDark), lv_color_hex(theme.infoQrLight));
+  const lv_color_t infoQrDark = lv_color_hex(theme.infoQrDark);
+  const lv_color_t infoQrLight = lv_color_hex(theme.infoQrLight);
+  g_lvglInfoWebQr = lv_qrcode_create(infoColRight, infoQrSize, infoQrDark, infoQrLight);
   lv_obj_align(g_lvglInfoWebQr, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_set_style_bg_color(g_lvglInfoWebQr, infoQrLight, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglInfoWebQr, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglInfoWebQr, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(g_lvglInfoWebQr, lv_color_hex(theme.infoHeaderBorder), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(g_lvglInfoWebQr, LV_OPA_80, LV_PART_MAIN);
   lv_qrcode_update(g_lvglInfoWebQr, "http://--:8080", strlen("http://--:8080"));
 #endif
 
@@ -11909,14 +12268,10 @@ static bool initLvglUi() {
       ((sourceRightEdge - sourceBadgeSize) < leftPaneX) ? leftPaneX : (sourceRightEdge - sourceBadgeSize);
   const int16_t sourceSiteX = leftPaneX;
   const int16_t sourceTextTotalW = sourceIconX - sourceSiteX - sourceGap;
-  int16_t sourceWhenW = 96;
-  int16_t sourceSiteW = sourceTextTotalW - sourceWhenW - 4;
-  if (sourceSiteW < 64) {
-    sourceWhenW = 72;
-    sourceSiteW = sourceTextTotalW - sourceWhenW - 4;
-  }
+  int16_t sourceWhenW = 0;
+  int16_t sourceSiteW = sourceTextTotalW;
   if (sourceSiteW < 40) sourceSiteW = 40;
-  const int16_t sourceWhenX = sourceSiteX + sourceSiteW + 4;
+  const int16_t sourceWhenX = sourceSiteX + sourceSiteW;
   const int16_t sourceBlockH = sourceBadgeSize;
 
   g_lvglAuxSourceBadge = lv_obj_create(g_lvglAuxCard);
@@ -11962,15 +12317,17 @@ static bool initLvglUi() {
   lv_obj_set_pos(g_lvglAuxWhen, sourceWhenX, sourceTextY + 2);
   lv_obj_set_style_text_align(g_lvglAuxWhen, LV_TEXT_ALIGN_RIGHT, 0);
   lv_label_set_text(g_lvglAuxWhen, "--/-- --:--");
-  lvglForceLabelVisible(g_lvglAuxWhen);
+  lv_obj_add_flag(g_lvglAuxWhen, LV_OBJ_FLAG_HIDDEN);
 
   g_lvglAuxNews = lv_label_create(g_lvglAuxCard);
   lv_obj_set_style_text_font(g_lvglAuxNews, lvglFontRssNews(), 0);
   lv_obj_set_style_text_color(g_lvglAuxNews, lv_color_hex(0xEAF0FF), 0);
   lv_obj_set_style_text_line_space(g_lvglAuxNews, 3, 0);
   lv_label_set_long_mode(g_lvglAuxNews, LV_LABEL_LONG_WRAP);
-  const int16_t newsY = sourceRowY + sourceBlockH + 5;  // notizia +5px verso il basso
-  const int16_t newsH = (auxCardH - 24) - newsY;
+  const int16_t newsY = sourceRowY + sourceBlockH - 1;  // avvicina il blocco news alla riga sorgente
+  const int16_t newsBottom = qrBtnY - 14;  // micro-tuning: piu' aria sopra NXT/SKIP/QR
+  int16_t newsH = newsBottom - newsY;
+  if (newsH < 44) newsH = 44;
   const int16_t heroW = 132;
   int16_t heroH = newsH - 4;
   if (heroH > 94) heroH = 94;
@@ -12036,8 +12393,15 @@ static bool initLvglUi() {
   int16_t qrSize = qrOverlayH - 4;
   if (qrSize > (auxCardW - 4)) qrSize = auxCardW - 4;
   if (qrSize < 90) qrSize = 90;
-  g_lvglAuxQr = lv_qrcode_create(g_lvglAuxQrOverlay, qrSize, lv_color_hex(theme.auxQrDark), lv_color_hex(theme.auxQrLight));
+  const lv_color_t auxQrDark = lv_color_hex(theme.auxQrDark);
+  const lv_color_t auxQrLight = lv_color_hex(theme.auxQrLight);
+  g_lvglAuxQr = lv_qrcode_create(g_lvglAuxQrOverlay, qrSize, auxQrDark, auxQrLight);
   lv_obj_center(g_lvglAuxQr);
+  lv_obj_set_style_bg_color(g_lvglAuxQr, auxQrLight, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglAuxQr, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglAuxQr, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(g_lvglAuxQr, lv_color_hex(theme.auxQrHint), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(g_lvglAuxQr, LV_OPA_70, LV_PART_MAIN);
   lv_qrcode_update(g_lvglAuxQr, "https://ansa.it", strlen("https://ansa.it"));
   lv_obj_clear_flag(g_lvglAuxQr, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -13380,6 +13744,13 @@ void loop() {
     wikiPreloadMetaStep();
     wikiPreloadFaviconStep();
     wikiPreloadThumbStep();
+  } else if (g_uiPageMode == UI_PAGE_AUX) {
+    // Keep RSS alive even if user stays on AUX for long periods.
+    updateRssFromFeed(false);
+  } else if (g_uiPageMode == UI_PAGE_WIKI) {
+    // Keep Wiki feed refreshing even while user is pinned to WIKI view.
+    updateWikiFromFeed(false);
+    wikiPreloadVisibleItemStep();  // keep current Wiki card (summary/image/icon) loading while staying on WIKI
   }
 #else
   updateRssFromFeed(false);

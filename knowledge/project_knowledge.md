@@ -331,8 +331,12 @@ Discard touch frames where:
   - `SKIP` = next item
   - `NXT` = next feed
   - `QR` = modal on-demand (not always visible)
+- WIKI deck model:
+  - 3 fixed feed families (`Featured`, `On this day`, `Wikinews`)
+  - up to 3 items per family (total max 9 items/cycle)
+  - refresh cadence uses `RSS_REFRESH_MS` / `RSS_RETRY_MS` (defaults 15m / 2m)
 - Physical buttons (current mapping):
-  - `PWR` short press: screensaver
+  - `PWR` short press: screensaver (debounced)
   - `BOOT` short press: jump to `HOME`
   - `RST`: hardware reset
 
@@ -342,6 +346,30 @@ Discard touch frames where:
 - Hard-off only by serial `PWROFFHARD`
 - Boot always re-asserts `SYS_EN` via TCA9554
 - Battery monitor: ADC1 CH3, 12dB attenuation, ×3 divider
+- Screensaver idle target: `2h` on USB and `2h` on battery
+- Power short-press hardening:
+  - press debounce window: `45ms`
+  - minimum short-press duration: `90ms`
+  - sub-threshold pulses are treated as bounce/glitch and ignored
+
+## RSS/WIKI Data Pipeline Notes
+
+- Text sanitization:
+  - feed text passes through HTML entity decode + tag stripping + whitespace collapse
+  - goal: avoid raw HTML leakage in article body and keep ASCII-safe render path
+- Thumbnail compatibility:
+  - if image host is Wikimedia thumb JPG, firmware first tries a PNG thumb variant
+  - JPEG payloads are normalized with JFIF APP0 injection when missing, to maximize LVGL decoder compatibility
+  - thumbnail budget is tuned for richer cards (`RSS_THUMB_MAX_BYTES=65536`)
+- QR policy in AUX/WIKI:
+  - QR can open immediately with canonical long URL
+  - short URL replacement happens opportunistically when ready (non-blocking UX)
+
+## Web UI Responsiveness
+
+- Web control page keeps critical style inline and loads external font/icon CSS asynchronously.
+- During long network I/O (RSS/WIKI fetch/download), firmware periodically pumps the web server loop to reduce UI stalls.
+- RSS HTTP timeout baseline is intentionally short (`RSS_HTTP_TIMEOUT_MS=3000`) for quicker recovery on bad links.
 
 ## Serial Command Reference (Operational)
 
@@ -389,6 +417,7 @@ For deterministic theme captures:
 - Use `lv_color_hex(0xRRGGBB)` (not RGB565 literals).
 - Degree symbol in LVGL labels must be UTF-8 `"\xC2\xB0"`.
 - Prefer non-variable font sources for deterministic LVGL conversion.
+- If Wiki hero image appears missing on first draw, stay on WIKI briefly: visible-item progressive preload now fills summary/thumb/icon without requiring page changes.
 
 ## Public Logging Rule
 

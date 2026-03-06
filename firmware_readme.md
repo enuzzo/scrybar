@@ -96,6 +96,7 @@ Current scope:
 - Runtime config persisted in NVS: weather city/lat/lon, logo URL, and up to 5 RSS feeds (friendly name + URL + max posts).
 - LAN page includes place search autocomplete, single-feed composer workflow, and in-page feed list with edit/delete.
 - Web UI now uses a Tron-grid animated background with responsive mobile tuning and reduced-motion fallback.
+- External font/icon CSS is loaded asynchronously so the page can paint even when CDN paths are slow.
 
 ## 7) Page Flow (Touch) 👆
 
@@ -105,11 +106,14 @@ Current scope:
 - `INFO` is intentionally placed "before" home (iPhone-widget style).
 - `INFO` net block includes: Wi-Fi state, SSID, power mode (`CHARGING/BATTERY`) + battery %, IP/DNS/MAC.
 - `AUX` and `WIKI` share the same interaction model: `SKIP` next article, `NXT` next feed, QR on-demand.
-- Wiki thumbnails are rendered on the right when available.
+- `WIKI` uses 3 fixed source families (`Featured`, `On this day`, `Wikinews`) with up to 3 items each; refresh cadence follows `RSS_REFRESH_MS` (default firmware: 15 min).
+- Wiki summaries are normalized to plain text (HTML/entities sanitized), and right-side thumbnails are rendered when metadata/media is available.
+- QR in AUX/WIKI opens on demand and falls back immediately to full URL while short-link generation is pending.
 - Physical side buttons:
   - `BOOT` (left): single click -> `HOME`
-  - `PWR` (center): screensaver
+  - `PWR` (center): screensaver (debounced short-press path to reject glitches)
   - `RST` (right): hardware reset
+- Screensaver auto-idle target is `2h` on both USB and battery.
 
 Serial page shortcuts:
 
@@ -119,6 +123,7 @@ Serial page shortcuts:
 - `VIEW3` / `VIEWWIKI` -> `WIKI`
 - `VIEWFIRST` -> first main page (`HOME`, excludes INFO)
 - `VIEWLAST` -> last main page (`WIKI`)
+- `SAVERON` / `SAVEROFF` / `SAVERSTAT` -> manual screensaver control/status
 
 ## 8) Canonical Orientation 🧭
 

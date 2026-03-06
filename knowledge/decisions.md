@@ -213,3 +213,27 @@ Entry format:
 - Context: Wiki ingestion was introduced as content expansion, but a regression risked replacing existing RSS runtime feeds/userspace behavior.
 - Decision: Preserve AUX/RSS behavior unchanged (runtime-configurable up to 5 feeds) and add Wiki as a separate dedicated view (`UI_PAGE_WIKI`) with its own fixed 3-source rotation and independent state.
 - Impact/Tradeoffs: Existing RSS operators keep their current feed setup and controls; Wiki adds extra value without configuration churn. Slightly higher code/UI complexity is accepted to isolate concerns and avoid regressions.
+
+---
+
+## 2026-03-06 - Debounced Power Short-Press Path for Screensaver
+
+- Context: Field behavior showed sporadic unintended screensaver activation likely caused by button bounce/noise on the power key line.
+- Decision: Add explicit press-side debounce (`45ms`) plus minimum short-press duration (`90ms`) before triggering screensaver; sub-threshold pulses are ignored as glitches.
+- Impact/Tradeoffs: Greatly reduced false positives with negligible interaction latency increase; genuine taps still feel immediate to users.
+
+---
+
+## 2026-03-06 - Wiki Thumbnail Compatibility via PNG Preference + JPEG JFIF Normalization
+
+- Context: Remote Wiki images (especially modern JPEG variants) were inconsistently decoded by LVGL on target firmware builds.
+- Decision: Prefer Wikimedia PNG thumb variants when derivable, and normalize JPEG payloads by injecting a JFIF APP0 marker when missing before decode.
+- Impact/Tradeoffs: Better thumbnail render success rate across feeds; modest memory/cpu overhead for payload normalization and larger thumb budget.
+
+---
+
+## 2026-03-06 - Keep Web Config Responsive During Feed I/O
+
+- Context: Web UI could feel stalled while firmware was in blocking RSS/WIKI network operations.
+- Decision: Pump HTTP config server loop during long I/O sections and load remote web CSS assets asynchronously (critical layout remains inline).
+- Impact/Tradeoffs: Faster perceived Web UI readiness and reduced request starvation during feed fetches; small increase in loop complexity.

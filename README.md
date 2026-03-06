@@ -90,15 +90,17 @@ Four views, navigated by swipe. Left or right, like flipping pages. There is no 
 
 **AUX** — RSS rotation. Up to 5 configurable feeds. `SKIP` moves to next article, `NXT` moves to next feed, and QR opens only on demand.
 
-**WIKI** — Dedicated Wikipedia stream (3 feed families, 3 items each, hourly refresh). Same ergonomics as AUX (`SKIP`, `NXT`, on-demand QR), with summary text and remote thumbnail image shown on the right when available.
+**WIKI** — Dedicated Wikipedia stream (3 feed families, up to 3 items per family). Same ergonomics as AUX (`SKIP`, `NXT`, on-demand QR), with summary-first body text and remote thumbnail image shown on the right when available. Refresh cadence follows firmware feed timers (`RSS_REFRESH_MS`, default 15 minutes).
 
 **INFO** — Diagnostics panel. Wi-Fi state, SSID, IP, DNS, MAC, power mode (`CHARGING/BATTERY`), and battery percentage. Placed before HOME in the swipe order — left of boot — like an iPhone widget page you only visit when something feels wrong.
 
 Physical buttons:
 
-- `PWR` (center): opens screensaver.
+- `PWR` (center): short press opens screensaver (debounced against false micro-presses).
 - `BOOT` (left): single click jumps to `HOME`.
 - `RST` (right): hardware reset.
+
+Auto-idle screensaver target is currently `2h` on both USB and battery.
 
 ---
 
@@ -244,6 +246,8 @@ Runtime config persists to NVS. Survives power cycles. Writable without reflash.
 
 Configurable from the UI: preferred known Wi-Fi network (`Auto` rotation or one saved SSID), Wi-Fi Direct mode (`off`, `auto fallback`, `always on`), provisioning of new Wi-Fi credentials via in-page `2.4 GHz` scan + password, weather city, latitude/longitude, logo URL, and up to 5 RSS feeds — each with a friendly name, URL, and max post count. The feed composer is in-page: search, add, edit, delete, no page reloads.
 
+Web UI loading behavior is resilient by design: critical styles are inline, while remote font/icon stylesheets are loaded asynchronously to keep first paint responsive even with slow CDN paths.
+
 Wi-Fi password UX detail: the password field is always rendered in monospaced glyphs (theme-agnostic) and has an eye toggle for show/hide, so uppercase-heavy themes do not turn provisioning into guesswork.
 
 Provisioned Wi-Fi credentials are stored in NVS and survive reboot/reflash (until NVS erase).
@@ -282,6 +286,8 @@ Commands sent over Serial at 115200 baud.
 | `VIEW3` / `VIEWWIKI` | Force WIKI page |
 | `BATSTAT` | Print battery status |
 | `SAVERON` | Force screensaver on |
+| `SAVEROFF` | Force screensaver off |
+| `SAVERSTAT` | Print screensaver state + active idle target |
 | `WIFIDIRECT` | Print Wi-Fi direct mode/AP status |
 | `WIFIDIRECT off|auto|on` | Set Wi-Fi direct mode and persist to NVS |
 | `PWROFFHARD` | Hard power-off — **requires a hardware power cycle to recover. Not mapped to the physical button by design.** |

@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-03-06
+
+### Firmware DB-M0-r152
+- Power button hardening:
+  - added press-side debounce (`45ms`) and minimum short-press gate (`90ms`)
+  - ignores micro-pulses/bounce so screensaver is no longer triggered by false short presses
+- Screensaver policy update:
+  - idle timeout unified to `2h` on both USB and battery (`SCREENSAVER_IDLE_USB_MS`/`SCREENSAVER_IDLE_BATTERY_MS`)
+- RSS/WIKI readability and layout pass:
+  - RSS timestamp moved back to the left source line (`SOURCE - DD Mon HH:MM`)
+  - content block shifted slightly upward and clipped before action buttons
+  - WIKI title is shown in header meta (`Wikipedia | <family> | <article>`) while body focuses on summary
+- WIKI content sanitization:
+  - improved HTML cleanup pipeline (entity decode + tag strip + whitespace collapse) to avoid raw HTML fragments on screen
+- WIKI image pipeline reliability:
+  - added Wikimedia JPG->PNG thumb preference path where possible
+  - added JPEG JFIF normalization for LVGL decoder compatibility
+  - increased thumb budget to `65536` bytes for richer featured images
+- QR robustness:
+  - QR modal now immediately falls back to original article URL while short-link generation is pending, avoiding black/empty QR states
+  - QR widgets now get explicit background/border styling for better visibility
+- AUX/WIKI buttons contrast pass:
+  - improved runtime contrast resolution for `NXT`, `SKIP`, and `QR` buttons across themes
+- Web UI responsiveness improvements:
+  - external font/icon stylesheets are loaded asynchronously
+  - long RSS/WIKI HTTP operations now periodically pump web server loop to reduce perceived page stalls
+  - RSS HTTP timeout lowered to `3000ms` for faster failure recovery
+- WIKI live-preload while pinned on page:
+  - visible WIKI item now gets progressive meta/thumb/favicon preload even without leaving the view
+- Screensaver 1337 polish:
+  - thought text is now forced uppercase when language is `l33t`
+
 ## 2026-03-05
 
 ### Firmware DB-M0-r151

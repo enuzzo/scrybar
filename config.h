@@ -19,13 +19,13 @@
 #define ENERGY_SAVER_ENABLED 1
 #define ENERGY_BACKLIGHT_ON_BATTERY 72
 #define SCREENSAVER_ENABLED 1
-#define SCREENSAVER_IDLE_USB_MS 10800000UL
-#define SCREENSAVER_IDLE_BATTERY_MS 5400000UL
+#define SCREENSAVER_IDLE_USB_MS 7200000UL
+#define SCREENSAVER_IDLE_BATTERY_MS 7200000UL
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "DB-M0-r151"
-#define FW_RELEASE_DATE "2026-03-05"
+#define FW_BUILD_TAG "DB-M0-r152"
+#define FW_RELEASE_DATE "2026-03-06"
 
 // --- M0.2 Backlight test config ---
 // From Waveshare schematic:
@@ -125,7 +125,7 @@
 #define RSS_FEED_URL "https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml"
 #define RSS_REFRESH_MS 900000UL
 #define RSS_RETRY_MS 120000UL
-#define RSS_HTTP_TIMEOUT_MS 8000
+#define RSS_HTTP_TIMEOUT_MS 3000
 #define RSS_ROTATE_MS 15000UL
 #define RSS_SHORTENER_RETRY_MS 900000UL
 // In-memory cache of long->short URL pairs to avoid repeated API calls.
@@ -136,7 +136,7 @@
 #define RSS_FAVICON_RETRY_MS 300000UL
 // Runtime thumbnail cache for AUX/Wiki cards.
 #define RSS_THUMB_CACHE_SIZE 3
-#define RSS_THUMB_MAX_BYTES 24576
+#define RSS_THUMB_MAX_BYTES 65536
 #define RSS_THUMB_RETRY_MS 300000UL
 
 // --- Word Clock ---
