@@ -6544,29 +6544,20 @@ static const char* uiClockModeName(UiClockMode mode) {
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
 static void lvglApplyPageVisibility(bool animate);
 static bool lvglApplyPageDrag(int16_t dragDx);
-static bool lvglAuxQrButtonContainsPoint(int16_t x, int16_t y);
-static bool lvglAuxRefreshButtonContainsPoint(int16_t x, int16_t y);
-static bool lvglAuxNextFeedButtonContainsPoint(int16_t x, int16_t y);
-static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y);
 static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y);
-static bool lvglAuxQrModalIsOpen();
 static void lvglUpdateWiFiBars(bool force);
 static void lvglCenterClockSentenceLabel();
 static void lvglApplyClockSentenceAutoFit(const char *text);
 static void lvglApplyThemeFonts();
-static void lvglSetAuxQrButtonPressed(bool pressed);
-static void lvglSetAuxRefreshButtonPressed(bool pressed);
-static void lvglSetAuxNextFeedButtonPressed(bool pressed);
-static void lvglSetAuxQrModalOpen(bool open);
-static bool lvglWikiQrButtonContainsPoint(int16_t x, int16_t y);
-static bool lvglWikiRefreshButtonContainsPoint(int16_t x, int16_t y);
-static bool lvglWikiNextFeedButtonContainsPoint(int16_t x, int16_t y);
-static bool lvglWikiNewsContainsPoint(int16_t x, int16_t y);
-static bool lvglWikiQrModalIsOpen();
-static void lvglSetWikiQrButtonPressed(bool pressed);
-static void lvglSetWikiRefreshButtonPressed(bool pressed);
-static void lvglSetWikiNextFeedButtonPressed(bool pressed);
-static void lvglSetWikiQrModalOpen(bool open);
+static FeedDeckUi &activeFeedDeck();
+static bool lvglDeckQrButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y);
+static bool lvglDeckRefreshButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y);
+static bool lvglDeckNextFeedButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y);
+static bool lvglDeckNewsContainsPoint(FeedDeckUi &d, int16_t x, int16_t y);
+static void lvglSetDeckQrButtonPressed(FeedDeckUi &d, bool pressed);
+static void lvglSetDeckRefreshButtonPressed(FeedDeckUi &d, bool pressed);
+static void lvglSetDeckNextFeedButtonPressed(FeedDeckUi &d, bool pressed);
+static void lvglSetDeckQrModalOpen(FeedDeckUi &d, bool open);
 static bool lvglFeedQrButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglFeedRefreshButtonContainsPoint(int16_t x, int16_t y);
 static bool lvglFeedNextFeedButtonContainsPoint(int16_t x, int16_t y);
@@ -6649,208 +6640,97 @@ static bool lvglContainsPointExpanded(lv_obj_t *obj, int16_t x, int16_t y, int16
   return (x >= (a.x1 - pad) && x <= (a.x2 + pad) && y >= (a.y1 - pad) && y <= (a.y2 + pad));
 }
 
-static bool lvglAuxQrButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_auxDeck.qrBtn, x, y, 8);
+// Returns the active feed deck based on current UI page.
+static FeedDeckUi &activeFeedDeck() {
+  return (g_uiPageMode == UI_PAGE_WIKI) ? g_wikiDeck : g_auxDeck;
 }
 
-static bool lvglAuxRefreshButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_auxDeck.refreshBtn, x, y, 8);
+// ── Unified deck helpers (operate on any FeedDeckUi instance) ─────────────
+static bool lvglDeckQrButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) {
+  return lvglContainsPointExpanded(d.qrBtn, x, y, 8);
+}
+static bool lvglDeckRefreshButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) {
+  return lvglContainsPointExpanded(d.refreshBtn, x, y, 8);
+}
+static bool lvglDeckNextFeedButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) {
+  return lvglContainsPointExpanded(d.nextFeedBtn, x, y, 8);
+}
+static bool lvglDeckNewsContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) {
+  return lvglContainsPoint(d.news, x, y);
+}
+static void lvglSetDeckQrButtonPressed(FeedDeckUi &d, bool pressed) {
+  if (!d.qrBtn) return;
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const uint32_t bgHex = lvglResolvedAuxButtonBg(
+      pressed ? t.auxQrBtnPressedBg : t.auxQrBtnBg,
+      pressed ? 0xFFF19A : 0xFFD34D);
+  lv_obj_set_style_bg_color(d.qrBtn, lv_color_hex(bgHex), LV_PART_MAIN);
+  if (d.qrBtnText) {
+    const uint32_t fgHex = lvglResolvedAuxButtonText(
+        pressed ? t.auxQrBtnPressedText : t.auxQrBtnText, bgHex);
+    lv_obj_set_style_text_color(d.qrBtnText, lv_color_hex(fgHex), 0);
+  }
+  lv_obj_invalidate(d.qrBtn);
+}
+static void lvglSetDeckRefreshButtonPressed(FeedDeckUi &d, bool pressed) {
+  if (!d.refreshBtn) return;
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const uint32_t bgHex = lvglResolvedAuxButtonBg(
+      pressed ? t.auxRefreshBtnPressedBg : t.auxRefreshBtnBg,
+      pressed ? 0xB9ECFF : 0x6FD8FF);
+  lv_obj_set_style_bg_color(d.refreshBtn, lv_color_hex(bgHex), LV_PART_MAIN);
+  if (d.refreshBtnText) {
+    const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxRefreshBtnText, bgHex);
+    lv_obj_set_style_text_color(d.refreshBtnText, lv_color_hex(fgHex), 0);
+  }
+  lv_obj_invalidate(d.refreshBtn);
+}
+static void lvglSetDeckNextFeedButtonPressed(FeedDeckUi &d, bool pressed) {
+  if (!d.nextFeedBtn) return;
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const uint32_t bgHex = lvglResolvedAuxButtonBg(
+      pressed ? t.auxNextBtnPressedBg : t.auxNextBtnBg,
+      pressed ? 0x9E8EFF : 0x7B63FF);
+  lv_obj_set_style_bg_color(d.nextFeedBtn, lv_color_hex(bgHex), LV_PART_MAIN);
+  if (d.nextFeedBtnText) {
+    const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxNextBtnText, bgHex);
+    lv_obj_set_style_text_color(d.nextFeedBtnText, lv_color_hex(fgHex), 0);
+  }
+  lv_obj_invalidate(d.nextFeedBtn);
+}
+static void lvglSetDeckQrModalOpen(FeedDeckUi &d, bool open) {
+  if (d.qrModalOpen == open) return;
+  d.qrModalOpen = open;
+  if (d.qrBtnText) lv_label_set_text(d.qrBtnText, open ? "X" : "QR");
+  if (open) {
+    d.lastItemShown = -1;
+    d.lastQrPayload[0] = '\0';
+  }
+  g_uiNeedsRedraw = true;
+  if (d.qrOverlay) {
+    if (open) lv_obj_clear_flag(d.qrOverlay, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(d.qrOverlay, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_invalidate(d.qrOverlay);
+  }
 }
 
-static bool lvglAuxNextFeedButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_auxDeck.nextFeedBtn, x, y, 8);
-}
-
-static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPoint(g_auxDeck.news, x, y);
-}
-
+// Kept for touch handler call site
 static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y) {
   (void)x;
   (void)y;
   return false;
 }
 
-static bool lvglAuxQrModalIsOpen() {
-  return g_auxDeck.qrModalOpen;
-}
-
-static void lvglSetAuxQrButtonPressed(bool pressed) {
-  if (!g_auxDeck.qrBtn) return;
-  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const uint32_t bgHex = lvglResolvedAuxButtonBg(
-      pressed ? t.auxQrBtnPressedBg : t.auxQrBtnBg,
-      pressed ? 0xFFF19A : 0xFFD34D);
-  const lv_color_t bg = lv_color_hex(bgHex);
-  lv_obj_set_style_bg_color(g_auxDeck.qrBtn, bg, LV_PART_MAIN);
-  if (g_auxDeck.qrBtnText) {
-    const uint32_t fgHex = lvglResolvedAuxButtonText(
-        pressed ? t.auxQrBtnPressedText : t.auxQrBtnText, bgHex);
-    const lv_color_t fg = lv_color_hex(fgHex);
-    lv_obj_set_style_text_color(g_auxDeck.qrBtnText, fg, 0);
-  }
-  lv_obj_invalidate(g_auxDeck.qrBtn);
-}
-
-static void lvglSetAuxRefreshButtonPressed(bool pressed) {
-  if (!g_auxDeck.refreshBtn) return;
-  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const uint32_t bgHex = lvglResolvedAuxButtonBg(
-      pressed ? t.auxRefreshBtnPressedBg : t.auxRefreshBtnBg,
-      pressed ? 0xB9ECFF : 0x6FD8FF);
-  const lv_color_t bg = lv_color_hex(bgHex);
-  lv_obj_set_style_bg_color(g_auxDeck.refreshBtn, bg, LV_PART_MAIN);
-  if (g_auxDeck.refreshBtnText) {
-    const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxRefreshBtnText, bgHex);
-    lv_obj_set_style_text_color(g_auxDeck.refreshBtnText, lv_color_hex(fgHex), 0);
-  }
-  lv_obj_invalidate(g_auxDeck.refreshBtn);
-}
-
-static void lvglSetAuxNextFeedButtonPressed(bool pressed) {
-  if (!g_auxDeck.nextFeedBtn) return;
-  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const uint32_t bgHex = lvglResolvedAuxButtonBg(
-      pressed ? t.auxNextBtnPressedBg : t.auxNextBtnBg,
-      pressed ? 0x9E8EFF : 0x7B63FF);
-  const lv_color_t bg = lv_color_hex(bgHex);
-  lv_obj_set_style_bg_color(g_auxDeck.nextFeedBtn, bg, LV_PART_MAIN);
-  if (g_auxDeck.nextFeedBtnText) {
-    const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxNextBtnText, bgHex);
-    lv_obj_set_style_text_color(g_auxDeck.nextFeedBtnText, lv_color_hex(fgHex), 0);
-  }
-  lv_obj_invalidate(g_auxDeck.nextFeedBtn);
-}
-
-static void lvglSetAuxQrModalOpen(bool open) {
-  if (g_auxDeck.qrModalOpen == open) return;
-  g_auxDeck.qrModalOpen = open;
-  if (g_auxDeck.qrBtnText) lv_label_set_text(g_auxDeck.qrBtnText, open ? "X" : "QR");
-  if (open) {
-    g_auxDeck.lastItemShown = -1;
-    g_auxDeck.lastQrPayload[0] = '\0';
-  }
-  g_uiNeedsRedraw = true;
-  if (g_auxDeck.qrOverlay) {
-    if (open) lv_obj_clear_flag(g_auxDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_add_flag(g_auxDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_invalidate(g_auxDeck.qrOverlay);
-  }
-}
-
-// --- Wiki deck UI helpers ---
-
-static bool lvglWikiQrButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_wikiDeck.qrBtn, x, y, 8);
-}
-static bool lvglWikiRefreshButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_wikiDeck.refreshBtn, x, y, 8);
-}
-static bool lvglWikiNextFeedButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_wikiDeck.nextFeedBtn, x, y, 8);
-}
-static bool lvglWikiNewsContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPoint(g_wikiDeck.news, x, y);
-}
-static bool lvglWikiQrModalIsOpen() {
-  return g_wikiDeck.qrModalOpen;
-}
-static void lvglSetWikiQrButtonPressed(bool pressed) {
-  if (!g_wikiDeck.qrBtn) return;
-  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const uint32_t bgHex = lvglResolvedAuxButtonBg(
-      pressed ? t.auxQrBtnPressedBg : t.auxQrBtnBg,
-      pressed ? 0xFFF19A : 0xFFD34D);
-  lv_obj_set_style_bg_color(g_wikiDeck.qrBtn, lv_color_hex(bgHex), LV_PART_MAIN);
-  if (g_wikiDeck.qrBtnText) {
-    const uint32_t fgHex = lvglResolvedAuxButtonText(
-        pressed ? t.auxQrBtnPressedText : t.auxQrBtnText, bgHex);
-    lv_obj_set_style_text_color(g_wikiDeck.qrBtnText, lv_color_hex(fgHex), 0);
-  }
-  lv_obj_invalidate(g_wikiDeck.qrBtn);
-}
-static void lvglSetWikiRefreshButtonPressed(bool pressed) {
-  if (!g_wikiDeck.refreshBtn) return;
-  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const uint32_t bgHex = lvglResolvedAuxButtonBg(
-      pressed ? t.auxRefreshBtnPressedBg : t.auxRefreshBtnBg,
-      pressed ? 0xB9ECFF : 0x6FD8FF);
-  lv_obj_set_style_bg_color(g_wikiDeck.refreshBtn, lv_color_hex(bgHex), LV_PART_MAIN);
-  if (g_wikiDeck.refreshBtnText) {
-    const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxRefreshBtnText, bgHex);
-    lv_obj_set_style_text_color(g_wikiDeck.refreshBtnText, lv_color_hex(fgHex), 0);
-  }
-  lv_obj_invalidate(g_wikiDeck.refreshBtn);
-}
-static void lvglSetWikiNextFeedButtonPressed(bool pressed) {
-  if (!g_wikiDeck.nextFeedBtn) return;
-  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const uint32_t bgHex = lvglResolvedAuxButtonBg(
-      pressed ? t.auxNextBtnPressedBg : t.auxNextBtnBg,
-      pressed ? 0x9E8EFF : 0x7B63FF);
-  lv_obj_set_style_bg_color(g_wikiDeck.nextFeedBtn, lv_color_hex(bgHex), LV_PART_MAIN);
-  if (g_wikiDeck.nextFeedBtnText) {
-    const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxNextBtnText, bgHex);
-    lv_obj_set_style_text_color(g_wikiDeck.nextFeedBtnText, lv_color_hex(fgHex), 0);
-  }
-  lv_obj_invalidate(g_wikiDeck.nextFeedBtn);
-}
-static void lvglSetWikiQrModalOpen(bool open) {
-  if (g_wikiDeck.qrModalOpen == open) return;
-  g_wikiDeck.qrModalOpen = open;
-  if (g_wikiDeck.qrBtnText) lv_label_set_text(g_wikiDeck.qrBtnText, open ? "X" : "QR");
-  if (open) {
-    g_wikiDeck.lastItemShown = -1;
-    g_wikiDeck.lastQrPayload[0] = '\0';
-  }
-  g_uiNeedsRedraw = true;
-  if (g_wikiDeck.qrOverlay) {
-    if (open) lv_obj_clear_flag(g_wikiDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_add_flag(g_wikiDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_invalidate(g_wikiDeck.qrOverlay);
-  }
-}
-
 // Dispatch helpers — call the correct deck based on current page
-static bool lvglFeedQrButtonContainsPoint(int16_t x, int16_t y) {
-  return (g_uiPageMode == UI_PAGE_WIKI)
-    ? lvglWikiQrButtonContainsPoint(x, y)
-    : lvglAuxQrButtonContainsPoint(x, y);
-}
-static bool lvglFeedRefreshButtonContainsPoint(int16_t x, int16_t y) {
-  return (g_uiPageMode == UI_PAGE_WIKI)
-    ? lvglWikiRefreshButtonContainsPoint(x, y)
-    : lvglAuxRefreshButtonContainsPoint(x, y);
-}
-static bool lvglFeedNextFeedButtonContainsPoint(int16_t x, int16_t y) {
-  return (g_uiPageMode == UI_PAGE_WIKI)
-    ? lvglWikiNextFeedButtonContainsPoint(x, y)
-    : lvglAuxNextFeedButtonContainsPoint(x, y);
-}
-static bool lvglFeedNewsContainsPoint(int16_t x, int16_t y) {
-  return (g_uiPageMode == UI_PAGE_WIKI)
-    ? lvglWikiNewsContainsPoint(x, y)
-    : lvglAuxNewsContainsPoint(x, y);
-}
-static bool lvglFeedQrModalIsOpen() {
-  return (g_uiPageMode == UI_PAGE_WIKI) ? lvglWikiQrModalIsOpen() : lvglAuxQrModalIsOpen();
-}
-static void lvglSetFeedQrModalOpen(bool open) {
-  if (g_uiPageMode == UI_PAGE_WIKI) lvglSetWikiQrModalOpen(open);
-  else lvglSetAuxQrModalOpen(open);
-}
-static void lvglSetFeedQrButtonPressed(bool pressed) {
-  if (g_uiPageMode == UI_PAGE_WIKI) lvglSetWikiQrButtonPressed(pressed);
-  else lvglSetAuxQrButtonPressed(pressed);
-}
-static void lvglSetFeedRefreshButtonPressed(bool pressed) {
-  if (g_uiPageMode == UI_PAGE_WIKI) lvglSetWikiRefreshButtonPressed(pressed);
-  else lvglSetAuxRefreshButtonPressed(pressed);
-}
-static void lvglSetFeedNextFeedButtonPressed(bool pressed) {
-  if (g_uiPageMode == UI_PAGE_WIKI) lvglSetWikiNextFeedButtonPressed(pressed);
-  else lvglSetAuxNextFeedButtonPressed(pressed);
-}
+static bool lvglFeedQrButtonContainsPoint(int16_t x, int16_t y)      { return lvglDeckQrButtonContainsPoint(activeFeedDeck(), x, y); }
+static bool lvglFeedRefreshButtonContainsPoint(int16_t x, int16_t y)  { return lvglDeckRefreshButtonContainsPoint(activeFeedDeck(), x, y); }
+static bool lvglFeedNextFeedButtonContainsPoint(int16_t x, int16_t y) { return lvglDeckNextFeedButtonContainsPoint(activeFeedDeck(), x, y); }
+static bool lvglFeedNewsContainsPoint(int16_t x, int16_t y)           { return lvglDeckNewsContainsPoint(activeFeedDeck(), x, y); }
+static bool lvglFeedQrModalIsOpen()                                    { return activeFeedDeck().qrModalOpen; }
+static void lvglSetFeedQrModalOpen(bool open)                          { lvglSetDeckQrModalOpen(activeFeedDeck(), open); }
+static void lvglSetFeedQrButtonPressed(bool pressed)                   { lvglSetDeckQrButtonPressed(activeFeedDeck(), pressed); }
+static void lvglSetFeedRefreshButtonPressed(bool pressed)              { lvglSetDeckRefreshButtonPressed(activeFeedDeck(), pressed); }
+static void lvglSetFeedNextFeedButtonPressed(bool pressed)             { lvglSetDeckNextFeedButtonPressed(activeFeedDeck(), pressed); }
 
 static bool lvglThemeIsCyberpunk() {
   return strcmp(activeUiThemeId(), "cyberpunk-2077") == 0;
@@ -7240,9 +7120,9 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_auxDeck.news) lv_obj_set_style_text_color(g_auxDeck.news, lv_color_hex(t.auxText), 0);
   if (g_auxDeck.qrOverlay) lv_obj_set_style_bg_color(g_auxDeck.qrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
   if (g_auxDeck.qrHint) lv_obj_set_style_text_color(g_auxDeck.qrHint, lv_color_hex(t.auxQrHint), 0);
-  lvglSetAuxNextFeedButtonPressed(false);
-  lvglSetAuxRefreshButtonPressed(false);
-  lvglSetAuxQrButtonPressed(false);
+  lvglSetDeckNextFeedButtonPressed(g_auxDeck, false);
+  lvglSetDeckRefreshButtonPressed(g_auxDeck, false);
+  lvglSetDeckQrButtonPressed(g_auxDeck, false);
 
   // --- Wiki deck theming (mirrors AUX) ---
   if (g_wikiDeck.card) {
@@ -7323,9 +7203,9 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     if (wikiQrHidden) lv_obj_add_flag(g_wikiDeck.qr, LV_OBJ_FLAG_HIDDEN);
   }
 #endif
-  lvglSetWikiNextFeedButtonPressed(false);
-  lvglSetWikiRefreshButtonPressed(false);
-  lvglSetWikiQrButtonPressed(false);
+  lvglSetDeckNextFeedButtonPressed(g_wikiDeck, false);
+  lvglSetDeckRefreshButtonPressed(g_wikiDeck, false);
+  lvglSetDeckQrButtonPressed(g_wikiDeck, false);
 
   lvglApplyThemeFonts();
   lvglCenterClockSentenceLabel();
@@ -7346,9 +7226,9 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   }
 #endif
 
-  lvglSetAuxNextFeedButtonPressed(false);
-  lvglSetAuxRefreshButtonPressed(false);
-  lvglSetAuxQrButtonPressed(false);
+  lvglSetDeckNextFeedButtonPressed(g_auxDeck, false);
+  lvglSetDeckRefreshButtonPressed(g_auxDeck, false);
+  lvglSetDeckQrButtonPressed(g_auxDeck, false);
   g_lvglClockWiFiMask = 0xFFFF;
   lvglUpdateWiFiBars(true);
 
@@ -7362,45 +7242,16 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
 #endif
 }
 #else
-static bool lvglAuxQrButtonContainsPoint(int16_t x, int16_t y) {
-  (void)x;
-  (void)y;
-  return false;
-}
-static bool lvglAuxRefreshButtonContainsPoint(int16_t x, int16_t y) {
-  (void)x;
-  (void)y;
-  return false;
-}
-static bool lvglAuxNextFeedButtonContainsPoint(int16_t x, int16_t y) {
-  (void)x;
-  (void)y;
-  return false;
-}
-static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y) {
-  (void)x;
-  (void)y;
-  return false;
-}
-static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y) {
-  (void)x;
-  (void)y;
-  return false;
-}
-static bool lvglAuxQrModalIsOpen() { return false; }
-static void lvglSetAuxQrButtonPressed(bool pressed) { (void)pressed; }
-static void lvglSetAuxRefreshButtonPressed(bool pressed) { (void)pressed; }
-static void lvglSetAuxNextFeedButtonPressed(bool pressed) { (void)pressed; }
-static void lvglSetAuxQrModalOpen(bool open) { (void)open; }
-static bool lvglWikiQrButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
-static bool lvglWikiRefreshButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
-static bool lvglWikiNextFeedButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
-static bool lvglWikiNewsContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
-static bool lvglWikiQrModalIsOpen() { return false; }
-static void lvglSetWikiQrButtonPressed(bool pressed) { (void)pressed; }
-static void lvglSetWikiRefreshButtonPressed(bool pressed) { (void)pressed; }
-static void lvglSetWikiNextFeedButtonPressed(bool pressed) { (void)pressed; }
-static void lvglSetWikiQrModalOpen(bool open) { (void)open; }
+static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
+static FeedDeckUi &activeFeedDeck() { return g_auxDeck; }
+static bool lvglDeckQrButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) { (void)d; (void)x; (void)y; return false; }
+static bool lvglDeckRefreshButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) { (void)d; (void)x; (void)y; return false; }
+static bool lvglDeckNextFeedButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) { (void)d; (void)x; (void)y; return false; }
+static bool lvglDeckNewsContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) { (void)d; (void)x; (void)y; return false; }
+static void lvglSetDeckQrButtonPressed(FeedDeckUi &d, bool pressed) { (void)d; (void)pressed; }
+static void lvglSetDeckRefreshButtonPressed(FeedDeckUi &d, bool pressed) { (void)d; (void)pressed; }
+static void lvglSetDeckNextFeedButtonPressed(FeedDeckUi &d, bool pressed) { (void)d; (void)pressed; }
+static void lvglSetDeckQrModalOpen(FeedDeckUi &d, bool open) { (void)d; (void)open; }
 static bool lvglFeedQrButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
 static bool lvglFeedRefreshButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
 static bool lvglFeedNextFeedButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
@@ -7415,12 +7266,12 @@ static void lvglSetFeedNextFeedButtonPressed(bool pressed) { (void)pressed; }
 static void setUiPage(UiPageMode mode) {
   if (g_uiPageMode == mode) return;
   if (!uiPageIsFeedDeck(mode)) {
-    lvglSetAuxQrModalOpen(false);
-    lvglSetWikiQrModalOpen(false);
+    lvglSetDeckQrModalOpen(g_auxDeck, false);
+    lvglSetDeckQrModalOpen(g_wikiDeck, false);
   }
   if (uiPageIsFeedDeck(g_uiPageMode) && uiPageIsFeedDeck(mode) && g_uiPageMode != mode) {
-    lvglSetAuxQrModalOpen(false);
-    lvglSetWikiQrModalOpen(false);
+    lvglSetDeckQrModalOpen(g_auxDeck, false);
+    lvglSetDeckQrModalOpen(g_wikiDeck, false);
     g_auxDeck.lastItemShown = -1;
     g_auxDeck.lastQrPayload[0] = '\0';
     g_wikiDeck.lastItemShown = -1;
@@ -10183,7 +10034,7 @@ static void lvglUpdateAuxRss(bool force) {
 #if TEST_WIFI && RSS_ENABLED
   const uint32_t now = millis();
   if (g_wifiConnected && content.valid && content.itemCount > 1 && content.lastRotateMs != 0 &&
-      !lvglAuxQrModalIsOpen() &&
+      !g_auxDeck.qrModalOpen &&
       (now - content.lastRotateMs) >= RSS_ROTATE_MS) {
     content.currentIndex = (uint8_t)((content.currentIndex + 1) % content.itemCount);
     content.lastRotateMs = now;
@@ -10238,7 +10089,7 @@ static void lvglUpdateAuxRss(bool force) {
         rotateLeftSec = (uint32_t)(((RSS_ROTATE_MS - elapsed) + 999UL) / 1000UL);
       }
     }
-    if (lvglAuxQrModalIsOpen()) {
+    if (g_auxDeck.qrModalOpen) {
       snprintf(meta, sizeof(meta), "Fetch %s | QR", content.fetchedAt);
     } else {
       snprintf(meta, sizeof(meta), "Fetch %s | %lus", content.fetchedAt, (unsigned long)rotateLeftSec);
@@ -10321,7 +10172,7 @@ static void lvglUpdateAuxRss(bool force) {
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
 #if TEST_WIFI && RSS_ENABLED
   if (g_auxDeck.qrOverlay) {
-    if (lvglAuxQrModalIsOpen()) {
+    if (g_auxDeck.qrModalOpen) {
       lv_obj_clear_flag(g_auxDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
       lv_obj_move_foreground(g_auxDeck.qrOverlay);
       if (g_auxDeck.qrHint) lv_obj_clear_flag(g_auxDeck.qrHint, LV_OBJ_FLAG_HIDDEN);
@@ -10384,7 +10235,7 @@ static void lvglUpdateWikiDeck(bool force) {
 #if TEST_WIFI && RSS_ENABLED
   const uint32_t now = millis();
   if (g_wifiConnected && content.valid && content.itemCount > 1 && content.lastRotateMs != 0 &&
-      !lvglWikiQrModalIsOpen() &&
+      !g_wikiDeck.qrModalOpen &&
       (now - content.lastRotateMs) >= RSS_ROTATE_MS) {
     content.currentIndex = (uint8_t)((content.currentIndex + 1) % content.itemCount);
     content.lastRotateMs = now;
@@ -10442,7 +10293,7 @@ static void lvglUpdateWikiDeck(bool force) {
     siteTextHex = 0xFFFFFF;
     const char *feedName = wikiFeedUiName(wikiSlot);
     snprintf(sourceLine, sizeof(sourceLine), "Wikipedia | %s", feedName);
-    if (lvglWikiQrModalIsOpen()) {
+    if (g_wikiDeck.qrModalOpen) {
       snprintf(meta, sizeof(meta), "%s | QR", feedName);
     } else {
       char titleHead[72];
@@ -10509,7 +10360,7 @@ static void lvglUpdateWikiDeck(bool force) {
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
 #if TEST_WIFI && RSS_ENABLED
   if (g_wikiDeck.qrOverlay) {
-    if (lvglWikiQrModalIsOpen()) {
+    if (g_wikiDeck.qrModalOpen) {
       lv_obj_clear_flag(g_wikiDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
       lv_obj_move_foreground(g_wikiDeck.qrOverlay);
       if (g_wikiDeck.qrHint) lv_obj_clear_flag(g_wikiDeck.qrHint, LV_OBJ_FLAG_HIDDEN);
@@ -13008,19 +12859,19 @@ static void handleSerialCommand(const char *line) {
   }
   if (cmd == "QRON") {
     setUiPage(UI_PAGE_AUX);
-    lvglSetAuxQrModalOpen(true);
+    lvglSetDeckQrModalOpen(g_auxDeck, true);
     Serial.println("[UI] qr=ON");
     return;
   }
   if (cmd == "QROFF") {
-    lvglSetAuxQrModalOpen(false);
+    lvglSetDeckQrModalOpen(g_auxDeck, false);
     Serial.println("[UI] qr=OFF");
     return;
   }
   if (cmd == "QRTOGGLE") {
     setUiPage(UI_PAGE_AUX);
-    lvglSetAuxQrModalOpen(!lvglAuxQrModalIsOpen());
-    Serial.printf("[UI] qr=%s\n", lvglAuxQrModalIsOpen() ? "ON" : "OFF");
+    lvglSetDeckQrModalOpen(g_auxDeck, !g_auxDeck.qrModalOpen);
+    Serial.printf("[UI] qr=%s\n", g_auxDeck.qrModalOpen ? "ON" : "OFF");
     return;
   }
 
