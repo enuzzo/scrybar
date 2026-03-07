@@ -744,43 +744,6 @@ struct RssShortCacheEntry {
   bool valid = false;
 };
 static RssShortCacheEntry g_rssShortCache[RSS_SHORTENER_CACHE_SIZE];
-enum RssFaviconFormat : uint8_t {
-  RSS_FAV_FMT_NONE = 0,
-  RSS_FAV_FMT_PNG = 1,
-  RSS_FAV_FMT_JPG = 2,
-};
-struct RssFaviconCacheEntry {
-  char domain[96];
-  uint8_t *pngData = nullptr;
-  size_t pngSize = 0;
-  uint16_t pngW = 0;
-  uint16_t pngH = 0;
-  RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
-  uint32_t lastAttemptMs = 0;
-  uint32_t lastUsedMs = 0;
-  bool valid = false;
-  bool ready = false;
-  bool failed = false;
-};
-static RssFaviconCacheEntry g_rssFaviconCache[RSS_FAVICON_CACHE_SIZE];
-struct RssThumbCacheEntry {
-  char imageUrl[340];
-  uint8_t *imgData = nullptr;
-  size_t imgSize = 0;
-  uint16_t imgW = 0;
-  uint16_t imgH = 0;
-  RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
-  uint32_t lastAttemptMs = 0;
-  uint32_t lastUsedMs = 0;
-  bool valid = false;
-  bool ready = false;
-  bool failed = false;
-};
-static RssThumbCacheEntry g_rssThumbCache[RSS_THUMB_CACHE_SIZE];
-static uint8_t g_wikiFaviconPreloadIndex = 0;
-static uint32_t g_wikiFaviconPreloadLastMs = 0;
-static uint8_t g_wikiThumbPreloadIndex = 0;
-static uint32_t g_wikiThumbPreloadLastMs = 0;
 static uint32_t g_wikiMetaPreloadLastMs = 0;
 static uint32_t g_wikiVisiblePreloadLastMs = 0;
 #endif
@@ -860,6 +823,7 @@ static lv_obj_t *g_lvglForecastIcon = nullptr;
 static lv_obj_t *g_lvglForecastNow = nullptr;
 static lv_obj_t *g_lvglForecastTomorrow = nullptr;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
+static lv_obj_t *g_lvglWikiRoot = nullptr;
 static lv_obj_t *g_lvglAuxCard = nullptr;
 static lv_obj_t *g_lvglAuxHeader = nullptr;
 static lv_obj_t *g_lvglAuxHeaderFill = nullptr;
@@ -872,14 +836,11 @@ static lv_obj_t *g_lvglAuxRefreshBtn = nullptr;
 static lv_obj_t *g_lvglAuxRefreshBtnText = nullptr;
 static lv_obj_t *g_lvglAuxNextFeedBtn = nullptr;
 static lv_obj_t *g_lvglAuxNextFeedBtnText = nullptr;
-static lv_obj_t *g_lvglAuxSourceIcon = nullptr;
 static lv_obj_t *g_lvglAuxSourceBadge = nullptr;
 static lv_obj_t *g_lvglAuxSourceBadgeText = nullptr;
 static lv_obj_t *g_lvglAuxSourceSite = nullptr;
 static lv_obj_t *g_lvglAuxWhen = nullptr;
 static lv_obj_t *g_lvglAuxNews = nullptr;
-static lv_obj_t *g_lvglAuxHeroFrame = nullptr;
-static lv_obj_t *g_lvglAuxHeroImg = nullptr;
 static lv_obj_t *g_lvglAuxMeta = nullptr;
 static lv_obj_t *g_lvglAuxQrOverlay = nullptr;
 static lv_obj_t *g_lvglAuxQrHint = nullptr;
@@ -889,18 +850,6 @@ static lv_obj_t *g_lvglAuxQr = nullptr;
 static int16_t g_lvglAuxLastItemShown = -1;
 static char g_lvglAuxLastQrPayload[280] = {0};
 static bool g_lvglAuxQrModalOpen = false;
-static int16_t g_lvglAuxNewsBaseX = 0;
-static int16_t g_lvglAuxNewsBaseY = 0;
-static int16_t g_lvglAuxNewsBaseW = 0;
-static int16_t g_lvglAuxNewsBaseH = 0;
-static int16_t g_lvglAuxHeroW = 0;
-static int16_t g_lvglAuxHeroH = 0;
-static lv_img_dsc_t g_rssFaviconDsc[RSS_FAVICON_CACHE_SIZE];
-static lv_img_dsc_t g_rssThumbDsc[RSS_THUMB_CACHE_SIZE];
-static uint8_t g_rssFaviconPreloadIndex = 0;
-static uint32_t g_rssFaviconPreloadLastMs = 0;
-static uint8_t g_rssThumbPreloadIndex = 0;
-static uint32_t g_rssThumbPreloadLastMs = 0;
 static uint32_t g_lvglPageAnimUntilMs = 0;
 static uint32_t g_lvglLastRunMs = 0;
 static bool g_lvglPageDragActive = false;
@@ -5852,692 +5801,6 @@ static uint32_t rssSiteColorHexFromHost(const char *host) {
   return palette[h % (sizeof(palette) / sizeof(palette[0]))];
 }
 
-static void rssFaviconCacheReleaseAt(size_t idx) {
-  if (idx >= RSS_FAVICON_CACHE_SIZE) return;
-  RssFaviconCacheEntry &e = g_rssFaviconCache[idx];
-  if (e.pngData) {
-    free(e.pngData);
-    e.pngData = nullptr;
-  }
-  e.pngSize = 0;
-  e.pngW = 0;
-  e.pngH = 0;
-  e.fmt = RSS_FAV_FMT_NONE;
-  e.domain[0] = '\0';
-  e.lastAttemptMs = 0;
-  e.lastUsedMs = 0;
-  e.valid = false;
-  e.ready = false;
-  e.failed = false;
-#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-  lv_img_cache_invalidate_src(&g_rssFaviconDsc[idx]);
-  memset(&g_rssFaviconDsc[idx], 0, sizeof(g_rssFaviconDsc[idx]));
-#endif
-}
-
-static int rssFaviconCacheFind(const char *domain) {
-  if (!domain || !domain[0]) return -1;
-  for (size_t i = 0; i < RSS_FAVICON_CACHE_SIZE; ++i) {
-    const RssFaviconCacheEntry &e = g_rssFaviconCache[i];
-    if (e.valid && strcmp(e.domain, domain) == 0) return (int)i;
-  }
-  return -1;
-}
-
-static int rssFaviconCacheAcquire(const char *domain) {
-  if (!domain || !domain[0]) return -1;
-  const int existing = rssFaviconCacheFind(domain);
-  if (existing >= 0) return existing;
-
-  int freeIdx = -1;
-  int oldestIdx = 0;
-  uint32_t oldestAge = 0;
-  const uint32_t now = millis();
-  for (size_t i = 0; i < RSS_FAVICON_CACHE_SIZE; ++i) {
-    if (!g_rssFaviconCache[i].valid) {
-      freeIdx = (int)i;
-      break;
-    }
-    const uint32_t age = now - g_rssFaviconCache[i].lastUsedMs;
-    if ((int)i == 0 || age > oldestAge) {
-      oldestAge = age;
-      oldestIdx = (int)i;
-    }
-  }
-  const int idx = (freeIdx >= 0) ? freeIdx : oldestIdx;
-  if (g_rssFaviconCache[idx].valid) rssFaviconCacheReleaseAt((size_t)idx);
-  RssFaviconCacheEntry &e = g_rssFaviconCache[idx];
-  strncpy(e.domain, domain, sizeof(e.domain) - 1);
-  e.domain[sizeof(e.domain) - 1] = '\0';
-  e.valid = true;
-  e.lastUsedMs = now;
-  return idx;
-}
-
-static bool rssDetectImageFormat(const uint8_t *data, size_t size, RssFaviconFormat *outFmt) {
-  if (!data || size < 4 || !outFmt) return false;
-  static const uint8_t kPngSig[8] = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
-  if (size >= sizeof(kPngSig) && memcmp(data, kPngSig, sizeof(kPngSig)) == 0) {
-    *outFmt = RSS_FAV_FMT_PNG;
-    return true;
-  }
-  if (data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF) {
-    *outFmt = RSS_FAV_FMT_JPG;
-    return true;
-  }
-  *outFmt = RSS_FAV_FMT_NONE;
-  return false;
-}
-
-// Some LVGL builds struggle with remote JPEG thumbs; prefer Wikimedia PNG thumbs when possible.
-static bool rssBuildWikimediaPngThumbUrl(const char *imageUrl, String &outUrl) {
-  outUrl = "";
-  if (!imageUrl || !imageUrl[0]) return false;
-  String url(imageUrl);
-  url.trim();
-  if (url.length() == 0) return false;
-  if (url.indexOf("upload.wikimedia.org/") < 0) return false;
-  if (url.indexOf("/thumb/") < 0) return false;
-
-  const int q = url.indexOf('?');
-  if (q >= 0) url = url.substring(0, q);
-  const int h = url.indexOf('#');
-  if (h >= 0) url = url.substring(0, h);
-
-  const int lastSlash = url.lastIndexOf('/');
-  if (lastSlash < 0 || lastSlash + 1 >= (int)url.length()) return false;
-  const String tail = url.substring(lastSlash + 1);  // e.g. 250px-File.jpg
-  const int pxPos = tail.indexOf("px-");
-  if (pxPos <= 0) return false;
-
-  String filename = tail.substring(pxPos + 3);  // File.jpg
-  if (filename.length() < 6) return false;
-  String filenameLower = filename;
-  filenameLower.toLowerCase();
-  if (!(filenameLower.endsWith(".jpg") || filenameLower.endsWith(".jpeg") || filenameLower.endsWith(".jpe"))) {
-    return false;
-  }
-
-  const int dot = filename.lastIndexOf('.');
-  if (dot <= 0) return false;
-  filename = filename.substring(0, dot) + ".png";
-
-  // 160px is enough for our right-side hero while keeping payload smaller than 250px variants.
-  outUrl = url.substring(0, lastSlash + 1) + "160px-" + filename;
-  return outUrl.length() > 0;
-}
-
-// LVGL's split-jpeg decoder accepts JPEGs that start with a JFIF APP0 marker.
-// Wikimedia (and many modern sources) often start with EXIF APP1 instead.
-// To maximize compatibility, inject a tiny JFIF APP0 segment after SOI when missing.
-static bool rssEnsureJfifForLvglJpeg(uint8_t **data, size_t *size, RssFaviconFormat fmt) {
-  if (!data || !size || !(*data) || *size < 4) return false;
-  if (fmt != RSS_FAV_FMT_JPG) return true;
-
-  const uint8_t *src = *data;
-  if (!(src[0] == 0xFF && src[1] == 0xD8 && src[2] == 0xFF)) return false;
-
-  const bool alreadyJfif =
-      (*size >= 10) &&
-      (src[3] == 0xE0) &&
-      (src[4] == 0x00) &&
-      (src[5] == 0x10) &&
-      (src[6] == 'J') &&
-      (src[7] == 'F') &&
-      (src[8] == 'I') &&
-      (src[9] == 'F');
-  if (alreadyJfif) return true;
-
-  static const uint8_t kJfifApp0[18] = {
-      0xFF, 0xE0, 0x00, 0x10,  // APP0 marker + length
-      0x4A, 0x46, 0x49, 0x46, 0x00,  // "JFIF\0"
-      0x01, 0x01,  // version 1.01
-      0x00,        // units
-      0x00, 0x01,  // X density
-      0x00, 0x01,  // Y density
-      0x00, 0x00   // no thumbnail
-  };
-
-  const size_t newSize = *size + sizeof(kJfifApp0);
-  uint8_t *patched = (uint8_t*)heap_caps_malloc(newSize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (!patched) patched = (uint8_t*)heap_caps_malloc(newSize, MALLOC_CAP_8BIT);
-  if (!patched) return false;
-
-  // Keep SOI, inject APP0 JFIF, then append original payload from first marker onward.
-  patched[0] = src[0];
-  patched[1] = src[1];
-  memcpy(patched + 2, kJfifApp0, sizeof(kJfifApp0));
-  memcpy(patched + 2 + sizeof(kJfifApp0), src + 2, *size - 2);
-
-  free(*data);
-  *data = patched;
-  *size = newSize;
-  return true;
-}
-
-static bool rssFetchHttpBinaryLimited(const String &url, size_t maxBytes, uint8_t **outData, size_t *outSize, RssFaviconFormat *outFmt) {
-  if (!outData || !outSize || !outFmt) return false;
-  if (maxBytes < 1024U) return false;
-  *outData = nullptr;
-  *outSize = 0;
-  *outFmt = RSS_FAV_FMT_NONE;
-  WiFiClientSecure tls;
-  tls.setInsecure();
-  tls.setTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
-  HTTPClient http;
-  http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
-  http.setTimeout(RSS_HTTP_TIMEOUT_MS);
-  http.useHTTP10(true);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  if (!http.begin(tls, url)) return false;
-  http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
-  http.addHeader("Accept", "image/png,image/jpeg,image/*;q=0.9,*/*;q=0.6");
-  const int code = http.GET();
-  if (code != HTTP_CODE_OK) {
-    http.end();
-    return false;
-  }
-
-  WiFiClient *stream = http.getStreamPtr();
-  const int contentLen = http.getSize();
-  if (contentLen > (int)maxBytes) {
-    http.end();
-    return false;
-  }
-
-  uint8_t *buf = (uint8_t*)heap_caps_malloc(maxBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (!buf) {
-    // Fallback to any 8-bit capable RAM (including PSRAM) when internal heap is tight.
-    buf = (uint8_t*)heap_caps_malloc(maxBytes, MALLOC_CAP_8BIT);
-  }
-  if (!buf) {
-    http.end();
-    return false;
-  }
-
-  size_t total = 0;
-  uint32_t waitStart = millis();
-  while (http.connected() && (contentLen < 0 || (int)total < contentLen)) {
-    const size_t avail = stream->available();
-    if (avail == 0) {
-      if ((millis() - waitStart) > (uint32_t)RSS_HTTP_TIMEOUT_MS) break;
-      pumpWebUiDuringIo();
-      delay(1);
-      continue;
-    }
-    waitStart = millis();
-    size_t toRead = avail;
-    if (toRead > 256U) toRead = 256U;
-    if ((total + toRead) > maxBytes) {
-      free(buf);
-      http.end();
-      return false;
-    }
-    const int n = stream->readBytes((char*)(buf + total), toRead);
-    if (n <= 0) break;
-    total += (size_t)n;
-    pumpWebUiDuringIo();
-  }
-  http.end();
-
-  RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
-  if (!rssDetectImageFormat(buf, total, &fmt)) {
-    free(buf);
-    return false;
-  }
-
-  *outData = buf;
-  *outSize = total;
-  *outFmt = fmt;
-  return true;
-}
-
-static bool rssFetchHttpBinary(const String &url, uint8_t **outData, size_t *outSize, RssFaviconFormat *outFmt) {
-  return rssFetchHttpBinaryLimited(url, RSS_FAVICON_MAX_BYTES, outData, outSize, outFmt);
-}
-
-static bool rssImageReadSize(const uint8_t *data, size_t size, RssFaviconFormat fmt, uint16_t *outW, uint16_t *outH) {
-  if (!data || !outW || !outH) return false;
-
-  if (fmt == RSS_FAV_FMT_PNG) {
-    if (size < 24) return false;
-    if (memcmp(data + 12, "IHDR", 4) != 0) return false;
-    const uint32_t w = ((uint32_t)data[16] << 24) | ((uint32_t)data[17] << 16) |
-                       ((uint32_t)data[18] << 8) | (uint32_t)data[19];
-    const uint32_t h = ((uint32_t)data[20] << 24) | ((uint32_t)data[21] << 16) |
-                       ((uint32_t)data[22] << 8) | (uint32_t)data[23];
-    if (w == 0 || h == 0 || w > 4096 || h > 4096) return false;
-    *outW = (w > 65535U) ? 65535U : (uint16_t)w;
-    *outH = (h > 65535U) ? 65535U : (uint16_t)h;
-    return true;
-  }
-
-  if (fmt == RSS_FAV_FMT_JPG) {
-    if (size < 4 || data[0] != 0xFF || data[1] != 0xD8) return false;
-    size_t i = 2;
-    while (i + 3 < size) {
-      if (data[i] != 0xFF) {
-        ++i;
-        continue;
-      }
-      const uint8_t marker = data[i + 1];
-      i += 2;
-      if (marker == 0xD8 || marker == 0xD9) continue;
-      if (marker == 0xDA) break;  // start of scan
-      if (i + 1 >= size) break;
-      const uint16_t segLen = ((uint16_t)data[i] << 8) | (uint16_t)data[i + 1];
-      if (segLen < 2 || (i + segLen) > size) break;
-
-      const bool isSof =
-          (marker >= 0xC0 && marker <= 0xC3) ||
-          (marker >= 0xC5 && marker <= 0xC7) ||
-          (marker >= 0xC9 && marker <= 0xCB) ||
-          (marker >= 0xCD && marker <= 0xCF);
-      if (isSof && segLen >= 7) {
-        const uint16_t h = ((uint16_t)data[i + 3] << 8) | (uint16_t)data[i + 4];
-        const uint16_t w = ((uint16_t)data[i + 5] << 8) | (uint16_t)data[i + 6];
-        if (w == 0 || h == 0 || w > 4096 || h > 4096) return false;
-        *outW = w;
-        *outH = h;
-        return true;
-      }
-      i += segLen;
-    }
-  }
-
-  return false;
-}
-
-static bool rssFetchFaviconPng(const char *domain, uint8_t **outData, size_t *outSize, RssFaviconFormat *outFmt) {
-  if (!domain || !domain[0] || !outData || !outSize || !outFmt) return false;
-  *outData = nullptr;
-  *outSize = 0;
-  *outFmt = RSS_FAV_FMT_NONE;
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
-
-  const String host = String(domain);
-  uint8_t *jpgCandidate = nullptr;
-  size_t jpgCandidateSize = 0;
-  RssFaviconFormat jpgCandidateFmt = RSS_FAV_FMT_NONE;
-
-  auto acceptCandidate = [&](uint8_t *buf, size_t sz, RssFaviconFormat fmt) -> bool {
-    if (!buf || sz == 0 || fmt == RSS_FAV_FMT_NONE) {
-      if (buf) free(buf);
-      return false;
-    }
-    if (fmt == RSS_FAV_FMT_PNG) {
-      if (jpgCandidate) {
-        free(jpgCandidate);
-        jpgCandidate = nullptr;
-      }
-      *outData = buf;
-      *outSize = sz;
-      *outFmt = fmt;
-      return true;
-    }
-    if (fmt == RSS_FAV_FMT_JPG && !jpgCandidate) {
-      // Keep one JPEG as fallback, but continue searching for PNG first.
-      jpgCandidate = buf;
-      jpgCandidateSize = sz;
-      jpgCandidateFmt = fmt;
-      return false;
-    }
-    free(buf);
-    return false;
-  };
-
-  // Prefer normalized favicon service first.
-  {
-    uint8_t *buf = nullptr;
-    size_t sz = 0;
-    RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
-    if (rssFetchHttpBinary(String("https://www.google.com/s2/favicons?domain=") + host + "&sz=32", &buf, &sz, &fmt)) {
-      if (acceptCandidate(buf, sz, fmt)) return true;
-    }
-  }
-
-  const bool hasWww = host.startsWith("www.");
-  const String hostW = hasWww ? host : (String("www.") + host);
-  const char *paths[] = {
-      "/favicon.png",
-      "/favicon-32x32.png",
-      "/favicon-96x96.png",
-      "/apple-touch-icon.png",
-      "/apple-touch-icon-precomposed.png",
-      "/favicon.ico"
-  };
-
-  for (const char *p : paths) {
-    uint8_t *buf = nullptr;
-    size_t sz = 0;
-    RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
-    if (rssFetchHttpBinary(String("https://") + host + p, &buf, &sz, &fmt)) {
-      if (acceptCandidate(buf, sz, fmt)) return true;
-    }
-    if (!hasWww && rssFetchHttpBinary(String("https://") + hostW + p, &buf, &sz, &fmt)) {
-      if (acceptCandidate(buf, sz, fmt)) return true;
-    }
-  }
-
-  // Last fallback: resolver-based favicon service when root paths do not expose direct icon files.
-  uint8_t *buf = nullptr;
-  size_t sz = 0;
-  RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
-  if (rssFetchHttpBinary(String("https://www.google.com/s2/favicons?domain=") + host + "&sz=32", &buf, &sz, &fmt)) {
-    if (acceptCandidate(buf, sz, fmt)) return true;
-  }
-
-  // Extra providers often expose PNG even when primary sources return only JPEG.
-  const String faviconProviders[] = {
-      String("https://icon.horse/icon/") + host,
-      String("https://api.faviconkit.com/") + host + "/32",
-      String("https://icons.bitbot.tools/icon?url=") + host + "&size=32",
-      String("https://logo.clearbit.com/") + host,
-      String("https://favicone.com/") + host + "?s=32",
-      String("https://favicon.yandex.net/favicon/") + host
-  };
-  for (const String &url : faviconProviders) {
-    uint8_t *pbuf = nullptr;
-    size_t psz = 0;
-    RssFaviconFormat pfmt = RSS_FAV_FMT_NONE;
-    if (rssFetchHttpBinary(url, &pbuf, &psz, &pfmt)) {
-      if (acceptCandidate(pbuf, psz, pfmt)) return true;
-    }
-  }
-
-  // If icon providers fail on subdomains, retry once with normalized root domain.
-  String rootHost = host;
-  const int lastDot = rootHost.lastIndexOf('.');
-  if (lastDot > 0) {
-    const int prevDot = rootHost.lastIndexOf('.', lastDot - 1);
-    if (prevDot > 0) {
-      const String tld = rootHost.substring(lastDot + 1);
-      const String sld = rootHost.substring(prevDot + 1, lastDot);
-      if (tld.length() == 2 && sld.length() <= 3) {
-        const int prev2 = rootHost.lastIndexOf('.', prevDot - 1);
-        if (prev2 >= 0) rootHost = rootHost.substring(prev2 + 1);
-      } else {
-        rootHost = rootHost.substring(prevDot + 1);
-      }
-    }
-  }
-  if (!rootHost.equalsIgnoreCase(host)) {
-    uint8_t *rbuf = nullptr;
-    size_t rsz = 0;
-    RssFaviconFormat rfmt = RSS_FAV_FMT_NONE;
-    if (rssFetchHttpBinary(String("https://www.google.com/s2/favicons?domain=") + rootHost + "&sz=32", &rbuf, &rsz, &rfmt)) {
-      if (acceptCandidate(rbuf, rsz, rfmt)) return true;
-    }
-    const String rootProviders[] = {
-        String("https://icon.horse/icon/") + rootHost,
-        String("https://api.faviconkit.com/") + rootHost + "/32",
-        String("https://icons.bitbot.tools/icon?url=") + rootHost + "&size=32",
-        String("https://logo.clearbit.com/") + rootHost,
-        String("https://favicone.com/") + rootHost + "?s=32",
-        String("https://favicon.yandex.net/favicon/") + rootHost
-    };
-    for (const String &url : rootProviders) {
-      uint8_t *pbuf = nullptr;
-      size_t psz = 0;
-      RssFaviconFormat pfmt = RSS_FAV_FMT_NONE;
-      if (rssFetchHttpBinary(url, &pbuf, &psz, &pfmt)) {
-        if (acceptCandidate(pbuf, psz, pfmt)) return true;
-      }
-    }
-  }
-
-  if (jpgCandidate) {
-    *outData = jpgCandidate;
-    *outSize = jpgCandidateSize;
-    *outFmt = jpgCandidateFmt;
-    return true;
-  }
-  return false;
-}
-
-static void rssFaviconCachePruneToCurrentFeed(const RssItem *items, uint8_t count) {
-  for (size_t i = 0; i < RSS_FAVICON_CACHE_SIZE; ++i) {
-    RssFaviconCacheEntry &e = g_rssFaviconCache[i];
-    if (!e.valid || !e.domain[0]) continue;
-    bool keep = false;
-    for (uint8_t k = 0; k < count; ++k) {
-      char host[96];
-      if (items[k].link[0]) {
-        extractRssHost(items[k].link, host, sizeof(host));
-        if (host[0] && strcmp(host, e.domain) == 0) {
-          keep = true;
-          break;
-        }
-      }
-      if (items[k].feedSlot < RSS_FEED_SLOT_COUNT) {
-        const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(items[k].feedSlot);
-        if (feed && startsWithHttp(feed->url)) {
-          extractRssHost(feed->url, host, sizeof(host));
-          if (host[0] && strcmp(host, e.domain) == 0) {
-            keep = true;
-            break;
-          }
-        }
-      }
-    }
-    if (!keep) rssFaviconCacheReleaseAt(i);
-  }
-}
-
-static int rssFaviconEnsureDomain(const char *domain) {
-  if (!domain || !domain[0]) return -1;
-  const int idx = rssFaviconCacheAcquire(domain);
-  if (idx < 0) return -1;
-  RssFaviconCacheEntry &e = g_rssFaviconCache[idx];
-  e.lastUsedMs = millis();
-  if (e.ready && e.pngData && e.pngSize > 0) return idx;
-  const uint32_t now = millis();
-  if (e.failed && (now - e.lastAttemptMs) < RSS_FAVICON_RETRY_MS) return idx;
-
-  e.lastAttemptMs = now;
-  uint8_t *png = nullptr;
-  size_t pngSize = 0;
-  RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
-  if (!rssFetchFaviconPng(domain, &png, &pngSize, &fmt)) {
-    e.failed = true;
-    return idx;
-  }
-  if (!rssEnsureJfifForLvglJpeg(&png, &pngSize, fmt)) {
-    if (png) free(png);
-    e.failed = true;
-    return idx;
-  }
-
-  if (e.pngData) free(e.pngData);
-  uint16_t pngW = 0;
-  uint16_t pngH = 0;
-  if (!rssImageReadSize(png, pngSize, fmt, &pngW, &pngH)) {
-    free(png);
-    e.failed = true;
-    return idx;
-  }
-  e.pngData = png;
-  e.pngSize = pngSize;
-  e.pngW = pngW;
-  e.pngH = pngH;
-  e.fmt = fmt;
-  e.ready = true;
-  e.failed = false;
-
-#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-  lv_img_cache_invalidate_src(&g_rssFaviconDsc[idx]);
-  memset(&g_rssFaviconDsc[idx], 0, sizeof(g_rssFaviconDsc[idx]));
-  g_rssFaviconDsc[idx].header.cf = (fmt == RSS_FAV_FMT_PNG) ? LV_IMG_CF_RAW_ALPHA : LV_IMG_CF_RAW;
-  g_rssFaviconDsc[idx].header.w = e.pngW;
-  g_rssFaviconDsc[idx].header.h = e.pngH;
-  g_rssFaviconDsc[idx].data_size = (uint32_t)e.pngSize;
-  g_rssFaviconDsc[idx].data = e.pngData;
-#endif
-  Serial.printf("[RSS] favicon %s fmt=%s bytes=%u %ux%u\n",
-                domain,
-                (fmt == RSS_FAV_FMT_JPG) ? "jpg" : "png",
-                (unsigned)e.pngSize,
-                (unsigned)e.pngW,
-                (unsigned)e.pngH);
-  return idx;
-}
-
-static void rssThumbCacheReleaseAt(size_t idx) {
-  if (idx >= RSS_THUMB_CACHE_SIZE) return;
-  RssThumbCacheEntry &e = g_rssThumbCache[idx];
-  if (e.imgData) {
-    free(e.imgData);
-    e.imgData = nullptr;
-  }
-  e.imgSize = 0;
-  e.imgW = 0;
-  e.imgH = 0;
-  e.fmt = RSS_FAV_FMT_NONE;
-  e.imageUrl[0] = '\0';
-  e.lastAttemptMs = 0;
-  e.lastUsedMs = 0;
-  e.valid = false;
-  e.ready = false;
-  e.failed = false;
-#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-  lv_img_cache_invalidate_src(&g_rssThumbDsc[idx]);
-  memset(&g_rssThumbDsc[idx], 0, sizeof(g_rssThumbDsc[idx]));
-#endif
-}
-
-static int rssThumbCacheFind(const char *imageUrl) {
-  if (!imageUrl || !imageUrl[0]) return -1;
-  for (size_t i = 0; i < RSS_THUMB_CACHE_SIZE; ++i) {
-    const RssThumbCacheEntry &e = g_rssThumbCache[i];
-    if (e.valid && strcmp(e.imageUrl, imageUrl) == 0) return (int)i;
-  }
-  return -1;
-}
-
-static int rssThumbCacheAcquire(const char *imageUrl) {
-  if (!imageUrl || !imageUrl[0]) return -1;
-  const int existing = rssThumbCacheFind(imageUrl);
-  if (existing >= 0) return existing;
-
-  int freeIdx = -1;
-  int oldestIdx = 0;
-  uint32_t oldestAge = 0;
-  const uint32_t now = millis();
-  for (size_t i = 0; i < RSS_THUMB_CACHE_SIZE; ++i) {
-    if (!g_rssThumbCache[i].valid) {
-      freeIdx = (int)i;
-      break;
-    }
-    const uint32_t age = now - g_rssThumbCache[i].lastUsedMs;
-    if ((int)i == 0 || age > oldestAge) {
-      oldestAge = age;
-      oldestIdx = (int)i;
-    }
-  }
-  const int idx = (freeIdx >= 0) ? freeIdx : oldestIdx;
-  if (g_rssThumbCache[idx].valid) rssThumbCacheReleaseAt((size_t)idx);
-  RssThumbCacheEntry &e = g_rssThumbCache[idx];
-  strncpy(e.imageUrl, imageUrl, sizeof(e.imageUrl) - 1);
-  e.imageUrl[sizeof(e.imageUrl) - 1] = '\0';
-  e.valid = true;
-  e.lastUsedMs = now;
-  return idx;
-}
-
-static int rssThumbEnsureUrl(const char *imageUrl) {
-  if (!imageUrl || !imageUrl[0]) return -1;
-  const int idx = rssThumbCacheAcquire(imageUrl);
-  if (idx < 0) return -1;
-  RssThumbCacheEntry &e = g_rssThumbCache[idx];
-  e.lastUsedMs = millis();
-  if (e.ready && e.imgData && e.imgSize > 0) return idx;
-
-  const uint32_t now = millis();
-  if (e.failed && (now - e.lastAttemptMs) < RSS_THUMB_RETRY_MS) return idx;
-  e.lastAttemptMs = now;
-
-  uint8_t *img = nullptr;
-  size_t imgSize = 0;
-  RssFaviconFormat fmt = RSS_FAV_FMT_NONE;
-  bool fetched = false;
-  String fetchUrl = String(imageUrl);
-  String wikiPngUrl;
-  if (rssBuildWikimediaPngThumbUrl(imageUrl, wikiPngUrl)) {
-    if (rssFetchHttpBinaryLimited(wikiPngUrl, RSS_THUMB_MAX_BYTES, &img, &imgSize, &fmt)) {
-      fetched = true;
-      fetchUrl = wikiPngUrl;
-    }
-  }
-  if (!fetched) {
-    if (rssFetchHttpBinaryLimited(String(imageUrl), RSS_THUMB_MAX_BYTES, &img, &imgSize, &fmt)) {
-      fetched = true;
-      fetchUrl = String(imageUrl);
-    }
-  }
-  if (!fetched) {
-    e.failed = true;
-    Serial.printf("[RSS][THUMB][WARN] fetch failed url=%s\n", imageUrl);
-    return idx;
-  }
-  if (!rssEnsureJfifForLvglJpeg(&img, &imgSize, fmt)) {
-    if (img) free(img);
-    e.failed = true;
-    Serial.printf("[RSS][THUMB][WARN] jpeg jfif patch failed fmt=%u url=%s\n",
-                  (unsigned)fmt, fetchUrl.c_str());
-    return idx;
-  }
-
-  uint16_t imgW = 0;
-  uint16_t imgH = 0;
-  if (!rssImageReadSize(img, imgSize, fmt, &imgW, &imgH)) {
-    free(img);
-    e.failed = true;
-    Serial.printf("[RSS][THUMB][WARN] decode size failed fmt=%u bytes=%u url=%s\n",
-                  (unsigned)fmt, (unsigned)imgSize, fetchUrl.c_str());
-    return idx;
-  }
-
-  if (e.imgData) free(e.imgData);
-  e.imgData = img;
-  e.imgSize = imgSize;
-  e.imgW = imgW;
-  e.imgH = imgH;
-  e.fmt = fmt;
-  e.ready = true;
-  e.failed = false;
-
-#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-  lv_img_cache_invalidate_src(&g_rssThumbDsc[idx]);
-  memset(&g_rssThumbDsc[idx], 0, sizeof(g_rssThumbDsc[idx]));
-  g_rssThumbDsc[idx].header.cf = (fmt == RSS_FAV_FMT_PNG) ? LV_IMG_CF_RAW_ALPHA : LV_IMG_CF_RAW;
-  g_rssThumbDsc[idx].header.w = e.imgW;
-  g_rssThumbDsc[idx].header.h = e.imgH;
-  g_rssThumbDsc[idx].data_size = (uint32_t)e.imgSize;
-  g_rssThumbDsc[idx].data = e.imgData;
-#endif
-  Serial.printf("[RSS] thumb bytes=%u %ux%u %s\n",
-                (unsigned)e.imgSize,
-                (unsigned)e.imgW,
-                (unsigned)e.imgH,
-                fetchUrl.c_str());
-  return idx;
-}
-
-static void rssThumbCachePruneToCurrentFeed(const RssItem *items, uint8_t count) {
-  for (size_t i = 0; i < RSS_THUMB_CACHE_SIZE; ++i) {
-    RssThumbCacheEntry &e = g_rssThumbCache[i];
-    if (!e.valid || !e.imageUrl[0]) continue;
-    bool keep = false;
-    for (uint8_t k = 0; k < count; ++k) {
-      if (items[k].imageUrl[0] && strcmp(items[k].imageUrl, e.imageUrl) == 0) {
-        keep = true;
-        break;
-      }
-    }
-    if (!keep) rssThumbCacheReleaseAt(i);
-  }
-}
-
 static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint8_t cap, int *httpCodeOut) {
   if (httpCodeOut) *httpCodeOut = -1;
   if (!feedUrl || !feedUrl[0] || !outItems || cap == 0) return 0;
@@ -6642,8 +5905,6 @@ static bool updateRssFromFeed(bool force) {
     }
   }
   rssShortCacheRetainCurrentFeedLinks(g_rss.items, count);
-  rssFaviconCachePruneToCurrentFeed(g_rss.items, count);
-  rssThumbCachePruneToCurrentFeed(g_rss.items, count);
   if (count < RSS_MAX_ITEMS) {
     for (uint8_t i = count; i < RSS_MAX_ITEMS; ++i) {
       g_rss.items[i].title[0] = '\0';
@@ -6661,8 +5922,6 @@ static bool updateRssFromFeed(bool force) {
   }
   g_rss.currentIndex = 0;
   g_rss.lastRotateMs = now;
-  g_rssThumbPreloadIndex = 0;
-  g_rssThumbPreloadLastMs = 0;
   g_rss.valid = true;
   g_rss.lastFetchMs = now;
   if (changed) {
@@ -6766,10 +6025,6 @@ static bool updateWikiFromFeed(bool force) {
   g_wiki.valid = true;
   g_wiki.lastFetchMs = now;
   g_wikiMetaPreloadLastMs = 0;
-  g_wikiThumbPreloadIndex = 0;
-  g_wikiThumbPreloadLastMs = 0;
-  g_wikiFaviconPreloadIndex = 0;
-  g_wikiFaviconPreloadLastMs = 0;
   if (changed && g_uiPageMode == UI_PAGE_WIKI) {
     g_lvglAuxLastItemShown = -1;
     g_lvglAuxLastQrPayload[0] = '\0';
@@ -6864,86 +6119,6 @@ static bool wikiAdvanceToNextItem() {
   return contentAdvanceToNextItem(g_wiki);
 }
 
-static void rssPreloadFaviconStep() {
-  if (!g_rss.valid || g_rss.itemCount == 0) return;
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
-
-  const uint32_t now = millis();
-  if ((now - g_rssFaviconPreloadLastMs) < 2200UL) return;
-  g_rssFaviconPreloadLastMs = now;
-
-  for (uint8_t tries = 0; tries < g_rss.itemCount; ++tries) {
-    const uint8_t idx = (uint8_t)((g_rssFaviconPreloadIndex + tries) % g_rss.itemCount);
-    char host[96];
-    rssResolveSourceHost(g_rss.items[idx], host, sizeof(host));
-    if (!host[0] || strcmp(host, "unknown") == 0) continue;
-    const int cacheIdx = rssFaviconCacheFind(host);
-    const bool ready = (cacheIdx >= 0) &&
-                       g_rssFaviconCache[cacheIdx].ready &&
-                       g_rssFaviconCache[cacheIdx].pngData &&
-                       g_rssFaviconCache[cacheIdx].pngSize > 0;
-    if (!ready) {
-      (void)rssFaviconEnsureDomain(host);
-      g_rssFaviconPreloadIndex = (uint8_t)((idx + 1) % g_rss.itemCount);
-      return;
-    }
-  }
-  g_rssFaviconPreloadIndex = (uint8_t)((g_rssFaviconPreloadIndex + 1) % g_rss.itemCount);
-}
-
-static void rssPreloadThumbStep() {
-  if (!g_rss.valid || g_rss.itemCount == 0) return;
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
-
-  const uint32_t now = millis();
-  if ((now - g_rssThumbPreloadLastMs) < 2400UL) return;
-  g_rssThumbPreloadLastMs = now;
-
-  for (uint8_t tries = 0; tries < g_rss.itemCount; ++tries) {
-    const uint8_t idx = (uint8_t)((g_rssThumbPreloadIndex + tries) % g_rss.itemCount);
-    RssItem &item = g_rss.items[idx];
-    if (!item.imageUrl[0]) continue;
-    const int cacheIdx = rssThumbCacheFind(item.imageUrl);
-    const bool ready = (cacheIdx >= 0) &&
-                       g_rssThumbCache[cacheIdx].ready &&
-                       g_rssThumbCache[cacheIdx].imgData &&
-                       g_rssThumbCache[cacheIdx].imgSize > 0;
-    if (!ready) {
-      (void)rssThumbEnsureUrl(item.imageUrl);
-      g_rssThumbPreloadIndex = (uint8_t)((idx + 1) % g_rss.itemCount);
-      return;
-    }
-  }
-  g_rssThumbPreloadIndex = (uint8_t)((g_rssThumbPreloadIndex + 1) % g_rss.itemCount);
-}
-
-static void wikiPreloadFaviconStep() {
-  if (!g_wiki.valid || g_wiki.itemCount == 0) return;
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
-
-  const uint32_t now = millis();
-  if ((now - g_wikiFaviconPreloadLastMs) < 2200UL) return;
-  g_wikiFaviconPreloadLastMs = now;
-
-  for (uint8_t tries = 0; tries < g_wiki.itemCount; ++tries) {
-    const uint8_t idx = (uint8_t)((g_wikiFaviconPreloadIndex + tries) % g_wiki.itemCount);
-    char host[96];
-    extractRssHost(g_wiki.items[idx].link, host, sizeof(host));
-    if (!host[0] || strcmp(host, "unknown") == 0) continue;
-    const int cacheIdx = rssFaviconCacheFind(host);
-    const bool ready = (cacheIdx >= 0) &&
-                       g_rssFaviconCache[cacheIdx].ready &&
-                       g_rssFaviconCache[cacheIdx].pngData &&
-                       g_rssFaviconCache[cacheIdx].pngSize > 0;
-    if (!ready) {
-      (void)rssFaviconEnsureDomain(host);
-      g_wikiFaviconPreloadIndex = (uint8_t)((idx + 1) % g_wiki.itemCount);
-      return;
-    }
-  }
-  g_wikiFaviconPreloadIndex = (uint8_t)((g_wikiFaviconPreloadIndex + 1) % g_wiki.itemCount);
-}
-
 static void wikiPreloadMetaStep() {
   if (!g_wiki.valid || g_wiki.itemCount == 0) return;
   if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
@@ -6969,33 +6144,6 @@ static void wikiPreloadMetaStep() {
     }
   }
 }
-
-static void wikiPreloadThumbStep() {
-  if (!g_wiki.valid || g_wiki.itemCount == 0) return;
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
-
-  const uint32_t now = millis();
-  if ((now - g_wikiThumbPreloadLastMs) < 2400UL) return;
-  g_wikiThumbPreloadLastMs = now;
-
-  for (uint8_t tries = 0; tries < g_wiki.itemCount; ++tries) {
-    const uint8_t idx = (uint8_t)((g_wikiThumbPreloadIndex + tries) % g_wiki.itemCount);
-    RssItem &item = g_wiki.items[idx];
-    if (!item.imageUrl[0]) continue;
-    const int cacheIdx = rssThumbCacheFind(item.imageUrl);
-    const bool ready = (cacheIdx >= 0) &&
-                       g_rssThumbCache[cacheIdx].ready &&
-                       g_rssThumbCache[cacheIdx].imgData &&
-                       g_rssThumbCache[cacheIdx].imgSize > 0;
-    if (!ready) {
-      (void)rssThumbEnsureUrl(item.imageUrl);
-      g_wikiThumbPreloadIndex = (uint8_t)((idx + 1) % g_wiki.itemCount);
-      return;
-    }
-  }
-  g_wikiThumbPreloadIndex = (uint8_t)((g_wikiThumbPreloadIndex + 1) % g_wiki.itemCount);
-}
-
 // Keep Wiki visuals progressing even while user stays on WIKI view.
 // Runs one lightweight preload action per tick on the currently visible item.
 static void wikiPreloadVisibleItemStep() {
@@ -7020,39 +6168,6 @@ static void wikiPreloadVisibleItemStep() {
     return;
   }
 
-  // 2) Ensure hero thumbnail for the visible item (one HTTP call max).
-  if (item.imageUrl[0]) {
-    int cacheIdx = rssThumbCacheFind(item.imageUrl);
-    bool thumbReady = (cacheIdx >= 0) &&
-                      g_rssThumbCache[cacheIdx].ready &&
-                      g_rssThumbCache[cacheIdx].imgData &&
-                      g_rssThumbCache[cacheIdx].imgSize > 0;
-    if (!thumbReady) {
-      cacheIdx = rssThumbEnsureUrl(item.imageUrl);
-      thumbReady = (cacheIdx >= 0) &&
-                  g_rssThumbCache[cacheIdx].ready &&
-                  g_rssThumbCache[cacheIdx].imgData &&
-                  g_rssThumbCache[cacheIdx].imgSize > 0;
-      if (thumbReady) {
-#if TEST_NTP
-        g_uiNeedsRedraw = true;
-#endif
-      }
-      return;
-    }
-  }
-
-  // 3) Favicon for source badge/icon.
-  char host[96];
-  extractRssHost(item.link, host, sizeof(host));
-  if (host[0] && strcmp(host, "unknown") != 0) {
-    const int faviconIdx = rssFaviconCacheFind(host);
-    const bool faviconReady = (faviconIdx >= 0) &&
-                              g_rssFaviconCache[faviconIdx].ready &&
-                              g_rssFaviconCache[faviconIdx].pngData &&
-                              g_rssFaviconCache[faviconIdx].pngSize > 0;
-    if (!faviconReady) (void)rssFaviconEnsureDomain(host);
-  }
 }
 
 static void runRssShortenerDiag() {
@@ -7448,7 +6563,7 @@ static int8_t uiPageOrdinal(UiPageMode mode) {
     case UI_PAGE_INFO: return 0;
     case UI_PAGE_HOME: return 1;
     case UI_PAGE_AUX: return 2;
-    case UI_PAGE_WIKI: return 2;
+    case UI_PAGE_WIKI: return 3;
     default: return 1;
   }
 }
@@ -7456,7 +6571,8 @@ static int8_t uiPageOrdinal(UiPageMode mode) {
 static UiPageMode uiPageFromOrdinal(int8_t ord) {
   if (ord <= 0) return UI_PAGE_INFO;
   if (ord == 1) return UI_PAGE_HOME;
-  return UI_PAGE_AUX;
+  if (ord == 2) return UI_PAGE_AUX;
+  return UI_PAGE_WIKI;
 }
 
 static void setUiPage(UiPageMode mode);
@@ -7464,7 +6580,7 @@ static void setUiPage(UiPageMode mode);
 static bool stepUiPage(int8_t delta, bool wrap) {
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
   int8_t next = (int8_t)(cur + delta);
-  constexpr int8_t kMaxPageOrd = 2;
+  constexpr int8_t kMaxPageOrd = 3;
   if (wrap) {
     if (next < 0) next = kMaxPageOrd;
     if (next > kMaxPageOrd) next = 0;
@@ -7509,9 +6625,9 @@ static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y) {
 }
 
 static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y) {
-  if (!g_lvglAuxHeroFrame) return false;
-  if (lv_obj_has_flag(g_lvglAuxHeroFrame, LV_OBJ_FLAG_HIDDEN)) return false;
-  return lvglContainsPoint(g_lvglAuxHeroFrame, x, y);
+  (void)x;
+  (void)y;
+  return false;
 }
 
 static bool lvglAuxQrModalIsOpen() {
@@ -7941,7 +7057,6 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_set_style_border_opa(g_lvglAuxSourceBadge, LV_OPA_70, LV_PART_MAIN);
     lv_obj_set_style_radius(g_lvglAuxSourceBadge, badgeRadius, LV_PART_MAIN);
   }
-  if (g_lvglAuxSourceIcon) lv_obj_set_style_radius(g_lvglAuxSourceIcon, badgeRadius, LV_PART_MAIN);
   if (g_lvglAuxNextFeedBtn) lv_obj_set_style_radius(g_lvglAuxNextFeedBtn, buttonRadius, LV_PART_MAIN);
   if (g_lvglAuxRefreshBtn) lv_obj_set_style_radius(g_lvglAuxRefreshBtn, buttonRadius, LV_PART_MAIN);
   if (g_lvglAuxQrBtn) lv_obj_set_style_radius(g_lvglAuxQrBtn, buttonRadius, LV_PART_MAIN);
@@ -8975,15 +8090,7 @@ static void handleTouchSwipeInput() {
     if (durMs <= 3000 && pageSwipe && ((millis() - g_lastSwipeToggleMs) >= 140)) {
       const int8_t dir = (dx < 0) ? 1 : -1;
       bool moved = false;
-      if (dir > 0 && g_uiPageMode == UI_PAGE_AUX) {
-        setUiPage(UI_PAGE_WIKI);
-        moved = true;
-      } else if (dir < 0 && g_uiPageMode == UI_PAGE_WIKI) {
-        setUiPage(UI_PAGE_AUX);
-        moved = true;
-      } else {
-        moved = stepUiPage(dir, false);
-      }
+      moved = stepUiPage(dir, false);
       g_lastSwipeToggleMs = millis();
       g_touchAwaitRelease = true;
       g_touchReleaseStartMs = 0;
@@ -9016,15 +8123,7 @@ static void handleTouchSwipeInput() {
   if (pageSwipe) {
     const int8_t dir = (dx < 0) ? 1 : -1;
     bool moved = false;
-    if (dir > 0 && g_uiPageMode == UI_PAGE_AUX) {
-      setUiPage(UI_PAGE_WIKI);
-      moved = true;
-    } else if (dir < 0 && g_uiPageMode == UI_PAGE_WIKI) {
-      setUiPage(UI_PAGE_AUX);
-      moved = true;
-    } else {
-      moved = stepUiPage(dir, false);
-    }
+    moved = stepUiPage(dir, false);
     g_lastSwipeToggleMs = millis();
     g_touchAwaitRelease = true;
     g_touchReleaseStartMs = 0;
@@ -10838,11 +9937,6 @@ static void lvglUpdateAuxRss(bool force) {
   uint32_t siteColorHex = 0x2B468E;
   uint32_t siteTextHex = 0xFFFFFF;
   bool sourceLineSet = false;
-  int faviconIdx = -1;
-  bool faviconReady = false;
-  int thumbIdx = -1;
-  bool thumbReady = false;
-  bool thumbVisible = false;
   title3[0] = '\0';
   whenLine[0] = '\0';
   status[0] = '\0';
@@ -10945,62 +10039,6 @@ static void lvglUpdateAuxRss(bool force) {
 #endif
 
   if (!sourceLineSet) snprintf(sourceLine, sizeof(sourceLine), "%s", siteShort);
-  if (siteHost[0]) {
-    faviconIdx = rssFaviconCacheFind(siteHost);
-    faviconReady = (faviconIdx >= 0) &&
-                   g_rssFaviconCache[faviconIdx].ready &&
-                   (g_rssFaviconCache[faviconIdx].pngData != nullptr) &&
-                   (g_rssFaviconCache[faviconIdx].pngSize > 0);
-  }
-  if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
-    const RssItem &item = content.items[showIndex];
-    if (item.imageUrl[0]) {
-      thumbIdx = rssThumbCacheFind(item.imageUrl);
-      thumbReady = (thumbIdx >= 0) &&
-                   g_rssThumbCache[thumbIdx].ready &&
-                   (g_rssThumbCache[thumbIdx].imgData != nullptr) &&
-                   (g_rssThumbCache[thumbIdx].imgSize > 0);
-    }
-  }
-  thumbVisible = thumbReady && g_lvglAuxHeroFrame && g_lvglAuxHeroImg;
-
-  if (g_lvglAuxNews && g_lvglAuxNewsBaseW > 0 && g_lvglAuxNewsBaseH > 0) {
-    if (thumbVisible) {
-      int16_t compactW = g_lvglAuxNewsBaseW - g_lvglAuxHeroW - 8;
-      if (compactW < 96) compactW = 96;
-      lv_obj_set_pos(g_lvglAuxNews, g_lvglAuxNewsBaseX, g_lvglAuxNewsBaseY);
-      lv_obj_set_size(g_lvglAuxNews, compactW, g_lvglAuxNewsBaseH);
-    } else {
-      lv_obj_set_pos(g_lvglAuxNews, g_lvglAuxNewsBaseX, g_lvglAuxNewsBaseY);
-      lv_obj_set_size(g_lvglAuxNews, g_lvglAuxNewsBaseW, g_lvglAuxNewsBaseH);
-    }
-  }
-
-  if (g_lvglAuxHeroFrame) {
-    if (thumbVisible) {
-      lv_obj_clear_flag(g_lvglAuxHeroFrame, LV_OBJ_FLAG_HIDDEN);
-      if (g_lvglAuxHeroImg) {
-        lv_img_set_src(g_lvglAuxHeroImg, &g_rssThumbDsc[thumbIdx]);
-        lv_obj_clear_flag(g_lvglAuxHeroImg, LV_OBJ_FLAG_HIDDEN);
-        const uint16_t w = g_rssThumbCache[thumbIdx].imgW ? g_rssThumbCache[thumbIdx].imgW : (uint16_t)g_lvglAuxHeroW;
-        const uint16_t h = g_rssThumbCache[thumbIdx].imgH ? g_rssThumbCache[thumbIdx].imgH : (uint16_t)g_lvglAuxHeroH;
-        uint16_t z = 256;
-        if (g_rssThumbCache[thumbIdx].fmt != RSS_FAV_FMT_JPG) {
-          uint32_t zx = ((uint32_t)g_lvglAuxHeroW * 256UL) / w;
-          uint32_t zy = ((uint32_t)g_lvglAuxHeroH * 256UL) / h;
-          z = (uint16_t)((zx < zy) ? zx : zy);
-          if (z < 72) z = 72;
-          if (z > 1024) z = 1024;
-        }
-        lv_img_set_zoom(g_lvglAuxHeroImg, z);
-        lv_obj_center(g_lvglAuxHeroImg);
-      }
-    } else {
-      lv_obj_add_flag(g_lvglAuxHeroFrame, LV_OBJ_FLAG_HIDDEN);
-      if (g_lvglAuxHeroImg) lv_obj_add_flag(g_lvglAuxHeroImg, LV_OBJ_FLAG_HIDDEN);
-    }
-  }
-
   if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
     buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3), includeTitleInBody);
   }
@@ -11018,25 +10056,7 @@ static void lvglUpdateAuxRss(bool force) {
 
   lv_label_set_text(g_lvglAuxNews, title3);
   lvglForceLabelVisible(g_lvglAuxNews);
-  if (g_lvglAuxSourceIcon) {
-    if (faviconReady) {
-      lv_img_set_src(g_lvglAuxSourceIcon, &g_rssFaviconDsc[faviconIdx]);
-      lv_obj_clear_flag(g_lvglAuxSourceIcon, LV_OBJ_FLAG_HIDDEN);
-      const uint16_t w = g_rssFaviconCache[faviconIdx].pngW ? g_rssFaviconCache[faviconIdx].pngW : 32;
-      const uint16_t h = g_rssFaviconCache[faviconIdx].pngH ? g_rssFaviconCache[faviconIdx].pngH : 32;
-      const uint16_t target = 35;
-      uint32_t zx = (target * 256UL) / w;
-      uint32_t zy = (target * 256UL) / h;
-      uint16_t z = (uint16_t)((zx < zy) ? zx : zy);
-      if (z < 96) z = 96;
-      if (z > 1024) z = 1024;
-      lv_img_set_zoom(g_lvglAuxSourceIcon, z);
-      if (g_lvglAuxSourceBadge) lv_obj_add_flag(g_lvglAuxSourceBadge, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_add_flag(g_lvglAuxSourceIcon, LV_OBJ_FLAG_HIDDEN);
-      if (g_lvglAuxSourceBadge) lv_obj_clear_flag(g_lvglAuxSourceBadge, LV_OBJ_FLAG_HIDDEN);
-    }
-  }
+  if (g_lvglAuxSourceBadge) lv_obj_clear_flag(g_lvglAuxSourceBadge, LV_OBJ_FLAG_HIDDEN);
   if (g_lvglAuxSourceSite) {
     lv_label_set_text(g_lvglAuxSourceSite, sourceWithWhen);
     lvglForceLabelVisible(g_lvglAuxSourceSite);
@@ -11125,7 +10145,7 @@ static void lvglSetObjXAnim(void *obj, int32_t x) {
 }
 
 static bool lvglApplyPageDrag(int16_t dragDx) {
-  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot) return false;
+  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot) return false;
 
   int32_t dx = dragDx;
   const int16_t w = canvasWidth();
@@ -11134,21 +10154,24 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   if (dx < -w) dx = -w;
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
   // Edge damping when dragging past first/last page.
-  if ((cur == 0 && dx > 0) || (cur == 2 && dx < 0)) dx /= 3;
+  if ((cur == 0 && dx > 0) || (cur == 3 && dx < 0)) dx /= 3;
 
   lv_anim_del(g_lvglInfoRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
+  lv_anim_del(g_lvglWikiRoot, lvglSetObjXAnim);
   g_lvglPageAnimUntilMs = 0;
   g_lvglPageDragActive = true;
 
   lv_obj_clear_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_clear_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
 
   lv_obj_set_pos(g_lvglInfoRoot, (lv_coord_t)(((0 - cur) * w) + dx), 0);
   lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)(((1 - cur) * w) + dx), 0);
   lv_obj_set_pos(g_lvglAuxRoot, (lv_coord_t)(((2 - cur) * w) + dx), 0);
+  lv_obj_set_pos(g_lvglWikiRoot, (lv_coord_t)(((3 - cur) * w) + dx), 0);
   return true;
 }
 
@@ -11166,18 +10189,20 @@ static void lvglStartSlideAnim(lv_obj_t *obj, int32_t fromX, int32_t toX, uint16
 }
 
 static void lvglApplyPageVisibility(bool animate) {
-  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot) return;
+  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot) return;
 
   const int16_t w = canvasWidth();
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
   const int32_t infoTargetX = (0 - cur) * w;
   const int32_t homeTargetX = (1 - cur) * w;
-  const int32_t auxTargetX = (2 - cur) * w;
+  const int32_t auxTargetX  = (2 - cur) * w;
+  const int32_t wikiTargetX = (3 - cur) * w;
   const uint32_t now = millis();
 
   lv_obj_clear_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_clear_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
 
   if (!animate) {
     if (g_lvglPageDragActive) return;
@@ -11186,16 +10211,20 @@ static void lvglApplyPageVisibility(bool animate) {
     const bool infoOk = (lv_obj_get_x(g_lvglInfoRoot) == (lv_coord_t)infoTargetX);
     const bool homeOk = (lv_obj_get_x(g_lvglHomeRoot) == (lv_coord_t)homeTargetX);
     const bool auxOk  = (lv_obj_get_x(g_lvglAuxRoot)  == (lv_coord_t)auxTargetX);
-    if (infoOk && homeOk && auxOk) return;
+    const bool wikiOk = (lv_obj_get_x(g_lvglWikiRoot) == (lv_coord_t)wikiTargetX);
+    if (infoOk && homeOk && auxOk && wikiOk) return;
     lv_anim_del(g_lvglInfoRoot, lvglSetObjXAnim);
     lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
     lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
+    lv_anim_del(g_lvglWikiRoot, lvglSetObjXAnim);
     if (!infoOk) lv_obj_set_pos(g_lvglInfoRoot, (lv_coord_t)infoTargetX, 0);
     if (!homeOk) lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)homeTargetX, 0);
     if (!auxOk)  lv_obj_set_pos(g_lvglAuxRoot,  (lv_coord_t)auxTargetX, 0);
+    if (!wikiOk) lv_obj_set_pos(g_lvglWikiRoot, (lv_coord_t)wikiTargetX, 0);
     if (abs(infoTargetX) > w) lv_obj_add_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
     if (abs(homeTargetX) > w) lv_obj_add_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
-    if (abs(auxTargetX) > w) lv_obj_add_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
+    if (abs(auxTargetX)  > w) lv_obj_add_flag(g_lvglAuxRoot,  LV_OBJ_FLAG_HIDDEN);
+    if (abs(wikiTargetX) > w) lv_obj_add_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
     g_lvglPageDragActive = false;
     return;
   }
@@ -11203,10 +10232,12 @@ static void lvglApplyPageVisibility(bool animate) {
   constexpr uint16_t kSlideMs = 250;
   const int32_t infoFromX = lv_obj_get_x(g_lvglInfoRoot);
   const int32_t homeFromX = lv_obj_get_x(g_lvglHomeRoot);
-  const int32_t auxFromX = lv_obj_get_x(g_lvglAuxRoot);
+  const int32_t auxFromX  = lv_obj_get_x(g_lvglAuxRoot);
+  const int32_t wikiFromX = lv_obj_get_x(g_lvglWikiRoot);
   lvglStartSlideAnim(g_lvglInfoRoot, infoFromX, infoTargetX, kSlideMs);
   lvglStartSlideAnim(g_lvglHomeRoot, homeFromX, homeTargetX, kSlideMs);
-  lvglStartSlideAnim(g_lvglAuxRoot, auxFromX, auxTargetX, kSlideMs);
+  lvglStartSlideAnim(g_lvglAuxRoot,  auxFromX,  auxTargetX,  kSlideMs);
+  lvglStartSlideAnim(g_lvglWikiRoot, wikiFromX, wikiTargetX, kSlideMs);
   g_lvglPageDragActive = false;
   g_lvglPageAnimUntilMs = now + kSlideMs + 30;
 }
@@ -12201,6 +11232,37 @@ static bool initLvglUi() {
   lv_obj_clear_flag(g_lvglAuxRoot, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(g_lvglAuxRoot, LV_SCROLLBAR_MODE_OFF);
 
+  // Wiki page root — positioned at ordinal 3 (one screen-width to the right of AUX)
+  g_lvglWikiRoot = lv_obj_create(scr);
+  lv_obj_set_size(g_lvglWikiRoot, cW, cH);
+  lv_obj_set_pos(g_lvglWikiRoot, cW, 0);  // starts offscreen right
+  lv_obj_set_style_radius(g_lvglWikiRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglWikiRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglWikiRoot, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglWikiRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_lvglWikiRoot, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglWikiRoot, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(g_lvglWikiRoot, LV_SCROLLBAR_MODE_OFF);
+
+  // Wiki placeholder card (full Wiki deck will be added in a future pass)
+  {
+    lv_obj_t *wikiCard = lv_obj_create(g_lvglWikiRoot);
+    lv_obj_set_size(wikiCard, cW, cH);
+    lv_obj_set_pos(wikiCard, 0, 0);
+    lv_obj_set_style_radius(wikiCard, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(wikiCard, 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(wikiCard, lv_color_hex(activeUiTheme().lvgl.panelBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(wikiCard, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(wikiCard, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(wikiCard, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(wikiCard, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *wikiLabel = lv_label_create(wikiCard);
+    lv_obj_set_style_text_font(wikiLabel, lvglFontSmall(), 0);
+    lv_obj_set_style_text_color(wikiLabel, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
+    lv_label_set_text(wikiLabel, "WIKI");
+    lv_obj_center(wikiLabel);
+  }
+
   g_lvglAuxCard = lv_obj_create(g_lvglAuxRoot);
   lv_obj_set_size(g_lvglAuxCard, cW - (outerPadX * 2), cH - (outerPadY * 2));
   lv_obj_set_pos(g_lvglAuxCard, outerPadX, outerPadY);
@@ -12351,13 +11413,6 @@ static bool initLvglUi() {
   lv_obj_center(g_lvglAuxSourceBadgeText);
   lvglForceLabelVisible(g_lvglAuxSourceBadgeText);
 
-  g_lvglAuxSourceIcon = lv_img_create(g_lvglAuxCard);
-  lv_obj_set_pos(g_lvglAuxSourceIcon, sourceIconX, sourceRowY);
-  lv_obj_set_style_radius(g_lvglAuxSourceIcon, kBadgeRadius, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglAuxSourceIcon, true, LV_PART_MAIN);
-  lv_obj_add_flag(g_lvglAuxSourceIcon, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglAuxSourceIcon, LV_OBJ_FLAG_SCROLLABLE);
-
   g_lvglAuxSourceSite = lv_label_create(g_lvglAuxCard);
   lv_obj_set_style_text_font(g_lvglAuxSourceSite, lvglFontMeta(), 0);
   lv_obj_set_style_text_color(g_lvglAuxSourceSite, lv_color_hex(0xEAF0FF), 0);
@@ -12399,32 +11454,6 @@ static bool initLvglUi() {
   lv_obj_set_style_text_align(g_lvglAuxNews, LV_TEXT_ALIGN_LEFT, 0);
   lv_label_set_text(g_lvglAuxNews, activeUiStrings()->rssSyncing);
   lvglForceLabelVisible(g_lvglAuxNews);
-  g_lvglAuxNewsBaseX = leftPaneX;
-  g_lvglAuxNewsBaseY = newsY;
-  g_lvglAuxNewsBaseW = leftPaneW;
-  g_lvglAuxNewsBaseH = newsH;
-  g_lvglAuxHeroW = heroW;
-  g_lvglAuxHeroH = heroH;
-
-  g_lvglAuxHeroFrame = lv_obj_create(g_lvglAuxCard);
-  lv_obj_set_size(g_lvglAuxHeroFrame, heroW, heroH);
-  lv_obj_set_pos(g_lvglAuxHeroFrame, heroX, heroY);
-  lv_obj_set_style_bg_color(g_lvglAuxHeroFrame, lv_color_hex(0x14213D), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxHeroFrame, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxHeroFrame, 1, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_lvglAuxHeroFrame, lv_color_hex(0x253764), LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglAuxHeroFrame, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxHeroFrame, kBadgeRadius, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglAuxHeroFrame, true, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglAuxHeroFrame, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglAuxHeroFrame, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_flag(g_lvglAuxHeroFrame, LV_OBJ_FLAG_HIDDEN);
-
-  g_lvglAuxHeroImg = lv_img_create(g_lvglAuxHeroFrame);
-  lv_obj_center(g_lvglAuxHeroImg);
-  lv_obj_add_flag(g_lvglAuxHeroImg, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglAuxHeroImg, LV_OBJ_FLAG_SCROLLABLE);
-
   g_lvglAuxMeta = lv_label_create(g_lvglAuxHeader);
   lv_obj_set_style_text_font(g_lvglAuxMeta, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_lvglAuxMeta, lv_color_hex(0xAFC2F5), 0);
@@ -13725,11 +12754,7 @@ void setup() {
 #if TEST_WIFI && RSS_ENABLED
     updateRssFromFeed(false);  // preload RSS once at boot while still on HOME
     updateWikiFromFeed(false); // preload WIKI once at boot while still on HOME
-    rssPreloadFaviconStep();
-    rssPreloadThumbStep();
     wikiPreloadMetaStep();
-    wikiPreloadFaviconStep();
-    wikiPreloadThumbStep();
 #endif
   } else {
     Serial.println("[NTP] WiFi non ancora connesso: sync deferred in loop.");
@@ -13791,27 +12816,19 @@ void loop() {
   if (!uiPageUsesAuxDeck(g_uiPageMode)) {
     updateRssFromFeed(false);   // background preload/refresh outside AUX/WIKI to avoid swipe stalls
     updateWikiFromFeed(false);  // background preload/refresh outside AUX/WIKI to avoid swipe stalls
-    rssPreloadFaviconStep();
-    rssPreloadThumbStep();
     wikiPreloadMetaStep();
-    wikiPreloadFaviconStep();
-    wikiPreloadThumbStep();
   } else if (g_uiPageMode == UI_PAGE_AUX) {
     // Keep RSS alive even if user stays on AUX for long periods.
     updateRssFromFeed(false);
   } else if (g_uiPageMode == UI_PAGE_WIKI) {
     // Keep Wiki feed refreshing even while user is pinned to WIKI view.
     updateWikiFromFeed(false);
-    wikiPreloadVisibleItemStep();  // keep current Wiki card (summary/image/icon) loading while staying on WIKI
+    wikiPreloadVisibleItemStep();  // keep current Wiki card (text summary) enriched while staying on WIKI
   }
 #else
   updateRssFromFeed(false);
   updateWikiFromFeed(false);
-  rssPreloadFaviconStep();
-  rssPreloadThumbStep();
   wikiPreloadMetaStep();
-  wikiPreloadFaviconStep();
-  wikiPreloadThumbStep();
 #endif
 #endif
   handleTouchSwipeInput();
