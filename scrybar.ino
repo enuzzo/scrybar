@@ -839,7 +839,6 @@ static lv_obj_t *g_lvglAuxNextFeedBtnText = nullptr;
 static lv_obj_t *g_lvglAuxSourceBadge = nullptr;
 static lv_obj_t *g_lvglAuxSourceBadgeText = nullptr;
 static lv_obj_t *g_lvglAuxSourceSite = nullptr;
-static lv_obj_t *g_lvglAuxWhen = nullptr;
 static lv_obj_t *g_lvglAuxNews = nullptr;
 static lv_obj_t *g_lvglAuxMeta = nullptr;
 static lv_obj_t *g_lvglAuxQrOverlay = nullptr;
@@ -865,7 +864,6 @@ static lv_obj_t *g_lvglWikiNextFeedBtnText = nullptr;
 static lv_obj_t *g_lvglWikiSourceBadge     = nullptr;
 static lv_obj_t *g_lvglWikiSourceBadgeText = nullptr;
 static lv_obj_t *g_lvglWikiSourceSite      = nullptr;
-static lv_obj_t *g_lvglWikiWhen            = nullptr;
 static lv_obj_t *g_lvglWikiNews            = nullptr;
 static lv_obj_t *g_lvglWikiMeta            = nullptr;
 static lv_obj_t *g_lvglWikiQrOverlay       = nullptr;
@@ -6601,7 +6599,9 @@ static void lvglSetFeedNextFeedButtonPressed(bool pressed);
 static void lvglUpdateWikiDeck(bool force);
 #endif
 
-static bool uiPageUsesAuxDeck(UiPageMode mode) {
+// Returns true for pages that have a feed deck (AUX/RSS and WIKI).
+// Used only for drag/swipe guards — not for interactive logic.
+static bool uiPageIsFeedDeck(UiPageMode mode) {
   return (mode == UI_PAGE_AUX) || (mode == UI_PAGE_WIKI);
 }
 
@@ -7257,7 +7257,6 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   }
   if (g_lvglAuxSourceBadgeText) lv_obj_set_style_text_color(g_lvglAuxSourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
   if (g_lvglAuxSourceSite) lv_obj_set_style_text_color(g_lvglAuxSourceSite, lv_color_hex(t.auxSourceText), 0);
-  if (g_lvglAuxWhen) lv_obj_set_style_text_color(g_lvglAuxWhen, lv_color_hex(t.auxWhenText), 0);
   if (g_lvglAuxNews) lv_obj_set_style_text_color(g_lvglAuxNews, lv_color_hex(t.auxText), 0);
   if (g_lvglAuxQrOverlay) lv_obj_set_style_bg_color(g_lvglAuxQrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
   if (g_lvglAuxQrHint) lv_obj_set_style_text_color(g_lvglAuxQrHint, lv_color_hex(t.auxQrHint), 0);
@@ -7295,7 +7294,6 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   }
   if (g_lvglWikiSourceBadgeText) lv_obj_set_style_text_color(g_lvglWikiSourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
   if (g_lvglWikiSourceSite) lv_obj_set_style_text_color(g_lvglWikiSourceSite, lv_color_hex(t.auxSourceText), 0);
-  if (g_lvglWikiWhen) lv_obj_set_style_text_color(g_lvglWikiWhen, lv_color_hex(t.auxWhenText), 0);
   if (g_lvglWikiNews) lv_obj_set_style_text_color(g_lvglWikiNews, lv_color_hex(t.auxText), 0);
   if (g_lvglWikiQrOverlay) lv_obj_set_style_bg_color(g_lvglWikiQrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
   if (g_lvglWikiQrHint) lv_obj_set_style_text_color(g_lvglWikiQrHint, lv_color_hex(t.auxQrHint), 0);
@@ -7436,11 +7434,11 @@ static void lvglSetFeedNextFeedButtonPressed(bool pressed) { (void)pressed; }
 
 static void setUiPage(UiPageMode mode) {
   if (g_uiPageMode == mode) return;
-  if (!uiPageUsesAuxDeck(mode)) {
+  if (!uiPageIsFeedDeck(mode)) {
     lvglSetAuxQrModalOpen(false);
     lvglSetWikiQrModalOpen(false);
   }
-  if (uiPageUsesAuxDeck(g_uiPageMode) && uiPageUsesAuxDeck(mode) && g_uiPageMode != mode) {
+  if (uiPageIsFeedDeck(g_uiPageMode) && uiPageIsFeedDeck(mode) && g_uiPageMode != mode) {
     lvglSetAuxQrModalOpen(false);
     lvglSetWikiQrModalOpen(false);
     g_lvglAuxLastItemShown = -1;
@@ -8242,7 +8240,7 @@ static void handleTouchSwipeInput() {
       g_touchStartMs = now;
       g_touchPageDragging = false;
       g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
-      if (uiPageUsesAuxDeck(g_uiPageMode)) {
+      if (uiPageIsFeedDeck(g_uiPageMode)) {
         if (lvglFeedQrButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_QR;
         else if (lvglFeedRefreshButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_REFRESH;
         else if (lvglFeedNextFeedButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_NEXT;
@@ -8306,7 +8304,7 @@ static void handleTouchSwipeInput() {
   if (touchAuxBtnDown != TOUCH_AUX_BTN_NONE) {
     Serial.printf("[TOUCH] btn-up kind=%u tap=%d dx=%d dy=%d dur=%lums\n",
                   (unsigned)touchAuxBtnDown, isBtnTap ? 1 : 0, dx, dy, (unsigned long)durMs);
-    if (isBtnTap && uiPageUsesAuxDeck(g_uiPageMode)) {
+    if (isBtnTap && uiPageIsFeedDeck(g_uiPageMode)) {
       RssState &content = (g_uiPageMode == UI_PAGE_WIKI) ? g_wiki : g_rss;
       const char *tag = (g_uiPageMode == UI_PAGE_WIKI) ? "wiki" : "rss";
       if (touchAuxBtnDown == TOUCH_AUX_BTN_QR) {
@@ -8358,7 +8356,7 @@ static void handleTouchSwipeInput() {
     g_touchPageDragging = false;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
     g_lvglPageDragActive = false;
-    if (uiPageUsesAuxDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
+    if (uiPageIsFeedDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
       lvglApplyPageVisibility(true);
       g_touchAwaitRelease = true;
       g_touchReleaseStartMs = 0;
@@ -8387,7 +8385,7 @@ static void handleTouchSwipeInput() {
   }
 
   if (durMs > 3000) return;
-  if (uiPageUsesAuxDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
+  if (uiPageIsFeedDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
     if (durMs <= 2500) {
       lvglSetFeedQrModalOpen(false);
       Serial.println("[TOUCH] qr-close-overlay");
@@ -8413,7 +8411,7 @@ static void handleTouchSwipeInput() {
   }
 
   // AUX/WIKI ergonomics: tap on current news advances to next item.
-  if (isTap && uiPageUsesAuxDeck(g_uiPageMode) &&
+  if (isTap && uiPageIsFeedDeck(g_uiPageMode) &&
       (lvglFeedNewsContainsPoint(g_touchStartX, g_touchStartY) ||
        lvglAuxHeroContainsPoint(g_touchStartX, g_touchStartY))) {
 #if TEST_WIFI && RSS_ENABLED
@@ -8434,7 +8432,7 @@ static void handleTouchSwipeInput() {
   }
 
   // In AUX/WIKI, ignore neutral taps that are not on actionable regions.
-  if (isTap && uiPageUsesAuxDeck(g_uiPageMode)) return;
+  if (isTap && uiPageIsFeedDeck(g_uiPageMode)) return;
 
   // Fallback gesture: quick tap anywhere on left panel toggles clock mode.
   if (isTap &&
@@ -9915,7 +9913,6 @@ static void lvglApplyThemeFonts() {
   if (g_lvglAuxStatus) lv_obj_set_style_text_font(g_lvglAuxStatus, lvglFontTiny(), 0);
   if (g_lvglAuxSourceBadgeText) lv_obj_set_style_text_font(g_lvglAuxSourceBadgeText, lvglFontTiny(), 0);
   if (g_lvglAuxSourceSite) lv_obj_set_style_text_font(g_lvglAuxSourceSite, lvglFontMeta(), 0);
-  if (g_lvglAuxWhen) lv_obj_set_style_text_font(g_lvglAuxWhen, lvglFontTiny(), 0);
   if (g_lvglAuxNews) lv_obj_set_style_text_font(g_lvglAuxNews, lvglFontRssNews(), 0);
   if (g_lvglAuxMeta) lv_obj_set_style_text_font(g_lvglAuxMeta, lvglFontSmall(), 0);
   if (g_lvglAuxQrHint) lv_obj_set_style_text_font(g_lvglAuxQrHint, lvglFontTiny(), 0);
@@ -9927,7 +9924,6 @@ static void lvglApplyThemeFonts() {
   if (g_lvglWikiStatus) lv_obj_set_style_text_font(g_lvglWikiStatus, lvglFontTiny(), 0);
   if (g_lvglWikiSourceBadgeText) lv_obj_set_style_text_font(g_lvglWikiSourceBadgeText, lvglFontTiny(), 0);
   if (g_lvglWikiSourceSite) lv_obj_set_style_text_font(g_lvglWikiSourceSite, lvglFontMeta(), 0);
-  if (g_lvglWikiWhen) lv_obj_set_style_text_font(g_lvglWikiWhen, lvglFontTiny(), 0);
   if (g_lvglWikiNews) lv_obj_set_style_text_font(g_lvglWikiNews, lvglFontRssNews(), 0);
   if (g_lvglWikiMeta) lv_obj_set_style_text_font(g_lvglWikiMeta, lvglFontSmall(), 0);
   if (g_lvglWikiQrHint) lv_obj_set_style_text_font(g_lvglWikiQrHint, lvglFontTiny(), 0);
@@ -10202,10 +10198,8 @@ static uint32_t wikiFeedUiColorHex(uint8_t slot) {
 
 static void lvglUpdateAuxRss(bool force) {
   if (!g_lvglAuxNews) return;
-  const bool wikiMode = (g_uiPageMode == UI_PAGE_WIKI);
-  const bool includeTitleInBody = !wikiMode;
-  RssState &content = wikiMode ? g_wiki : g_rss;
-  const char *contentTag = wikiMode ? "WIKI" : "RSS";
+  RssState &content = g_rss;
+  const char *contentTag = "RSS";
 #if TEST_WIFI && RSS_ENABLED
   const uint32_t now = millis();
   if (g_wifiConnected && content.valid && content.itemCount > 1 && content.lastRotateMs != 0 &&
@@ -10232,15 +10226,15 @@ static void lvglUpdateAuxRss(bool force) {
   whenLine[0] = '\0';
   status[0] = '\0';
   meta[0] = '\0';
-  strncpy(siteShort, wikiMode ? "WIKI" : "RSS", sizeof(siteShort) - 1);
+  strncpy(siteShort, "RSS", sizeof(siteShort) - 1);
   siteShort[sizeof(siteShort) - 1] = '\0';
   strncpy(siteBadge, "R", sizeof(siteBadge) - 1);
   siteBadge[sizeof(siteBadge) - 1] = '\0';
   sourceLine[0] = '\0';
-  strncpy(siteHost, wikiMode ? "wiki" : "rss", sizeof(siteHost) - 1);
+  strncpy(siteHost, "rss", sizeof(siteHost) - 1);
   siteHost[sizeof(siteHost) - 1] = '\0';
   int16_t showIndex = -1;
-  if (g_lvglAuxTitle) lv_label_set_text(g_lvglAuxTitle, wikiMode ? "ScryBar Wiki" : "ScryBar RSS");
+  if (g_lvglAuxTitle) lv_label_set_text(g_lvglAuxTitle, "ScryBar RSS");
 
 #if TEST_WIFI && RSS_ENABLED
   if (!g_wifiConnected) {
@@ -10252,7 +10246,7 @@ static void lvglUpdateAuxRss(bool force) {
     snprintf(meta, sizeof(meta), "Ultimo fetch: %s", content.lastFetchMs ? content.fetchedAt : "--/-- --:--");
   } else if (content.valid && content.itemCount > 0) {
     showIndex = (int16_t)(content.currentIndex % content.itemCount);
-    buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3), includeTitleInBody);
+    buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3), true);
     buildRssWhenLabel(content.items[showIndex].pubDate, whenLine, sizeof(whenLine));
     snprintf(status, sizeof(status), "%u/%u", (unsigned)(showIndex + 1), (unsigned)content.itemCount);
     uint32_t rotateLeftSec = 0;
@@ -10269,26 +10263,6 @@ static void lvglUpdateAuxRss(bool force) {
     } else {
       snprintf(meta, sizeof(meta), "Fetch %s | %lus", content.fetchedAt, (unsigned long)rotateLeftSec);
     }
-    if (wikiMode) {
-      const uint8_t wikiSlot = content.items[showIndex].feedSlot;
-      extractRssHost(content.items[showIndex].link, siteHost, sizeof(siteHost));
-      copyStringSafe(siteShort, sizeof(siteShort), "WIKI");
-      copyStringSafe(siteBadge, sizeof(siteBadge), wikiFeedUiBadge(wikiSlot));
-      siteColorHex = wikiFeedUiColorHex(wikiSlot);
-      siteTextHex = 0xFFFFFF;
-      const char *feedName = wikiFeedUiName(wikiSlot);
-      snprintf(sourceLine, sizeof(sourceLine), "Wikipedia | %s", feedName);
-      if (lvglAuxQrModalIsOpen()) {
-        snprintf(meta, sizeof(meta), "%s | QR", feedName);
-      } else {
-        char titleHead[72];
-        copyStringSafe(titleHead, sizeof(titleHead),
-                       content.items[showIndex].title[0] ? content.items[showIndex].title : "-");
-        sanitizeAsciiBuffer(titleHead, sizeof(titleHead));
-        snprintf(meta, sizeof(meta), "%s | %s", feedName, titleHead);
-      }
-      sourceLineSet = true;
-    } else {
       rssResolveSourceHost(content.items[showIndex], siteHost, sizeof(siteHost));
       buildRssSiteShortName(siteHost, siteShort, sizeof(siteShort));
       buildRssSiteBadge(siteShort, siteBadge, sizeof(siteBadge));
@@ -10297,7 +10271,6 @@ static void lvglUpdateAuxRss(bool force) {
         siteColorHex = 0xFFFFFF;
         siteTextHex = 0x1B3C86;
       }
-    }
   } else if (content.lastHttpCode != 0) {
     strncpy(title3, activeUiStrings()->rssFeedError, sizeof(title3) - 1);
     title3[sizeof(title3) - 1] = '\0';
@@ -10330,9 +10303,6 @@ static void lvglUpdateAuxRss(bool force) {
 #endif
 
   if (!sourceLineSet) snprintf(sourceLine, sizeof(sourceLine), "%s", siteShort);
-  if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
-    buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3), includeTitleInBody);
-  }
 
   sanitizeAsciiBuffer(title3, sizeof(title3));
   sanitizeAsciiBuffer(whenLine, sizeof(whenLine));
@@ -10340,7 +10310,7 @@ static void lvglUpdateAuxRss(bool force) {
   sanitizeAsciiBuffer(sourceLine, sizeof(sourceLine));
   char sourceWithWhen[140];
   copyStringSafe(sourceWithWhen, sizeof(sourceWithWhen), sourceLine);
-  if (!wikiMode && whenLine[0] && strcmp(whenLine, "--/-- --:--") != 0) {
+  if (whenLine[0] && strcmp(whenLine, "--/-- --:--") != 0) {
     strncat(sourceWithWhen, " - ", sizeof(sourceWithWhen) - strlen(sourceWithWhen) - 1);
     strncat(sourceWithWhen, whenLine, sizeof(sourceWithWhen) - strlen(sourceWithWhen) - 1);
   }
@@ -10351,9 +10321,6 @@ static void lvglUpdateAuxRss(bool force) {
   if (g_lvglAuxSourceSite) {
     lv_label_set_text(g_lvglAuxSourceSite, sourceWithWhen);
     lvglForceLabelVisible(g_lvglAuxSourceSite);
-  }
-  if (g_lvglAuxWhen) {
-    lv_obj_add_flag(g_lvglAuxWhen, LV_OBJ_FLAG_HIDDEN);
   }
   if (g_lvglAuxSourceBadgeText) {
     lv_label_set_text(g_lvglAuxSourceBadgeText, siteBadge);
@@ -10379,15 +10346,14 @@ static void lvglUpdateAuxRss(bool force) {
       lv_obj_move_foreground(g_lvglAuxQrOverlay);
       if (g_lvglAuxQrHint) lv_obj_clear_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
       if (g_lvglAuxQr) {
-        const char *url = wikiMode ? "https://en.wikipedia.org" : "https://ansa.it";
+        const char *url = "https://ansa.it";
         bool qrReady = true;
         int16_t qrIndex = -1;
         if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
           RssItem &item = content.items[showIndex];
           if (item.link[0]) url = item.link;  // Fallback immediato: non bloccare il QR in attesa dello short URL.
           if (!item.shortReady) {
-            if (wikiMode) (void)wikiTryShortenUrl((uint8_t)showIndex);
-            else (void)rssTryShortenUrl((uint8_t)showIndex);
+            (void)rssTryShortenUrl((uint8_t)showIndex);
           }
           if (item.shortReady && item.shortLink[0]) {
             url = item.shortLink;
@@ -10447,7 +10413,6 @@ static void lvglUpdateWikiDeck(bool force) {
 #endif
 
   char title3[260];
-  char whenLine[64];
   char status[32];
   char meta[96];
   char siteShort[16];
@@ -10458,7 +10423,6 @@ static void lvglUpdateWikiDeck(bool force) {
   uint32_t siteTextHex = 0xFFFFFF;
   bool sourceLineSet = false;
   title3[0] = '\0';
-  whenLine[0] = '\0';
   status[0] = '\0';
   meta[0] = '\0';
   strncpy(siteShort, "WIKI", sizeof(siteShort) - 1);
@@ -10475,14 +10439,11 @@ static void lvglUpdateWikiDeck(bool force) {
   if (!g_wifiConnected) {
     strncpy(title3, activeUiStrings()->rssOffline, sizeof(title3) - 1);
     title3[sizeof(title3) - 1] = '\0';
-    strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
-    whenLine[sizeof(whenLine) - 1] = '\0';
     snprintf(status, sizeof(status), "OFF");
     snprintf(meta, sizeof(meta), "Ultimo fetch: %s", content.lastFetchMs ? content.fetchedAt : "--/-- --:--");
   } else if (content.valid && content.itemCount > 0) {
     showIndex = (int16_t)(content.currentIndex % content.itemCount);
     buildRssStoryBlock(content.items[showIndex], g_lvglWikiNews, title3, sizeof(title3), false);
-    buildRssWhenLabel(content.items[showIndex].pubDate, whenLine, sizeof(whenLine));
     snprintf(status, sizeof(status), "%u/%u", (unsigned)(showIndex + 1), (unsigned)content.itemCount);
     uint32_t rotateLeftSec = 0;
     if (content.lastRotateMs != 0) {
@@ -10514,41 +10475,29 @@ static void lvglUpdateWikiDeck(bool force) {
   } else if (content.lastHttpCode != 0) {
     strncpy(title3, activeUiStrings()->rssFeedError, sizeof(title3) - 1);
     title3[sizeof(title3) - 1] = '\0';
-    strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
-    whenLine[sizeof(whenLine) - 1] = '\0';
     snprintf(status, sizeof(status), "ERR %d", content.lastHttpCode);
     snprintf(meta, sizeof(meta), "Fetch %s", content.lastFetchMs ? content.fetchedAt : "--/-- --:--");
   } else {
     strncpy(title3, activeUiStrings()->rssSyncing, sizeof(title3) - 1);
     title3[sizeof(title3) - 1] = '\0';
-    strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
-    whenLine[sizeof(whenLine) - 1] = '\0';
     snprintf(status, sizeof(status), "SYNC");
     snprintf(meta, sizeof(meta), "Fetch --/-- --:--");
   }
 #elif TEST_WIFI
   strncpy(title3, activeUiStrings()->rssDisabled, sizeof(title3) - 1);
   title3[sizeof(title3) - 1] = '\0';
-  strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
-  whenLine[sizeof(whenLine) - 1] = '\0';
   snprintf(status, sizeof(status), g_wifiConnected ? "WiFi" : "OFF");
   snprintf(meta, sizeof(meta), "Fetch --/-- --:--");
 #else
   strncpy(title3, "Wiki non disponibile\n(TEST_WIFI=0).", sizeof(title3) - 1);
   title3[sizeof(title3) - 1] = '\0';
-  strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
-  whenLine[sizeof(whenLine) - 1] = '\0';
   snprintf(status, sizeof(status), "N/A");
   snprintf(meta, sizeof(meta), "Fetch --/-- --:--");
 #endif
 
   if (!sourceLineSet) snprintf(sourceLine, sizeof(sourceLine), "%s", siteShort);
-  if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
-    buildRssStoryBlock(content.items[showIndex], g_lvglWikiNews, title3, sizeof(title3), false);
-  }
 
   sanitizeAsciiBuffer(title3, sizeof(title3));
-  sanitizeAsciiBuffer(whenLine, sizeof(whenLine));
   sanitizeAsciiBuffer(meta, sizeof(meta));
   sanitizeAsciiBuffer(sourceLine, sizeof(sourceLine));
   char sourceWithWhen[140];
@@ -10561,7 +10510,6 @@ static void lvglUpdateWikiDeck(bool force) {
     lv_label_set_text(g_lvglWikiSourceSite, sourceWithWhen);
     lvglForceLabelVisible(g_lvglWikiSourceSite);
   }
-  if (g_lvglWikiWhen) lv_obj_add_flag(g_lvglWikiWhen, LV_OBJ_FLAG_HIDDEN);
   if (g_lvglWikiSourceBadgeText) {
     lv_label_set_text(g_lvglWikiSourceBadgeText, siteBadge);
     lv_obj_set_style_text_color(g_lvglWikiSourceBadgeText, lv_color_hex(siteTextHex), 0);
@@ -11893,16 +11841,6 @@ static bool initLvglUi() {
     lv_label_set_text(g_lvglWikiSourceSite, "Wiki  --/-- --:--");
     lvglForceLabelVisible(g_lvglWikiSourceSite);
 
-    g_lvglWikiWhen = lv_label_create(g_lvglWikiCard);
-    lv_obj_set_style_text_font(g_lvglWikiWhen, lvglFontTiny(), 0);
-    lv_obj_set_style_text_color(g_lvglWikiWhen, lv_color_hex(0xAFC2F5), 0);
-    lv_label_set_long_mode(g_lvglWikiWhen, LV_LABEL_LONG_DOT);
-    lv_obj_set_size(g_lvglWikiWhen, 0, 22);
-    lv_obj_set_pos(g_lvglWikiWhen, wSourceSiteX + wSourceSiteW, wSourceTextY + 2);
-    lv_obj_set_style_text_align(g_lvglWikiWhen, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_label_set_text(g_lvglWikiWhen, "--/-- --:--");
-    lv_obj_add_flag(g_lvglWikiWhen, LV_OBJ_FLAG_HIDDEN);
-
     g_lvglWikiNews = lv_label_create(g_lvglWikiCard);
     lv_obj_set_style_text_font(g_lvglWikiNews, lvglFontRssNews(), 0);
     lv_obj_set_style_text_color(g_lvglWikiNews, lv_color_hex(0xEAF0FF), 0);
@@ -12124,16 +12062,6 @@ static bool initLvglUi() {
   lv_obj_set_style_text_align(g_lvglAuxSourceSite, LV_TEXT_ALIGN_LEFT, 0);
   lv_label_set_text(g_lvglAuxSourceSite, "RSS  --/-- --:--");
   lvglForceLabelVisible(g_lvglAuxSourceSite);
-
-  g_lvglAuxWhen = lv_label_create(g_lvglAuxCard);
-  lv_obj_set_style_text_font(g_lvglAuxWhen, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxWhen, lv_color_hex(0xAFC2F5), 0);
-  lv_label_set_long_mode(g_lvglAuxWhen, LV_LABEL_LONG_DOT);
-  lv_obj_set_size(g_lvglAuxWhen, sourceWhenW, 22);
-  lv_obj_set_pos(g_lvglAuxWhen, sourceWhenX, sourceTextY + 2);
-  lv_obj_set_style_text_align(g_lvglAuxWhen, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_label_set_text(g_lvglAuxWhen, "--/-- --:--");
-  lv_obj_add_flag(g_lvglAuxWhen, LV_OBJ_FLAG_HIDDEN);
 
   g_lvglAuxNews = lv_label_create(g_lvglAuxCard);
   lv_obj_set_style_text_font(g_lvglAuxNews, lvglFontRssNews(), 0);
@@ -13522,7 +13450,7 @@ void loop() {
   updateWeatherFromApi(false);
 #if TEST_WIFI && RSS_ENABLED
 #if TEST_LVGL_UI && DISPLAY_BACKEND_ESP_LCD
-  if (!uiPageUsesAuxDeck(g_uiPageMode)) {
+  if (!uiPageIsFeedDeck(g_uiPageMode)) {
     updateRssFromFeed(false);   // background preload/refresh outside AUX/WIKI to avoid swipe stalls
     updateWikiFromFeed(false);  // background preload/refresh outside AUX/WIKI to avoid swipe stalls
     wikiPreloadMetaStep();
