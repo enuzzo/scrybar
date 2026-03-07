@@ -423,6 +423,9 @@ For deterministic theme captures:
 
 Everything needed to compile, flash, and operate ScryBar from a macOS machine.
 
+> **Quick start**: run `tools/bootstrap.sh` from the repository root.
+> It installs, checks, and validates everything below — safe to re-run.
+
 ### 1. arduino-cli
 
 ```bash
