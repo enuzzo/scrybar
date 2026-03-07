@@ -419,6 +419,133 @@ For deterministic theme captures:
 - Prefer non-variable font sources for deterministic LVGL conversion.
 - If Wiki hero image appears missing on first draw, stay on WIKI briefly: visible-item progressive preload now fills summary/thumb/icon without requiring page changes.
 
+## Toolchain Setup (macOS — reference install)
+
+Everything needed to compile, flash, and operate ScryBar from a macOS machine.
+
+### 1. arduino-cli
+
+```bash
+# Install via Homebrew
+brew install arduino-cli
+
+# Initialize config (creates ~/.arduino15/arduino-cli.yaml)
+arduino-cli config init
+
+# Update index
+arduino-cli core update-index
+```
+
+Verify:
+```bash
+arduino-cli version
+# arduino-cli  Version: 1.x.x  ...
+```
+
+### 2. ESP32 Arduino Core
+
+```bash
+# Add Espressif board index (only if not already present)
+arduino-cli config add board_manager.additional_urls \
+  https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
+# Update index again and install
+arduino-cli core update-index
+arduino-cli core install esp32:esp32
+
+# Verify
+arduino-cli core list | grep esp32
+# esp32:esp32   x.x.x  ...
+```
+
+Tested core: `esp32:esp32` version 3.x (LTS branch). The FQBN must always include the full parameter string — do not use the bare `esp32:esp32:esp32s3`.
+
+### 3. Required Arduino Libraries
+
+Install via arduino-cli before first compile:
+
+```bash
+arduino-cli lib install "ArduinoJson"        # config/API serialization
+arduino-cli lib install "lvgl"               # LVGL UI framework (8.x branch)
+```
+
+Check installed:
+```bash
+arduino-cli lib list
+```
+
+> LVGL config lives in `src/lv_conf.h` (not the library default). Ensure the library lookup finds this file via the sketch's `src/` path.
+
+### 4. Python (screenshot tool)
+
+The capture script (`tools/capture_snapshot.py`) requires Python 3 and `pyserial`:
+
+```bash
+pip3 install pyserial Pillow
+```
+
+Usage:
+```bash
+python3 tools/capture_snapshot.py --port <PORT> --out-dir screenshots
+```
+
+### 5. Identify Device Port
+
+```bash
+ls /dev/cu.usbmodem*
+# Typical: /dev/cu.usbmodem14101
+```
+
+If the device is not found, check:
+- USB cable supports data (not charge-only)
+- Board booted with `USBMode=hwcdc` (correct FQBN)
+- If upload hangs: hold BOOT, press+release RST, release BOOT
+
+### 6. Recommended shell aliases (optional)
+
+```bash
+alias scry-build='arduino-cli compile --clean \
+  --build-path /tmp/arduino-build-scrybar \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi \
+  .'
+
+alias scry-flash='arduino-cli upload \
+  -p $(ls /dev/cu.usbmodem* | head -1) \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi \
+  --input-dir /tmp/arduino-build-scrybar \
+  .'
+
+alias scry-monitor='arduino-cli monitor -p $(ls /dev/cu.usbmodem* | head -1) --config baudrate=115200'
+```
+
+### 7. lv_font_conv (LVGL font generation — optional)
+
+Only needed when adding/regenerating custom LVGL fonts:
+
+```bash
+npm install -g lv_font_conv
+```
+
+Usage example (Space Mono, 16px):
+```bash
+lv_font_conv \
+  --font assets/fonts/SpaceMono-Regular.ttf \
+  --size 16 --bpp 4 --no-compress \
+  --range 0x20-0x7E \
+  --format lvgl -o src/fonts/scry_font_space_mono_16.c \
+  --force-include lv_conf.h
+```
+
+### 8. git (standard macOS git or Homebrew)
+
+```bash
+xcode-select --install    # includes git
+# or
+brew install git
+```
+
+Repository uses no LFS. Assets are tracked directly.
+
 ## Public Logging Rule
 
 If you add session notes to versioned docs:

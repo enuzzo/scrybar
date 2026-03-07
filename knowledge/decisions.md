@@ -240,6 +240,14 @@ Entry format:
 
 ---
 
+## 2026-03-08 - r159: Full LVGL Widget Tree for WIKI Page (Wiki Deck)
+
+- Context: After r158 promoted WIKI to an independent page with its own `g_lvglWikiRoot`, the page showed only a static "WIKI" placeholder label. All RSS/Wiki content rendering was still routed through the shared AUX deck widgets (`g_lvglAux*`), making touch buttons and QR modal non-functional on WIKI.
+- Decision: Duplicate the AUX deck widget set inside `g_lvglWikiRoot` (20+ `g_lvglWiki*` globals mirroring `g_lvglAux*`). Add `lvglUpdateWikiDeck()` as an independent render function always reading from `g_wiki`. Add `lvglFeed*` dispatch helpers in the touch handler so button detection, button visual state, QR modal open/close, and news-tap all route to the correct deck based on `g_uiPageMode`. Split `updateLvglUi()` dispatch: `UI_PAGE_AUX` → `lvglUpdateAuxRss`, `UI_PAGE_WIKI` → `lvglUpdateWikiDeck`. Mirror theming (`lvglApplyThemeStyles`) and font assignment (`lvglApplyThemeFonts`) for Wiki widgets. Also added full toolchain setup documentation to `knowledge/project_knowledge.md`.
+- Impact/Tradeoffs: ~400 lines added; RAM/flash footprint unchanged (70%/48%). Both decks are fully independent and testable separately. Each has its own QR modal state, lastItemShown counter, and QR payload cache. The AUX↔WIKI shared logic in `uiPageUsesAuxDeck()` is retained for swipe/drag guards (harmless) while per-deck dispatch is used for all interactive operations. Future refactor opportunity: `FeedDeckUi` struct to replace parallel globals.
+
+---
+
 ## 2026-03-07 - r158: Remove Photo/Thumbnail Code and Add 4th Independent WIKI Page
 
 - Context: RSS and Wiki decks had grown a large photo/thumbnail/favicon pipeline (~750 lines: 17 functions, 4 preload steps, 3 cache structs, multiple PSRAM image buffers). The pipeline added complexity and RAM pressure without reliable benefit on embedded LVGL fonts. Separately, the WIKI view was sharing ordinal 2 with AUX via special-case code rather than being a true independent page.

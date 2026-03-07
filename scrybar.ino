@@ -850,6 +850,32 @@ static lv_obj_t *g_lvglAuxQr = nullptr;
 static int16_t g_lvglAuxLastItemShown = -1;
 static char g_lvglAuxLastQrPayload[280] = {0};
 static bool g_lvglAuxQrModalOpen = false;
+// Wiki deck widgets (parallel to AUX deck, inside g_lvglWikiRoot)
+static lv_obj_t *g_lvglWikiCard            = nullptr;
+static lv_obj_t *g_lvglWikiHeader          = nullptr;
+static lv_obj_t *g_lvglWikiHeaderFill      = nullptr;
+static lv_obj_t *g_lvglWikiTitle           = nullptr;
+static lv_obj_t *g_lvglWikiStatus          = nullptr;
+static lv_obj_t *g_lvglWikiQrBtn           = nullptr;
+static lv_obj_t *g_lvglWikiQrBtnText       = nullptr;
+static lv_obj_t *g_lvglWikiRefreshBtn      = nullptr;
+static lv_obj_t *g_lvglWikiRefreshBtnText  = nullptr;
+static lv_obj_t *g_lvglWikiNextFeedBtn     = nullptr;
+static lv_obj_t *g_lvglWikiNextFeedBtnText = nullptr;
+static lv_obj_t *g_lvglWikiSourceBadge     = nullptr;
+static lv_obj_t *g_lvglWikiSourceBadgeText = nullptr;
+static lv_obj_t *g_lvglWikiSourceSite      = nullptr;
+static lv_obj_t *g_lvglWikiWhen            = nullptr;
+static lv_obj_t *g_lvglWikiNews            = nullptr;
+static lv_obj_t *g_lvglWikiMeta            = nullptr;
+static lv_obj_t *g_lvglWikiQrOverlay       = nullptr;
+static lv_obj_t *g_lvglWikiQrHint          = nullptr;
+#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
+static lv_obj_t *g_lvglWikiQr              = nullptr;
+#endif
+static int16_t   g_lvglWikiLastItemShown   = -1;
+static char      g_lvglWikiLastQrPayload[280] = {0};
+static bool      g_lvglWikiQrModalOpen     = false;
 static uint32_t g_lvglPageAnimUntilMs = 0;
 static uint32_t g_lvglLastRunMs = 0;
 static bool g_lvglPageDragActive = false;
@@ -6538,6 +6564,25 @@ static void lvglSetAuxQrButtonPressed(bool pressed);
 static void lvglSetAuxRefreshButtonPressed(bool pressed);
 static void lvglSetAuxNextFeedButtonPressed(bool pressed);
 static void lvglSetAuxQrModalOpen(bool open);
+static bool lvglWikiQrButtonContainsPoint(int16_t x, int16_t y);
+static bool lvglWikiRefreshButtonContainsPoint(int16_t x, int16_t y);
+static bool lvglWikiNextFeedButtonContainsPoint(int16_t x, int16_t y);
+static bool lvglWikiNewsContainsPoint(int16_t x, int16_t y);
+static bool lvglWikiQrModalIsOpen();
+static void lvglSetWikiQrButtonPressed(bool pressed);
+static void lvglSetWikiRefreshButtonPressed(bool pressed);
+static void lvglSetWikiNextFeedButtonPressed(bool pressed);
+static void lvglSetWikiQrModalOpen(bool open);
+static bool lvglFeedQrButtonContainsPoint(int16_t x, int16_t y);
+static bool lvglFeedRefreshButtonContainsPoint(int16_t x, int16_t y);
+static bool lvglFeedNextFeedButtonContainsPoint(int16_t x, int16_t y);
+static bool lvglFeedNewsContainsPoint(int16_t x, int16_t y);
+static bool lvglFeedQrModalIsOpen();
+static void lvglSetFeedQrModalOpen(bool open);
+static void lvglSetFeedQrButtonPressed(bool pressed);
+static void lvglSetFeedRefreshButtonPressed(bool pressed);
+static void lvglSetFeedNextFeedButtonPressed(bool pressed);
+static void lvglUpdateWikiDeck(bool force);
 #endif
 
 static bool uiPageUsesAuxDeck(UiPageMode mode) {
@@ -6695,6 +6740,120 @@ static void lvglSetAuxQrModalOpen(bool open) {
     else lv_obj_add_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
     lv_obj_invalidate(g_lvglAuxQrOverlay);
   }
+}
+
+// --- Wiki deck UI helpers ---
+
+static bool lvglWikiQrButtonContainsPoint(int16_t x, int16_t y) {
+  return lvglContainsPointExpanded(g_lvglWikiQrBtn, x, y, 8);
+}
+static bool lvglWikiRefreshButtonContainsPoint(int16_t x, int16_t y) {
+  return lvglContainsPointExpanded(g_lvglWikiRefreshBtn, x, y, 8);
+}
+static bool lvglWikiNextFeedButtonContainsPoint(int16_t x, int16_t y) {
+  return lvglContainsPointExpanded(g_lvglWikiNextFeedBtn, x, y, 8);
+}
+static bool lvglWikiNewsContainsPoint(int16_t x, int16_t y) {
+  return lvglContainsPoint(g_lvglWikiNews, x, y);
+}
+static bool lvglWikiQrModalIsOpen() {
+  return g_lvglWikiQrModalOpen;
+}
+static void lvglSetWikiQrButtonPressed(bool pressed) {
+  if (!g_lvglWikiQrBtn) return;
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const uint32_t bgHex = lvglResolvedAuxButtonBg(
+      pressed ? t.auxQrBtnPressedBg : t.auxQrBtnBg,
+      pressed ? 0xFFF19A : 0xFFD34D);
+  lv_obj_set_style_bg_color(g_lvglWikiQrBtn, lv_color_hex(bgHex), LV_PART_MAIN);
+  if (g_lvglWikiQrBtnText) {
+    const uint32_t fgHex = lvglResolvedAuxButtonText(
+        pressed ? t.auxQrBtnPressedText : t.auxQrBtnText, bgHex);
+    lv_obj_set_style_text_color(g_lvglWikiQrBtnText, lv_color_hex(fgHex), 0);
+  }
+  lv_obj_invalidate(g_lvglWikiQrBtn);
+}
+static void lvglSetWikiRefreshButtonPressed(bool pressed) {
+  if (!g_lvglWikiRefreshBtn) return;
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const uint32_t bgHex = lvglResolvedAuxButtonBg(
+      pressed ? t.auxRefreshBtnPressedBg : t.auxRefreshBtnBg,
+      pressed ? 0xB9ECFF : 0x6FD8FF);
+  lv_obj_set_style_bg_color(g_lvglWikiRefreshBtn, lv_color_hex(bgHex), LV_PART_MAIN);
+  if (g_lvglWikiRefreshBtnText) {
+    const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxRefreshBtnText, bgHex);
+    lv_obj_set_style_text_color(g_lvglWikiRefreshBtnText, lv_color_hex(fgHex), 0);
+  }
+  lv_obj_invalidate(g_lvglWikiRefreshBtn);
+}
+static void lvglSetWikiNextFeedButtonPressed(bool pressed) {
+  if (!g_lvglWikiNextFeedBtn) return;
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const uint32_t bgHex = lvglResolvedAuxButtonBg(
+      pressed ? t.auxNextBtnPressedBg : t.auxNextBtnBg,
+      pressed ? 0x9E8EFF : 0x7B63FF);
+  lv_obj_set_style_bg_color(g_lvglWikiNextFeedBtn, lv_color_hex(bgHex), LV_PART_MAIN);
+  if (g_lvglWikiNextFeedBtnText) {
+    const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxNextBtnText, bgHex);
+    lv_obj_set_style_text_color(g_lvglWikiNextFeedBtnText, lv_color_hex(fgHex), 0);
+  }
+  lv_obj_invalidate(g_lvglWikiNextFeedBtn);
+}
+static void lvglSetWikiQrModalOpen(bool open) {
+  if (g_lvglWikiQrModalOpen == open) return;
+  g_lvglWikiQrModalOpen = open;
+  if (g_lvglWikiQrBtnText) lv_label_set_text(g_lvglWikiQrBtnText, open ? "X" : "QR");
+  if (open) {
+    g_lvglWikiLastItemShown = -1;
+    g_lvglWikiLastQrPayload[0] = '\0';
+  }
+  g_uiNeedsRedraw = true;
+  if (g_lvglWikiQrOverlay) {
+    if (open) lv_obj_clear_flag(g_lvglWikiQrOverlay, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(g_lvglWikiQrOverlay, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_invalidate(g_lvglWikiQrOverlay);
+  }
+}
+
+// Dispatch helpers — call the correct deck based on current page
+static bool lvglFeedQrButtonContainsPoint(int16_t x, int16_t y) {
+  return (g_uiPageMode == UI_PAGE_WIKI)
+    ? lvglWikiQrButtonContainsPoint(x, y)
+    : lvglAuxQrButtonContainsPoint(x, y);
+}
+static bool lvglFeedRefreshButtonContainsPoint(int16_t x, int16_t y) {
+  return (g_uiPageMode == UI_PAGE_WIKI)
+    ? lvglWikiRefreshButtonContainsPoint(x, y)
+    : lvglAuxRefreshButtonContainsPoint(x, y);
+}
+static bool lvglFeedNextFeedButtonContainsPoint(int16_t x, int16_t y) {
+  return (g_uiPageMode == UI_PAGE_WIKI)
+    ? lvglWikiNextFeedButtonContainsPoint(x, y)
+    : lvglAuxNextFeedButtonContainsPoint(x, y);
+}
+static bool lvglFeedNewsContainsPoint(int16_t x, int16_t y) {
+  return (g_uiPageMode == UI_PAGE_WIKI)
+    ? lvglWikiNewsContainsPoint(x, y)
+    : lvglAuxNewsContainsPoint(x, y);
+}
+static bool lvglFeedQrModalIsOpen() {
+  return (g_uiPageMode == UI_PAGE_WIKI) ? lvglWikiQrModalIsOpen() : lvglAuxQrModalIsOpen();
+}
+static void lvglSetFeedQrModalOpen(bool open) {
+  if (g_uiPageMode == UI_PAGE_WIKI) lvglSetWikiQrModalOpen(open);
+  else lvglSetAuxQrModalOpen(open);
+}
+static void lvglSetFeedQrButtonPressed(bool pressed) {
+  if (g_uiPageMode == UI_PAGE_WIKI) lvglSetWikiQrButtonPressed(pressed);
+  else lvglSetAuxQrButtonPressed(pressed);
+}
+static void lvglSetFeedRefreshButtonPressed(bool pressed) {
+  if (g_uiPageMode == UI_PAGE_WIKI) lvglSetWikiRefreshButtonPressed(pressed);
+  else lvglSetAuxRefreshButtonPressed(pressed);
+}
+static void lvglSetFeedNextFeedButtonPressed(bool pressed) {
+  if (g_uiPageMode == UI_PAGE_WIKI) lvglSetWikiNextFeedButtonPressed(pressed);
+  else lvglSetAuxNextFeedButtonPressed(pressed);
 }
 
 static bool lvglThemeIsCyberpunk() {
@@ -7090,6 +7249,90 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   lvglSetAuxRefreshButtonPressed(false);
   lvglSetAuxQrButtonPressed(false);
 
+  // --- Wiki deck theming (mirrors AUX) ---
+  if (g_lvglWikiCard) {
+    lv_obj_set_style_bg_color(g_lvglWikiCard, lv_color_hex(panelBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglWikiCard, lv_color_hex(panelBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWikiCard, cardRadius, LV_PART_MAIN);
+  }
+  if (g_lvglWikiHeader) {
+    lv_obj_set_style_bg_color(g_lvglWikiHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglWikiHeader, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWikiHeader, cardRadius, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiHeader, headerBordered ? 1 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglWikiHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglWikiHeader, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+  }
+  if (g_lvglWikiHeaderFill) {
+    lv_obj_set_style_bg_color(g_lvglWikiHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglWikiHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
+  }
+  if (g_lvglWikiTitle) lv_obj_set_style_text_color(g_lvglWikiTitle, lv_color_hex(headerText), 0);
+  if (g_lvglWikiStatus) lv_obj_set_style_text_color(g_lvglWikiStatus, lv_color_hex(headerText), 0);
+  if (g_lvglWikiMeta) lv_obj_set_style_text_color(g_lvglWikiMeta, lv_color_hex(headerMeta), 0);
+  if (g_lvglWikiSourceBadge) {
+    lv_obj_set_style_bg_color(g_lvglWikiSourceBadge, lv_color_hex(t.auxBadgeBg), LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiSourceBadge, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglWikiSourceBadge, lv_color_hex(t.auxSourceText), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglWikiSourceBadge, LV_OPA_70, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWikiSourceBadge, badgeRadius, LV_PART_MAIN);
+  }
+  if (g_lvglWikiSourceBadgeText) lv_obj_set_style_text_color(g_lvglWikiSourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
+  if (g_lvglWikiSourceSite) lv_obj_set_style_text_color(g_lvglWikiSourceSite, lv_color_hex(t.auxSourceText), 0);
+  if (g_lvglWikiWhen) lv_obj_set_style_text_color(g_lvglWikiWhen, lv_color_hex(t.auxWhenText), 0);
+  if (g_lvglWikiNews) lv_obj_set_style_text_color(g_lvglWikiNews, lv_color_hex(t.auxText), 0);
+  if (g_lvglWikiQrOverlay) lv_obj_set_style_bg_color(g_lvglWikiQrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
+  if (g_lvglWikiQrHint) lv_obj_set_style_text_color(g_lvglWikiQrHint, lv_color_hex(t.auxQrHint), 0);
+  if (g_lvglWikiNextFeedBtn) lv_obj_set_style_radius(g_lvglWikiNextFeedBtn, buttonRadius, LV_PART_MAIN);
+  if (g_lvglWikiRefreshBtn) lv_obj_set_style_radius(g_lvglWikiRefreshBtn, buttonRadius, LV_PART_MAIN);
+  if (g_lvglWikiQrBtn) lv_obj_set_style_radius(g_lvglWikiQrBtn, buttonRadius, LV_PART_MAIN);
+  if (g_lvglWikiNextFeedBtn) {
+    lv_obj_set_style_border_width(g_lvglWikiNextFeedBtn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglWikiNextFeedBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglWikiNextFeedBtn, LV_OPA_80, LV_PART_MAIN);
+  }
+  if (g_lvglWikiRefreshBtn) {
+    lv_obj_set_style_border_width(g_lvglWikiRefreshBtn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglWikiRefreshBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglWikiRefreshBtn, LV_OPA_80, LV_PART_MAIN);
+  }
+  if (g_lvglWikiQrBtn) {
+    lv_obj_set_style_border_width(g_lvglWikiQrBtn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglWikiQrBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglWikiQrBtn, LV_OPA_80, LV_PART_MAIN);
+  }
+#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
+  if (g_lvglWikiQr) {
+    lv_obj_t *wikiQrParent = lv_obj_get_parent(g_lvglWikiQr);
+    lv_coord_t wikiQrSize = lv_obj_get_width(g_lvglWikiQr);
+    if (wikiQrSize < 32 && wikiQrParent) {
+      const lv_coord_t pw = lv_obj_get_width(wikiQrParent);
+      const lv_coord_t ph = lv_obj_get_height(wikiQrParent);
+      wikiQrSize = ((pw < ph) ? pw : ph) - 4;
+    }
+    if (wikiQrSize < 90) wikiQrSize = 90;
+    const bool wikiQrHidden = lv_obj_has_flag(g_lvglWikiQr, LV_OBJ_FLAG_HIDDEN);
+    char wikiPayload[sizeof(g_lvglWikiLastQrPayload)];
+    copyStringSafe(wikiPayload, sizeof(wikiPayload),
+      g_lvglWikiLastQrPayload[0] ? g_lvglWikiLastQrPayload : "https://en.wikipedia.org");
+    lv_obj_del(g_lvglWikiQr);
+    const lv_color_t wikiQrDark = lv_color_hex(t.auxQrDark);
+    const lv_color_t wikiQrLight = lv_color_hex(t.auxQrLight);
+    g_lvglWikiQr = lv_qrcode_create(wikiQrParent, wikiQrSize, wikiQrDark, wikiQrLight);
+    lv_obj_center(g_lvglWikiQr);
+    lv_obj_set_style_bg_color(g_lvglWikiQr, wikiQrLight, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglWikiQr, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiQr, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglWikiQr, lv_color_hex(t.auxQrHint), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglWikiQr, LV_OPA_70, LV_PART_MAIN);
+    lv_qrcode_update(g_lvglWikiQr, wikiPayload, strlen(wikiPayload));
+    if (wikiQrHidden) lv_obj_add_flag(g_lvglWikiQr, LV_OBJ_FLAG_HIDDEN);
+  }
+#endif
+  lvglSetWikiNextFeedButtonPressed(false);
+  lvglSetWikiRefreshButtonPressed(false);
+  lvglSetWikiQrButtonPressed(false);
+
   lvglApplyThemeFonts();
   lvglCenterClockSentenceLabel();
 
@@ -7154,18 +7397,40 @@ static bool lvglAuxQrModalIsOpen() { return false; }
 static void lvglSetAuxQrButtonPressed(bool pressed) { (void)pressed; }
 static void lvglSetAuxRefreshButtonPressed(bool pressed) { (void)pressed; }
 static void lvglSetAuxNextFeedButtonPressed(bool pressed) { (void)pressed; }
-static void lvglSetAuxQrModalOpen(bool open) {
-  (void)open;
-}
+static void lvglSetAuxQrModalOpen(bool open) { (void)open; }
+static bool lvglWikiQrButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
+static bool lvglWikiRefreshButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
+static bool lvglWikiNextFeedButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
+static bool lvglWikiNewsContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
+static bool lvglWikiQrModalIsOpen() { return false; }
+static void lvglSetWikiQrButtonPressed(bool pressed) { (void)pressed; }
+static void lvglSetWikiRefreshButtonPressed(bool pressed) { (void)pressed; }
+static void lvglSetWikiNextFeedButtonPressed(bool pressed) { (void)pressed; }
+static void lvglSetWikiQrModalOpen(bool open) { (void)open; }
+static bool lvglFeedQrButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
+static bool lvglFeedRefreshButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
+static bool lvglFeedNextFeedButtonContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
+static bool lvglFeedNewsContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
+static bool lvglFeedQrModalIsOpen() { return false; }
+static void lvglSetFeedQrModalOpen(bool open) { (void)open; }
+static void lvglSetFeedQrButtonPressed(bool pressed) { (void)pressed; }
+static void lvglSetFeedRefreshButtonPressed(bool pressed) { (void)pressed; }
+static void lvglSetFeedNextFeedButtonPressed(bool pressed) { (void)pressed; }
 #endif
 
 static void setUiPage(UiPageMode mode) {
   if (g_uiPageMode == mode) return;
-  if (!uiPageUsesAuxDeck(mode)) lvglSetAuxQrModalOpen(false);
+  if (!uiPageUsesAuxDeck(mode)) {
+    lvglSetAuxQrModalOpen(false);
+    lvglSetWikiQrModalOpen(false);
+  }
   if (uiPageUsesAuxDeck(g_uiPageMode) && uiPageUsesAuxDeck(mode) && g_uiPageMode != mode) {
     lvglSetAuxQrModalOpen(false);
+    lvglSetWikiQrModalOpen(false);
     g_lvglAuxLastItemShown = -1;
     g_lvglAuxLastQrPayload[0] = '\0';
+    g_lvglWikiLastItemShown = -1;
+    g_lvglWikiLastQrPayload[0] = '\0';
   }
   g_uiPageMode = mode;
 #if TEST_WIFI && RSS_ENABLED
@@ -7962,18 +8227,18 @@ static void handleTouchSwipeInput() {
       g_touchPageDragging = false;
       g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
       if (uiPageUsesAuxDeck(g_uiPageMode)) {
-        if (lvglAuxQrButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_QR;
-        else if (lvglAuxRefreshButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_REFRESH;
-        else if (lvglAuxNextFeedButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_NEXT;
+        if (lvglFeedQrButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_QR;
+        else if (lvglFeedRefreshButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_REFRESH;
+        else if (lvglFeedNextFeedButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_NEXT;
       }
       if (g_touchAuxBtnDown == TOUCH_AUX_BTN_QR) {
-        lvglSetAuxQrButtonPressed(true);
+        lvglSetFeedQrButtonPressed(true);
         Serial.printf("[TOUCH] btn-down QR x=%d y=%d\n", x, y);
       } else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) {
-        lvglSetAuxRefreshButtonPressed(true);
+        lvglSetFeedRefreshButtonPressed(true);
         Serial.printf("[TOUCH] btn-down SKIP x=%d y=%d\n", x, y);
       } else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) {
-        lvglSetAuxNextFeedButtonPressed(true);
+        lvglSetFeedNextFeedButtonPressed(true);
         Serial.printf("[TOUCH] btn-down NXT x=%d y=%d\n", x, y);
       }
     }
@@ -8018,9 +8283,9 @@ static void handleTouchSwipeInput() {
                          abs(dy) <= 72);
   const TouchAuxButton touchAuxBtnDown = g_touchAuxBtnDown;
   g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
-  if (touchAuxBtnDown == TOUCH_AUX_BTN_QR) lvglSetAuxQrButtonPressed(false);
-  else if (touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) lvglSetAuxRefreshButtonPressed(false);
-  else if (touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) lvglSetAuxNextFeedButtonPressed(false);
+  if (touchAuxBtnDown == TOUCH_AUX_BTN_QR) lvglSetFeedQrButtonPressed(false);
+  else if (touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) lvglSetFeedRefreshButtonPressed(false);
+  else if (touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) lvglSetFeedNextFeedButtonPressed(false);
 
   if (touchAuxBtnDown != TOUCH_AUX_BTN_NONE) {
     Serial.printf("[TOUCH] btn-up kind=%u tap=%d dx=%d dy=%d dur=%lums\n",
@@ -8029,22 +8294,20 @@ static void handleTouchSwipeInput() {
       RssState &content = (g_uiPageMode == UI_PAGE_WIKI) ? g_wiki : g_rss;
       const char *tag = (g_uiPageMode == UI_PAGE_WIKI) ? "wiki" : "rss";
       if (touchAuxBtnDown == TOUCH_AUX_BTN_QR) {
-        if (lvglAuxQrModalIsOpen()) {
-          lvglSetAuxQrModalOpen(false);
+        if (lvglFeedQrModalIsOpen()) {
+          lvglSetFeedQrModalOpen(false);
           Serial.println("[TOUCH] qr-close");
         } else {
-          if (g_lvglAuxStatus) {
-            lv_label_set_text(g_lvglAuxStatus, "QR...");
-            lvglForceLabelVisible(g_lvglAuxStatus);
-          }
-          lvglSetAuxQrModalOpen(true);
+          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_lvglWikiStatus : g_lvglAuxStatus;
+          if (feedStatus) { lv_label_set_text(feedStatus, "QR..."); lvglForceLabelVisible(feedStatus); }
+          lvglSetFeedQrModalOpen(true);
           Serial.println("[TOUCH] qr-open");
         }
       } else if (touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) {
 #if TEST_WIFI && RSS_ENABLED
-        if (g_lvglAuxStatus) {
-          lv_label_set_text(g_lvglAuxStatus, "SKIP");
-          lvglForceLabelVisible(g_lvglAuxStatus);
+        {
+          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_lvglWikiStatus : g_lvglAuxStatus;
+          if (feedStatus) { lv_label_set_text(feedStatus, "SKIP"); lvglForceLabelVisible(feedStatus); }
         }
         const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextItem() : rssAdvanceToNextItem();
         if (moved) g_uiNeedsRedraw = true;
@@ -8056,9 +8319,9 @@ static void handleTouchSwipeInput() {
 #endif
       } else if (touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) {
 #if TEST_WIFI && RSS_ENABLED
-        if (g_lvglAuxStatus) {
-          lv_label_set_text(g_lvglAuxStatus, "FEED");
-          lvglForceLabelVisible(g_lvglAuxStatus);
+        {
+          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_lvglWikiStatus : g_lvglAuxStatus;
+          if (feedStatus) { lv_label_set_text(feedStatus, "FEED"); lvglForceLabelVisible(feedStatus); }
         }
         const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextFeed() : rssAdvanceToNextFeed();
         if (moved) g_uiNeedsRedraw = true;
@@ -8079,7 +8342,7 @@ static void handleTouchSwipeInput() {
     g_touchPageDragging = false;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
     g_lvglPageDragActive = false;
-    if (uiPageUsesAuxDeck(g_uiPageMode) && lvglAuxQrModalIsOpen()) {
+    if (uiPageUsesAuxDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
       lvglApplyPageVisibility(true);
       g_touchAwaitRelease = true;
       g_touchReleaseStartMs = 0;
@@ -8108,9 +8371,9 @@ static void handleTouchSwipeInput() {
   }
 
   if (durMs > 3000) return;
-  if (uiPageUsesAuxDeck(g_uiPageMode) && lvglAuxQrModalIsOpen()) {
+  if (uiPageUsesAuxDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
     if (durMs <= 2500) {
-      lvglSetAuxQrModalOpen(false);
+      lvglSetFeedQrModalOpen(false);
       Serial.println("[TOUCH] qr-close-overlay");
     }
     g_touchAwaitRelease = true;
@@ -8135,7 +8398,7 @@ static void handleTouchSwipeInput() {
 
   // AUX/WIKI ergonomics: tap on current news advances to next item.
   if (isTap && uiPageUsesAuxDeck(g_uiPageMode) &&
-      (lvglAuxNewsContainsPoint(g_touchStartX, g_touchStartY) ||
+      (lvglFeedNewsContainsPoint(g_touchStartX, g_touchStartY) ||
        lvglAuxHeroContainsPoint(g_touchStartX, g_touchStartY))) {
 #if TEST_WIFI && RSS_ENABLED
     const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextItem() : rssAdvanceToNextItem();
@@ -9641,6 +9904,18 @@ static void lvglApplyThemeFonts() {
   if (g_lvglAuxMeta) lv_obj_set_style_text_font(g_lvglAuxMeta, lvglFontSmall(), 0);
   if (g_lvglAuxQrHint) lv_obj_set_style_text_font(g_lvglAuxQrHint, lvglFontTiny(), 0);
 
+  if (g_lvglWikiNextFeedBtnText) lv_obj_set_style_text_font(g_lvglWikiNextFeedBtnText, lvglFontTiny(), 0);
+  if (g_lvglWikiRefreshBtnText) lv_obj_set_style_text_font(g_lvglWikiRefreshBtnText, lvglFontTiny(), 0);
+  if (g_lvglWikiQrBtnText) lv_obj_set_style_text_font(g_lvglWikiQrBtnText, lvglFontTiny(), 0);
+  if (g_lvglWikiTitle) lv_obj_set_style_text_font(g_lvglWikiTitle, lvglFontSmall(), 0);
+  if (g_lvglWikiStatus) lv_obj_set_style_text_font(g_lvglWikiStatus, lvglFontTiny(), 0);
+  if (g_lvglWikiSourceBadgeText) lv_obj_set_style_text_font(g_lvglWikiSourceBadgeText, lvglFontTiny(), 0);
+  if (g_lvglWikiSourceSite) lv_obj_set_style_text_font(g_lvglWikiSourceSite, lvglFontMeta(), 0);
+  if (g_lvglWikiWhen) lv_obj_set_style_text_font(g_lvglWikiWhen, lvglFontTiny(), 0);
+  if (g_lvglWikiNews) lv_obj_set_style_text_font(g_lvglWikiNews, lvglFontRssNews(), 0);
+  if (g_lvglWikiMeta) lv_obj_set_style_text_font(g_lvglWikiMeta, lvglFontSmall(), 0);
+  if (g_lvglWikiQrHint) lv_obj_set_style_text_font(g_lvglWikiQrHint, lvglFontTiny(), 0);
+
 #if SCREENSAVER_ENABLED
   if (g_lvglScreenSaverSky) lv_obj_set_style_text_font(g_lvglScreenSaverSky, lvglFontMono(), 0);
   for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
@@ -10136,6 +10411,208 @@ static void lvglUpdateAuxRss(bool force) {
 #else
   if (g_lvglAuxQrOverlay) lv_obj_add_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
   if (g_lvglAuxQrHint) lv_obj_add_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
+#endif
+#endif
+}
+
+static void lvglUpdateWikiDeck(bool force) {
+  if (!g_lvglWikiNews) return;
+  RssState &content = g_wiki;
+  const char *contentTag = "WIKI-DECK";
+#if TEST_WIFI && RSS_ENABLED
+  const uint32_t now = millis();
+  if (g_wifiConnected && content.valid && content.itemCount > 1 && content.lastRotateMs != 0 &&
+      !lvglWikiQrModalIsOpen() &&
+      (now - content.lastRotateMs) >= RSS_ROTATE_MS) {
+    content.currentIndex = (uint8_t)((content.currentIndex + 1) % content.itemCount);
+    content.lastRotateMs = now;
+    force = true;
+  }
+#endif
+
+  char title3[260];
+  char whenLine[64];
+  char status[32];
+  char meta[96];
+  char siteShort[16];
+  char siteBadge[4];
+  char sourceLine[96];
+  char siteHost[96];
+  uint32_t siteColorHex = 0x2B468E;
+  uint32_t siteTextHex = 0xFFFFFF;
+  bool sourceLineSet = false;
+  title3[0] = '\0';
+  whenLine[0] = '\0';
+  status[0] = '\0';
+  meta[0] = '\0';
+  strncpy(siteShort, "WIKI", sizeof(siteShort) - 1);
+  siteShort[sizeof(siteShort) - 1] = '\0';
+  strncpy(siteBadge, "W", sizeof(siteBadge) - 1);
+  siteBadge[sizeof(siteBadge) - 1] = '\0';
+  sourceLine[0] = '\0';
+  strncpy(siteHost, "wiki", sizeof(siteHost) - 1);
+  siteHost[sizeof(siteHost) - 1] = '\0';
+  int16_t showIndex = -1;
+  if (g_lvglWikiTitle) lv_label_set_text(g_lvglWikiTitle, "ScryBar Wiki");
+
+#if TEST_WIFI && RSS_ENABLED
+  if (!g_wifiConnected) {
+    strncpy(title3, activeUiStrings()->rssOffline, sizeof(title3) - 1);
+    title3[sizeof(title3) - 1] = '\0';
+    strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
+    whenLine[sizeof(whenLine) - 1] = '\0';
+    snprintf(status, sizeof(status), "OFF");
+    snprintf(meta, sizeof(meta), "Ultimo fetch: %s", content.lastFetchMs ? content.fetchedAt : "--/-- --:--");
+  } else if (content.valid && content.itemCount > 0) {
+    showIndex = (int16_t)(content.currentIndex % content.itemCount);
+    buildRssStoryBlock(content.items[showIndex], g_lvglWikiNews, title3, sizeof(title3), false);
+    buildRssWhenLabel(content.items[showIndex].pubDate, whenLine, sizeof(whenLine));
+    snprintf(status, sizeof(status), "%u/%u", (unsigned)(showIndex + 1), (unsigned)content.itemCount);
+    uint32_t rotateLeftSec = 0;
+    if (content.lastRotateMs != 0) {
+      const uint32_t elapsed = now - content.lastRotateMs;
+      if (elapsed >= RSS_ROTATE_MS) {
+        rotateLeftSec = 0;
+      } else {
+        rotateLeftSec = (uint32_t)(((RSS_ROTATE_MS - elapsed) + 999UL) / 1000UL);
+      }
+    }
+    const uint8_t wikiSlot = content.items[showIndex].feedSlot;
+    extractRssHost(content.items[showIndex].link, siteHost, sizeof(siteHost));
+    copyStringSafe(siteShort, sizeof(siteShort), "WIKI");
+    copyStringSafe(siteBadge, sizeof(siteBadge), wikiFeedUiBadge(wikiSlot));
+    siteColorHex = wikiFeedUiColorHex(wikiSlot);
+    siteTextHex = 0xFFFFFF;
+    const char *feedName = wikiFeedUiName(wikiSlot);
+    snprintf(sourceLine, sizeof(sourceLine), "Wikipedia | %s", feedName);
+    if (lvglWikiQrModalIsOpen()) {
+      snprintf(meta, sizeof(meta), "%s | QR", feedName);
+    } else {
+      char titleHead[72];
+      copyStringSafe(titleHead, sizeof(titleHead),
+                     content.items[showIndex].title[0] ? content.items[showIndex].title : "-");
+      sanitizeAsciiBuffer(titleHead, sizeof(titleHead));
+      snprintf(meta, sizeof(meta), "%s | %s", feedName, titleHead);
+    }
+    sourceLineSet = true;
+  } else if (content.lastHttpCode != 0) {
+    strncpy(title3, activeUiStrings()->rssFeedError, sizeof(title3) - 1);
+    title3[sizeof(title3) - 1] = '\0';
+    strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
+    whenLine[sizeof(whenLine) - 1] = '\0';
+    snprintf(status, sizeof(status), "ERR %d", content.lastHttpCode);
+    snprintf(meta, sizeof(meta), "Fetch %s", content.lastFetchMs ? content.fetchedAt : "--/-- --:--");
+  } else {
+    strncpy(title3, activeUiStrings()->rssSyncing, sizeof(title3) - 1);
+    title3[sizeof(title3) - 1] = '\0';
+    strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
+    whenLine[sizeof(whenLine) - 1] = '\0';
+    snprintf(status, sizeof(status), "SYNC");
+    snprintf(meta, sizeof(meta), "Fetch --/-- --:--");
+  }
+#elif TEST_WIFI
+  strncpy(title3, activeUiStrings()->rssDisabled, sizeof(title3) - 1);
+  title3[sizeof(title3) - 1] = '\0';
+  strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
+  whenLine[sizeof(whenLine) - 1] = '\0';
+  snprintf(status, sizeof(status), g_wifiConnected ? "WiFi" : "OFF");
+  snprintf(meta, sizeof(meta), "Fetch --/-- --:--");
+#else
+  strncpy(title3, "Wiki non disponibile\n(TEST_WIFI=0).", sizeof(title3) - 1);
+  title3[sizeof(title3) - 1] = '\0';
+  strncpy(whenLine, "--/-- --:--", sizeof(whenLine) - 1);
+  whenLine[sizeof(whenLine) - 1] = '\0';
+  snprintf(status, sizeof(status), "N/A");
+  snprintf(meta, sizeof(meta), "Fetch --/-- --:--");
+#endif
+
+  if (!sourceLineSet) snprintf(sourceLine, sizeof(sourceLine), "%s", siteShort);
+  if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
+    buildRssStoryBlock(content.items[showIndex], g_lvglWikiNews, title3, sizeof(title3), false);
+  }
+
+  sanitizeAsciiBuffer(title3, sizeof(title3));
+  sanitizeAsciiBuffer(whenLine, sizeof(whenLine));
+  sanitizeAsciiBuffer(meta, sizeof(meta));
+  sanitizeAsciiBuffer(sourceLine, sizeof(sourceLine));
+  char sourceWithWhen[140];
+  copyStringSafe(sourceWithWhen, sizeof(sourceWithWhen), sourceLine);
+
+  lv_label_set_text(g_lvglWikiNews, title3);
+  lvglForceLabelVisible(g_lvglWikiNews);
+  if (g_lvglWikiSourceBadge) lv_obj_clear_flag(g_lvglWikiSourceBadge, LV_OBJ_FLAG_HIDDEN);
+  if (g_lvglWikiSourceSite) {
+    lv_label_set_text(g_lvglWikiSourceSite, sourceWithWhen);
+    lvglForceLabelVisible(g_lvglWikiSourceSite);
+  }
+  if (g_lvglWikiWhen) lv_obj_add_flag(g_lvglWikiWhen, LV_OBJ_FLAG_HIDDEN);
+  if (g_lvglWikiSourceBadgeText) {
+    lv_label_set_text(g_lvglWikiSourceBadgeText, siteBadge);
+    lv_obj_set_style_text_color(g_lvglWikiSourceBadgeText, lv_color_hex(siteTextHex), 0);
+    lvglForceLabelVisible(g_lvglWikiSourceBadgeText);
+  }
+  if (g_lvglWikiSourceBadge) {
+    lv_obj_set_style_bg_color(g_lvglWikiSourceBadge, lv_color_hex(siteColorHex), LV_PART_MAIN);
+  }
+  if (g_lvglWikiStatus) {
+    lv_label_set_text(g_lvglWikiStatus, status);
+    lvglForceLabelVisible(g_lvglWikiStatus);
+  }
+  if (g_lvglWikiMeta) {
+    lv_label_set_text(g_lvglWikiMeta, meta);
+    lvglForceLabelVisible(g_lvglWikiMeta);
+  }
+#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
+#if TEST_WIFI && RSS_ENABLED
+  if (g_lvglWikiQrOverlay) {
+    if (lvglWikiQrModalIsOpen()) {
+      lv_obj_clear_flag(g_lvglWikiQrOverlay, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_move_foreground(g_lvglWikiQrOverlay);
+      if (g_lvglWikiQrHint) lv_obj_clear_flag(g_lvglWikiQrHint, LV_OBJ_FLAG_HIDDEN);
+      if (g_lvglWikiQr) {
+        const char *url = "https://en.wikipedia.org";
+        bool qrReady = true;
+        int16_t qrIndex = -1;
+        if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
+          RssItem &item = content.items[showIndex];
+          if (item.link[0]) url = item.link;
+          if (!item.shortReady) (void)wikiTryShortenUrl((uint8_t)showIndex);
+          if (item.shortReady && item.shortLink[0]) url = item.shortLink;
+          qrIndex = showIndex;
+        }
+        if (qrReady) {
+          if (force || g_lvglWikiLastItemShown != qrIndex ||
+              strncmp(g_lvglWikiLastQrPayload, url, sizeof(g_lvglWikiLastQrPayload) - 1) != 0) {
+            lv_qrcode_update(g_lvglWikiQr, url, strlen(url));
+            strncpy(g_lvglWikiLastQrPayload, url, sizeof(g_lvglWikiLastQrPayload) - 1);
+            g_lvglWikiLastQrPayload[sizeof(g_lvglWikiLastQrPayload) - 1] = '\0';
+            g_lvglWikiLastItemShown = qrIndex;
+            if (qrIndex >= 0) Serial.printf("[%s] qr %u -> %s\n", contentTag, (unsigned)(qrIndex + 1), url);
+            else Serial.printf("[%s] qr fallback -> %s\n", contentTag, url);
+          }
+          lv_obj_clear_flag(g_lvglWikiQr, LV_OBJ_FLAG_HIDDEN);
+          if (g_lvglWikiQrHint) {
+            lv_label_set_text(g_lvglWikiQrHint, activeUiStrings()->touchToCloseAnywhere);
+            lv_obj_clear_flag(g_lvglWikiQrHint, LV_OBJ_FLAG_HIDDEN);
+          }
+          if (g_lvglWikiStatus) lv_label_set_text(g_lvglWikiStatus, status);
+        } else {
+          lv_obj_add_flag(g_lvglWikiQr, LV_OBJ_FLAG_HIDDEN);
+          if (g_lvglWikiQrHint) {
+            lv_label_set_text(g_lvglWikiQrHint, activeUiStrings()->generatingQr);
+            lv_obj_clear_flag(g_lvglWikiQrHint, LV_OBJ_FLAG_HIDDEN);
+          }
+          if (g_lvglWikiStatus) lv_label_set_text(g_lvglWikiStatus, "QR...");
+        }
+      }
+    } else {
+      lv_obj_add_flag(g_lvglWikiQrOverlay, LV_OBJ_FLAG_HIDDEN);
+      if (g_lvglWikiQrHint) lv_obj_add_flag(g_lvglWikiQrHint, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+#else
+  if (g_lvglWikiQrOverlay) lv_obj_add_flag(g_lvglWikiQrOverlay, LV_OBJ_FLAG_HIDDEN);
+  if (g_lvglWikiQrHint) lv_obj_add_flag(g_lvglWikiQrHint, LV_OBJ_FLAG_HIDDEN);
 #endif
 #endif
 }
@@ -11244,24 +11721,233 @@ static bool initLvglUi() {
   lv_obj_clear_flag(g_lvglWikiRoot, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(g_lvglWikiRoot, LV_SCROLLBAR_MODE_OFF);
 
-  // Wiki placeholder card (full Wiki deck will be added in a future pass)
+  // Wiki deck — full widget tree (mirrors AUX deck, reads from g_wiki)
+  g_lvglWikiCard = lv_obj_create(g_lvglWikiRoot);
+  lv_obj_set_size(g_lvglWikiCard, cW - (outerPadX * 2), cH - (outerPadY * 2));
+  lv_obj_set_pos(g_lvglWikiCard, outerPadX, outerPadY);
+  lv_obj_set_style_radius(g_lvglWikiCard, kCardRadius, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_lvglWikiCard, kPanelBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_lvglWikiCard, kPanelBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_lvglWikiCard, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglWikiCard, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglWikiCard, 0, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_lvglWikiCard, false, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglWikiCard, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_lvglWikiCard, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglWikiCard, LV_OBJ_FLAG_SCROLLABLE);
+
   {
-    lv_obj_t *wikiCard = lv_obj_create(g_lvglWikiRoot);
-    lv_obj_set_size(wikiCard, cW, cH);
-    lv_obj_set_pos(wikiCard, 0, 0);
-    lv_obj_set_style_radius(wikiCard, 0, LV_PART_MAIN);
-    lv_obj_set_style_border_width(wikiCard, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(wikiCard, lv_color_hex(activeUiTheme().lvgl.panelBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(wikiCard, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(wikiCard, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(wikiCard, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(wikiCard, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *wikiLabel = lv_label_create(wikiCard);
-    lv_obj_set_style_text_font(wikiLabel, lvglFontSmall(), 0);
-    lv_obj_set_style_text_color(wikiLabel, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
-    lv_label_set_text(wikiLabel, "WIKI");
-    lv_obj_center(wikiLabel);
-  }
+    constexpr int16_t wikiHeaderH = 30;
+    const int16_t wikiCardW = cW - (outerPadX * 2);
+    const int16_t wikiCardH = cH - (outerPadY * 2);
+    g_lvglWikiHeader = lv_obj_create(g_lvglWikiCard);
+    lv_obj_set_size(g_lvglWikiHeader, wikiCardW, wikiHeaderH);
+    lv_obj_set_pos(g_lvglWikiHeader, 0, 0);
+    lv_obj_set_style_bg_color(g_lvglWikiHeader, kHeaderBlue, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_lvglWikiHeader, kHeaderBlue, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_dir(g_lvglWikiHeader, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglWikiHeader, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWikiHeader, kCardRadius, LV_PART_MAIN);
+    lv_obj_set_style_clip_corner(g_lvglWikiHeader, false, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiHeader, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(g_lvglWikiHeader, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(g_lvglWikiHeader, LV_OBJ_FLAG_SCROLLABLE);
+    g_lvglWikiHeaderFill = lv_obj_create(g_lvglWikiHeader);
+    lv_obj_set_size(g_lvglWikiHeaderFill, wikiCardW, 10);
+    lv_obj_set_pos(g_lvglWikiHeaderFill, 0, wikiHeaderH - 10);
+    lv_obj_set_style_bg_color(g_lvglWikiHeaderFill, kHeaderBlue, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglWikiHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiHeaderFill, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(g_lvglWikiHeaderFill, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWikiHeaderFill, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(g_lvglWikiHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
+
+    const int16_t wBtnW = 44;
+    const int16_t wBtnH = 26;
+    const int16_t wBtnGap = 6;
+    const int16_t wQrBtnX = wikiCardW - wBtnW - 8;
+    const int16_t wQrBtnY = wikiCardH - wBtnH - 8;
+    const int16_t wRefBtnX = wQrBtnX - wBtnW - wBtnGap;
+    const int16_t wNxtBtnX = wRefBtnX - wBtnW - wBtnGap;
+
+    g_lvglWikiNextFeedBtn = lv_obj_create(g_lvglWikiCard);
+    lv_obj_set_size(g_lvglWikiNextFeedBtn, wBtnW, wBtnH);
+    lv_obj_set_pos(g_lvglWikiNextFeedBtn, wNxtBtnX, wQrBtnY);
+    lv_obj_set_style_bg_color(g_lvglWikiNextFeedBtn, lv_color_hex(0x7B63FF), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglWikiNextFeedBtn, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiNextFeedBtn, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(g_lvglWikiNextFeedBtn, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWikiNextFeedBtn, kButtonRadius, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(g_lvglWikiNextFeedBtn, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(g_lvglWikiNextFeedBtn, LV_OBJ_FLAG_SCROLLABLE);
+    g_lvglWikiNextFeedBtnText = lv_label_create(g_lvglWikiNextFeedBtn);
+    lv_obj_set_style_text_font(g_lvglWikiNextFeedBtnText, lvglFontTiny(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiNextFeedBtnText, lv_color_hex(0xF7F2FF), 0);
+    lv_label_set_text(g_lvglWikiNextFeedBtnText, "NXT");
+    lv_obj_center(g_lvglWikiNextFeedBtnText);
+    lvglForceLabelVisible(g_lvglWikiNextFeedBtnText);
+
+    g_lvglWikiRefreshBtn = lv_obj_create(g_lvglWikiCard);
+    lv_obj_set_size(g_lvglWikiRefreshBtn, wBtnW, wBtnH);
+    lv_obj_set_pos(g_lvglWikiRefreshBtn, wRefBtnX, wQrBtnY);
+    lv_obj_set_style_bg_color(g_lvglWikiRefreshBtn, lv_color_hex(0x6FD8FF), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglWikiRefreshBtn, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiRefreshBtn, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(g_lvglWikiRefreshBtn, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWikiRefreshBtn, kButtonRadius, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(g_lvglWikiRefreshBtn, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(g_lvglWikiRefreshBtn, LV_OBJ_FLAG_SCROLLABLE);
+    g_lvglWikiRefreshBtnText = lv_label_create(g_lvglWikiRefreshBtn);
+    lv_obj_set_style_text_font(g_lvglWikiRefreshBtnText, lvglFontTiny(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiRefreshBtnText, lv_color_hex(0x113063), 0);
+    lv_label_set_text(g_lvglWikiRefreshBtnText, "SKIP");
+    lv_obj_center(g_lvglWikiRefreshBtnText);
+    lvglForceLabelVisible(g_lvglWikiRefreshBtnText);
+
+    g_lvglWikiQrBtn = lv_obj_create(g_lvglWikiCard);
+    lv_obj_set_size(g_lvglWikiQrBtn, wBtnW, wBtnH);
+    lv_obj_set_pos(g_lvglWikiQrBtn, wQrBtnX, wQrBtnY);
+    lv_obj_set_style_bg_color(g_lvglWikiQrBtn, lv_color_hex(0xFFD34D), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglWikiQrBtn, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiQrBtn, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(g_lvglWikiQrBtn, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWikiQrBtn, kButtonRadius, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(g_lvglWikiQrBtn, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(g_lvglWikiQrBtn, LV_OBJ_FLAG_SCROLLABLE);
+    g_lvglWikiQrBtnText = lv_label_create(g_lvglWikiQrBtn);
+    lv_obj_set_style_text_font(g_lvglWikiQrBtnText, lvglFontTiny(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiQrBtnText, lv_color_hex(0x1E2F63), 0);
+    lv_label_set_text(g_lvglWikiQrBtnText, "QR");
+    lv_obj_center(g_lvglWikiQrBtnText);
+    lvglForceLabelVisible(g_lvglWikiQrBtnText);
+
+    g_lvglWikiTitle = lv_label_create(g_lvglWikiHeader);
+    lv_obj_set_style_text_font(g_lvglWikiTitle, lvglFontSmall(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiTitle, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align(g_lvglWikiTitle, LV_ALIGN_LEFT_MID, 12, -1);
+    lv_label_set_text(g_lvglWikiTitle, "ScryBar Wiki");
+    lvglForceLabelVisible(g_lvglWikiTitle);
+
+    g_lvglWikiStatus = lv_label_create(g_lvglWikiHeader);
+    lv_obj_set_style_text_font(g_lvglWikiStatus, lvglFontTiny(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiStatus, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align(g_lvglWikiStatus, LV_ALIGN_RIGHT_MID, -5, 0);
+    lv_label_set_text(g_lvglWikiStatus, "SYNC");
+    lvglForceLabelVisible(g_lvglWikiStatus);
+
+    const int16_t wLeftPaneX = 8;
+    const int16_t wLeftPaneW = wikiCardW - (wLeftPaneX * 2);
+    const int16_t wSourceRowY = wikiHeaderH + 6;
+    const int16_t wSourceTextY = wikiHeaderH + 15;
+    const int16_t wSourceGap = 2;
+    const int16_t wBadgeSize = 35;
+    const int16_t wSourceRightEdge = wikiCardW - 5;
+    const int16_t wSourceIconX =
+        ((wSourceRightEdge - wBadgeSize) < wLeftPaneX) ? wLeftPaneX : (wSourceRightEdge - wBadgeSize);
+    const int16_t wSourceSiteX = wLeftPaneX;
+    const int16_t wSourceTextTotalW = wSourceIconX - wSourceSiteX - wSourceGap;
+    int16_t wSourceSiteW = wSourceTextTotalW;
+    if (wSourceSiteW < 40) wSourceSiteW = 40;
+
+    g_lvglWikiSourceBadge = lv_obj_create(g_lvglWikiCard);
+    lv_obj_set_size(g_lvglWikiSourceBadge, wBadgeSize, wBadgeSize);
+    lv_obj_set_pos(g_lvglWikiSourceBadge, wSourceIconX, wSourceRowY);
+    lv_obj_set_style_bg_color(g_lvglWikiSourceBadge, lv_color_hex(0x2B468E), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglWikiSourceBadge, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiSourceBadge, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(g_lvglWikiSourceBadge, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWikiSourceBadge, kBadgeRadius, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(g_lvglWikiSourceBadge, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(g_lvglWikiSourceBadge, LV_OBJ_FLAG_SCROLLABLE);
+
+    g_lvglWikiSourceBadgeText = lv_label_create(g_lvglWikiSourceBadge);
+    lv_obj_set_style_text_font(g_lvglWikiSourceBadgeText, lvglFontTiny(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiSourceBadgeText, lv_color_hex(0xFFFFFF), 0);
+    lv_label_set_text(g_lvglWikiSourceBadgeText, "W");
+    lv_obj_center(g_lvglWikiSourceBadgeText);
+    lvglForceLabelVisible(g_lvglWikiSourceBadgeText);
+
+    g_lvglWikiSourceSite = lv_label_create(g_lvglWikiCard);
+    lv_obj_set_style_text_font(g_lvglWikiSourceSite, lvglFontMeta(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiSourceSite, lv_color_hex(0xEAF0FF), 0);
+    lv_label_set_long_mode(g_lvglWikiSourceSite, LV_LABEL_LONG_DOT);
+    lv_obj_set_size(g_lvglWikiSourceSite, wSourceSiteW, 26);
+    lv_obj_set_pos(g_lvglWikiSourceSite, wSourceSiteX, wSourceTextY);
+    lv_obj_set_style_text_align(g_lvglWikiSourceSite, LV_TEXT_ALIGN_LEFT, 0);
+    lv_label_set_text(g_lvglWikiSourceSite, "Wiki  --/-- --:--");
+    lvglForceLabelVisible(g_lvglWikiSourceSite);
+
+    g_lvglWikiWhen = lv_label_create(g_lvglWikiCard);
+    lv_obj_set_style_text_font(g_lvglWikiWhen, lvglFontTiny(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiWhen, lv_color_hex(0xAFC2F5), 0);
+    lv_label_set_long_mode(g_lvglWikiWhen, LV_LABEL_LONG_DOT);
+    lv_obj_set_size(g_lvglWikiWhen, 0, 22);
+    lv_obj_set_pos(g_lvglWikiWhen, wSourceSiteX + wSourceSiteW, wSourceTextY + 2);
+    lv_obj_set_style_text_align(g_lvglWikiWhen, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_label_set_text(g_lvglWikiWhen, "--/-- --:--");
+    lv_obj_add_flag(g_lvglWikiWhen, LV_OBJ_FLAG_HIDDEN);
+
+    g_lvglWikiNews = lv_label_create(g_lvglWikiCard);
+    lv_obj_set_style_text_font(g_lvglWikiNews, lvglFontRssNews(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiNews, lv_color_hex(0xEAF0FF), 0);
+    lv_obj_set_style_text_line_space(g_lvglWikiNews, 3, 0);
+    lv_label_set_long_mode(g_lvglWikiNews, LV_LABEL_LONG_WRAP);
+    const int16_t wNewsY = wSourceRowY + wBadgeSize - 1;
+    const int16_t wNewsBottom = wQrBtnY - 14;
+    int16_t wNewsH = wNewsBottom - wNewsY;
+    if (wNewsH < 44) wNewsH = 44;
+    lv_obj_set_size(g_lvglWikiNews, wLeftPaneW, wNewsH);
+    lv_obj_set_pos(g_lvglWikiNews, wLeftPaneX, wNewsY);
+    lv_obj_set_style_text_align(g_lvglWikiNews, LV_TEXT_ALIGN_LEFT, 0);
+    lv_label_set_text(g_lvglWikiNews, activeUiStrings()->rssSyncing);
+    lvglForceLabelVisible(g_lvglWikiNews);
+
+    g_lvglWikiMeta = lv_label_create(g_lvglWikiHeader);
+    lv_obj_set_style_text_font(g_lvglWikiMeta, lvglFontSmall(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiMeta, lv_color_hex(0xAFC2F5), 0);
+    lv_label_set_long_mode(g_lvglWikiMeta, LV_LABEL_LONG_DOT);
+    lv_obj_set_size(g_lvglWikiMeta, wikiCardW - 316, 22);
+    lv_obj_set_pos(g_lvglWikiMeta, 188, 4);
+    lv_label_set_text(g_lvglWikiMeta, "Fetch --/-- --:--");
+    lvglForceLabelVisible(g_lvglWikiMeta);
+
+#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
+    const int16_t wQrOverlayH = wikiCardH;
+    g_lvglWikiQrOverlay = lv_obj_create(g_lvglWikiCard);
+    lv_obj_set_size(g_lvglWikiQrOverlay, wikiCardW, wQrOverlayH);
+    lv_obj_set_pos(g_lvglWikiQrOverlay, 0, 0);
+    lv_obj_set_style_bg_color(g_lvglWikiQrOverlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglWikiQrOverlay, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiQrOverlay, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(g_lvglWikiQrOverlay, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_lvglWikiQrOverlay, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(g_lvglWikiQrOverlay, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(g_lvglWikiQrOverlay, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(g_lvglWikiQrOverlay, LV_OBJ_FLAG_HIDDEN);
+
+    int16_t wQrSize = wQrOverlayH - 4;
+    if (wQrSize > (wikiCardW - 4)) wQrSize = wikiCardW - 4;
+    if (wQrSize < 90) wQrSize = 90;
+    const lv_color_t wikiQrDark = lv_color_hex(theme.auxQrDark);
+    const lv_color_t wikiQrLight = lv_color_hex(theme.auxQrLight);
+    g_lvglWikiQr = lv_qrcode_create(g_lvglWikiQrOverlay, wQrSize, wikiQrDark, wikiQrLight);
+    lv_obj_center(g_lvglWikiQr);
+    lv_obj_set_style_bg_color(g_lvglWikiQr, wikiQrLight, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_lvglWikiQr, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_lvglWikiQr, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_lvglWikiQr, lv_color_hex(theme.auxQrHint), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_lvglWikiQr, LV_OPA_70, LV_PART_MAIN);
+    lv_qrcode_update(g_lvglWikiQr, "https://en.wikipedia.org", strlen("https://en.wikipedia.org"));
+    lv_obj_clear_flag(g_lvglWikiQr, LV_OBJ_FLAG_SCROLLABLE);
+
+    g_lvglWikiQrHint = lv_label_create(g_lvglWikiQrOverlay);
+    lv_obj_set_style_text_font(g_lvglWikiQrHint, lvglFontTiny(), 0);
+    lv_obj_set_style_text_color(g_lvglWikiQrHint, lv_color_hex(theme.auxQrHint), 0);
+    lv_label_set_text(g_lvglWikiQrHint, activeUiStrings()->touchToClose);
+    lv_obj_align(g_lvglWikiQrHint, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_add_flag(g_lvglWikiQrHint, LV_OBJ_FLAG_HIDDEN);
+#endif
+  }  // end Wiki deck
 
   g_lvglAuxCard = lv_obj_create(g_lvglAuxRoot);
   lv_obj_set_size(g_lvglAuxCard, cW - (outerPadX * 2), cH - (outerPadY * 2));
@@ -11644,8 +12330,15 @@ static void updateLvglUi(bool force) {
     g_uiNeedsRedraw = false;
     return;
   }
-  if (uiPageUsesAuxDeck(g_uiPageMode)) {
+  if (g_uiPageMode == UI_PAGE_AUX) {
     lvglUpdateAuxRss(force);
+    g_lastClockSecond = timeinfo.tm_sec;
+    g_lastDateKey = dateKey;
+    g_uiNeedsRedraw = false;
+    return;
+  }
+  if (g_uiPageMode == UI_PAGE_WIKI) {
+    lvglUpdateWikiDeck(force);
     g_lastClockSecond = timeinfo.tm_sec;
     g_lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
