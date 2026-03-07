@@ -854,31 +854,6 @@ static FeedDeckUi g_auxDeck;
 static FeedDeckUi g_wikiDeck;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
-static lv_obj_t *g_lvglAuxCard = nullptr;
-static lv_obj_t *g_lvglAuxHeader = nullptr;
-static lv_obj_t *g_lvglAuxHeaderFill = nullptr;
-static lv_obj_t *g_lvglAuxTitle = nullptr;
-static lv_obj_t *g_lvglAuxFeedIcon = nullptr;
-static lv_obj_t *g_lvglAuxStatus = nullptr;
-static lv_obj_t *g_lvglAuxQrBtn = nullptr;
-static lv_obj_t *g_lvglAuxQrBtnText = nullptr;
-static lv_obj_t *g_lvglAuxRefreshBtn = nullptr;
-static lv_obj_t *g_lvglAuxRefreshBtnText = nullptr;
-static lv_obj_t *g_lvglAuxNextFeedBtn = nullptr;
-static lv_obj_t *g_lvglAuxNextFeedBtnText = nullptr;
-static lv_obj_t *g_lvglAuxSourceBadge = nullptr;
-static lv_obj_t *g_lvglAuxSourceBadgeText = nullptr;
-static lv_obj_t *g_lvglAuxSourceSite = nullptr;
-static lv_obj_t *g_lvglAuxNews = nullptr;
-static lv_obj_t *g_lvglAuxMeta = nullptr;
-static lv_obj_t *g_lvglAuxQrOverlay = nullptr;
-static lv_obj_t *g_lvglAuxQrHint = nullptr;
-#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
-static lv_obj_t *g_lvglAuxQr = nullptr;
-#endif
-static int16_t g_lvglAuxLastItemShown = -1;
-static char g_lvglAuxLastQrPayload[280] = {0};
-static bool g_lvglAuxQrModalOpen = false;
 // Wiki deck widgets (parallel to AUX deck, inside g_lvglWikiRoot)
 static lv_obj_t *g_lvglWikiCard            = nullptr;
 static lv_obj_t *g_lvglWikiHeader          = nullptr;
@@ -5979,8 +5954,8 @@ static bool updateRssFromFeed(bool force) {
   g_rss.valid = true;
   g_rss.lastFetchMs = now;
   if (changed) {
-    g_lvglAuxLastItemShown = -1;
-    g_lvglAuxLastQrPayload[0] = '\0';
+    g_auxDeck.lastItemShown = -1;
+    g_auxDeck.lastQrPayload[0] = '\0';
   }
   struct tm tinfo;
   if (getLocalTime(&tinfo, 50)) {
@@ -6096,8 +6071,8 @@ static bool updateWikiFromFeed(bool force) {
   g_wiki.lastFetchMs = now;
   g_wikiMetaPreloadLastMs = 0;
   if (changed && g_uiPageMode == UI_PAGE_WIKI) {
-    g_lvglAuxLastItemShown = -1;
-    g_lvglAuxLastQrPayload[0] = '\0';
+    g_auxDeck.lastItemShown = -1;
+    g_auxDeck.lastQrPayload[0] = '\0';
 #if TEST_NTP
     g_uiNeedsRedraw = true;
 #endif
@@ -6700,19 +6675,19 @@ static bool lvglContainsPointExpanded(lv_obj_t *obj, int16_t x, int16_t y, int16
 }
 
 static bool lvglAuxQrButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_lvglAuxQrBtn, x, y, 8);
+  return lvglContainsPointExpanded(g_auxDeck.qrBtn, x, y, 8);
 }
 
 static bool lvglAuxRefreshButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_lvglAuxRefreshBtn, x, y, 8);
+  return lvglContainsPointExpanded(g_auxDeck.refreshBtn, x, y, 8);
 }
 
 static bool lvglAuxNextFeedButtonContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(g_lvglAuxNextFeedBtn, x, y, 8);
+  return lvglContainsPointExpanded(g_auxDeck.nextFeedBtn, x, y, 8);
 }
 
 static bool lvglAuxNewsContainsPoint(int16_t x, int16_t y) {
-  return lvglContainsPoint(g_lvglAuxNews, x, y);
+  return lvglContainsPoint(g_auxDeck.news, x, y);
 }
 
 static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y) {
@@ -6722,69 +6697,69 @@ static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y) {
 }
 
 static bool lvglAuxQrModalIsOpen() {
-  return g_lvglAuxQrModalOpen;
+  return g_auxDeck.qrModalOpen;
 }
 
 static void lvglSetAuxQrButtonPressed(bool pressed) {
-  if (!g_lvglAuxQrBtn) return;
+  if (!g_auxDeck.qrBtn) return;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
   const uint32_t bgHex = lvglResolvedAuxButtonBg(
       pressed ? t.auxQrBtnPressedBg : t.auxQrBtnBg,
       pressed ? 0xFFF19A : 0xFFD34D);
   const lv_color_t bg = lv_color_hex(bgHex);
-  lv_obj_set_style_bg_color(g_lvglAuxQrBtn, bg, LV_PART_MAIN);
-  if (g_lvglAuxQrBtnText) {
+  lv_obj_set_style_bg_color(g_auxDeck.qrBtn, bg, LV_PART_MAIN);
+  if (g_auxDeck.qrBtnText) {
     const uint32_t fgHex = lvglResolvedAuxButtonText(
         pressed ? t.auxQrBtnPressedText : t.auxQrBtnText, bgHex);
     const lv_color_t fg = lv_color_hex(fgHex);
-    lv_obj_set_style_text_color(g_lvglAuxQrBtnText, fg, 0);
+    lv_obj_set_style_text_color(g_auxDeck.qrBtnText, fg, 0);
   }
-  lv_obj_invalidate(g_lvglAuxQrBtn);
+  lv_obj_invalidate(g_auxDeck.qrBtn);
 }
 
 static void lvglSetAuxRefreshButtonPressed(bool pressed) {
-  if (!g_lvglAuxRefreshBtn) return;
+  if (!g_auxDeck.refreshBtn) return;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
   const uint32_t bgHex = lvglResolvedAuxButtonBg(
       pressed ? t.auxRefreshBtnPressedBg : t.auxRefreshBtnBg,
       pressed ? 0xB9ECFF : 0x6FD8FF);
   const lv_color_t bg = lv_color_hex(bgHex);
-  lv_obj_set_style_bg_color(g_lvglAuxRefreshBtn, bg, LV_PART_MAIN);
-  if (g_lvglAuxRefreshBtnText) {
+  lv_obj_set_style_bg_color(g_auxDeck.refreshBtn, bg, LV_PART_MAIN);
+  if (g_auxDeck.refreshBtnText) {
     const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxRefreshBtnText, bgHex);
-    lv_obj_set_style_text_color(g_lvglAuxRefreshBtnText, lv_color_hex(fgHex), 0);
+    lv_obj_set_style_text_color(g_auxDeck.refreshBtnText, lv_color_hex(fgHex), 0);
   }
-  lv_obj_invalidate(g_lvglAuxRefreshBtn);
+  lv_obj_invalidate(g_auxDeck.refreshBtn);
 }
 
 static void lvglSetAuxNextFeedButtonPressed(bool pressed) {
-  if (!g_lvglAuxNextFeedBtn) return;
+  if (!g_auxDeck.nextFeedBtn) return;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
   const uint32_t bgHex = lvglResolvedAuxButtonBg(
       pressed ? t.auxNextBtnPressedBg : t.auxNextBtnBg,
       pressed ? 0x9E8EFF : 0x7B63FF);
   const lv_color_t bg = lv_color_hex(bgHex);
-  lv_obj_set_style_bg_color(g_lvglAuxNextFeedBtn, bg, LV_PART_MAIN);
-  if (g_lvglAuxNextFeedBtnText) {
+  lv_obj_set_style_bg_color(g_auxDeck.nextFeedBtn, bg, LV_PART_MAIN);
+  if (g_auxDeck.nextFeedBtnText) {
     const uint32_t fgHex = lvglResolvedAuxButtonText(t.auxNextBtnText, bgHex);
-    lv_obj_set_style_text_color(g_lvglAuxNextFeedBtnText, lv_color_hex(fgHex), 0);
+    lv_obj_set_style_text_color(g_auxDeck.nextFeedBtnText, lv_color_hex(fgHex), 0);
   }
-  lv_obj_invalidate(g_lvglAuxNextFeedBtn);
+  lv_obj_invalidate(g_auxDeck.nextFeedBtn);
 }
 
 static void lvglSetAuxQrModalOpen(bool open) {
-  if (g_lvglAuxQrModalOpen == open) return;
-  g_lvglAuxQrModalOpen = open;
-  if (g_lvglAuxQrBtnText) lv_label_set_text(g_lvglAuxQrBtnText, open ? "X" : "QR");
+  if (g_auxDeck.qrModalOpen == open) return;
+  g_auxDeck.qrModalOpen = open;
+  if (g_auxDeck.qrBtnText) lv_label_set_text(g_auxDeck.qrBtnText, open ? "X" : "QR");
   if (open) {
-    g_lvglAuxLastItemShown = -1;
-    g_lvglAuxLastQrPayload[0] = '\0';
+    g_auxDeck.lastItemShown = -1;
+    g_auxDeck.lastQrPayload[0] = '\0';
   }
   g_uiNeedsRedraw = true;
-  if (g_lvglAuxQrOverlay) {
-    if (open) lv_obj_clear_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_add_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_invalidate(g_lvglAuxQrOverlay);
+  if (g_auxDeck.qrOverlay) {
+    if (open) lv_obj_clear_flag(g_auxDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(g_auxDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_invalidate(g_auxDeck.qrOverlay);
   }
 }
 
@@ -7092,10 +7067,10 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_set_style_bg_grad_color(g_lvglClockBlock, lv_color_hex(panelBg), LV_PART_MAIN);
     lv_obj_set_style_radius(g_lvglClockBlock, cardRadius, LV_PART_MAIN);
   }
-  if (g_lvglAuxCard) {
-    lv_obj_set_style_bg_color(g_lvglAuxCard, lv_color_hex(panelBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglAuxCard, lv_color_hex(panelBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglAuxCard, cardRadius, LV_PART_MAIN);
+  if (g_auxDeck.card) {
+    lv_obj_set_style_bg_color(g_auxDeck.card, lv_color_hex(panelBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_auxDeck.card, lv_color_hex(panelBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_auxDeck.card, cardRadius, LV_PART_MAIN);
   }
   if (g_lvglWeatherCard) {
     lv_obj_set_style_bg_color(g_lvglWeatherCard, lv_color_hex(weatherBg), LV_PART_MAIN);
@@ -7136,17 +7111,17 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_set_style_bg_color(g_lvglWeatherHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglWeatherHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
   }
-  if (g_lvglAuxHeader) {
-    lv_obj_set_style_bg_color(g_lvglAuxHeader, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglAuxHeader, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglAuxHeader, cardRadius, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_lvglAuxHeader, headerBordered ? 1 : 0, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_lvglAuxHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglAuxHeader, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+  if (g_auxDeck.header) {
+    lv_obj_set_style_bg_color(g_auxDeck.header, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_auxDeck.header, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_auxDeck.header, cardRadius, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_auxDeck.header, headerBordered ? 1 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_auxDeck.header, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_auxDeck.header, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
   }
-  if (g_lvglAuxHeaderFill) {
-    lv_obj_set_style_bg_color(g_lvglAuxHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglAuxHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
+  if (g_auxDeck.headerFill) {
+    lv_obj_set_style_bg_color(g_auxDeck.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_auxDeck.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
   }
   if (g_lvglInfoCard) {
     lv_obj_set_style_bg_color(g_lvglInfoCard, lv_color_hex(t.infoBg), LV_PART_MAIN);
@@ -7167,9 +7142,9 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglClockDate) lv_obj_set_style_text_color(g_lvglClockDate, lv_color_hex(headerText), 0);
   if (g_lvglCity) lv_obj_set_style_text_color(g_lvglCity, lv_color_hex(headerText), 0);
   if (g_lvglSun) lv_obj_set_style_text_color(g_lvglSun, lv_color_hex(headerText), 0);
-  if (g_lvglAuxTitle) lv_obj_set_style_text_color(g_lvglAuxTitle, lv_color_hex(headerText), 0);
-  if (g_lvglAuxStatus) lv_obj_set_style_text_color(g_lvglAuxStatus, lv_color_hex(headerText), 0);
-  if (g_lvglAuxMeta) lv_obj_set_style_text_color(g_lvglAuxMeta, lv_color_hex(headerMeta), 0);
+  if (g_auxDeck.title) lv_obj_set_style_text_color(g_auxDeck.title, lv_color_hex(headerText), 0);
+  if (g_auxDeck.status) lv_obj_set_style_text_color(g_auxDeck.status, lv_color_hex(headerText), 0);
+  if (g_auxDeck.meta) lv_obj_set_style_text_color(g_auxDeck.meta, lv_color_hex(headerMeta), 0);
   if (g_lvglClockL1) lv_obj_set_style_text_color(g_lvglClockL1, lv_color_hex(clockLine1), 0);
   if (g_lvglClockL2) lv_obj_set_style_text_color(g_lvglClockL2, lv_color_hex(clockLine2), 0);
   if (g_lvglClockL3) lv_obj_set_style_text_color(g_lvglClockL3, lv_color_hex(clockLine3), 0);
@@ -7224,72 +7199,72 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_set_style_border_opa(g_lvglInfoWebQr, LV_OPA_80, LV_PART_MAIN);
     lv_qrcode_update(g_lvglInfoWebQr, infoPayload, strlen(infoPayload));
   }
-  if (g_lvglAuxQr) {
-    lv_obj_t *auxQrParent = lv_obj_get_parent(g_lvglAuxQr);
-    lv_coord_t auxQrSize = lv_obj_get_width(g_lvglAuxQr);
+  if (g_auxDeck.qr) {
+    lv_obj_t *auxQrParent = lv_obj_get_parent(g_auxDeck.qr);
+    lv_coord_t auxQrSize = lv_obj_get_width(g_auxDeck.qr);
     if (auxQrSize < 32 && auxQrParent) {
       const lv_coord_t pw = lv_obj_get_width(auxQrParent);
       const lv_coord_t ph = lv_obj_get_height(auxQrParent);
       auxQrSize = ((pw < ph) ? pw : ph) - 4;
     }
     if (auxQrSize < 90) auxQrSize = 90;
-    const bool auxQrHidden = lv_obj_has_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
-    char auxPayload[sizeof(g_lvglAuxLastQrPayload)];
+    const bool auxQrHidden = lv_obj_has_flag(g_auxDeck.qr, LV_OBJ_FLAG_HIDDEN);
+    char auxPayload[sizeof(g_auxDeck.lastQrPayload)];
     copyStringSafe(
       auxPayload,
       sizeof(auxPayload),
-      g_lvglAuxLastQrPayload[0] ? g_lvglAuxLastQrPayload : "https://ansa.it"
+      g_auxDeck.lastQrPayload[0] ? g_auxDeck.lastQrPayload : "https://ansa.it"
     );
-    lv_obj_del(g_lvglAuxQr);
+    lv_obj_del(g_auxDeck.qr);
     const lv_color_t auxQrDark = lv_color_hex(t.auxQrDark);
     const lv_color_t auxQrLight = lv_color_hex(t.auxQrLight);
-    g_lvglAuxQr = lv_qrcode_create(auxQrParent, auxQrSize, auxQrDark, auxQrLight);
-    lv_obj_center(g_lvglAuxQr);
-    lv_obj_set_style_bg_color(g_lvglAuxQr, auxQrLight, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(g_lvglAuxQr, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_lvglAuxQr, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_lvglAuxQr, lv_color_hex(t.auxQrHint), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglAuxQr, LV_OPA_70, LV_PART_MAIN);
-    lv_qrcode_update(g_lvglAuxQr, auxPayload, strlen(auxPayload));
-    if (auxQrHidden) lv_obj_add_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
+    g_auxDeck.qr = lv_qrcode_create(auxQrParent, auxQrSize, auxQrDark, auxQrLight);
+    lv_obj_center(g_auxDeck.qr);
+    lv_obj_set_style_bg_color(g_auxDeck.qr, auxQrLight, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_auxDeck.qr, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_auxDeck.qr, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_auxDeck.qr, lv_color_hex(t.auxQrHint), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_auxDeck.qr, LV_OPA_70, LV_PART_MAIN);
+    lv_qrcode_update(g_auxDeck.qr, auxPayload, strlen(auxPayload));
+    if (auxQrHidden) lv_obj_add_flag(g_auxDeck.qr, LV_OBJ_FLAG_HIDDEN);
   }
 #endif
 
-  if (g_lvglAuxSourceBadge) {
-    lv_obj_set_style_bg_color(g_lvglAuxSourceBadge, lv_color_hex(t.auxBadgeBg), LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_lvglAuxSourceBadge, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_lvglAuxSourceBadge, lv_color_hex(t.auxSourceText), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglAuxSourceBadge, LV_OPA_70, LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglAuxSourceBadge, badgeRadius, LV_PART_MAIN);
+  if (g_auxDeck.sourceBadge) {
+    lv_obj_set_style_bg_color(g_auxDeck.sourceBadge, lv_color_hex(t.auxBadgeBg), LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_auxDeck.sourceBadge, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_auxDeck.sourceBadge, lv_color_hex(t.auxSourceText), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_auxDeck.sourceBadge, LV_OPA_70, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_auxDeck.sourceBadge, badgeRadius, LV_PART_MAIN);
   }
-  if (g_lvglAuxNextFeedBtn) lv_obj_set_style_radius(g_lvglAuxNextFeedBtn, buttonRadius, LV_PART_MAIN);
-  if (g_lvglAuxRefreshBtn) lv_obj_set_style_radius(g_lvglAuxRefreshBtn, buttonRadius, LV_PART_MAIN);
-  if (g_lvglAuxQrBtn) lv_obj_set_style_radius(g_lvglAuxQrBtn, buttonRadius, LV_PART_MAIN);
+  if (g_auxDeck.nextFeedBtn) lv_obj_set_style_radius(g_auxDeck.nextFeedBtn, buttonRadius, LV_PART_MAIN);
+  if (g_auxDeck.refreshBtn) lv_obj_set_style_radius(g_auxDeck.refreshBtn, buttonRadius, LV_PART_MAIN);
+  if (g_auxDeck.qrBtn) lv_obj_set_style_radius(g_auxDeck.qrBtn, buttonRadius, LV_PART_MAIN);
   const uint32_t btnBorderHex = (lvglColorContrastLuma(t.auxSourceText, panelBg) >= 36u) ? t.auxSourceText : 0xEAF0FF;
-  if (g_lvglAuxNextFeedBtn) {
-    lv_obj_set_style_border_width(g_lvglAuxNextFeedBtn, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_lvglAuxNextFeedBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglAuxNextFeedBtn, LV_OPA_80, LV_PART_MAIN);
+  if (g_auxDeck.nextFeedBtn) {
+    lv_obj_set_style_border_width(g_auxDeck.nextFeedBtn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_auxDeck.nextFeedBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_auxDeck.nextFeedBtn, LV_OPA_80, LV_PART_MAIN);
   }
-  if (g_lvglAuxRefreshBtn) {
-    lv_obj_set_style_border_width(g_lvglAuxRefreshBtn, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_lvglAuxRefreshBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglAuxRefreshBtn, LV_OPA_80, LV_PART_MAIN);
+  if (g_auxDeck.refreshBtn) {
+    lv_obj_set_style_border_width(g_auxDeck.refreshBtn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_auxDeck.refreshBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_auxDeck.refreshBtn, LV_OPA_80, LV_PART_MAIN);
   }
-  if (g_lvglAuxQrBtn) {
-    lv_obj_set_style_border_width(g_lvglAuxQrBtn, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_lvglAuxQrBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglAuxQrBtn, LV_OPA_80, LV_PART_MAIN);
+  if (g_auxDeck.qrBtn) {
+    lv_obj_set_style_border_width(g_auxDeck.qrBtn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_auxDeck.qrBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_auxDeck.qrBtn, LV_OPA_80, LV_PART_MAIN);
   }
   for (uint8_t i = 0; i < 4; ++i) {
     if (!g_lvglClockWiFiBars[i]) continue;
     lv_obj_set_style_radius(g_lvglClockWiFiBars[i], wifiBarRadius, LV_PART_MAIN);
   }
-  if (g_lvglAuxSourceBadgeText) lv_obj_set_style_text_color(g_lvglAuxSourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
-  if (g_lvglAuxSourceSite) lv_obj_set_style_text_color(g_lvglAuxSourceSite, lv_color_hex(t.auxSourceText), 0);
-  if (g_lvglAuxNews) lv_obj_set_style_text_color(g_lvglAuxNews, lv_color_hex(t.auxText), 0);
-  if (g_lvglAuxQrOverlay) lv_obj_set_style_bg_color(g_lvglAuxQrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
-  if (g_lvglAuxQrHint) lv_obj_set_style_text_color(g_lvglAuxQrHint, lv_color_hex(t.auxQrHint), 0);
+  if (g_auxDeck.sourceBadgeText) lv_obj_set_style_text_color(g_auxDeck.sourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
+  if (g_auxDeck.sourceSite) lv_obj_set_style_text_color(g_auxDeck.sourceSite, lv_color_hex(t.auxSourceText), 0);
+  if (g_auxDeck.news) lv_obj_set_style_text_color(g_auxDeck.news, lv_color_hex(t.auxText), 0);
+  if (g_auxDeck.qrOverlay) lv_obj_set_style_bg_color(g_auxDeck.qrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
+  if (g_auxDeck.qrHint) lv_obj_set_style_text_color(g_auxDeck.qrHint, lv_color_hex(t.auxQrHint), 0);
   lvglSetAuxNextFeedButtonPressed(false);
   lvglSetAuxRefreshButtonPressed(false);
   lvglSetAuxQrButtonPressed(false);
@@ -7471,8 +7446,8 @@ static void setUiPage(UiPageMode mode) {
   if (uiPageIsFeedDeck(g_uiPageMode) && uiPageIsFeedDeck(mode) && g_uiPageMode != mode) {
     lvglSetAuxQrModalOpen(false);
     lvglSetWikiQrModalOpen(false);
-    g_lvglAuxLastItemShown = -1;
-    g_lvglAuxLastQrPayload[0] = '\0';
+    g_auxDeck.lastItemShown = -1;
+    g_auxDeck.lastQrPayload[0] = '\0';
     g_lvglWikiLastItemShown = -1;
     g_lvglWikiLastQrPayload[0] = '\0';
   }
@@ -8342,7 +8317,7 @@ static void handleTouchSwipeInput() {
           lvglSetFeedQrModalOpen(false);
           Serial.println("[TOUCH] qr-close");
         } else {
-          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_lvglWikiStatus : g_lvglAuxStatus;
+          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_lvglWikiStatus : g_auxDeck.status;
           if (feedStatus) { lv_label_set_text(feedStatus, "QR..."); lvglForceLabelVisible(feedStatus); }
           lvglSetFeedQrModalOpen(true);
           Serial.println("[TOUCH] qr-open");
@@ -8350,7 +8325,7 @@ static void handleTouchSwipeInput() {
       } else if (touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) {
 #if TEST_WIFI && RSS_ENABLED
         {
-          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_lvglWikiStatus : g_lvglAuxStatus;
+          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_lvglWikiStatus : g_auxDeck.status;
           if (feedStatus) { lv_label_set_text(feedStatus, "SKIP"); lvglForceLabelVisible(feedStatus); }
         }
         const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextItem() : rssAdvanceToNextItem();
@@ -8364,7 +8339,7 @@ static void handleTouchSwipeInput() {
       } else if (touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) {
 #if TEST_WIFI && RSS_ENABLED
         {
-          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_lvglWikiStatus : g_lvglAuxStatus;
+          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_lvglWikiStatus : g_auxDeck.status;
           if (feedStatus) { lv_label_set_text(feedStatus, "FEED"); lvglForceLabelVisible(feedStatus); }
         }
         const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextFeed() : rssAdvanceToNextFeed();
@@ -9936,16 +9911,16 @@ static void lvglApplyThemeFonts() {
   if (g_lvglForecastNow) lv_obj_set_style_text_font(g_lvglForecastNow, lvglFontSmall(), 0);
   if (g_lvglForecastTomorrow) lv_obj_set_style_text_font(g_lvglForecastTomorrow, lvglFontTiny(), 0);
 
-  if (g_lvglAuxNextFeedBtnText) lv_obj_set_style_text_font(g_lvglAuxNextFeedBtnText, lvglFontTiny(), 0);
-  if (g_lvglAuxRefreshBtnText) lv_obj_set_style_text_font(g_lvglAuxRefreshBtnText, lvglFontTiny(), 0);
-  if (g_lvglAuxQrBtnText) lv_obj_set_style_text_font(g_lvglAuxQrBtnText, lvglFontTiny(), 0);
-  if (g_lvglAuxTitle) lv_obj_set_style_text_font(g_lvglAuxTitle, lvglFontSmall(), 0);
-  if (g_lvglAuxStatus) lv_obj_set_style_text_font(g_lvglAuxStatus, lvglFontTiny(), 0);
-  if (g_lvglAuxSourceBadgeText) lv_obj_set_style_text_font(g_lvglAuxSourceBadgeText, lvglFontTiny(), 0);
-  if (g_lvglAuxSourceSite) lv_obj_set_style_text_font(g_lvglAuxSourceSite, lvglFontMeta(), 0);
-  if (g_lvglAuxNews) lv_obj_set_style_text_font(g_lvglAuxNews, lvglFontRssNews(), 0);
-  if (g_lvglAuxMeta) lv_obj_set_style_text_font(g_lvglAuxMeta, lvglFontSmall(), 0);
-  if (g_lvglAuxQrHint) lv_obj_set_style_text_font(g_lvglAuxQrHint, lvglFontTiny(), 0);
+  if (g_auxDeck.nextFeedBtnText) lv_obj_set_style_text_font(g_auxDeck.nextFeedBtnText, lvglFontTiny(), 0);
+  if (g_auxDeck.refreshBtnText) lv_obj_set_style_text_font(g_auxDeck.refreshBtnText, lvglFontTiny(), 0);
+  if (g_auxDeck.qrBtnText) lv_obj_set_style_text_font(g_auxDeck.qrBtnText, lvglFontTiny(), 0);
+  if (g_auxDeck.title) lv_obj_set_style_text_font(g_auxDeck.title, lvglFontSmall(), 0);
+  if (g_auxDeck.status) lv_obj_set_style_text_font(g_auxDeck.status, lvglFontTiny(), 0);
+  if (g_auxDeck.sourceBadgeText) lv_obj_set_style_text_font(g_auxDeck.sourceBadgeText, lvglFontTiny(), 0);
+  if (g_auxDeck.sourceSite) lv_obj_set_style_text_font(g_auxDeck.sourceSite, lvglFontMeta(), 0);
+  if (g_auxDeck.news) lv_obj_set_style_text_font(g_auxDeck.news, lvglFontRssNews(), 0);
+  if (g_auxDeck.meta) lv_obj_set_style_text_font(g_auxDeck.meta, lvglFontSmall(), 0);
+  if (g_auxDeck.qrHint) lv_obj_set_style_text_font(g_auxDeck.qrHint, lvglFontTiny(), 0);
 
   if (g_lvglWikiNextFeedBtnText) lv_obj_set_style_text_font(g_lvglWikiNextFeedBtnText, lvglFontTiny(), 0);
   if (g_lvglWikiRefreshBtnText) lv_obj_set_style_text_font(g_lvglWikiRefreshBtnText, lvglFontTiny(), 0);
@@ -10227,7 +10202,7 @@ static uint32_t wikiFeedUiColorHex(uint8_t slot) {
 }
 
 static void lvglUpdateAuxRss(bool force) {
-  if (!g_lvglAuxNews) return;
+  if (!g_auxDeck.news) return;
   RssState &content = g_rss;
   const char *contentTag = "RSS";
 #if TEST_WIFI && RSS_ENABLED
@@ -10264,7 +10239,7 @@ static void lvglUpdateAuxRss(bool force) {
   strncpy(siteHost, "rss", sizeof(siteHost) - 1);
   siteHost[sizeof(siteHost) - 1] = '\0';
   int16_t showIndex = -1;
-  if (g_lvglAuxTitle) lv_label_set_text(g_lvglAuxTitle, "ScryBar RSS");
+  if (g_auxDeck.title) lv_label_set_text(g_auxDeck.title, "ScryBar RSS");
 
 #if TEST_WIFI && RSS_ENABLED
   if (!g_wifiConnected) {
@@ -10276,7 +10251,7 @@ static void lvglUpdateAuxRss(bool force) {
     snprintf(meta, sizeof(meta), "Ultimo fetch: %s", content.lastFetchMs ? content.fetchedAt : "--/-- --:--");
   } else if (content.valid && content.itemCount > 0) {
     showIndex = (int16_t)(content.currentIndex % content.itemCount);
-    buildRssStoryBlock(content.items[showIndex], g_lvglAuxNews, title3, sizeof(title3), true);
+    buildRssStoryBlock(content.items[showIndex], g_auxDeck.news, title3, sizeof(title3), true);
     buildRssWhenLabel(content.items[showIndex].pubDate, whenLine, sizeof(whenLine));
     snprintf(status, sizeof(status), "%u/%u", (unsigned)(showIndex + 1), (unsigned)content.itemCount);
     uint32_t rotateLeftSec = 0;
@@ -10345,37 +10320,37 @@ static void lvglUpdateAuxRss(bool force) {
     strncat(sourceWithWhen, whenLine, sizeof(sourceWithWhen) - strlen(sourceWithWhen) - 1);
   }
 
-  lv_label_set_text(g_lvglAuxNews, title3);
-  lvglForceLabelVisible(g_lvglAuxNews);
-  if (g_lvglAuxSourceBadge) lv_obj_clear_flag(g_lvglAuxSourceBadge, LV_OBJ_FLAG_HIDDEN);
-  if (g_lvglAuxSourceSite) {
-    lv_label_set_text(g_lvglAuxSourceSite, sourceWithWhen);
-    lvglForceLabelVisible(g_lvglAuxSourceSite);
+  lv_label_set_text(g_auxDeck.news, title3);
+  lvglForceLabelVisible(g_auxDeck.news);
+  if (g_auxDeck.sourceBadge) lv_obj_clear_flag(g_auxDeck.sourceBadge, LV_OBJ_FLAG_HIDDEN);
+  if (g_auxDeck.sourceSite) {
+    lv_label_set_text(g_auxDeck.sourceSite, sourceWithWhen);
+    lvglForceLabelVisible(g_auxDeck.sourceSite);
   }
-  if (g_lvglAuxSourceBadgeText) {
-    lv_label_set_text(g_lvglAuxSourceBadgeText, siteBadge);
-    lv_obj_set_style_text_color(g_lvglAuxSourceBadgeText, lv_color_hex(siteTextHex), 0);
-    lvglForceLabelVisible(g_lvglAuxSourceBadgeText);
+  if (g_auxDeck.sourceBadgeText) {
+    lv_label_set_text(g_auxDeck.sourceBadgeText, siteBadge);
+    lv_obj_set_style_text_color(g_auxDeck.sourceBadgeText, lv_color_hex(siteTextHex), 0);
+    lvglForceLabelVisible(g_auxDeck.sourceBadgeText);
   }
-  if (g_lvglAuxSourceBadge) {
-    lv_obj_set_style_bg_color(g_lvglAuxSourceBadge, lv_color_hex(siteColorHex), LV_PART_MAIN);
+  if (g_auxDeck.sourceBadge) {
+    lv_obj_set_style_bg_color(g_auxDeck.sourceBadge, lv_color_hex(siteColorHex), LV_PART_MAIN);
   }
-  if (g_lvglAuxStatus) {
-    lv_label_set_text(g_lvglAuxStatus, status);
-    lvglForceLabelVisible(g_lvglAuxStatus);
+  if (g_auxDeck.status) {
+    lv_label_set_text(g_auxDeck.status, status);
+    lvglForceLabelVisible(g_auxDeck.status);
   }
-  if (g_lvglAuxMeta) {
-    lv_label_set_text(g_lvglAuxMeta, meta);
-    lvglForceLabelVisible(g_lvglAuxMeta);
+  if (g_auxDeck.meta) {
+    lv_label_set_text(g_auxDeck.meta, meta);
+    lvglForceLabelVisible(g_auxDeck.meta);
   }
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
 #if TEST_WIFI && RSS_ENABLED
-  if (g_lvglAuxQrOverlay) {
+  if (g_auxDeck.qrOverlay) {
     if (lvglAuxQrModalIsOpen()) {
-      lv_obj_clear_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_move_foreground(g_lvglAuxQrOverlay);
-      if (g_lvglAuxQrHint) lv_obj_clear_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
-      if (g_lvglAuxQr) {
+      lv_obj_clear_flag(g_auxDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_move_foreground(g_auxDeck.qrOverlay);
+      if (g_auxDeck.qrHint) lv_obj_clear_flag(g_auxDeck.qrHint, LV_OBJ_FLAG_HIDDEN);
+      if (g_auxDeck.qr) {
         const char *url = "https://ansa.it";
         bool qrReady = true;
         int16_t qrIndex = -1;
@@ -10391,38 +10366,38 @@ static void lvglUpdateAuxRss(bool force) {
           qrIndex = showIndex;
         }
         if (qrReady) {
-          if (force || g_lvglAuxLastItemShown != qrIndex ||
-              strncmp(g_lvglAuxLastQrPayload, url, sizeof(g_lvglAuxLastQrPayload) - 1) != 0) {
-            lv_qrcode_update(g_lvglAuxQr, url, strlen(url));
-            strncpy(g_lvglAuxLastQrPayload, url, sizeof(g_lvglAuxLastQrPayload) - 1);
-            g_lvglAuxLastQrPayload[sizeof(g_lvglAuxLastQrPayload) - 1] = '\0';
-            g_lvglAuxLastItemShown = qrIndex;
+          if (force || g_auxDeck.lastItemShown != qrIndex ||
+              strncmp(g_auxDeck.lastQrPayload, url, sizeof(g_auxDeck.lastQrPayload) - 1) != 0) {
+            lv_qrcode_update(g_auxDeck.qr, url, strlen(url));
+            strncpy(g_auxDeck.lastQrPayload, url, sizeof(g_auxDeck.lastQrPayload) - 1);
+            g_auxDeck.lastQrPayload[sizeof(g_auxDeck.lastQrPayload) - 1] = '\0';
+            g_auxDeck.lastItemShown = qrIndex;
             if (qrIndex >= 0) Serial.printf("[%s] qr %u -> %s\n", contentTag, (unsigned)(qrIndex + 1), url);
             else Serial.printf("[%s] qr fallback -> %s\n", contentTag, url);
           }
-          lv_obj_clear_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
-          if (g_lvglAuxQrHint) {
-            lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->touchToCloseAnywhere);
-            lv_obj_clear_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
+          lv_obj_clear_flag(g_auxDeck.qr, LV_OBJ_FLAG_HIDDEN);
+          if (g_auxDeck.qrHint) {
+            lv_label_set_text(g_auxDeck.qrHint, activeUiStrings()->touchToCloseAnywhere);
+            lv_obj_clear_flag(g_auxDeck.qrHint, LV_OBJ_FLAG_HIDDEN);
           }
-          if (g_lvglAuxStatus) lv_label_set_text(g_lvglAuxStatus, status);
+          if (g_auxDeck.status) lv_label_set_text(g_auxDeck.status, status);
         } else {
-          lv_obj_add_flag(g_lvglAuxQr, LV_OBJ_FLAG_HIDDEN);
-          if (g_lvglAuxQrHint) {
-            lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->generatingQr);
-            lv_obj_clear_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(g_auxDeck.qr, LV_OBJ_FLAG_HIDDEN);
+          if (g_auxDeck.qrHint) {
+            lv_label_set_text(g_auxDeck.qrHint, activeUiStrings()->generatingQr);
+            lv_obj_clear_flag(g_auxDeck.qrHint, LV_OBJ_FLAG_HIDDEN);
           }
-          if (g_lvglAuxStatus) lv_label_set_text(g_lvglAuxStatus, "QR...");
+          if (g_auxDeck.status) lv_label_set_text(g_auxDeck.status, "QR...");
         }
       }
     } else {
-      lv_obj_add_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
-      if (g_lvglAuxQrHint) lv_obj_add_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(g_auxDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
+      if (g_auxDeck.qrHint) lv_obj_add_flag(g_auxDeck.qrHint, LV_OBJ_FLAG_HIDDEN);
     }
   }
 #else
-  if (g_lvglAuxQrOverlay) lv_obj_add_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
-  if (g_lvglAuxQrHint) lv_obj_add_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
+  if (g_auxDeck.qrOverlay) lv_obj_add_flag(g_auxDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
+  if (g_auxDeck.qrHint) lv_obj_add_flag(g_auxDeck.qrHint, LV_OBJ_FLAG_HIDDEN);
 #endif
 #endif
 }
@@ -11933,44 +11908,44 @@ static bool initLvglUi() {
 #endif
   }  // end Wiki deck
 
-  g_lvglAuxCard = lv_obj_create(g_lvglAuxRoot);
-  lv_obj_set_size(g_lvglAuxCard, cW - (outerPadX * 2), cH - (outerPadY * 2));
-  lv_obj_set_pos(g_lvglAuxCard, outerPadX, outerPadY);
-  lv_obj_set_style_radius(g_lvglAuxCard, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_lvglAuxCard, kPanelBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglAuxCard, kPanelBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglAuxCard, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxCard, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxCard, 0, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglAuxCard, false, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglAuxCard, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglAuxCard, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglAuxCard, LV_OBJ_FLAG_SCROLLABLE);
+  g_auxDeck.card = lv_obj_create(g_lvglAuxRoot);
+  lv_obj_set_size(g_auxDeck.card, cW - (outerPadX * 2), cH - (outerPadY * 2));
+  lv_obj_set_pos(g_auxDeck.card, outerPadX, outerPadY);
+  lv_obj_set_style_radius(g_auxDeck.card, kCardRadius, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_auxDeck.card, kPanelBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_auxDeck.card, kPanelBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_auxDeck.card, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_auxDeck.card, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_auxDeck.card, 0, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_auxDeck.card, false, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_auxDeck.card, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_auxDeck.card, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_auxDeck.card, LV_OBJ_FLAG_SCROLLABLE);
 
   constexpr int16_t auxHeaderH = 30;
   const int16_t auxCardW = cW - (outerPadX * 2);
   const int16_t auxCardH = cH - (outerPadY * 2);
-  g_lvglAuxHeader = lv_obj_create(g_lvglAuxCard);
-  lv_obj_set_size(g_lvglAuxHeader, auxCardW, auxHeaderH);
-  lv_obj_set_pos(g_lvglAuxHeader, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglAuxHeader, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglAuxHeader, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglAuxHeader, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxHeader, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxHeader, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglAuxHeader, false, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxHeader, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglAuxHeader, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglAuxHeader, LV_OBJ_FLAG_SCROLLABLE);
-  g_lvglAuxHeaderFill = lv_obj_create(g_lvglAuxHeader);
-  lv_obj_set_size(g_lvglAuxHeaderFill, auxCardW, 10);
-  lv_obj_set_pos(g_lvglAuxHeaderFill, 0, auxHeaderH - 10);
-  lv_obj_set_style_bg_color(g_lvglAuxHeaderFill, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglAuxHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglAuxHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
+  g_auxDeck.header = lv_obj_create(g_auxDeck.card);
+  lv_obj_set_size(g_auxDeck.header, auxCardW, auxHeaderH);
+  lv_obj_set_pos(g_auxDeck.header, 0, 0);
+  lv_obj_set_style_bg_color(g_auxDeck.header, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_auxDeck.header, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_auxDeck.header, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_auxDeck.header, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_auxDeck.header, kCardRadius, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_auxDeck.header, false, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_auxDeck.header, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_auxDeck.header, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_auxDeck.header, LV_OBJ_FLAG_SCROLLABLE);
+  g_auxDeck.headerFill = lv_obj_create(g_auxDeck.header);
+  lv_obj_set_size(g_auxDeck.headerFill, auxCardW, 10);
+  lv_obj_set_pos(g_auxDeck.headerFill, 0, auxHeaderH - 10);
+  lv_obj_set_style_bg_color(g_auxDeck.headerFill, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_auxDeck.headerFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_auxDeck.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_auxDeck.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_auxDeck.headerFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_auxDeck.headerFill, LV_OBJ_FLAG_SCROLLABLE);
 
   const int16_t auxBtnW = 44;
   const int16_t auxBtnH = 26;
@@ -11980,73 +11955,73 @@ static bool initLvglUi() {
   const int16_t refreshBtnX = qrBtnX - auxBtnW - auxBtnGap;
   const int16_t nextFeedBtnX = refreshBtnX - auxBtnW - auxBtnGap;
 
-  g_lvglAuxNextFeedBtn = lv_obj_create(g_lvglAuxCard);
-  lv_obj_set_size(g_lvglAuxNextFeedBtn, auxBtnW, auxBtnH);
-  lv_obj_set_pos(g_lvglAuxNextFeedBtn, nextFeedBtnX, qrBtnY);
-  lv_obj_set_style_bg_color(g_lvglAuxNextFeedBtn, lv_color_hex(0x7B63FF), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxNextFeedBtn, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxNextFeedBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglAuxNextFeedBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxNextFeedBtn, kButtonRadius, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglAuxNextFeedBtn, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglAuxNextFeedBtn, LV_OBJ_FLAG_SCROLLABLE);
-  g_lvglAuxNextFeedBtnText = lv_label_create(g_lvglAuxNextFeedBtn);
-  lv_obj_set_style_text_font(g_lvglAuxNextFeedBtnText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxNextFeedBtnText, lv_color_hex(0xF7F2FF), 0);
-  lv_label_set_text(g_lvglAuxNextFeedBtnText, "NXT");
-  lv_obj_center(g_lvglAuxNextFeedBtnText);
-  lvglForceLabelVisible(g_lvglAuxNextFeedBtnText);
+  g_auxDeck.nextFeedBtn = lv_obj_create(g_auxDeck.card);
+  lv_obj_set_size(g_auxDeck.nextFeedBtn, auxBtnW, auxBtnH);
+  lv_obj_set_pos(g_auxDeck.nextFeedBtn, nextFeedBtnX, qrBtnY);
+  lv_obj_set_style_bg_color(g_auxDeck.nextFeedBtn, lv_color_hex(0x7B63FF), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_auxDeck.nextFeedBtn, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_auxDeck.nextFeedBtn, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_auxDeck.nextFeedBtn, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_auxDeck.nextFeedBtn, kButtonRadius, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_auxDeck.nextFeedBtn, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_auxDeck.nextFeedBtn, LV_OBJ_FLAG_SCROLLABLE);
+  g_auxDeck.nextFeedBtnText = lv_label_create(g_auxDeck.nextFeedBtn);
+  lv_obj_set_style_text_font(g_auxDeck.nextFeedBtnText, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_auxDeck.nextFeedBtnText, lv_color_hex(0xF7F2FF), 0);
+  lv_label_set_text(g_auxDeck.nextFeedBtnText, "NXT");
+  lv_obj_center(g_auxDeck.nextFeedBtnText);
+  lvglForceLabelVisible(g_auxDeck.nextFeedBtnText);
 
-  g_lvglAuxRefreshBtn = lv_obj_create(g_lvglAuxCard);
-  lv_obj_set_size(g_lvglAuxRefreshBtn, auxBtnW, auxBtnH);
-  lv_obj_set_pos(g_lvglAuxRefreshBtn, refreshBtnX, qrBtnY);
-  lv_obj_set_style_bg_color(g_lvglAuxRefreshBtn, lv_color_hex(0x6FD8FF), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxRefreshBtn, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxRefreshBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglAuxRefreshBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxRefreshBtn, kButtonRadius, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglAuxRefreshBtn, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglAuxRefreshBtn, LV_OBJ_FLAG_SCROLLABLE);
-  g_lvglAuxRefreshBtnText = lv_label_create(g_lvglAuxRefreshBtn);
-  lv_obj_set_style_text_font(g_lvglAuxRefreshBtnText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxRefreshBtnText, lv_color_hex(0x113063), 0);
-  lv_label_set_text(g_lvglAuxRefreshBtnText, "SKIP");
-  lv_obj_center(g_lvglAuxRefreshBtnText);
-  lvglForceLabelVisible(g_lvglAuxRefreshBtnText);
+  g_auxDeck.refreshBtn = lv_obj_create(g_auxDeck.card);
+  lv_obj_set_size(g_auxDeck.refreshBtn, auxBtnW, auxBtnH);
+  lv_obj_set_pos(g_auxDeck.refreshBtn, refreshBtnX, qrBtnY);
+  lv_obj_set_style_bg_color(g_auxDeck.refreshBtn, lv_color_hex(0x6FD8FF), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_auxDeck.refreshBtn, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_auxDeck.refreshBtn, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_auxDeck.refreshBtn, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_auxDeck.refreshBtn, kButtonRadius, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_auxDeck.refreshBtn, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_auxDeck.refreshBtn, LV_OBJ_FLAG_SCROLLABLE);
+  g_auxDeck.refreshBtnText = lv_label_create(g_auxDeck.refreshBtn);
+  lv_obj_set_style_text_font(g_auxDeck.refreshBtnText, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_auxDeck.refreshBtnText, lv_color_hex(0x113063), 0);
+  lv_label_set_text(g_auxDeck.refreshBtnText, "SKIP");
+  lv_obj_center(g_auxDeck.refreshBtnText);
+  lvglForceLabelVisible(g_auxDeck.refreshBtnText);
 
-  g_lvglAuxQrBtn = lv_obj_create(g_lvglAuxCard);
-  lv_obj_set_size(g_lvglAuxQrBtn, auxBtnW, auxBtnH);
-  lv_obj_set_pos(g_lvglAuxQrBtn, qrBtnX, qrBtnY);
-  lv_obj_set_style_bg_color(g_lvglAuxQrBtn, lv_color_hex(0xFFD34D), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxQrBtn, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxQrBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglAuxQrBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxQrBtn, kButtonRadius, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglAuxQrBtn, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglAuxQrBtn, LV_OBJ_FLAG_SCROLLABLE);
-  g_lvglAuxQrBtnText = lv_label_create(g_lvglAuxQrBtn);
-  lv_obj_set_style_text_font(g_lvglAuxQrBtnText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxQrBtnText, lv_color_hex(0x1E2F63), 0);
-  lv_label_set_text(g_lvglAuxQrBtnText, "QR");
-  lv_obj_center(g_lvglAuxQrBtnText);
-  lvglForceLabelVisible(g_lvglAuxQrBtnText);
+  g_auxDeck.qrBtn = lv_obj_create(g_auxDeck.card);
+  lv_obj_set_size(g_auxDeck.qrBtn, auxBtnW, auxBtnH);
+  lv_obj_set_pos(g_auxDeck.qrBtn, qrBtnX, qrBtnY);
+  lv_obj_set_style_bg_color(g_auxDeck.qrBtn, lv_color_hex(0xFFD34D), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_auxDeck.qrBtn, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_auxDeck.qrBtn, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_auxDeck.qrBtn, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_auxDeck.qrBtn, kButtonRadius, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_auxDeck.qrBtn, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_auxDeck.qrBtn, LV_OBJ_FLAG_SCROLLABLE);
+  g_auxDeck.qrBtnText = lv_label_create(g_auxDeck.qrBtn);
+  lv_obj_set_style_text_font(g_auxDeck.qrBtnText, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_auxDeck.qrBtnText, lv_color_hex(0x1E2F63), 0);
+  lv_label_set_text(g_auxDeck.qrBtnText, "QR");
+  lv_obj_center(g_auxDeck.qrBtnText);
+  lvglForceLabelVisible(g_auxDeck.qrBtnText);
 
-  g_lvglAuxTitle = lv_label_create(g_lvglAuxHeader);
-  lv_obj_set_style_text_font(g_lvglAuxTitle, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxTitle, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_align(g_lvglAuxTitle, LV_ALIGN_LEFT_MID, 12, -1);
-  lv_label_set_text(g_lvglAuxTitle, "ScryBar RSS");
-  lvglForceLabelVisible(g_lvglAuxTitle);
+  g_auxDeck.title = lv_label_create(g_auxDeck.header);
+  lv_obj_set_style_text_font(g_auxDeck.title, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_auxDeck.title, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_align(g_auxDeck.title, LV_ALIGN_LEFT_MID, 12, -1);
+  lv_label_set_text(g_auxDeck.title, "ScryBar RSS");
+  lvglForceLabelVisible(g_auxDeck.title);
 
-  g_lvglAuxFeedIcon = lv_label_create(g_lvglAuxHeader);
-  lv_obj_add_flag(g_lvglAuxFeedIcon, LV_OBJ_FLAG_HIDDEN);
+  g_auxDeck.feedIcon = lv_label_create(g_auxDeck.header);
+  lv_obj_add_flag(g_auxDeck.feedIcon, LV_OBJ_FLAG_HIDDEN);
 
-  g_lvglAuxStatus = lv_label_create(g_lvglAuxHeader);
-  lv_obj_set_style_text_font(g_lvglAuxStatus, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxStatus, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_align(g_lvglAuxStatus, LV_ALIGN_RIGHT_MID, -5, 0);
-  lv_label_set_text(g_lvglAuxStatus, "SYNC");
-  lvglForceLabelVisible(g_lvglAuxStatus);
+  g_auxDeck.status = lv_label_create(g_auxDeck.header);
+  lv_obj_set_style_text_font(g_auxDeck.status, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_auxDeck.status, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_align(g_auxDeck.status, LV_ALIGN_RIGHT_MID, -5, 0);
+  lv_label_set_text(g_auxDeck.status, "SYNC");
+  lvglForceLabelVisible(g_auxDeck.status);
 
   const int16_t leftPaneX = 8;
   const int16_t leftPaneW = auxCardW - (leftPaneX * 2);
@@ -12065,39 +12040,39 @@ static bool initLvglUi() {
   const int16_t sourceWhenX = sourceSiteX + sourceSiteW;
   const int16_t sourceBlockH = sourceBadgeSize;
 
-  g_lvglAuxSourceBadge = lv_obj_create(g_lvglAuxCard);
-  lv_obj_set_size(g_lvglAuxSourceBadge, sourceBadgeSize, sourceBadgeSize);
-  lv_obj_set_pos(g_lvglAuxSourceBadge, sourceIconX, sourceRowY);
-  lv_obj_set_style_bg_color(g_lvglAuxSourceBadge, lv_color_hex(0x2B468E), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxSourceBadge, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxSourceBadge, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglAuxSourceBadge, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxSourceBadge, kBadgeRadius, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglAuxSourceBadge, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglAuxSourceBadge, LV_OBJ_FLAG_SCROLLABLE);
+  g_auxDeck.sourceBadge = lv_obj_create(g_auxDeck.card);
+  lv_obj_set_size(g_auxDeck.sourceBadge, sourceBadgeSize, sourceBadgeSize);
+  lv_obj_set_pos(g_auxDeck.sourceBadge, sourceIconX, sourceRowY);
+  lv_obj_set_style_bg_color(g_auxDeck.sourceBadge, lv_color_hex(0x2B468E), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_auxDeck.sourceBadge, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_auxDeck.sourceBadge, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_auxDeck.sourceBadge, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_auxDeck.sourceBadge, kBadgeRadius, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_auxDeck.sourceBadge, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_auxDeck.sourceBadge, LV_OBJ_FLAG_SCROLLABLE);
 
-  g_lvglAuxSourceBadgeText = lv_label_create(g_lvglAuxSourceBadge);
-  lv_obj_set_style_text_font(g_lvglAuxSourceBadgeText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxSourceBadgeText, lv_color_hex(0xFFFFFF), 0);
-  lv_label_set_text(g_lvglAuxSourceBadgeText, "WEB");
-  lv_obj_center(g_lvglAuxSourceBadgeText);
-  lvglForceLabelVisible(g_lvglAuxSourceBadgeText);
+  g_auxDeck.sourceBadgeText = lv_label_create(g_auxDeck.sourceBadge);
+  lv_obj_set_style_text_font(g_auxDeck.sourceBadgeText, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_auxDeck.sourceBadgeText, lv_color_hex(0xFFFFFF), 0);
+  lv_label_set_text(g_auxDeck.sourceBadgeText, "WEB");
+  lv_obj_center(g_auxDeck.sourceBadgeText);
+  lvglForceLabelVisible(g_auxDeck.sourceBadgeText);
 
-  g_lvglAuxSourceSite = lv_label_create(g_lvglAuxCard);
-  lv_obj_set_style_text_font(g_lvglAuxSourceSite, lvglFontMeta(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxSourceSite, lv_color_hex(0xEAF0FF), 0);
-  lv_label_set_long_mode(g_lvglAuxSourceSite, LV_LABEL_LONG_DOT);
-  lv_obj_set_size(g_lvglAuxSourceSite, sourceSiteW, 26);
-  lv_obj_set_pos(g_lvglAuxSourceSite, sourceSiteX, sourceTextY);
-  lv_obj_set_style_text_align(g_lvglAuxSourceSite, LV_TEXT_ALIGN_LEFT, 0);
-  lv_label_set_text(g_lvglAuxSourceSite, "RSS  --/-- --:--");
-  lvglForceLabelVisible(g_lvglAuxSourceSite);
+  g_auxDeck.sourceSite = lv_label_create(g_auxDeck.card);
+  lv_obj_set_style_text_font(g_auxDeck.sourceSite, lvglFontMeta(), 0);
+  lv_obj_set_style_text_color(g_auxDeck.sourceSite, lv_color_hex(0xEAF0FF), 0);
+  lv_label_set_long_mode(g_auxDeck.sourceSite, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(g_auxDeck.sourceSite, sourceSiteW, 26);
+  lv_obj_set_pos(g_auxDeck.sourceSite, sourceSiteX, sourceTextY);
+  lv_obj_set_style_text_align(g_auxDeck.sourceSite, LV_TEXT_ALIGN_LEFT, 0);
+  lv_label_set_text(g_auxDeck.sourceSite, "RSS  --/-- --:--");
+  lvglForceLabelVisible(g_auxDeck.sourceSite);
 
-  g_lvglAuxNews = lv_label_create(g_lvglAuxCard);
-  lv_obj_set_style_text_font(g_lvglAuxNews, lvglFontRssNews(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxNews, lv_color_hex(0xEAF0FF), 0);
-  lv_obj_set_style_text_line_space(g_lvglAuxNews, 3, 0);
-  lv_label_set_long_mode(g_lvglAuxNews, LV_LABEL_LONG_WRAP);
+  g_auxDeck.news = lv_label_create(g_auxDeck.card);
+  lv_obj_set_style_text_font(g_auxDeck.news, lvglFontRssNews(), 0);
+  lv_obj_set_style_text_color(g_auxDeck.news, lv_color_hex(0xEAF0FF), 0);
+  lv_obj_set_style_text_line_space(g_auxDeck.news, 3, 0);
+  lv_label_set_long_mode(g_auxDeck.news, LV_LABEL_LONG_WRAP);
   const int16_t newsY = sourceRowY + sourceBlockH - 1;  // avvicina il blocco news alla riga sorgente
   const int16_t newsBottom = qrBtnY - 14;  // micro-tuning: piu' aria sopra NXT/SKIP/QR
   int16_t newsH = newsBottom - newsY;
@@ -12109,56 +12084,56 @@ static bool initLvglUi() {
   int16_t heroX = leftPaneX + leftPaneW - heroW;
   if (heroX < leftPaneX) heroX = leftPaneX;
   const int16_t heroY = newsY;
-  lv_obj_set_size(g_lvglAuxNews, leftPaneW, newsH);
-  lv_obj_set_pos(g_lvglAuxNews, leftPaneX, newsY);
-  lv_obj_set_style_text_align(g_lvglAuxNews, LV_TEXT_ALIGN_LEFT, 0);
-  lv_label_set_text(g_lvglAuxNews, activeUiStrings()->rssSyncing);
-  lvglForceLabelVisible(g_lvglAuxNews);
-  g_lvglAuxMeta = lv_label_create(g_lvglAuxHeader);
-  lv_obj_set_style_text_font(g_lvglAuxMeta, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxMeta, lv_color_hex(0xAFC2F5), 0);
-  lv_label_set_long_mode(g_lvglAuxMeta, LV_LABEL_LONG_DOT);
-  lv_obj_set_size(g_lvglAuxMeta, auxCardW - 316, 22);
-  lv_obj_set_pos(g_lvglAuxMeta, 188, 4);
-  lv_label_set_text(g_lvglAuxMeta, "Fetch --/-- --:--");
-  lvglForceLabelVisible(g_lvglAuxMeta);
+  lv_obj_set_size(g_auxDeck.news, leftPaneW, newsH);
+  lv_obj_set_pos(g_auxDeck.news, leftPaneX, newsY);
+  lv_obj_set_style_text_align(g_auxDeck.news, LV_TEXT_ALIGN_LEFT, 0);
+  lv_label_set_text(g_auxDeck.news, activeUiStrings()->rssSyncing);
+  lvglForceLabelVisible(g_auxDeck.news);
+  g_auxDeck.meta = lv_label_create(g_auxDeck.header);
+  lv_obj_set_style_text_font(g_auxDeck.meta, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_auxDeck.meta, lv_color_hex(0xAFC2F5), 0);
+  lv_label_set_long_mode(g_auxDeck.meta, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(g_auxDeck.meta, auxCardW - 316, 22);
+  lv_obj_set_pos(g_auxDeck.meta, 188, 4);
+  lv_label_set_text(g_auxDeck.meta, "Fetch --/-- --:--");
+  lvglForceLabelVisible(g_auxDeck.meta);
 
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   const int16_t qrOverlayY = 0;
   const int16_t qrOverlayH = auxCardH - qrOverlayY;
-  g_lvglAuxQrOverlay = lv_obj_create(g_lvglAuxCard);
-  lv_obj_set_size(g_lvglAuxQrOverlay, auxCardW, qrOverlayH);
-  lv_obj_set_pos(g_lvglAuxQrOverlay, 0, qrOverlayY);
-  lv_obj_set_style_bg_color(g_lvglAuxQrOverlay, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxQrOverlay, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxQrOverlay, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglAuxQrOverlay, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglAuxQrOverlay, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglAuxQrOverlay, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_flag(g_lvglAuxQrOverlay, LV_OBJ_FLAG_HIDDEN);
+  g_auxDeck.qrOverlay = lv_obj_create(g_auxDeck.card);
+  lv_obj_set_size(g_auxDeck.qrOverlay, auxCardW, qrOverlayH);
+  lv_obj_set_pos(g_auxDeck.qrOverlay, 0, qrOverlayY);
+  lv_obj_set_style_bg_color(g_auxDeck.qrOverlay, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_auxDeck.qrOverlay, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_auxDeck.qrOverlay, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_auxDeck.qrOverlay, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_auxDeck.qrOverlay, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_auxDeck.qrOverlay, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_auxDeck.qrOverlay, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(g_auxDeck.qrOverlay, LV_OBJ_FLAG_HIDDEN);
 
   int16_t qrSize = qrOverlayH - 4;
   if (qrSize > (auxCardW - 4)) qrSize = auxCardW - 4;
   if (qrSize < 90) qrSize = 90;
   const lv_color_t auxQrDark = lv_color_hex(theme.auxQrDark);
   const lv_color_t auxQrLight = lv_color_hex(theme.auxQrLight);
-  g_lvglAuxQr = lv_qrcode_create(g_lvglAuxQrOverlay, qrSize, auxQrDark, auxQrLight);
-  lv_obj_center(g_lvglAuxQr);
-  lv_obj_set_style_bg_color(g_lvglAuxQr, auxQrLight, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxQr, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxQr, 1, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_lvglAuxQr, lv_color_hex(theme.auxQrHint), LV_PART_MAIN);
-  lv_obj_set_style_border_opa(g_lvglAuxQr, LV_OPA_70, LV_PART_MAIN);
-  lv_qrcode_update(g_lvglAuxQr, "https://ansa.it", strlen("https://ansa.it"));
-  lv_obj_clear_flag(g_lvglAuxQr, LV_OBJ_FLAG_SCROLLABLE);
+  g_auxDeck.qr = lv_qrcode_create(g_auxDeck.qrOverlay, qrSize, auxQrDark, auxQrLight);
+  lv_obj_center(g_auxDeck.qr);
+  lv_obj_set_style_bg_color(g_auxDeck.qr, auxQrLight, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_auxDeck.qr, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_auxDeck.qr, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(g_auxDeck.qr, lv_color_hex(theme.auxQrHint), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(g_auxDeck.qr, LV_OPA_70, LV_PART_MAIN);
+  lv_qrcode_update(g_auxDeck.qr, "https://ansa.it", strlen("https://ansa.it"));
+  lv_obj_clear_flag(g_auxDeck.qr, LV_OBJ_FLAG_SCROLLABLE);
 
-  g_lvglAuxQrHint = lv_label_create(g_lvglAuxQrOverlay);
-  lv_obj_set_style_text_font(g_lvglAuxQrHint, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglAuxQrHint, lv_color_hex(theme.auxQrHint), 0);
-  lv_label_set_text(g_lvglAuxQrHint, activeUiStrings()->touchToClose);
-  lv_obj_align(g_lvglAuxQrHint, LV_ALIGN_BOTTOM_MID, 0, -8);
-  lv_obj_add_flag(g_lvglAuxQrHint, LV_OBJ_FLAG_HIDDEN);
+  g_auxDeck.qrHint = lv_label_create(g_auxDeck.qrOverlay);
+  lv_obj_set_style_text_font(g_auxDeck.qrHint, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_auxDeck.qrHint, lv_color_hex(theme.auxQrHint), 0);
+  lv_label_set_text(g_auxDeck.qrHint, activeUiStrings()->touchToClose);
+  lv_obj_align(g_auxDeck.qrHint, LV_ALIGN_BOTTOM_MID, 0, -8);
+  lv_obj_add_flag(g_auxDeck.qrHint, LV_OBJ_FLAG_HIDDEN);
 #endif
 
 #if SCREENSAVER_ENABLED
