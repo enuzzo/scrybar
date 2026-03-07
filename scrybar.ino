@@ -5986,8 +5986,24 @@ static bool updateWikiFromFeed(bool force) {
   uint8_t feedsWithItems = 0;
   int firstHttpErr = 0;
 
+  // Build a date-explicit URL for "On This Day" to avoid Wikipedia CDN serving a stale cached day.
+  // Slot 1 = onthisday. Wikipedia supports ?month=MM&day=DD to force the correct date.
+  char wikiOnThisDayUrl[160] = {0};
+  {
+    struct tm tNow;
+    if (getLocalTime(&tNow, 50)) {
+      snprintf(wikiOnThisDayUrl, sizeof(wikiOnThisDayUrl),
+               "https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday"
+               "&feedformat=rss&month=%02d&day=%02d",
+               tNow.tm_mon + 1, tNow.tm_mday);
+    } else {
+      copyStringSafe(wikiOnThisDayUrl, sizeof(wikiOnThisDayUrl), kWikiFeedUrl[1]);
+    }
+  }
+
   for (uint8_t slot = 0; slot < WIKI_FEED_SLOT_COUNT && count < RSS_MAX_ITEMS; ++slot) {
-    const char *feedUrl = kWikiFeedUrl[slot];
+    // Slot 1 uses the date-explicit URL; all others use the static array.
+    const char *feedUrl = (slot == 1) ? wikiOnThisDayUrl : kWikiFeedUrl[slot];
     if (!startsWithHttp(feedUrl)) continue;
     pumpWebUiDuringIo();
     ++feedsTried;
