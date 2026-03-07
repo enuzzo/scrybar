@@ -237,3 +237,13 @@ Entry format:
 - Context: Web UI could feel stalled while firmware was in blocking RSS/WIKI network operations.
 - Decision: Pump HTTP config server loop during long I/O sections and load remote web CSS assets asynchronously (critical layout remains inline).
 - Impact/Tradeoffs: Faster perceived Web UI readiness and reduced request starvation during feed fetches; small increase in loop complexity.
+
+---
+
+## 2026-03-07 - r158: Remove Photo/Thumbnail Code and Add 4th Independent WIKI Page
+
+- Context: RSS and Wiki decks had grown a large photo/thumbnail/favicon pipeline (~750 lines: 17 functions, 4 preload steps, 3 cache structs, multiple PSRAM image buffers). The pipeline added complexity and RAM pressure without reliable benefit on embedded LVGL fonts. Separately, the WIKI view was sharing ordinal 2 with AUX via special-case code rather than being a true independent page.
+- Decision: (1) Remove all favicon/thumbnail/photo code from RSS and Wiki entirely — no images, no cache structs, no binary HTTP fetch, no JFIF normalization. Keep only `wikiPreloadMetaStep` for text-summary enrichment. (2) Promote WIKI to ordinal 3 as a fully independent swipeable page (`g_lvglWikiRoot`), removing all AUX↔WIKI special-case logic from the touch handler and using uniform `stepUiPage(±1, false)` + `kMaxPageOrd=3`. Edge damping now triggers at cur==0 (left) and cur==3 (right).
+- Impact/Tradeoffs: ~1,000 lines removed (code + config constants); display pipeline is simpler and more reliable. 4-page navigation is uniform and extensible. WIKI page currently shows a placeholder "WIKI" label — full deck UI (header + news + badge + QR) is the next implementation target. lv_tileview was evaluated and rejected: HIDDEN pages cost zero CPU while tileview renders all visible tiles during transitions, which is worse for this 4-page layout.
+
+---

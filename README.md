@@ -90,7 +90,7 @@ Four views, navigated by swipe. Left or right, like flipping pages. There is no 
 
 **AUX** — RSS rotation. Up to 5 configurable feeds. `SKIP` moves to next article, `NXT` moves to next feed, and QR opens only on demand.
 
-**WIKI** — Dedicated Wikipedia stream (3 feed families, up to 3 items per family). Same ergonomics as AUX (`SKIP`, `NXT`, on-demand QR), with summary-first body text and remote thumbnail image shown on the right when available. Refresh cadence follows firmware feed timers (`RSS_REFRESH_MS`, default 15 minutes).
+**WIKI** — Dedicated Wikipedia stream (3 feed families, up to 3 items per family). Same ergonomics as AUX (`SKIP`, `NXT`, on-demand QR), with summary-first body text. Refresh cadence follows firmware feed timers (`RSS_REFRESH_MS`, default 15 minutes).
 
 **INFO** — Diagnostics panel. Wi-Fi state, SSID, IP, DNS, MAC, power mode (`CHARGING/BATTERY`), and battery percentage. Placed before HOME in the swipe order — left of boot — like an iPhone widget page you only visit when something feels wrong.
 

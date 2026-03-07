@@ -51,3 +51,4 @@ venv/
 
 # Redundant local archives
 assets/weather_demo/weather_images.zip
+backups/
