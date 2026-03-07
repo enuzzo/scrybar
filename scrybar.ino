@@ -822,6 +822,36 @@ static lv_obj_t *g_lvglForecastBarFill = nullptr;
 static lv_obj_t *g_lvglForecastIcon = nullptr;
 static lv_obj_t *g_lvglForecastNow = nullptr;
 static lv_obj_t *g_lvglForecastTomorrow = nullptr;
+// ── FeedDeckUi — shared widget/state bundle for AUX and WIKI decks ──────────
+struct FeedDeckUi {
+  lv_obj_t *card         = nullptr;
+  lv_obj_t *header       = nullptr;
+  lv_obj_t *headerFill   = nullptr;
+  lv_obj_t *title        = nullptr;
+  lv_obj_t *status       = nullptr;
+  lv_obj_t *feedIcon     = nullptr;  // AUX only; nullptr for Wiki
+  lv_obj_t *qrBtn        = nullptr;
+  lv_obj_t *qrBtnText    = nullptr;
+  lv_obj_t *refreshBtn   = nullptr;
+  lv_obj_t *refreshBtnText = nullptr;
+  lv_obj_t *nextFeedBtn  = nullptr;
+  lv_obj_t *nextFeedBtnText = nullptr;
+  lv_obj_t *sourceBadge  = nullptr;
+  lv_obj_t *sourceBadgeText = nullptr;
+  lv_obj_t *sourceSite   = nullptr;
+  lv_obj_t *news         = nullptr;
+  lv_obj_t *meta         = nullptr;
+  lv_obj_t *qrOverlay    = nullptr;
+  lv_obj_t *qrHint       = nullptr;
+#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
+  lv_obj_t *qr           = nullptr;
+#endif
+  int16_t   lastItemShown  = -1;
+  char      lastQrPayload[280] = {0};
+  bool      qrModalOpen    = false;
+};
+static FeedDeckUi g_auxDeck;
+static FeedDeckUi g_wikiDeck;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
 static lv_obj_t *g_lvglAuxCard = nullptr;
