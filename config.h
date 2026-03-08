@@ -59,13 +59,6 @@
 #define TCA9554_SYS_EN_ACTIVE_HIGH 1
 #define BACKLIGHT_FORCE_SYS_EN 1
 
-// Probe EXIO bits 0..7 during backlight test.
-// Set to 0 when BL_EN bit is confirmed.
-#define BACKLIGHT_PROBE_EXIO_BITS 0
-
-// Matrix test tries combinations of EXIO1/EXIO6 and LCD_BL polarity.
-#define BACKLIGHT_MATRIX_TEST 0
-#define BACKLIGHT_RAW_SWEEP_TEST 0
 
 // Timing for visible blink test.
 #define BACKLIGHT_STEP_DELAY_MS 1200
@@ -88,9 +81,6 @@
 // - microphone on BOTTOM
 // Keep enabled unless you intentionally mount the board reversed.
 #define DISPLAY_FLIP_180 1
-// Debug sweep: during M0.4 test show geometry for rotations 0..3.
-#define DISPLAY_ROTATION_PROBE 0
-#define DISPLAY_ROTATION_PROBE_MS 1400
 // Coordinate mapping:
 // 0 = use library native coordinates directly
 // 1 = use logical landscape canvas (640x172) mapped to native panel (recommended)
@@ -100,10 +90,7 @@
 // 1 = Waveshare esp_lcd AXS15231B backend
 #define DISPLAY_BACKEND_ESP_LCD 1
 // Visual debug and UI tuning
-#define DISPLAY_DEBUG_OVERLAY 0
-#define DISPLAY_SECONDS_BAR 0
 #define DISPLAY_SPLASH_MS 2200
-#define DISPLAY_BOOT_COLOR_TEST 0
 #define DISPLAY_WEATHER_PANEL_W 250
 #define TEST_LVGL_UI 1
 #define DISPLAY_TOUCH_SWIPE_MIN_PX 14

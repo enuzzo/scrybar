@@ -11834,16 +11834,6 @@ static void updateDisplayClock(bool force) {
 
   if (force || !g_clockStaticDrawn) {
     fillRectCanvas(0, 0, canvasW, canvasH, DB_COLOR_BLACK);
-#if DISPLAY_DEBUG_OVERLAY
-    fillRectCanvas(0, 0, canvasW, 1, DB_COLOR_RED);
-    fillRectCanvas(0, canvasH - 1, canvasW, 1, DB_COLOR_RED);
-    fillRectCanvas(0, 0, 1, canvasH, DB_COLOR_RED);
-    fillRectCanvas(canvasW - 1, 0, 1, canvasH, DB_COLOR_RED);
-    fillRectCanvas(0, 0, 12, 12, DB_COLOR_RED);
-    fillRectCanvas(canvasW - 12, 0, 12, 12, DB_COLOR_GREEN);
-    fillRectCanvas(0, canvasH - 12, 12, 12, DB_COLOR_BLUE);
-    fillRectCanvas(canvasW - 12, canvasH - 12, 12, 12, DB_COLOR_WHITE);
-#endif
     Serial.printf("[CLOCK] canvas=%dx%d mode=%s left=%d weather=%d\n",
                   canvasW, canvasH,
                   uiClockModeName(g_uiClockMode),
@@ -11854,16 +11844,6 @@ static void updateDisplayClock(bool force) {
 
   drawWordClockInRect(0, 0, leftW, canvasH, timeinfo);
   drawWeatherPanel(weatherX, 0, weatherW, canvasH, timeinfo);
-
-#if DISPLAY_SECONDS_BAR
-  const int barY = canvasH - 8;
-  if ((barY + 6) < canvasH) {
-    const int barX = 8;
-    const int barW = leftW - 16;
-    fillRectCanvas(barX, barY, barW, 6, DB_COLOR_GRAY);
-    fillRectCanvas(barX, barY, (barW * (timeinfo.tm_sec + 1)) / 60, 6, DB_COLOR_WHITE);
-  }
-#endif
 
 #if DISPLAY_BACKEND_ESP_LCD
   dispFlush();
@@ -11996,18 +11976,6 @@ static void runBacklightTest() {
       }
 #endif
 
-#if BACKLIGHT_PROBE_EXIO_BITS
-      Serial.println("[STEP] Probe EXIO bits 0..7 (osserva se cambia luminosita').");
-      for (uint8_t bit = 0; bit < 8; ++bit) {
-        bool wrH = tcaSetBitOutputAndLevel(I2C_MAIN, (uint8_t)tcaAddr, bit, true);
-        Serial.printf("[PROBE] EXIO%u=HIGH %s\n", bit, wrH ? "OK" : "ERR");
-        delay(500);
-        bool wrL = tcaSetBitOutputAndLevel(I2C_MAIN, (uint8_t)tcaAddr, bit, false);
-        Serial.printf("[PROBE] EXIO%u=LOW  %s\n", bit, wrL ? "OK" : "ERR");
-        delay(500);
-      }
-#endif
-
       const bool blLevel = (TCA9554_BL_EN_ACTIVE_HIGH != 0);
       bool wr = tcaSetBitOutputAndLevel(I2C_MAIN, (uint8_t)tcaAddr, TCA9554_BL_EN_BIT, blLevel);
       if (wr) {
@@ -12018,76 +11986,6 @@ static void runBacklightTest() {
         Serial.println("[WARN] Non riesco a impostare BL_EN su expander.");
       }
 
-#if BACKLIGHT_MATRIX_TEST
-      Serial.println("[STEP] Matrix backlight test (EXIO1/EXIO6 + LCD_BL).");
-      for (uint8_t combo = 0; combo < 4; ++combo) {
-        bool exio1 = (combo & 0x01) != 0;
-        bool exio6 = (combo & 0x02) != 0;
-        bool wrM = tcaSetTwoBits(I2C_MAIN,
-                                 (uint8_t)tcaAddr,
-                                 TCA9554_BL_EN_BIT,
-                                 exio1,
-                                 TCA9554_SYS_EN_BIT,
-                                 exio6);
-        Serial.printf("[MATRIX] combo=%u EXIO1=%d EXIO6=%d -> %s\n",
-                      combo, exio1 ? 1 : 0, exio6 ? 1 : 0, wrM ? "OK" : "ERR");
-
-        setBacklightPwm(true);
-        Serial.println("[MATRIX] LCD_BL=HIGH");
-        delay(700);
-
-        setBacklightPwm(false);
-        Serial.println("[MATRIX] LCD_BL=LOW");
-        delay(700);
-      }
-#endif
-
-#if BACKLIGHT_RAW_SWEEP_TEST
-      Serial.println("[STEP] RAW test A: all EXIO output HIGH.");
-      if (tcaWriteRaw(I2C_MAIN, (uint8_t)tcaAddr, 0x00, 0xFF)) {
-        setBacklightPwm(true);
-        Serial.println("[RAW] cfg=0x00 out=0xFF, LCD_BL=HIGH");
-        delay(1400);
-        setBacklightPwm(false);
-        Serial.println("[RAW] cfg=0x00 out=0xFF, LCD_BL=LOW");
-        delay(900);
-      } else {
-        Serial.println("[RAW][ERR] write all-high failed");
-      }
-
-      Serial.println("[STEP] RAW test B: all EXIO output LOW.");
-      if (tcaWriteRaw(I2C_MAIN, (uint8_t)tcaAddr, 0x00, 0x00)) {
-        setBacklightPwm(true);
-        Serial.println("[RAW] cfg=0x00 out=0x00, LCD_BL=HIGH");
-        delay(1400);
-        setBacklightPwm(false);
-        Serial.println("[RAW] cfg=0x00 out=0x00, LCD_BL=LOW");
-        delay(900);
-      } else {
-        Serial.println("[RAW][ERR] write all-low failed");
-      }
-
-      Serial.println("[STEP] RAW test C: from all-high, lower one bit at a time.");
-      for (uint8_t bit = 0; bit < 8; ++bit) {
-        uint8_t out = (uint8_t)(0xFF & ~(1U << bit));
-        bool wr = tcaWriteRaw(I2C_MAIN, (uint8_t)tcaAddr, 0x00, out);
-        Serial.printf("[RAW] all-high except EXIO%u=LOW -> %s\n", bit, wr ? "OK" : "ERR");
-        setBacklightPwm(true);
-        delay(700);
-      }
-      setBacklightPwm(false);
-      delay(400);
-
-      Serial.println("[STEP] RAW test D: from all-low, raise one bit at a time.");
-      for (uint8_t bit = 0; bit < 8; ++bit) {
-        uint8_t out = (uint8_t)(1U << bit);
-        bool wr = tcaWriteRaw(I2C_MAIN, (uint8_t)tcaAddr, 0x00, out);
-        Serial.printf("[RAW] all-low except EXIO%u=HIGH -> %s\n", bit, wr ? "OK" : "ERR");
-        setBacklightPwm(true);
-        delay(700);
-      }
-      setBacklightPwm(false);
-#endif
     } else {
       Serial.printf("[WARN] Lettura registri TCA9554 @0x%02X fallita\n", tcaAddr);
     }
@@ -12122,58 +12020,6 @@ static void runDisplayTest() {
 
   setBacklightPercent(100);
   delay(120);
-
-  struct ColorStep {
-    uint16_t color;
-    const char *name;
-  };
-  const ColorStep steps[] = {
-      {DB_COLOR_RED, "ROSSO"},
-      {DB_COLOR_GREEN, "VERDE"},
-      {DB_COLOR_BLUE, "BLU"},
-  };
-
-#if DISPLAY_BOOT_COLOR_TEST
-  for (const auto &step : steps) {
-#if DISPLAY_BACKEND_ESP_LCD
-    dispFillScreen(step.color);
-    dispDrawRect(8, 8, dispWidth() - 16, dispHeight() - 16, DB_COLOR_WHITE);
-    dispFillRect(16, 16, 20, 20, DB_COLOR_WHITE);
-    dispFlush();
-#else
-    g_gfx->fillScreen(step.color);
-    g_gfx->drawRect(8, 8, g_gfx->width() - 16, g_gfx->height() - 16, DB_COLOR_WHITE);
-    g_gfx->fillRect(16, 16, 20, 20, DB_COLOR_WHITE);
-#endif
-    Serial.printf("[TEST] fill %s\n", step.name);
-    delay(1200);
-  }
-#else
-  Serial.println("[SKIP] DISPLAY_BOOT_COLOR_TEST=0");
-#endif
-
-  // Rotation probe: helps identify the only orientation where geometry is centered.
-#if DISPLAY_ROTATION_PROBE && !DISPLAY_BACKEND_ESP_LCD
-  Serial.println("[STEP] Rotation probe (0..3): cerca la schermata piena e centrata.");
-  for (uint8_t r = 0; r < 4; ++r) {
-    g_gfx->setRotation(r);
-    const int16_t w = g_gfx->width();
-    const int16_t h = g_gfx->height();
-    Serial.printf("[PROBE] rotation=%u width=%d height=%d\n", r, w, h);
-
-    g_gfx->fillScreen(DB_COLOR_BLACK);
-    g_gfx->drawRect(0, 0, w, h, DB_COLOR_WHITE);
-    g_gfx->drawLine(0, 0, w - 1, h - 1, DB_COLOR_YELLOW);
-    g_gfx->drawLine(0, h - 1, w - 1, 0, DB_COLOR_YELLOW);
-    g_gfx->drawFastVLine(w / 2, 0, h, DB_COLOR_GRAY);
-    g_gfx->drawFastHLine(0, h / 2, w, DB_COLOR_GRAY);
-    g_gfx->fillRect(0, 0, 14, 14, DB_COLOR_RED);
-    g_gfx->fillRect(w - 14, 0, 14, 14, DB_COLOR_GREEN);
-    g_gfx->fillRect(0, h - 14, 14, 14, DB_COLOR_BLUE);
-    g_gfx->fillRect(w - 14, h - 14, 14, 14, DB_COLOR_WHITE);
-    delay(DISPLAY_ROTATION_PROBE_MS);
-  }
-#endif
 
 #if DISPLAY_BACKEND_ESP_LCD
   dispFillScreen(DB_COLOR_BLACK);
