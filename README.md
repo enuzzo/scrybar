@@ -55,6 +55,7 @@ We gave it four live views, a QR code generator, and an existential purpose. Is 
 - [Screenshot Workflow](#screenshot-workflow)
 - [Orientation](#orientation)
 - [Security](#security)
+- [Acknowledgments](#acknowledgments)
 - [Open Source Spirit](#open-source-spirit)
 - [License](#license)
 
@@ -336,6 +337,12 @@ If you intentionally mount the board reversed — USB-C right, speaker bottom �
 - `config.h` and all versioned docs must remain credential-free. Always.
 
 ---
+
+## Acknowledgments
+
+The ANSI/BBS art viewer was built with invaluable reference from **[icy_tools](https://github.com/mkrueger/icy_tools)** by Mike Krueger — a comprehensive Rust-based ANSI art toolkit (editor, viewer, terminal, parser). Studying its parser confirmed critical implementation details: the ANSI-to-CGA color index mapping, deferred wrap semantics, private CSI parameter handling, and SAUCE record parsing. If you work with ANSI art on any platform, icy_tools is the gold standard. Thank you, Mike.
+
+BBS art files included in the firmware are sourced from the [Blocktronics](http://blocktronics.org/) and [Sixteen Colors](https://16colo.rs/) archives. These artists kept the ANSI art scene alive for decades — we're honored to display their work on hardware they never imagined.
 
 ## Open Source Spirit
 

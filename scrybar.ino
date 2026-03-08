@@ -860,16 +860,17 @@ static lv_obj_t *g_lvglWikiRoot = nullptr;
 static lv_obj_t *g_lvglAnsiRoot = nullptr;
 // ── ANSI view state ───────────────────────────────────────────────────────────
 #if TEST_DISPLAY
-static uint16_t  *g_ansiBuf           = nullptr; // PSRAM: 172 × g_ansiTotalH
+static uint16_t  *g_ansiBuf           = nullptr; // PSRAM: g_ansiRenderW × g_ansiTotalH
 static int        g_ansiTotalH        = 0;
+static int        g_ansiRenderW       = 0; // buffer stride (≥ DB_NATIVE_W), set by ansiLoadCurrentFile
 static int        g_ansiScrollY       = 0;
 static uint8_t    g_ansiFileIdx       = 0;
 static uint32_t   g_ansiLastTickMs    = 0;
 static uint32_t   g_ansiOverlayShowMs = 0;
 static SauceRecord g_ansiSauce        = {};
 // Portrait mirror: calibrate after first test (false=no flip, true=flip)
-#define ANSI_PORTRAIT_MIRROR_X false
-#define ANSI_PORTRAIT_MIRROR_Y false
+#define ANSI_PORTRAIT_MIRROR_X true
+#define ANSI_PORTRAIT_MIRROR_Y true
 #endif
 // ── fine ANSI globals ─────────────────────────────────────────────────────────
 static uint32_t g_lvglPageAnimUntilMs = 0;
@@ -920,6 +921,7 @@ static char g_lvglScreenSaverFieldBuf[256] = {0};
 static bool g_touchReady = false;
 static bool g_touchUseAltBus = true;
 static bool g_touchDown = false;
+static uint8_t g_touchMissCount = 0;  // consecutive "no touch" frames since last detection
 static uint8_t g_touchRawPresenceCount = 0;
 static bool g_touchPageDragging = false;
 enum TouchAuxButton : uint8_t {
@@ -1726,19 +1728,30 @@ static const uint16_t kAnsiPalette[16] = {
 };
 
 // Draw one CP437 character into a portrait pixel buffer of width bufW.
-// fontW/fontH default 8×16 (IBM VGA original); supports integer scaling.
+// fontW/fontH default 8×16 (IBM VGA original); supports integer downscaling.
+// Uses area-average sampling for sub-pixel accuracy on block chars.
 static void drawAnsiChar(uint16_t *buf, int bufW, int x, int y,
                          uint8_t ch, uint8_t fgIdx, uint8_t bgIdx,
                          int fontW = 8, int fontH = 16) {
   const uint16_t fg = kAnsiPalette[fgIdx & 0x0F];
   const uint16_t bg = kAnsiPalette[bgIdx & 0x0F];
   for (int row = 0; row < fontH; ++row) {
-    const int srcRow = (row * 16) / fontH;
-    const uint8_t bits = kIbmVga8x16[(int)ch * 16 + srcRow];
+    const int srcRowStart = (row * 16) / fontH;
+    const int srcRowEnd   = ((row + 1) * 16) / fontH;
     uint16_t *line = buf + (y + row) * bufW + x;
     for (int col = 0; col < fontW; ++col) {
-      const int srcCol = (col * 8) / fontW;
-      line[col] = (bits & (0x80 >> srcCol)) ? fg : bg;
+      const int srcColStart = (col * 8) / fontW;
+      const int srcColEnd   = ((col + 1) * 8) / fontW;
+      // Area-average: count lit source pixels in the mapped region
+      int litCount = 0, totalCount = 0;
+      for (int sr = srcRowStart; sr < srcRowEnd; ++sr) {
+        const uint8_t bits = kIbmVga8x16[(int)ch * 16 + sr];
+        for (int sc = srcColStart; sc < srcColEnd; ++sc) {
+          if (bits & (0x80 >> sc)) ++litCount;
+          ++totalCount;
+        }
+      }
+      line[col] = (totalCount > 0 && litCount * 2 >= totalCount) ? fg : bg;
     }
   }
 }
@@ -1754,40 +1767,67 @@ static int ansiRenderFile(const uint8_t *data, size_t len,
   }
   memset(buf, 0, (size_t)bufW * maxH * sizeof(uint16_t));
 
+  // Wrap at SAUCE art width (not display width) to preserve row alignment
+  const int wrapCols = (sauce.valid && sauce.width > 0) ? (int)sauce.width : 80;
+
   AnsiParserState st;
   const uint8_t *p   = data;
   const uint8_t *end = data + displayLen;
 
   while (p < end) {
     uint8_t c = *p++;
-    if (c == 0x1B && p < end && *p == '[') {
-      ++p;
-      p = parseAnsiCsi(p, (size_t)(end - p), st);
+    if (c == 0x1B && p < end) {
+      if (*p == '[') {
+        ++p;
+        p = parseAnsiCsi(p, (size_t)(end - p), st);
+      } else {
+        // Non-CSI escape (ESC(B, ESC M, etc.) — skip ESC + 1 byte
+        uint8_t nx = *p++;
+        // ESC( or ESC) take one more byte (charset designator)
+        if ((nx == '(' || nx == ')') && p < end) ++p;
+      }
       continue;
     }
-    if (c == '\r') { st.col = 0; continue; }
-    if (c == '\n') { ++st.row; st.col = 0; continue; }
-    if (c < 0x20) continue;
+    if (c == '\r') { st.col = 0; st.pendingWrap = false; continue; }
+    if (c == '\n') { ++st.row; st.col = 0; st.pendingWrap = false; continue; }
+    // TAB: advance to next 8-column boundary (cursor only, no glyph)
+    if (c == 0x09) {
+      if (st.pendingWrap) { st.col = 0; ++st.row; st.pendingWrap = false; }
+      if (st.col < 0) st.col = 0;
+      st.col = (st.col | 7) + 1;
+      if (st.col >= wrapCols) st.pendingWrap = true;
+      continue;
+    }
+    // All other bytes 0x00-0x1F are valid CP437 printable glyphs on BBS terminals.
+    // 0x00 = blank (advances cursor, fills with bg color). 0x01-0x1F = symbols.
+    // Do NOT skip — fall through to the draw path below.
+
+    // Deferred wrap: execute pending wrap before drawing next char
+    if (st.pendingWrap) { st.col = 0; ++st.row; st.pendingWrap = false; }
+
+    // Clamp cursor to safe bounds
+    if (st.col < 0) st.col = 0;
+    if (st.row < 0) st.row = 0;
 
     const int px = st.col * fontW;
     const int py = st.row * fontH;
-    if (py + fontH <= maxH && px + fontW <= bufW) {
+    if (py >= 0 && py + fontH <= maxH && px >= 0 && px + fontW <= bufW) {
       drawAnsiChar(buf, bufW, px, py, c, st.fgResolved(), st.bg, fontW, fontH);
     }
     ++st.col;
-    if (st.col >= bufW / fontW) { st.col = 0; ++st.row; }
+    if (st.col >= wrapCols) { st.pendingWrap = true; }
   }
   return min((st.row + 1) * fontH, maxH);
 }
 
 // Optimal font size for bufW=172 given SAUCE width (default 80 cols).
+// No cap on sauce.width: a 180-col file gets fontW=1 (172/180=0→1) rather than
+// fontW=2 with wrapCols=180 (which would show only ~86/180 columns).
 static void ansiCalcFont(const SauceRecord &sauce, int &fontW, int &fontH) {
-  const int cols = (sauce.valid && sauce.width > 0 && sauce.width <= 160)
-                   ? sauce.width : 80;
+  const int cols = (sauce.valid && sauce.width > 0) ? (int)sauce.width : 80;
   fontW = DB_NATIVE_W / cols;
   if (fontW < 1) fontW = 1;
   fontH = fontW * 2;
-  if (fontW < 4) { fontW = 4; fontH = 8; }
   if (fontW > 8) { fontW = 8; fontH = 16; }
 }
 
@@ -1807,7 +1847,7 @@ static void ansiExitPortrait() {
 
 // Send current viewport (172 × DB_NATIVE_H) to display via DMA ping-pong.
 static void ansiFlushViewport() {
-  if (!g_ansiBuf || g_ansiTotalH == 0 || !g_dispFlushSem || !g_dmaBuf || !g_dmaBuf2) return;
+  if (!g_ansiBuf || g_ansiTotalH == 0 || g_ansiRenderW == 0 || !g_dispFlushSem || !g_dmaBuf || !g_dmaBuf2) return;
 
   const int scrollY = max(0, min(g_ansiScrollY, max(0, g_ansiTotalH - DB_NATIVE_H)));
   const int chunks  = DB_NATIVE_H / DB_CHUNK_ROWS;
@@ -1816,21 +1856,60 @@ static void ansiFlushViewport() {
   uint16_t *bufCur  = g_dmaBuf;
   uint16_t *bufNext = g_dmaBuf2;
 
-  // Helper: copy one chunk from PSRAM ansiBuf → DMA buf (with zero-fill if past end)
+  // Helper: copy one chunk from PSRAM ansiBuf → DMA buf (with zero-fill if past end).
+  // When g_ansiRenderW > DB_NATIVE_W, copy only the visible first DB_NATIVE_W pixels
+  // per row (the rest are off-screen art columns used to keep parser state correct).
+  const int stride = g_ansiRenderW;
   auto fillChunk = [&](uint16_t *dst, int startRow) {
     if (startRow >= g_ansiTotalH) {
       memset(dst, 0, chunkBytes);
       return;
     }
     const int rows = min((int)DB_CHUNK_ROWS, g_ansiTotalH - startRow);
-    memcpy(dst, g_ansiBuf + (size_t)startRow * DB_NATIVE_W,
-           (size_t)rows * DB_NATIVE_W * sizeof(uint16_t));
+    if (stride == DB_NATIVE_W) {
+      // Fast path: buffer width matches display width
+      memcpy(dst, g_ansiBuf + (size_t)startRow * stride,
+             (size_t)rows * DB_NATIVE_W * sizeof(uint16_t));
+    } else {
+      // Wider buffer: copy DB_NATIVE_W pixels per row, skip the rest
+      for (int r = 0; r < rows; ++r)
+        memcpy(dst + r * DB_NATIVE_W,
+               g_ansiBuf + (size_t)(startRow + r) * stride,
+               (size_t)DB_NATIVE_W * sizeof(uint16_t));
+    }
     if (rows < DB_CHUNK_ROWS)
       memset(dst + rows * DB_NATIVE_W, 0,
              (size_t)(DB_CHUNK_ROWS - rows) * DB_NATIVE_W * sizeof(uint16_t));
   };
 
+  // Non-destructive overlay helper: draw title/author into a DMA chunk
+  // (never touches g_ansiBuf). Applied to the last chunk before DMA send.
+  const bool overlayActive = (millis() - g_ansiOverlayShowMs) < 4000;
+  const int lastChunk = chunks - 1;
+
+  auto applyOverlay = [&](uint16_t *dst) {
+    if (!overlayActive) return;
+    const char *title  = (g_ansiSauce.valid && g_ansiSauce.title[0])
+                         ? g_ansiSauce.title : kAnsiFiles[g_ansiFileIdx].filename;
+    const char *author = (g_ansiSauce.valid && g_ansiSauce.author[0])
+                         ? g_ansiSauce.author : "";
+    char text[80];
+    snprintf(text, sizeof(text), " %s  %s ", title, author);
+    // Overlay at bottom 16 rows of last chunk
+    const int overlayStart = DB_CHUNK_ROWS - 16;
+    for (int r = overlayStart; r < (int)DB_CHUNK_ROWS; ++r) {
+      uint16_t *row = dst + r * DB_NATIVE_W;
+      for (int x = 0; x < DB_NATIVE_W; ++x)
+        row[x] = (row[x] >> 1) & 0x7BEF;
+    }
+    const int maxChars = DB_NATIVE_W / 8;
+    for (int i = 0; i < (int)strlen(text) && i < maxChars; ++i)
+      drawAnsiChar(dst, DB_NATIVE_W, i * 8, overlayStart,
+                   (uint8_t)text[i], 15, 0, 8, 16);
+  };
+
   fillChunk(bufCur, scrollY);
+  if (lastChunk == 0) applyOverlay(bufCur);
 
   // Bootstrap semaphore then start first DMA
   xSemaphoreGive(g_dispFlushSem);
@@ -1839,6 +1918,7 @@ static void ansiFlushViewport() {
 
   for (int c = 1; c < chunks; ++c) {
     fillChunk(bufNext, scrollY + c * DB_CHUNK_ROWS);
+    if (c == lastChunk) applyOverlay(bufNext);
     xSemaphoreTake(g_dispFlushSem, portMAX_DELAY);
     esp_lcd_panel_draw_bitmap(g_panel, 0, c * DB_CHUNK_ROWS,
                               DB_NATIVE_W, (c + 1) * DB_CHUNK_ROWS, bufNext);
@@ -1857,10 +1937,20 @@ static void ansiLoadCurrentFile() {
   int fontW, fontH;
   ansiCalcFont(g_ansiSauce, fontW, fontH);
 
-  const int estRows = (g_ansiSauce.valid && g_ansiSauce.height > 0)
-                      ? (int)g_ansiSauce.height + 4 : 2000;
+  // Clamp SAUCE height: many files have wrong/small values; always allow at least 2000 rows.
+  const int estRows = max(2000,
+                          (g_ansiSauce.valid && g_ansiSauce.height > 0)
+                          ? (int)g_ansiSauce.height + 4 : 2000);
   const int maxH   = estRows * fontH;
-  const size_t needed = (size_t)DB_NATIVE_W * maxH * sizeof(uint16_t);
+
+  // Render buffer may be wider than display to avoid clipping art that uses
+  // cursor positioning past the visible 172 px (e.g. misfit-blocked col 86).
+  const int artCols = (g_ansiSauce.valid && g_ansiSauce.width > 0)
+                      ? (int)g_ansiSauce.width : 80;
+  const int renderW = max((int)DB_NATIVE_W, (artCols + 16) * fontW);
+  g_ansiRenderW = renderW;
+
+  const size_t needed = (size_t)renderW * maxH * sizeof(uint16_t);
 
   if (g_ansiBuf) { heap_caps_free(g_ansiBuf); g_ansiBuf = nullptr; }
   g_ansiBuf = (uint16_t*)heap_caps_malloc(needed, MALLOC_CAP_SPIRAM);
@@ -1871,11 +1961,11 @@ static void ansiLoadCurrentFile() {
   }
 
   g_ansiTotalH   = ansiRenderFile(f.data, f.len, g_ansiBuf,
-                                  DB_NATIVE_W, maxH, fontW, fontH, g_ansiSauce);
+                                  renderW, maxH, fontW, fontH, g_ansiSauce);
   g_ansiScrollY  = 0;
   g_ansiOverlayShowMs = millis();
-  Serial.printf("[ANSI] file=%s font=%dx%d cols=%d totalH=%d PSRAM=%u\n",
-                f.filename, fontW, fontH, DB_NATIVE_W / fontW,
+  Serial.printf("[ANSI] file=%s font=%dx%d cols=%d renderW=%d totalH=%d PSRAM=%u\n",
+                f.filename, fontW, fontH, artCols, renderW,
                 g_ansiTotalH, (unsigned)needed);
 }
 
@@ -1904,32 +1994,6 @@ static void updateDisplayAnsi(bool force) {
     return;
   }
   g_ansiScrollY += 1;
-
-  // Overlay: show title/author for first 4 seconds after loading
-  const uint32_t elapsed = now - g_ansiOverlayShowMs;
-  if (elapsed < 4000) {
-    const char *title  = (g_ansiSauce.valid && g_ansiSauce.title[0])
-                         ? g_ansiSauce.title : kAnsiFiles[g_ansiFileIdx].filename;
-    const char *author = (g_ansiSauce.valid && g_ansiSauce.author[0])
-                         ? g_ansiSauce.author : "";
-    char overlayText[80];
-    snprintf(overlayText, sizeof(overlayText), " %s  %s ", title, author);
-
-    const int overlayY = g_ansiScrollY + DB_NATIVE_H - 16;
-    if (overlayY >= 0 && overlayY + 16 <= g_ansiTotalH) {
-      // Semi-transparent bg: halve each pixel in the overlay row band
-      for (int r = 0; r < 16 && (overlayY + r) < g_ansiTotalH; ++r) {
-        uint16_t *rowPtr = g_ansiBuf + (overlayY + r) * DB_NATIVE_W;
-        for (int xx = 0; xx < DB_NATIVE_W; ++xx)
-          rowPtr[xx] = (rowPtr[xx] >> 1) & 0x7BEF;
-      }
-      const int maxChars = DB_NATIVE_W / 8;
-      for (int i = 0; i < (int)strlen(overlayText) && i < maxChars; ++i)
-        drawAnsiChar(g_ansiBuf, DB_NATIVE_W, i * 8, overlayY,
-                     (uint8_t)overlayText[i], 15, 0);
-    }
-  }
-
   ansiFlushViewport();
 }
 
@@ -8145,6 +8209,7 @@ static void handleTouchSwipeInput() {
   }
 
   if (touched) {
+    g_touchMissCount = 0;  // reset miss counter on any detection
     if (!g_touchDown) {
       g_touchDown = true;
       g_touchStartX = x;
@@ -8170,6 +8235,26 @@ static void handleTouchSwipeInput() {
     }
     g_touchLastX = x;
     g_touchLastY = y;
+#if TEST_DISPLAY
+    // ANSI view: exit immediately during drag when displacement threshold reached.
+    // This makes the transition feel "physical" — the page responds while your finger
+    // is still moving, rather than waiting for release.
+    if (g_uiPageMode == UI_PAGE_ANSI && g_touchDown) {
+      constexpr int16_t kAnsiExitPx = 30;  // ~30px drag triggers exit
+      const int16_t liveDx = g_touchLastX - g_touchStartX;
+      const int16_t liveDy = g_touchLastY - g_touchStartY;
+      if (abs(liveDx) >= kAnsiExitPx || abs(liveDy) >= kAnsiExitPx) {
+        setUiPage(UI_PAGE_WIKI);
+        g_lastSwipeToggleMs = millis();
+        g_touchDown = false;
+        g_touchMissCount = 0;
+        g_touchAwaitRelease = true;
+        g_touchReleaseStartMs = 0;
+        Serial.printf("[TOUCH] ansi-drag-exit dx=%d dy=%d -> WIKI\n", liveDx, liveDy);
+        return;
+      }
+    }
+#endif
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
     if (g_lvglReady) {
       if (g_touchAuxBtnDown != TOUCH_AUX_BTN_NONE) {
@@ -8192,6 +8277,15 @@ static void handleTouchSwipeInput() {
     return;
   }
 
+  // AXS15231B touch controller has a finite scan rate (~60Hz). The read command
+  // clears the buffer, so rapid polling can see "no touch" between scans even
+  // while the finger is still on the screen. Bridge these gaps by requiring
+  // several consecutive miss frames before declaring a true release.
+  if (g_touchDown) {
+    if (++g_touchMissCount < 12) return;  // ~12 frames ≈ 25-50ms hold-off
+    g_touchMissCount = 0;
+  }
+
   if (!g_touchDown) return;
   g_touchDown = false;
   const int16_t dx = g_touchLastX - g_touchStartX;
@@ -8201,6 +8295,10 @@ static void handleTouchSwipeInput() {
   const bool fastFlick = (durMs <= 220) && (abs(dx) >= ((DISPLAY_TOUCH_SWIPE_MIN_PX / 2) + 2));
   constexpr int16_t kSwipePageMinPx = DISPLAY_TOUCH_SWIPE_MIN_PX;
   const bool pageSwipe = horizontalIntent && ((abs(dx) >= kSwipePageMinPx) || fastFlick);
+  // In ANSI portrait view, the display is rotated so raw touch axes are swapped;
+  // treat any-direction swipe (either axis) as an exit gesture.
+  const bool ansiSwipe = (g_uiPageMode == UI_PAGE_ANSI) &&
+                         ((abs(dx) >= kSwipePageMinPx) || (abs(dy) >= kSwipePageMinPx));
   const bool isTap = (durMs <= DISPLAY_TOUCH_TAP_MAX_MS &&
                       abs(dx) <= DISPLAY_TOUCH_TAP_MAX_PX &&
                       abs(dy) <= DISPLAY_TOUCH_TAP_MAX_PX);
@@ -8276,7 +8374,14 @@ static void handleTouchSwipeInput() {
                     dx, dy, (unsigned long)durMs);
       return;
     }
-    if (durMs <= 3000 && pageSwipe && ((millis() - g_lastSwipeToggleMs) >= 140)) {
+    if (durMs <= 3000 && (pageSwipe || ansiSwipe) && ((millis() - g_lastSwipeToggleMs) >= 140)) {
+      if (ansiSwipe) {
+        setUiPage(UI_PAGE_WIKI);
+        g_lastSwipeToggleMs = millis();
+        g_touchAwaitRelease = true;
+        g_touchReleaseStartMs = 0;
+        Serial.printf("[TOUCH] drag-ansi-exit dx=%d dy=%d -> WIKI\n", dx, dy);
+      } else {
       const int8_t dir = (dx < 0) ? 1 : -1;
       bool moved = false;
       moved = stepUiPage(dir, false);
@@ -8285,6 +8390,7 @@ static void handleTouchSwipeInput() {
       g_touchReleaseStartMs = 0;
       Serial.printf("[TOUCH] drag-swipe dx=%d dy=%d dur=%lums -> page=%s moved=%d\n",
                     dx, dy, (unsigned long)durMs, uiPageName(g_uiPageMode), moved ? 1 : 0);
+      }
     } else {
       lvglApplyPageVisibility(true);  // snap back to current page
       g_touchAwaitRelease = true;
@@ -8307,6 +8413,19 @@ static void handleTouchSwipeInput() {
     return;
   }
   if ((millis() - g_lastSwipeToggleMs) < 140) return;
+
+  // ANSI view: any swipe exits back to WIKI (ANSI is the last page, ordinal 4,
+  // so forward-swipe has nowhere to go; treat both directions as "back to WIKI").
+#if TEST_DISPLAY
+  if (ansiSwipe) {
+    setUiPage(UI_PAGE_WIKI);
+    g_lastSwipeToggleMs = millis();
+    g_touchAwaitRelease = true;
+    g_touchReleaseStartMs = 0;
+    Serial.printf("[TOUCH] ansi-exit-swipe dx=%d dy=%d -> WIKI\n", dx, dy);
+    return;
+  }
+#endif
 
   // Primary gesture: horizontal swipe changes page (INFO <-> HOME <-> AUX/WIKI).
   if (pageSwipe) {

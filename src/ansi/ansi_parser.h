@@ -40,24 +40,36 @@ struct AnsiParserState {
   uint8_t fg = 7;
   uint8_t bg = 0;
   bool bold = false;
+  bool pendingWrap = false; // deferred wrap: set after filling last column
 
-  void reset() { col=0; row=0; fg=7; bg=0; bold=false; }
+  void reset() { col=0; row=0; fg=7; bg=0; bold=false; pendingWrap=false; }
   uint8_t fgResolved() const { return bold ? (fg | 8) : fg; }
 };
+
+// ANSI SGR codes 30-37/40-47 map to CGA indices in a non-sequential order.
+// ANSI: Black=0, Red=1, Green=2, Yellow=3, Blue=4, Magenta=5, Cyan=6, White=7
+// CGA:  Black=0, Blue=1, Green=2, Cyan=3, Red=4, Magenta=5, Brown=6, LGray=7
+static const uint8_t kAnsiToCga[8] = {0, 4, 2, 6, 1, 5, 3, 7};
 
 // Legge una sequenza CSI (buffer punta a '[' dopo ESC). Modifica state.
 // Ritorna puntatore al byte DOPO la lettera finale.
 static const uint8_t* parseAnsiCsi(const uint8_t *buf, size_t remaining,
                                     AnsiParserState &st) {
+  size_t i = 0;
+  // Skip private parameter prefix (?, <, =, >)
+  if (i < remaining && (buf[i] == '?' || buf[i] == '<' || buf[i] == '=' || buf[i] == '>')) {
+    ++i;
+  }
   int params[8] = {0};
   int nparams = 0;
-  size_t i = 0;
   while (i < remaining && nparams < 8) {
     uint8_t c = buf[i++];
     if (c >= '0' && c <= '9') {
       params[nparams] = params[nparams] * 10 + (c - '0');
     } else if (c == ';') {
       ++nparams;
+    } else if (c >= 0x20 && c <= 0x2F) {
+      // Intermediate byte — consume and keep looking for final byte
     } else {
       if (nparams < 8) ++nparams;
       if (c == 'm') {
@@ -69,19 +81,20 @@ static const uint8_t* parseAnsiCsi(const uint8_t *buf, size_t remaining,
             if (v == 0)                { st.fg=7; st.bg=0; st.bold=false; }
             else if (v == 1)           { st.bold = true; }
             else if (v == 5)           { st.bold = true; } // blink → bright
-            else if (v >= 30 && v <= 37)   { st.fg = (uint8_t)(v - 30); }
-            else if (v >= 40 && v <= 47)   { st.bg = (uint8_t)(v - 40); }
-            else if (v >= 90 && v <= 97)   { st.fg = (uint8_t)(v - 90 + 8); }
-            else if (v >= 100 && v <= 107) { st.bg = (uint8_t)(v - 100 + 8); }
+            else if (v >= 30 && v <= 37)   { st.fg = kAnsiToCga[v - 30]; }
+            else if (v >= 40 && v <= 47)   { st.bg = kAnsiToCga[v - 40]; }
+            else if (v >= 90 && v <= 97)   { st.fg = (uint8_t)(kAnsiToCga[v - 90] + 8); }
+            else if (v >= 100 && v <= 107) { st.bg = (uint8_t)(kAnsiToCga[v - 100] + 8); }
           }
         }
       } else if (c == 'H' || c == 'f') {
         st.row = (nparams >= 1 && params[0] > 0) ? params[0] - 1 : 0;
         st.col = (nparams >= 2 && params[1] > 0) ? params[1] - 1 : 0;
-      } else if (c == 'A') { st.row -= (nparams >= 1 && params[0] > 0) ? params[0] : 1; }
-      else if  (c == 'B') { st.row += (nparams >= 1 && params[0] > 0) ? params[0] : 1; }
-      else if  (c == 'C') { st.col += (nparams >= 1 && params[0] > 0) ? params[0] : 1; }
-      else if  (c == 'D') { st.col -= (nparams >= 1 && params[0] > 0) ? params[0] : 1; }
+        st.pendingWrap = false;
+      } else if (c == 'A') { st.row -= (nparams >= 1 && params[0] > 0) ? params[0] : 1; st.pendingWrap = false; }
+      else if  (c == 'B') { st.row += (nparams >= 1 && params[0] > 0) ? params[0] : 1; st.pendingWrap = false; }
+      else if  (c == 'C') { st.col += (nparams >= 1 && params[0] > 0) ? params[0] : 1; st.pendingWrap = false; }
+      else if  (c == 'D') { st.col -= (nparams >= 1 && params[0] > 0) ? params[0] : 1; st.pendingWrap = false; }
       // Ignora: J, K, s, u, etc.
       break;
     }
