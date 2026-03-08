@@ -6923,11 +6923,6 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_set_style_bg_grad_color(g_lvglClockBlock, lv_color_hex(panelBg), LV_PART_MAIN);
     lv_obj_set_style_radius(g_lvglClockBlock, cardRadius, LV_PART_MAIN);
   }
-  if (g_auxDeck.card) {
-    lv_obj_set_style_bg_color(g_auxDeck.card, lv_color_hex(panelBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_auxDeck.card, lv_color_hex(panelBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_auxDeck.card, cardRadius, LV_PART_MAIN);
-  }
   if (g_lvglWeatherCard) {
     lv_obj_set_style_bg_color(g_lvglWeatherCard, lv_color_hex(weatherBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglWeatherCard, lv_color_hex(weatherBg), LV_PART_MAIN);
@@ -6967,18 +6962,6 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_set_style_bg_color(g_lvglWeatherHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglWeatherHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
   }
-  if (g_auxDeck.header) {
-    lv_obj_set_style_bg_color(g_auxDeck.header, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_auxDeck.header, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_auxDeck.header, cardRadius, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_auxDeck.header, headerBordered ? 1 : 0, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_auxDeck.header, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_auxDeck.header, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
-  }
-  if (g_auxDeck.headerFill) {
-    lv_obj_set_style_bg_color(g_auxDeck.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_auxDeck.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
-  }
   if (g_lvglInfoCard) {
     lv_obj_set_style_bg_color(g_lvglInfoCard, lv_color_hex(t.infoBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(g_lvglInfoCard, lv_color_hex(t.infoBg), LV_PART_MAIN);
@@ -6998,9 +6981,6 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglClockDate) lv_obj_set_style_text_color(g_lvglClockDate, lv_color_hex(headerText), 0);
   if (g_lvglCity) lv_obj_set_style_text_color(g_lvglCity, lv_color_hex(headerText), 0);
   if (g_lvglSun) lv_obj_set_style_text_color(g_lvglSun, lv_color_hex(headerText), 0);
-  if (g_auxDeck.title) lv_obj_set_style_text_color(g_auxDeck.title, lv_color_hex(headerText), 0);
-  if (g_auxDeck.status) lv_obj_set_style_text_color(g_auxDeck.status, lv_color_hex(headerText), 0);
-  if (g_auxDeck.meta) lv_obj_set_style_text_color(g_auxDeck.meta, lv_color_hex(headerMeta), 0);
   if (g_lvglClockL1) lv_obj_set_style_text_color(g_lvglClockL1, lv_color_hex(clockLine1), 0);
   if (g_lvglClockL2) lv_obj_set_style_text_color(g_lvglClockL2, lv_color_hex(clockLine2), 0);
   if (g_lvglClockL3) lv_obj_set_style_text_color(g_lvglClockL3, lv_color_hex(clockLine3), 0);
@@ -7055,158 +7035,101 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_set_style_border_opa(g_lvglInfoWebQr, LV_OPA_80, LV_PART_MAIN);
     lv_qrcode_update(g_lvglInfoWebQr, infoPayload, strlen(infoPayload));
   }
-  if (g_auxDeck.qr) {
-    lv_obj_t *auxQrParent = lv_obj_get_parent(g_auxDeck.qr);
-    lv_coord_t auxQrSize = lv_obj_get_width(g_auxDeck.qr);
-    if (auxQrSize < 32 && auxQrParent) {
-      const lv_coord_t pw = lv_obj_get_width(auxQrParent);
-      const lv_coord_t ph = lv_obj_get_height(auxQrParent);
-      auxQrSize = ((pw < ph) ? pw : ph) - 4;
-    }
-    if (auxQrSize < 90) auxQrSize = 90;
-    const bool auxQrHidden = lv_obj_has_flag(g_auxDeck.qr, LV_OBJ_FLAG_HIDDEN);
-    char auxPayload[sizeof(g_auxDeck.lastQrPayload)];
-    copyStringSafe(
-      auxPayload,
-      sizeof(auxPayload),
-      g_auxDeck.lastQrPayload[0] ? g_auxDeck.lastQrPayload : "https://ansa.it"
-    );
-    lv_obj_del(g_auxDeck.qr);
-    const lv_color_t auxQrDark = lv_color_hex(t.auxQrDark);
-    const lv_color_t auxQrLight = lv_color_hex(t.auxQrLight);
-    g_auxDeck.qr = lv_qrcode_create(auxQrParent, auxQrSize, auxQrDark, auxQrLight);
-    lv_obj_center(g_auxDeck.qr);
-    lv_obj_set_style_bg_color(g_auxDeck.qr, auxQrLight, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(g_auxDeck.qr, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_auxDeck.qr, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_auxDeck.qr, lv_color_hex(t.auxQrHint), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_auxDeck.qr, LV_OPA_70, LV_PART_MAIN);
-    lv_qrcode_update(g_auxDeck.qr, auxPayload, strlen(auxPayload));
-    if (auxQrHidden) lv_obj_add_flag(g_auxDeck.qr, LV_OBJ_FLAG_HIDDEN);
-  }
 #endif
 
-  if (g_auxDeck.sourceBadge) {
-    lv_obj_set_style_bg_color(g_auxDeck.sourceBadge, lv_color_hex(t.auxBadgeBg), LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_auxDeck.sourceBadge, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_auxDeck.sourceBadge, lv_color_hex(t.auxSourceText), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_auxDeck.sourceBadge, LV_OPA_70, LV_PART_MAIN);
-    lv_obj_set_style_radius(g_auxDeck.sourceBadge, badgeRadius, LV_PART_MAIN);
-  }
-  if (g_auxDeck.nextFeedBtn) lv_obj_set_style_radius(g_auxDeck.nextFeedBtn, buttonRadius, LV_PART_MAIN);
-  if (g_auxDeck.refreshBtn) lv_obj_set_style_radius(g_auxDeck.refreshBtn, buttonRadius, LV_PART_MAIN);
-  if (g_auxDeck.qrBtn) lv_obj_set_style_radius(g_auxDeck.qrBtn, buttonRadius, LV_PART_MAIN);
-  const uint32_t btnBorderHex = (lvglColorContrastLuma(t.auxSourceText, panelBg) >= 36u) ? t.auxSourceText : 0xEAF0FF;
-  if (g_auxDeck.nextFeedBtn) {
-    lv_obj_set_style_border_width(g_auxDeck.nextFeedBtn, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_auxDeck.nextFeedBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_auxDeck.nextFeedBtn, LV_OPA_80, LV_PART_MAIN);
-  }
-  if (g_auxDeck.refreshBtn) {
-    lv_obj_set_style_border_width(g_auxDeck.refreshBtn, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_auxDeck.refreshBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_auxDeck.refreshBtn, LV_OPA_80, LV_PART_MAIN);
-  }
-  if (g_auxDeck.qrBtn) {
-    lv_obj_set_style_border_width(g_auxDeck.qrBtn, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_auxDeck.qrBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_auxDeck.qrBtn, LV_OPA_80, LV_PART_MAIN);
-  }
   for (uint8_t i = 0; i < 4; ++i) {
     if (!g_lvglClockWiFiBars[i]) continue;
     lv_obj_set_style_radius(g_lvglClockWiFiBars[i], wifiBarRadius, LV_PART_MAIN);
   }
-  if (g_auxDeck.sourceBadgeText) lv_obj_set_style_text_color(g_auxDeck.sourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
-  if (g_auxDeck.sourceSite) lv_obj_set_style_text_color(g_auxDeck.sourceSite, lv_color_hex(t.auxSourceText), 0);
-  if (g_auxDeck.news) lv_obj_set_style_text_color(g_auxDeck.news, lv_color_hex(t.auxText), 0);
-  if (g_auxDeck.qrOverlay) lv_obj_set_style_bg_color(g_auxDeck.qrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
-  if (g_auxDeck.qrHint) lv_obj_set_style_text_color(g_auxDeck.qrHint, lv_color_hex(t.auxQrHint), 0);
-  lvglSetDeckNextFeedButtonPressed(g_auxDeck, false);
-  lvglSetDeckRefreshButtonPressed(g_auxDeck, false);
-  lvglSetDeckQrButtonPressed(g_auxDeck, false);
-
-  // --- Wiki deck theming (mirrors AUX) ---
-  if (g_wikiDeck.card) {
-    lv_obj_set_style_bg_color(g_wikiDeck.card, lv_color_hex(panelBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_wikiDeck.card, lv_color_hex(panelBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_wikiDeck.card, cardRadius, LV_PART_MAIN);
-  }
-  if (g_wikiDeck.header) {
-    lv_obj_set_style_bg_color(g_wikiDeck.header, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_wikiDeck.header, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_wikiDeck.header, cardRadius, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_wikiDeck.header, headerBordered ? 1 : 0, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_wikiDeck.header, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_wikiDeck.header, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
-  }
-  if (g_wikiDeck.headerFill) {
-    lv_obj_set_style_bg_color(g_wikiDeck.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_wikiDeck.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
-  }
-  if (g_wikiDeck.title) lv_obj_set_style_text_color(g_wikiDeck.title, lv_color_hex(headerText), 0);
-  if (g_wikiDeck.status) lv_obj_set_style_text_color(g_wikiDeck.status, lv_color_hex(headerText), 0);
-  if (g_wikiDeck.meta) lv_obj_set_style_text_color(g_wikiDeck.meta, lv_color_hex(headerMeta), 0);
-  if (g_wikiDeck.sourceBadge) {
-    lv_obj_set_style_bg_color(g_wikiDeck.sourceBadge, lv_color_hex(t.auxBadgeBg), LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_wikiDeck.sourceBadge, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_wikiDeck.sourceBadge, lv_color_hex(t.auxSourceText), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_wikiDeck.sourceBadge, LV_OPA_70, LV_PART_MAIN);
-    lv_obj_set_style_radius(g_wikiDeck.sourceBadge, badgeRadius, LV_PART_MAIN);
-  }
-  if (g_wikiDeck.sourceBadgeText) lv_obj_set_style_text_color(g_wikiDeck.sourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
-  if (g_wikiDeck.sourceSite) lv_obj_set_style_text_color(g_wikiDeck.sourceSite, lv_color_hex(t.auxSourceText), 0);
-  if (g_wikiDeck.news) lv_obj_set_style_text_color(g_wikiDeck.news, lv_color_hex(t.auxText), 0);
-  if (g_wikiDeck.qrOverlay) lv_obj_set_style_bg_color(g_wikiDeck.qrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
-  if (g_wikiDeck.qrHint) lv_obj_set_style_text_color(g_wikiDeck.qrHint, lv_color_hex(t.auxQrHint), 0);
-  if (g_wikiDeck.nextFeedBtn) lv_obj_set_style_radius(g_wikiDeck.nextFeedBtn, buttonRadius, LV_PART_MAIN);
-  if (g_wikiDeck.refreshBtn) lv_obj_set_style_radius(g_wikiDeck.refreshBtn, buttonRadius, LV_PART_MAIN);
-  if (g_wikiDeck.qrBtn) lv_obj_set_style_radius(g_wikiDeck.qrBtn, buttonRadius, LV_PART_MAIN);
-  if (g_wikiDeck.nextFeedBtn) {
-    lv_obj_set_style_border_width(g_wikiDeck.nextFeedBtn, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_wikiDeck.nextFeedBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_wikiDeck.nextFeedBtn, LV_OPA_80, LV_PART_MAIN);
-  }
-  if (g_wikiDeck.refreshBtn) {
-    lv_obj_set_style_border_width(g_wikiDeck.refreshBtn, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_wikiDeck.refreshBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_wikiDeck.refreshBtn, LV_OPA_80, LV_PART_MAIN);
-  }
-  if (g_wikiDeck.qrBtn) {
-    lv_obj_set_style_border_width(g_wikiDeck.qrBtn, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_wikiDeck.qrBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_wikiDeck.qrBtn, LV_OPA_80, LV_PART_MAIN);
-  }
+  const uint32_t btnBorderHex = (lvglColorContrastLuma(t.auxSourceText, panelBg) >= 36u) ? t.auxSourceText : 0xEAF0FF;
+  // ── Feed Deck theming (AUX + WIKI) ──────────────────────────────────────────
+  {
+    FeedDeckUi *feedDecks[] = {&g_auxDeck, &g_wikiDeck};
+    for (FeedDeckUi *d : feedDecks) {
+      if (d->card) {
+        lv_obj_set_style_bg_color(d->card, lv_color_hex(panelBg), LV_PART_MAIN);
+        lv_obj_set_style_bg_grad_color(d->card, lv_color_hex(panelBg), LV_PART_MAIN);
+        lv_obj_set_style_radius(d->card, cardRadius, LV_PART_MAIN);
+      }
+      if (d->header) {
+        lv_obj_set_style_bg_color(d->header, lv_color_hex(headerBg), LV_PART_MAIN);
+        lv_obj_set_style_bg_grad_color(d->header, lv_color_hex(headerBg), LV_PART_MAIN);
+        lv_obj_set_style_radius(d->header, cardRadius, LV_PART_MAIN);
+        lv_obj_set_style_border_width(d->header, headerBordered ? 1 : 0, LV_PART_MAIN);
+        lv_obj_set_style_border_color(d->header, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
+        lv_obj_set_style_border_opa(d->header, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+      }
+      if (d->headerFill) {
+        lv_obj_set_style_bg_color(d->headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
+        lv_obj_set_style_bg_grad_color(d->headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
+      }
+      if (d->title)  lv_obj_set_style_text_color(d->title,  lv_color_hex(headerText), 0);
+      if (d->status) lv_obj_set_style_text_color(d->status, lv_color_hex(headerText), 0);
+      if (d->meta)   lv_obj_set_style_text_color(d->meta,   lv_color_hex(headerMeta), 0);
+      if (d->sourceBadge) {
+        lv_obj_set_style_bg_color(d->sourceBadge, lv_color_hex(t.auxBadgeBg), LV_PART_MAIN);
+        lv_obj_set_style_border_width(d->sourceBadge, 1, LV_PART_MAIN);
+        lv_obj_set_style_border_color(d->sourceBadge, lv_color_hex(t.auxSourceText), LV_PART_MAIN);
+        lv_obj_set_style_border_opa(d->sourceBadge, LV_OPA_70, LV_PART_MAIN);
+        lv_obj_set_style_radius(d->sourceBadge, badgeRadius, LV_PART_MAIN);
+      }
+      if (d->sourceBadgeText) lv_obj_set_style_text_color(d->sourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
+      if (d->sourceSite)      lv_obj_set_style_text_color(d->sourceSite,      lv_color_hex(t.auxSourceText), 0);
+      if (d->news)            lv_obj_set_style_text_color(d->news,            lv_color_hex(t.auxText), 0);
+      if (d->qrOverlay)       lv_obj_set_style_bg_color(d->qrOverlay,         lv_color_hex(t.screenBg), LV_PART_MAIN);
+      if (d->qrHint)          lv_obj_set_style_text_color(d->qrHint,          lv_color_hex(t.auxQrHint), 0);
+      if (d->nextFeedBtn) lv_obj_set_style_radius(d->nextFeedBtn, buttonRadius, LV_PART_MAIN);
+      if (d->refreshBtn)  lv_obj_set_style_radius(d->refreshBtn,  buttonRadius, LV_PART_MAIN);
+      if (d->qrBtn)       lv_obj_set_style_radius(d->qrBtn,       buttonRadius, LV_PART_MAIN);
+      if (d->nextFeedBtn) {
+        lv_obj_set_style_border_width(d->nextFeedBtn, 1, LV_PART_MAIN);
+        lv_obj_set_style_border_color(d->nextFeedBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+        lv_obj_set_style_border_opa(d->nextFeedBtn, LV_OPA_80, LV_PART_MAIN);
+      }
+      if (d->refreshBtn) {
+        lv_obj_set_style_border_width(d->refreshBtn, 1, LV_PART_MAIN);
+        lv_obj_set_style_border_color(d->refreshBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+        lv_obj_set_style_border_opa(d->refreshBtn, LV_OPA_80, LV_PART_MAIN);
+      }
+      if (d->qrBtn) {
+        lv_obj_set_style_border_width(d->qrBtn, 1, LV_PART_MAIN);
+        lv_obj_set_style_border_color(d->qrBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
+        lv_obj_set_style_border_opa(d->qrBtn, LV_OPA_80, LV_PART_MAIN);
+      }
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
-  if (g_wikiDeck.qr) {
-    lv_obj_t *wikiQrParent = lv_obj_get_parent(g_wikiDeck.qr);
-    lv_coord_t wikiQrSize = lv_obj_get_width(g_wikiDeck.qr);
-    if (wikiQrSize < 32 && wikiQrParent) {
-      const lv_coord_t pw = lv_obj_get_width(wikiQrParent);
-      const lv_coord_t ph = lv_obj_get_height(wikiQrParent);
-      wikiQrSize = ((pw < ph) ? pw : ph) - 4;
-    }
-    if (wikiQrSize < 90) wikiQrSize = 90;
-    const bool wikiQrHidden = lv_obj_has_flag(g_wikiDeck.qr, LV_OBJ_FLAG_HIDDEN);
-    char wikiPayload[sizeof(g_wikiDeck.lastQrPayload)];
-    copyStringSafe(wikiPayload, sizeof(wikiPayload),
-      g_wikiDeck.lastQrPayload[0] ? g_wikiDeck.lastQrPayload : "https://en.wikipedia.org");
-    lv_obj_del(g_wikiDeck.qr);
-    const lv_color_t wikiQrDark = lv_color_hex(t.auxQrDark);
-    const lv_color_t wikiQrLight = lv_color_hex(t.auxQrLight);
-    g_wikiDeck.qr = lv_qrcode_create(wikiQrParent, wikiQrSize, wikiQrDark, wikiQrLight);
-    lv_obj_center(g_wikiDeck.qr);
-    lv_obj_set_style_bg_color(g_wikiDeck.qr, wikiQrLight, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(g_wikiDeck.qr, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_wikiDeck.qr, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_wikiDeck.qr, lv_color_hex(t.auxQrHint), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_wikiDeck.qr, LV_OPA_70, LV_PART_MAIN);
-    lv_qrcode_update(g_wikiDeck.qr, wikiPayload, strlen(wikiPayload));
-    if (wikiQrHidden) lv_obj_add_flag(g_wikiDeck.qr, LV_OBJ_FLAG_HIDDEN);
-  }
+      if (d->qr) {
+        lv_obj_t *qrParent = lv_obj_get_parent(d->qr);
+        lv_coord_t qrSize  = lv_obj_get_width(d->qr);
+        if (qrSize < 32 && qrParent) {
+          const lv_coord_t pw = lv_obj_get_width(qrParent);
+          const lv_coord_t ph = lv_obj_get_height(qrParent);
+          qrSize = ((pw < ph) ? pw : ph) - 4;
+        }
+        if (qrSize < 90) qrSize = 90;
+        const bool qrHidden = lv_obj_has_flag(d->qr, LV_OBJ_FLAG_HIDDEN);
+        const char *feedFallbackUrl = (d == &g_wikiDeck) ? "https://en.wikipedia.org" : "https://ansa.it";
+        char qrPayload[sizeof(d->lastQrPayload)];
+        copyStringSafe(qrPayload, sizeof(qrPayload),
+          d->lastQrPayload[0] ? d->lastQrPayload : feedFallbackUrl);
+        lv_obj_del(d->qr);
+        const lv_color_t qrDark  = lv_color_hex(t.auxQrDark);
+        const lv_color_t qrLight = lv_color_hex(t.auxQrLight);
+        d->qr = lv_qrcode_create(qrParent, qrSize, qrDark, qrLight);
+        lv_obj_center(d->qr);
+        lv_obj_set_style_bg_color(d->qr, qrLight, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(d->qr, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_border_width(d->qr, 1, LV_PART_MAIN);
+        lv_obj_set_style_border_color(d->qr, lv_color_hex(t.auxQrHint), LV_PART_MAIN);
+        lv_obj_set_style_border_opa(d->qr, LV_OPA_70, LV_PART_MAIN);
+        lv_qrcode_update(d->qr, qrPayload, strlen(qrPayload));
+        if (qrHidden) lv_obj_add_flag(d->qr, LV_OBJ_FLAG_HIDDEN);
+      }
 #endif
-  lvglSetDeckNextFeedButtonPressed(g_wikiDeck, false);
-  lvglSetDeckRefreshButtonPressed(g_wikiDeck, false);
-  lvglSetDeckQrButtonPressed(g_wikiDeck, false);
+      lvglSetDeckNextFeedButtonPressed(*d, false);
+      lvglSetDeckRefreshButtonPressed(*d, false);
+      lvglSetDeckQrButtonPressed(*d, false);
+    }
+  }
 
   lvglApplyThemeFonts();
   lvglCenterClockSentenceLabel();
@@ -7227,9 +7150,6 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   }
 #endif
 
-  lvglSetDeckNextFeedButtonPressed(g_auxDeck, false);
-  lvglSetDeckRefreshButtonPressed(g_auxDeck, false);
-  lvglSetDeckQrButtonPressed(g_auxDeck, false);
   g_lvglClockWiFiMask = 0xFFFF;
   lvglUpdateWiFiBars(true);
 
@@ -9738,27 +9658,21 @@ static void lvglApplyThemeFonts() {
   if (g_lvglForecastNow) lv_obj_set_style_text_font(g_lvglForecastNow, lvglFontSmall(), 0);
   if (g_lvglForecastTomorrow) lv_obj_set_style_text_font(g_lvglForecastTomorrow, lvglFontTiny(), 0);
 
-  if (g_auxDeck.nextFeedBtnText) lv_obj_set_style_text_font(g_auxDeck.nextFeedBtnText, lvglFontTiny(), 0);
-  if (g_auxDeck.refreshBtnText) lv_obj_set_style_text_font(g_auxDeck.refreshBtnText, lvglFontTiny(), 0);
-  if (g_auxDeck.qrBtnText) lv_obj_set_style_text_font(g_auxDeck.qrBtnText, lvglFontTiny(), 0);
-  if (g_auxDeck.title) lv_obj_set_style_text_font(g_auxDeck.title, lvglFontSmall(), 0);
-  if (g_auxDeck.status) lv_obj_set_style_text_font(g_auxDeck.status, lvglFontTiny(), 0);
-  if (g_auxDeck.sourceBadgeText) lv_obj_set_style_text_font(g_auxDeck.sourceBadgeText, lvglFontTiny(), 0);
-  if (g_auxDeck.sourceSite) lv_obj_set_style_text_font(g_auxDeck.sourceSite, lvglFontMeta(), 0);
-  if (g_auxDeck.news) lv_obj_set_style_text_font(g_auxDeck.news, lvglFontRssNews(), 0);
-  if (g_auxDeck.meta) lv_obj_set_style_text_font(g_auxDeck.meta, lvglFontSmall(), 0);
-  if (g_auxDeck.qrHint) lv_obj_set_style_text_font(g_auxDeck.qrHint, lvglFontTiny(), 0);
-
-  if (g_wikiDeck.nextFeedBtnText) lv_obj_set_style_text_font(g_wikiDeck.nextFeedBtnText, lvglFontTiny(), 0);
-  if (g_wikiDeck.refreshBtnText) lv_obj_set_style_text_font(g_wikiDeck.refreshBtnText, lvglFontTiny(), 0);
-  if (g_wikiDeck.qrBtnText) lv_obj_set_style_text_font(g_wikiDeck.qrBtnText, lvglFontTiny(), 0);
-  if (g_wikiDeck.title) lv_obj_set_style_text_font(g_wikiDeck.title, lvglFontSmall(), 0);
-  if (g_wikiDeck.status) lv_obj_set_style_text_font(g_wikiDeck.status, lvglFontTiny(), 0);
-  if (g_wikiDeck.sourceBadgeText) lv_obj_set_style_text_font(g_wikiDeck.sourceBadgeText, lvglFontTiny(), 0);
-  if (g_wikiDeck.sourceSite) lv_obj_set_style_text_font(g_wikiDeck.sourceSite, lvglFontMeta(), 0);
-  if (g_wikiDeck.news) lv_obj_set_style_text_font(g_wikiDeck.news, lvglFontRssNews(), 0);
-  if (g_wikiDeck.meta) lv_obj_set_style_text_font(g_wikiDeck.meta, lvglFontSmall(), 0);
-  if (g_wikiDeck.qrHint) lv_obj_set_style_text_font(g_wikiDeck.qrHint, lvglFontTiny(), 0);
+  {
+    FeedDeckUi *feedDecks[] = {&g_auxDeck, &g_wikiDeck};
+    for (FeedDeckUi *d : feedDecks) {
+      if (d->nextFeedBtnText) lv_obj_set_style_text_font(d->nextFeedBtnText, lvglFontTiny(),    0);
+      if (d->refreshBtnText)  lv_obj_set_style_text_font(d->refreshBtnText,  lvglFontTiny(),    0);
+      if (d->qrBtnText)       lv_obj_set_style_text_font(d->qrBtnText,       lvglFontTiny(),    0);
+      if (d->title)           lv_obj_set_style_text_font(d->title,           lvglFontSmall(),   0);
+      if (d->status)          lv_obj_set_style_text_font(d->status,          lvglFontTiny(),    0);
+      if (d->sourceBadgeText) lv_obj_set_style_text_font(d->sourceBadgeText, lvglFontTiny(),    0);
+      if (d->sourceSite)      lv_obj_set_style_text_font(d->sourceSite,      lvglFontMeta(),    0);
+      if (d->news)            lv_obj_set_style_text_font(d->news,            lvglFontRssNews(), 0);
+      if (d->meta)            lv_obj_set_style_text_font(d->meta,            lvglFontSmall(),   0);
+      if (d->qrHint)          lv_obj_set_style_text_font(d->qrHint,          lvglFontTiny(),    0);
+    }
+  }
 
 #if SCREENSAVER_ENABLED
   if (g_lvglScreenSaverSky) lv_obj_set_style_text_font(g_lvglScreenSaverSky, lvglFontMono(), 0);
