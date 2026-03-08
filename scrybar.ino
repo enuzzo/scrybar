@@ -20,6 +20,9 @@
 #if !TEST_LVGL_UI
 #include "assets/weather_demo/weather_icons_mini_rgb565.h"
 #endif
+#include "src/ansi/font_ibmvga8x16.h"
+#include "src/ansi/ansi_parser.h"
+#include "src/ansi/ansi_files.h"
 #endif
 
 #if TEST_WIFI || TEST_NTP
@@ -765,6 +768,7 @@ enum UiPageMode : uint8_t {
   UI_PAGE_HOME = 1,
   UI_PAGE_AUX = 2,
   UI_PAGE_WIKI = 3,
+  UI_PAGE_ANSI = 4,
 };
 static UiPageMode g_uiPageMode = UI_PAGE_HOME;
 static bool g_uiNeedsRedraw = true;
@@ -853,6 +857,21 @@ static FeedDeckUi g_auxDeck;
 static FeedDeckUi g_wikiDeck;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
+static lv_obj_t *g_lvglAnsiRoot = nullptr;
+// ── ANSI view state ───────────────────────────────────────────────────────────
+#if TEST_DISPLAY
+static uint16_t  *g_ansiBuf           = nullptr; // PSRAM: 172 × g_ansiTotalH
+static int        g_ansiTotalH        = 0;
+static int        g_ansiScrollY       = 0;
+static uint8_t    g_ansiFileIdx       = 0;
+static uint32_t   g_ansiLastTickMs    = 0;
+static uint32_t   g_ansiOverlayShowMs = 0;
+static SauceRecord g_ansiSauce        = {};
+// Portrait mirror: calibrate after first test (false=no flip, true=flip)
+#define ANSI_PORTRAIT_MIRROR_X false
+#define ANSI_PORTRAIT_MIRROR_Y false
+#endif
+// ── fine ANSI globals ─────────────────────────────────────────────────────────
 static uint32_t g_lvglPageAnimUntilMs = 0;
 static uint32_t g_lvglLastRunMs = 0;
 static bool g_lvglPageDragActive = false;
@@ -1682,6 +1701,240 @@ static void dispFillScreen(uint16_t color) {
   if (!g_canvasBuf) return;
   for (int i = 0; i < (DB_CANVAS_W * DB_CANVAS_H); ++i) g_canvasBuf[i] = color;
 }
+
+// ── ANSI view — CGA palette + char renderer ───────────────────────────────────
+#if TEST_DISPLAY
+
+// CGA 16-color palette → RGB565 (LV_COLOR_16_SWAP=1 swaps bytes for little-endian SPI)
+static const uint16_t kAnsiPalette[16] = {
+  lv_color_make(0,   0,   0  ).full, // 0  Black
+  lv_color_make(0,   0,   170).full, // 1  Dark Blue
+  lv_color_make(0,   170, 0  ).full, // 2  Dark Green
+  lv_color_make(0,   170, 170).full, // 3  Dark Cyan
+  lv_color_make(170, 0,   0  ).full, // 4  Dark Red
+  lv_color_make(170, 0,   170).full, // 5  Dark Magenta
+  lv_color_make(170, 85,  0  ).full, // 6  Brown
+  lv_color_make(170, 170, 170).full, // 7  Light Gray
+  lv_color_make(85,  85,  85 ).full, // 8  Dark Gray
+  lv_color_make(85,  85,  255).full, // 9  Bright Blue
+  lv_color_make(85,  255, 85 ).full, // 10 Bright Green
+  lv_color_make(85,  255, 255).full, // 11 Bright Cyan
+  lv_color_make(255, 85,  85 ).full, // 12 Bright Red
+  lv_color_make(255, 85,  255).full, // 13 Bright Magenta
+  lv_color_make(255, 255, 85 ).full, // 14 Bright Yellow
+  lv_color_make(255, 255, 255).full, // 15 White
+};
+
+// Draw one CP437 character into a portrait pixel buffer of width bufW.
+// fontW/fontH default 8×16 (IBM VGA original); supports integer scaling.
+static void drawAnsiChar(uint16_t *buf, int bufW, int x, int y,
+                         uint8_t ch, uint8_t fgIdx, uint8_t bgIdx,
+                         int fontW = 8, int fontH = 16) {
+  const uint16_t fg = kAnsiPalette[fgIdx & 0x0F];
+  const uint16_t bg = kAnsiPalette[bgIdx & 0x0F];
+  for (int row = 0; row < fontH; ++row) {
+    const int srcRow = (row * 16) / fontH;
+    const uint8_t bits = kIbmVga8x16[(int)ch * 16 + srcRow];
+    uint16_t *line = buf + (y + row) * bufW + x;
+    for (int col = 0; col < fontW; ++col) {
+      const int srcCol = (col * 8) / fontW;
+      line[col] = (bits & (0x80 >> srcCol)) ? fg : bg;
+    }
+  }
+}
+
+// Render a .ANS file into buf (PSRAM). Returns effective height in pixels.
+static int ansiRenderFile(const uint8_t *data, size_t len,
+                          uint16_t *buf, int bufW, int maxH,
+                          int fontW, int fontH, SauceRecord &sauce) {
+  parseSauceRecord(data, len, sauce);
+  size_t displayLen = len;
+  for (size_t i = 0; i < len; ++i) {
+    if (data[i] == 0x1A) { displayLen = i; break; }
+  }
+  memset(buf, 0, (size_t)bufW * maxH * sizeof(uint16_t));
+
+  AnsiParserState st;
+  const uint8_t *p   = data;
+  const uint8_t *end = data + displayLen;
+
+  while (p < end) {
+    uint8_t c = *p++;
+    if (c == 0x1B && p < end && *p == '[') {
+      ++p;
+      p = parseAnsiCsi(p, (size_t)(end - p), st);
+      continue;
+    }
+    if (c == '\r') { st.col = 0; continue; }
+    if (c == '\n') { ++st.row; st.col = 0; continue; }
+    if (c < 0x20) continue;
+
+    const int px = st.col * fontW;
+    const int py = st.row * fontH;
+    if (py + fontH <= maxH && px + fontW <= bufW) {
+      drawAnsiChar(buf, bufW, px, py, c, st.fgResolved(), st.bg, fontW, fontH);
+    }
+    ++st.col;
+    if (st.col >= bufW / fontW) { st.col = 0; ++st.row; }
+  }
+  return min((st.row + 1) * fontH, maxH);
+}
+
+// Optimal font size for bufW=172 given SAUCE width (default 80 cols).
+static void ansiCalcFont(const SauceRecord &sauce, int &fontW, int &fontH) {
+  const int cols = (sauce.valid && sauce.width > 0 && sauce.width <= 160)
+                   ? sauce.width : 80;
+  fontW = DB_NATIVE_W / cols;
+  if (fontW < 1) fontW = 1;
+  fontH = fontW * 2;
+  if (fontW < 4) { fontW = 4; fontH = 8; }
+  if (fontW > 8) { fontW = 8; fontH = 16; }
+}
+
+#endif // TEST_DISPLAY
+// ── fine ANSI renderer ────────────────────────────────────────────────────────
+
+// ── ANSI portrait display switching + flush ───────────────────────────────────
+#if TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
+
+static void ansiEnterPortrait() {
+  esp_lcd_panel_mirror(g_panel, ANSI_PORTRAIT_MIRROR_X, ANSI_PORTRAIT_MIRROR_Y);
+}
+
+static void ansiExitPortrait() {
+  esp_lcd_panel_mirror(g_panel, true, true); // restore DISPLAY_FLIP_180
+}
+
+// Send current viewport (172 × DB_NATIVE_H) to display via DMA ping-pong.
+static void ansiFlushViewport() {
+  if (!g_ansiBuf || g_ansiTotalH == 0 || !g_dispFlushSem || !g_dmaBuf || !g_dmaBuf2) return;
+
+  const int scrollY = max(0, min(g_ansiScrollY, max(0, g_ansiTotalH - DB_NATIVE_H)));
+  const int chunks  = DB_NATIVE_H / DB_CHUNK_ROWS;
+  const size_t chunkBytes = (size_t)DB_NATIVE_W * DB_CHUNK_ROWS * sizeof(uint16_t);
+
+  uint16_t *bufCur  = g_dmaBuf;
+  uint16_t *bufNext = g_dmaBuf2;
+
+  // Helper: copy one chunk from PSRAM ansiBuf → DMA buf (with zero-fill if past end)
+  auto fillChunk = [&](uint16_t *dst, int startRow) {
+    if (startRow >= g_ansiTotalH) {
+      memset(dst, 0, chunkBytes);
+      return;
+    }
+    const int rows = min((int)DB_CHUNK_ROWS, g_ansiTotalH - startRow);
+    memcpy(dst, g_ansiBuf + (size_t)startRow * DB_NATIVE_W,
+           (size_t)rows * DB_NATIVE_W * sizeof(uint16_t));
+    if (rows < DB_CHUNK_ROWS)
+      memset(dst + rows * DB_NATIVE_W, 0,
+             (size_t)(DB_CHUNK_ROWS - rows) * DB_NATIVE_W * sizeof(uint16_t));
+  };
+
+  fillChunk(bufCur, scrollY);
+
+  // Bootstrap semaphore then start first DMA
+  xSemaphoreGive(g_dispFlushSem);
+  xSemaphoreTake(g_dispFlushSem, portMAX_DELAY);
+  esp_lcd_panel_draw_bitmap(g_panel, 0, 0, DB_NATIVE_W, DB_CHUNK_ROWS, bufCur);
+
+  for (int c = 1; c < chunks; ++c) {
+    fillChunk(bufNext, scrollY + c * DB_CHUNK_ROWS);
+    xSemaphoreTake(g_dispFlushSem, portMAX_DELAY);
+    esp_lcd_panel_draw_bitmap(g_panel, 0, c * DB_CHUNK_ROWS,
+                              DB_NATIVE_W, (c + 1) * DB_CHUNK_ROWS, bufNext);
+    uint16_t *tmp = bufCur; bufCur = bufNext; bufNext = tmp;
+  }
+  xSemaphoreTake(g_dispFlushSem, portMAX_DELAY); // wait for last DMA
+}
+
+// Load and render the current ANSI file (g_ansiFileIdx) into PSRAM g_ansiBuf.
+static void ansiLoadCurrentFile() {
+  if (g_ansiFileIdx >= kAnsiFileCount) g_ansiFileIdx = 0;
+  const AnsiFileEntry &f = kAnsiFiles[g_ansiFileIdx];
+
+  parseSauceRecord(f.data, f.len, g_ansiSauce);
+
+  int fontW, fontH;
+  ansiCalcFont(g_ansiSauce, fontW, fontH);
+
+  const int estRows = (g_ansiSauce.valid && g_ansiSauce.height > 0)
+                      ? (int)g_ansiSauce.height + 4 : 2000;
+  const int maxH   = estRows * fontH;
+  const size_t needed = (size_t)DB_NATIVE_W * maxH * sizeof(uint16_t);
+
+  if (g_ansiBuf) { heap_caps_free(g_ansiBuf); g_ansiBuf = nullptr; }
+  g_ansiBuf = (uint16_t*)heap_caps_malloc(needed, MALLOC_CAP_SPIRAM);
+  if (!g_ansiBuf) {
+    Serial.printf("[ANSI] PSRAM alloc failed (%u bytes)\n", (unsigned)needed);
+    g_ansiTotalH = 0;
+    return;
+  }
+
+  g_ansiTotalH   = ansiRenderFile(f.data, f.len, g_ansiBuf,
+                                  DB_NATIVE_W, maxH, fontW, fontH, g_ansiSauce);
+  g_ansiScrollY  = 0;
+  g_ansiOverlayShowMs = millis();
+  Serial.printf("[ANSI] file=%s font=%dx%d cols=%d totalH=%d PSRAM=%u\n",
+                f.filename, fontW, fontH, DB_NATIVE_W / fontW,
+                g_ansiTotalH, (unsigned)needed);
+}
+
+// Scroll + flush loop — called from main loop when UI_PAGE_ANSI is active.
+static void updateDisplayAnsi(bool force) {
+  if (g_uiPageMode != UI_PAGE_ANSI) return;
+  if (!g_ansiBuf || g_ansiTotalH == 0) return;
+
+  const uint32_t now = millis();
+  constexpr uint32_t kScrollIntervalMs = 40; // 25px/sec
+  if (!force && (now - g_ansiLastTickMs) < kScrollIntervalMs) return;
+  g_ansiLastTickMs = now;
+
+  const int maxScroll = max(0, g_ansiTotalH - DB_NATIVE_H);
+
+  if (g_ansiScrollY >= maxScroll) {
+    // Reached bottom — wait 2s then advance to next file
+    static uint32_t s_endReachedMs = 0;
+    if (s_endReachedMs == 0) s_endReachedMs = now;
+    if ((now - s_endReachedMs) >= 2000) {
+      s_endReachedMs = 0;
+      g_ansiFileIdx = (g_ansiFileIdx + 1) % kAnsiFileCount;
+      ansiLoadCurrentFile();
+    }
+    ansiFlushViewport();
+    return;
+  }
+  g_ansiScrollY += 1;
+
+  // Overlay: show title/author for first 4 seconds after loading
+  const uint32_t elapsed = now - g_ansiOverlayShowMs;
+  if (elapsed < 4000) {
+    const char *title  = (g_ansiSauce.valid && g_ansiSauce.title[0])
+                         ? g_ansiSauce.title : kAnsiFiles[g_ansiFileIdx].filename;
+    const char *author = (g_ansiSauce.valid && g_ansiSauce.author[0])
+                         ? g_ansiSauce.author : "";
+    char overlayText[80];
+    snprintf(overlayText, sizeof(overlayText), " %s  %s ", title, author);
+
+    const int overlayY = g_ansiScrollY + DB_NATIVE_H - 16;
+    if (overlayY >= 0 && overlayY + 16 <= g_ansiTotalH) {
+      // Semi-transparent bg: halve each pixel in the overlay row band
+      for (int r = 0; r < 16 && (overlayY + r) < g_ansiTotalH; ++r) {
+        uint16_t *rowPtr = g_ansiBuf + (overlayY + r) * DB_NATIVE_W;
+        for (int xx = 0; xx < DB_NATIVE_W; ++xx)
+          rowPtr[xx] = (rowPtr[xx] >> 1) & 0x7BEF;
+      }
+      const int maxChars = DB_NATIVE_W / 8;
+      for (int i = 0; i < (int)strlen(overlayText) && i < maxChars; ++i)
+        drawAnsiChar(g_ansiBuf, DB_NATIVE_W, i * 8, overlayY,
+                     (uint8_t)overlayText[i], 15, 0);
+    }
+  }
+
+  ansiFlushViewport();
+}
+
+#endif // TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
+// ── fine ANSI flush ───────────────────────────────────────────────────────────
 
 // Tile-based transpose+flip of one chunk from canvasBuf into a DMA buffer.
 // 8×8 tiles reduce PSRAM cache misses ~8× vs pixel-by-pixel stride.
@@ -6472,6 +6725,8 @@ static const char* uiPageName(UiPageMode mode) {
       return "AUX";
     case UI_PAGE_WIKI:
       return "WIKI";
+    case UI_PAGE_ANSI:
+      return "ANSI";
     case UI_PAGE_HOME:
     default:
       return "HOME";
@@ -6484,6 +6739,7 @@ static int8_t uiPageOrdinal(UiPageMode mode) {
     case UI_PAGE_HOME: return 1;
     case UI_PAGE_AUX: return 2;
     case UI_PAGE_WIKI: return 3;
+    case UI_PAGE_ANSI: return 4;
     default: return 1;
   }
 }
@@ -6492,7 +6748,8 @@ static UiPageMode uiPageFromOrdinal(int8_t ord) {
   if (ord <= 0) return UI_PAGE_INFO;
   if (ord == 1) return UI_PAGE_HOME;
   if (ord == 2) return UI_PAGE_AUX;
-  return UI_PAGE_WIKI;
+  if (ord == 3) return UI_PAGE_WIKI;
+  return UI_PAGE_ANSI;
 }
 
 static void setUiPage(UiPageMode mode);
@@ -6500,7 +6757,7 @@ static void setUiPage(UiPageMode mode);
 static bool stepUiPage(int8_t delta, bool wrap) {
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
   int8_t next = (int8_t)(cur + delta);
-  constexpr int8_t kMaxPageOrd = 3;
+  constexpr int8_t kMaxPageOrd = 4;
   if (wrap) {
     if (next < 0) next = kMaxPageOrd;
     if (next > kMaxPageOrd) next = 0;
@@ -7073,6 +7330,21 @@ static void lvglSetFeedNextFeedButtonPressed(bool pressed) { (void)pressed; }
 
 static void setUiPage(UiPageMode mode) {
   if (g_uiPageMode == mode) return;
+#if TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
+  // Exit ANSI view: restore landscape mirror, hide ANSI root
+  if (g_uiPageMode == UI_PAGE_ANSI && mode != UI_PAGE_ANSI) {
+    ansiExitPortrait();
+    if (g_lvglAnsiRoot) lv_obj_add_flag(g_lvglAnsiRoot, LV_OBJ_FLAG_HIDDEN);
+  }
+  // Enter ANSI view: switch to portrait, load first file
+  if (mode == UI_PAGE_ANSI && g_uiPageMode != UI_PAGE_ANSI) {
+    ansiEnterPortrait();
+    if (g_lvglAnsiRoot) lv_obj_clear_flag(g_lvglAnsiRoot, LV_OBJ_FLAG_HIDDEN);
+    g_ansiFileIdx = 0;
+    ansiLoadCurrentFile();
+    ansiFlushViewport(); // immediate first frame
+  }
+#endif
   if (!uiPageIsFeedDeck(mode)) {
     lvglSetDeckQrModalOpen(g_auxDeck, false);
     lvglSetDeckQrModalOpen(g_wikiDeck, false);
@@ -7653,6 +7925,7 @@ static void lvglSetScreenSaverActive(bool on) {
 
 static void handleScreenSaverLoop(uint32_t nowMs) {
   if (!g_lvglReady || !g_lvglScreenSaverRoot) return;
+  if (g_uiPageMode == UI_PAGE_ANSI) return; // ANSI view owns the display
 #if TEST_TOUCH
   const bool rawTouch = isAnyTouchPresentRaw();
   if (rawTouch) {
@@ -8048,6 +8321,17 @@ static void handleTouchSwipeInput() {
                   dirLabel, dx, dy, (unsigned long)durMs, uiPageName(g_uiPageMode), moved ? 1 : 0);
     return;
   }
+
+  // ANSI view: tap = skip to next file
+#if TEST_DISPLAY
+  if (isTap && g_uiPageMode == UI_PAGE_ANSI) {
+    g_ansiFileIdx = (g_ansiFileIdx + 1) % kAnsiFileCount;
+    ansiLoadCurrentFile();
+    g_touchAwaitRelease = true;
+    g_touchReleaseStartMs = 0;
+    return;
+  }
+#endif
 
   // AUX/WIKI ergonomics: tap on current news advances to next item.
   if (isTap && uiPageIsFeedDeck(g_uiPageMode) &&
@@ -10029,7 +10313,7 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   if (dx < -w) dx = -w;
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
   // Edge damping when dragging past first/last page.
-  if ((cur == 0 && dx > 0) || (cur == 3 && dx < 0)) dx /= 3;
+  if ((cur == 0 && dx > 0) || (cur == 4 && dx < 0)) dx /= 3;
 
   lv_anim_del(g_lvglInfoRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
@@ -10096,10 +10380,10 @@ static void lvglApplyPageVisibility(bool animate) {
     if (!homeOk) lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)homeTargetX, 0);
     if (!auxOk)  lv_obj_set_pos(g_lvglAuxRoot,  (lv_coord_t)auxTargetX, 0);
     if (!wikiOk) lv_obj_set_pos(g_lvglWikiRoot, (lv_coord_t)wikiTargetX, 0);
-    if (abs(infoTargetX) > w) lv_obj_add_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
-    if (abs(homeTargetX) > w) lv_obj_add_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
-    if (abs(auxTargetX)  > w) lv_obj_add_flag(g_lvglAuxRoot,  LV_OBJ_FLAG_HIDDEN);
-    if (abs(wikiTargetX) > w) lv_obj_add_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
+    if (abs(infoTargetX) >= w) lv_obj_add_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
+    if (abs(homeTargetX) >= w) lv_obj_add_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
+    if (abs(auxTargetX)  >= w) lv_obj_add_flag(g_lvglAuxRoot,  LV_OBJ_FLAG_HIDDEN);
+    if (abs(wikiTargetX) >= w) lv_obj_add_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
     g_lvglPageDragActive = false;
     return;
   }
@@ -11362,6 +11646,20 @@ static bool initLvglUi() {
 
   lvglInitFeedDeck(g_auxDeck, g_lvglAuxRoot, false);
 
+  // ANSI view — black backdrop; actual content rendered via direct bitmap writes
+  g_lvglAnsiRoot = lv_obj_create(scr);
+  lv_obj_set_size(g_lvglAnsiRoot, cW, cH);
+  lv_obj_set_pos(g_lvglAnsiRoot, 0, 0);
+  lv_obj_set_style_radius(g_lvglAnsiRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglAnsiRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_lvglAnsiRoot, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglAnsiRoot, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglAnsiRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_lvglAnsiRoot, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglAnsiRoot, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(g_lvglAnsiRoot, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_add_flag(g_lvglAnsiRoot, LV_OBJ_FLAG_HIDDEN);
+
 #if SCREENSAVER_ENABLED
   const uint32_t saverReadableText = lvglResolvedSaverReadableText(theme);
   g_lvglScreenSaverRoot = lv_obj_create(scr);
@@ -11692,7 +11990,7 @@ static void runLvglLoop() {
   const uint32_t t0 = micros();
   lv_timer_handler();
   if (g_canvasDirty) {
-    dispFlush();
+    if (g_uiPageMode != UI_PAGE_ANSI) dispFlush();
     g_canvasDirty = false;
   }
   const uint32_t dt = micros() - t0;
@@ -11703,6 +12001,7 @@ static void runLvglLoop() {
 #endif
 
 static void updateDisplayClock(bool force) {
+  if (g_uiPageMode == UI_PAGE_ANSI) return; // ANSI view owns the display
   if (!g_ntpSynced) return;
   if (!initDisplay()) return;
 
@@ -12552,6 +12851,9 @@ void loop() {
 #endif
   updateLvglUi(false);
   runLvglLoop();
+#if TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
+  updateDisplayAnsi(false);
+#endif
 #else
   updateDisplayClock(false);
 #endif
