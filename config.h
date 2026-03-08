@@ -24,7 +24,7 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "DB-M0-r161"
+#define FW_BUILD_TAG "DB-M0-r162"
 #define FW_RELEASE_DATE "2026-03-08"
 
 // --- M0.2 Backlight test config ---
@@ -116,7 +116,7 @@
 #define RSS_ROTATE_MS 15000UL
 #define RSS_SHORTENER_RETRY_MS 900000UL
 // In-memory cache of long->short URL pairs to avoid repeated API calls.
-#define RSS_SHORTENER_CACHE_SIZE 24
+#define RSS_SHORTENER_CACHE_SIZE 16
 // (Photo/thumbnail/favicon caches removed — r158 simplification.)
 
 // --- Word Clock ---

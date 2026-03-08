@@ -712,9 +712,8 @@ static WeatherState g_weather;
 struct RssItem {
   char title[220];
   char link[280];
-  char pubDate[64];
+  char pubDate[32];
   char summary[420];
-  char imageUrl[340];
   char shortLink[96];
   uint8_t feedSlot = 0xFF;
   bool wikiMetaReady = false;
@@ -5139,18 +5138,6 @@ static bool resolveWikipediaArticleUrlFromDescription(const String &descriptionR
   return true;
 }
 
-static bool extractRssItemImageUrl(const String &itemXml, String &out) {
-  if (extractXmlTagAttribute(itemXml, "media:thumbnail", "url", out)) return true;
-  if (extractXmlTagAttribute(itemXml, "media:content", "url", out)) return true;
-  if (extractXmlTagAttribute(itemXml, "enclosure", "url", out)) return true;
-  String description;
-  if (extractXmlTagText(itemXml, "description", description)) {
-    decodeHtmlMarkupEntities(description);
-    if (extractImgSrcFromHtml(description, out)) return true;
-  }
-  return false;
-}
-
 static uint8_t parseRssItems(const String &xml, RssItem *items, uint8_t maxItems) {
   uint8_t count = 0;
   int cursor = 0;
@@ -5165,7 +5152,7 @@ static uint8_t parseRssItems(const String &xml, RssItem *items, uint8_t maxItems
     const String itemXml = xml.substring(itemStart, itemEnd);
     cursor = itemEnd + 7;
 
-    String title, link, pubDate, summary, imageUrl;
+    String title, link, pubDate, summary;
     if (!extractXmlTagText(itemXml, "title", title)) continue;
     (void)extractXmlTagText(itemXml, "link", link);
     (void)extractXmlTagText(itemXml, "pubDate", pubDate);
@@ -5174,7 +5161,6 @@ static uint8_t parseRssItems(const String &xml, RssItem *items, uint8_t maxItems
         (void)extractXmlTagText(itemXml, "summary", summary);
       }
     }
-    (void)extractRssItemImageUrl(itemXml, imageUrl);
     const String descriptionRaw = summary;
     normalizeRssText(title);
     normalizeRssText(pubDate);
@@ -5204,9 +5190,6 @@ static uint8_t parseRssItems(const String &xml, RssItem *items, uint8_t maxItems
         link = articleUrl;
       }
     }
-    imageUrl.trim();
-    imageUrl.replace("&amp;", "&");
-
     strncpy(items[count].title, title.c_str(), sizeof(items[count].title) - 1);
     items[count].title[sizeof(items[count].title) - 1] = '\0';
     strncpy(items[count].link, link.c_str(), sizeof(items[count].link) - 1);
@@ -5215,8 +5198,6 @@ static uint8_t parseRssItems(const String &xml, RssItem *items, uint8_t maxItems
     items[count].pubDate[sizeof(items[count].pubDate) - 1] = '\0';
     strncpy(items[count].summary, summary.c_str(), sizeof(items[count].summary) - 1);
     items[count].summary[sizeof(items[count].summary) - 1] = '\0';
-    strncpy(items[count].imageUrl, imageUrl.c_str(), sizeof(items[count].imageUrl) - 1);
-    items[count].imageUrl[sizeof(items[count].imageUrl) - 1] = '\0';
     items[count].wikiMetaReady = false;
     items[count].wikiMetaTried = false;
     ++count;
@@ -5618,9 +5599,8 @@ static bool rssExtractWikipediaArticleRef(const char *url, String &hostOut, Stri
   return true;
 }
 
-static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSummary, String &outImageUrl) {
+static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSummary) {
   outSummary = "";
-  outImageUrl = "";
   if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
 
   String wikiHost, wikiTitlePath;
@@ -5650,32 +5630,13 @@ static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSumm
     normalizeRssText(summary);
     if (summary.length() > 0) outSummary = summary;
   }
-
-  String thumbObj;
-  if (extractJsonObjectFieldLoose(body, "\"thumbnail\"", thumbObj)) {
-    String source;
-    if (extractJsonStringFieldLoose(thumbObj, "\"source\"", source)) {
-      source.trim();
-      if (startsWithHttp(source.c_str())) outImageUrl = source;
-    }
-  }
-  if (outImageUrl.length() == 0) {
-    String originalObj;
-    if (extractJsonObjectFieldLoose(body, "\"originalimage\"", originalObj)) {
-      String source;
-      if (extractJsonStringFieldLoose(originalObj, "\"source\"", source)) {
-        source.trim();
-        if (startsWithHttp(source.c_str())) outImageUrl = source;
-      }
-    }
-  }
-  return (outSummary.length() > 0) || (outImageUrl.length() > 0);
+  return outSummary.length() > 0;
 }
 
 static bool rssTryEnrichItemWikipediaMeta(RssItem &item) {
   if (!item.link[0]) return false;
   if (item.wikiMetaTried && item.wikiMetaReady) return false;
-  if (item.summary[0] && item.imageUrl[0]) {
+  if (item.summary[0]) {
     item.wikiMetaReady = true;
     item.wikiMetaTried = true;
     return false;
@@ -5683,8 +5644,7 @@ static bool rssTryEnrichItemWikipediaMeta(RssItem &item) {
 
   item.wikiMetaTried = true;
   String summary;
-  String imageUrl;
-  if (!rssFetchWikipediaSummaryMeta(item.link, summary, imageUrl)) return false;
+  if (!rssFetchWikipediaSummaryMeta(item.link, summary)) return false;
 
   bool changed = false;
   if (!item.summary[0] && summary.length() > 0) {
@@ -5692,12 +5652,7 @@ static bool rssTryEnrichItemWikipediaMeta(RssItem &item) {
     item.summary[sizeof(item.summary) - 1] = '\0';
     changed = true;
   }
-  if (!item.imageUrl[0] && imageUrl.length() > 0) {
-    strncpy(item.imageUrl, imageUrl.c_str(), sizeof(item.imageUrl) - 1);
-    item.imageUrl[sizeof(item.imageUrl) - 1] = '\0';
-    changed = true;
-  }
-  item.wikiMetaReady = item.summary[0] || item.imageUrl[0];
+  item.wikiMetaReady = (item.summary[0] != 0);
   return changed;
 }
 
@@ -5915,7 +5870,6 @@ static bool updateRssFromFeed(bool force) {
       g_rss.items[i].link[0] = '\0';
       g_rss.items[i].pubDate[0] = '\0';
       g_rss.items[i].summary[0] = '\0';
-      g_rss.items[i].imageUrl[0] = '\0';
       g_rss.items[i].shortLink[0] = '\0';
       g_rss.items[i].feedSlot = 0xFF;
       g_rss.items[i].wikiMetaReady = false;
@@ -6031,7 +5985,6 @@ static bool updateWikiFromFeed(bool force) {
       g_wiki.items[i].link[0] = '\0';
       g_wiki.items[i].pubDate[0] = '\0';
       g_wiki.items[i].summary[0] = '\0';
-      g_wiki.items[i].imageUrl[0] = '\0';
       g_wiki.items[i].shortLink[0] = '\0';
       g_wiki.items[i].feedSlot = 0xFF;
       g_wiki.items[i].wikiMetaReady = false;
@@ -6149,7 +6102,7 @@ static void wikiPreloadMetaStep() {
   for (uint8_t i = 0; i < g_wiki.itemCount; ++i) {
     RssItem &item = g_wiki.items[i];
     if (item.wikiMetaTried && item.wikiMetaReady) continue;
-    if (item.summary[0] && item.imageUrl[0]) {
+    if (item.summary[0]) {
       item.wikiMetaReady = true;
       item.wikiMetaTried = true;
       continue;
@@ -6179,7 +6132,7 @@ static void wikiPreloadVisibleItemStep() {
   RssItem &item = g_wiki.items[idx];
 
   // 1) Enrich summary/image metadata first (one HTTP call max).
-  if ((!item.summary[0] || !item.imageUrl[0]) && !(item.wikiMetaTried && item.wikiMetaReady)) {
+  if (!item.summary[0] && !(item.wikiMetaTried && item.wikiMetaReady)) {
     if (rssTryEnrichItemWikipediaMeta(item)) {
 #if TEST_NTP
       g_uiNeedsRedraw = true;
