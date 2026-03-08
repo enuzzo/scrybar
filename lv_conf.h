@@ -28,7 +28,7 @@
 
 /* Extra widgets */
 #define LV_USE_QRCODE 1
-#define LV_USE_PNG 1
-#define LV_USE_SJPG 1
+#define LV_USE_PNG 0
+#define LV_USE_SJPG 0
 
 #endif /*LV_CONF_H*/

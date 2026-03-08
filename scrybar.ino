@@ -5006,42 +5006,6 @@ static bool extractXmlTagText(const String &xml, const char *tag, String &out) {
   return out.length() > 0;
 }
 
-static bool extractXmlTagAttribute(const String &xml, const char *tag, const char *attr, String &out) {
-  if (!tag || !tag[0] || !attr || !attr[0]) return false;
-  const String openTag = String("<") + tag;
-  int cursor = 0;
-  while (true) {
-    const int t0 = xml.indexOf(openTag, cursor);
-    if (t0 < 0) return false;
-    const int t1 = xml.indexOf('>', t0);
-    if (t1 < 0) return false;
-    const String node = xml.substring(t0, t1 + 1);
-    const String needle = String(attr) + "=";
-    int a0 = node.indexOf(needle);
-    if (a0 >= 0) {
-      a0 += (int)needle.length();
-      if (a0 < (int)node.length()) {
-        const char quote = node.charAt(a0);
-        if (quote == '"' || quote == '\'') {
-          ++a0;
-          const int a1 = node.indexOf(quote, a0);
-          if (a1 > a0) {
-            out = node.substring(a0, a1);
-            out.trim();
-            out.replace("&amp;", "&");
-            out.replace("&quot;", "\"");
-            out.replace("&apos;", "'");
-            out.replace("&#39;", "'");
-            if (out.startsWith("//")) out = String("https:") + out;
-            return startsWithHttp(out.c_str());
-          }
-        }
-      }
-    }
-    cursor = t1 + 1;
-  }
-}
-
 static void decodeHtmlMarkupEntities(String &text) {
   text.replace("&lt;", "<");
   text.replace("&gt;", ">");
@@ -5049,36 +5013,6 @@ static void decodeHtmlMarkupEntities(String &text) {
   text.replace("&apos;", "'");
   text.replace("&#39;", "'");
   text.replace("&amp;", "&");
-}
-
-static bool extractImgSrcFromHtml(const String &html, String &out) {
-  int cursor = 0;
-  while (true) {
-    int img0 = html.indexOf("<img", cursor);
-    if (img0 < 0) return false;
-    int img1 = html.indexOf('>', img0);
-    if (img1 < 0) return false;
-    const String node = html.substring(img0, img1 + 1);
-    int src0 = node.indexOf("src=");
-    if (src0 >= 0) {
-      src0 += 4;
-      if (src0 < (int)node.length()) {
-        const char quote = node.charAt(src0);
-        if (quote == '"' || quote == '\'') {
-          ++src0;
-          const int src1 = node.indexOf(quote, src0);
-          if (src1 > src0) {
-            out = node.substring(src0, src1);
-            out.trim();
-            out.replace("&amp;", "&");
-            if (out.startsWith("//")) out = String("https:") + out;
-            return startsWithHttp(out.c_str());
-          }
-        }
-      }
-    }
-    cursor = img1 + 1;
-  }
 }
 
 static bool extractFirstWikiArticleHrefFromHtml(const String &html, String &out) {
