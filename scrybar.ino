@@ -632,13 +632,9 @@ static constexpr uint8_t WIKI_FEED_SLOT_COUNT = 3;
 static const char *kWikiFeedName[WIKI_FEED_SLOT_COUNT] = {
     "Wiki Featured",
     "Wiki OnThisDay",
-    "Wikinews"
+    "Wiki Random"
 };
-static const char *kWikiFeedUrl[WIKI_FEED_SLOT_COUNT] = {
-    "https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=featured&feedformat=rss",
-    "https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday&feedformat=rss",
-    "https://en.wikinews.org/w/index.php?title=Special:NewsFeed&feed=rss"
-};
+// URLs built dynamically from g_wikiLang in updateWikiFromFeed()
 
 struct RuntimeRssFeedConfig {
   char name[RSS_FEED_NAME_LEN];
@@ -658,6 +654,7 @@ struct RuntimeNetConfig {
 static RuntimeNetConfig g_runtimeNetConfig = {};
 static bool g_runtimeNetConfigNvsLoaded = false;
 static char g_wordClockLang[16] = WORD_CLOCK_LANG_DEFAULT;
+static char g_wikiLang[8] = "en";
 #if WEB_CONFIG_ENABLED
 static WebServer g_webConfigServer(WEB_CONFIG_PORT);
 static bool g_webConfigServerStarted = false;
@@ -2972,7 +2969,7 @@ static void loadRuntimeNetConfigFromNvs() {
       langNeedsPersist = true;
       Serial.println("[CFG][NVS] wc_lang legacy 'bellazi' -> 'bellazio'");
     }
-    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "nap", "l33t", "sha", "val", "bellazio", nullptr};
+    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "l33t", "sha", "val", "bellazio", nullptr};
     bool valid = false;
     for (int i = 0; kAllowed[i]; ++i) {
       if (lang == kAllowed[i]) { valid = true; break; }
@@ -2992,6 +2989,16 @@ static void loadRuntimeNetConfigFromNvs() {
       loadedAny = true;
     }
   }
+  // Wiki language (independent from system language)
+  {
+    char wl[8] = "en";
+    prefs.getString("wiki_lang", wl, sizeof(wl));
+    const char* kWikiLangs[] = {"en","it","fr","de","es","pt","la","eo",nullptr};
+    bool wlValid = false;
+    for (const char **p = kWikiLangs; *p; ++p) { if (strcmp(wl, *p) == 0) { wlValid = true; break; } }
+    if (wlValid) strncpy(g_wikiLang, wl, sizeof(g_wikiLang) - 1);
+  }
+
   prefs.end();
 
   normalizeWifiSetupMode();
@@ -3016,13 +3023,14 @@ static void loadRuntimeNetConfigFromNvs() {
 
   if (loadedAny) {
     const int activeIdx = runtimeFirstConfiguredRssFeedIndexNoEnsure();
-    Serial.printf("[CFG][NVS] loaded city='%s' lat=%.4f lon=%.4f rss_feeds=%u active='%s' theme='%s' wifi_pref='%s' wifi_setup='%s' wifi_dyn=%u\n",
+    Serial.printf("[CFG][NVS] loaded city='%s' lat=%.4f lon=%.4f rss_feeds=%u active='%s' theme='%s' wiki_lang='%s' wifi_pref='%s' wifi_setup='%s' wifi_dyn=%u\n",
                   g_runtimeNetConfig.weatherCity,
                   g_runtimeNetConfig.weatherLat,
                   g_runtimeNetConfig.weatherLon,
                   (unsigned)runtimeRssConfiguredFeedCountNoEnsure(),
                   activeIdx >= 0 ? g_runtimeNetConfig.rssFeeds[activeIdx].url : "-",
                   g_runtimeNetConfig.uiTheme,
+                  g_wikiLang,
                   g_wifiPreferredSsid[0] ? g_wifiPreferredSsid : "auto",
                   g_wifiSetupMode,
                   (unsigned)g_wifiRuntimeCredCount);
@@ -3056,16 +3064,17 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n5 = prefs.putString("logo_url", g_runtimeNetConfig.logoUrl);
   const size_t n6 = prefs.putString("wc_lang", g_wordClockLang);
   const size_t n7 = prefs.putString("ui_theme", g_runtimeNetConfig.uiTheme);
+  const size_t nWikiLang = prefs.putString("wiki_lang", g_wikiLang);
   const size_t n8 = prefs.putString("wifi_pref", g_wifiPreferredSsid);
   const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSetupMode);
   const size_t n10 = saveRuntimeWiFiCredentialsToPrefs(prefs);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
-  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
+  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
                 ok ? "OK" : "ERR",
                 (unsigned)n1, (unsigned)n2, (unsigned)n3, (unsigned)n4,
                 (unsigned)nFeedName, (unsigned)nFeedUrl, (unsigned)nFeedMax, (unsigned)n5,
-                (unsigned)n6, (unsigned)n7, (unsigned)n8, (unsigned)n9, (unsigned)n10);
+                (unsigned)n6, (unsigned)n7, (unsigned)nWikiLang, (unsigned)n8, (unsigned)n9, (unsigned)n10);
   return ok;
 }
 
@@ -3378,7 +3387,7 @@ static String buildWebConfigPage(const char *statusMsg) {
       {"val",  "Valley Girl"},
       {"l33t", "1337 5P34K"},
       {"sha",  "Shakespearean English"},
-      {"nap",  "Napoletano"},
+
       {"eo",   "Esperanto"},
       {"la",   "Latina"},
       {"tlh",  "tlhIngan Hol (Klingon)"},
@@ -3413,6 +3422,27 @@ static String buildWebConfigPage(const char *statusMsg) {
       html += F("</option>");
     }
     html += F("</optgroup></select><p class='hint'><i class='fa-solid fa-circle-info'></i> Controls the language of the entire display UI: word clock, weather labels, RSS status and touch hints. Saved to NVS, persists across reboots.</p></div>");
+  }
+  {
+    struct { const char *code; const char *label; } kWikiLangs[] = {
+      {"en", "English"}, {"it", "Italiano"},
+      {"fr", "Fran\xC3\xA7" "ais"}, {"de", "Deutsch"},
+      {"es", "Espa\xC3\xB1" "ol"}, {"pt", "Portugu\xC3\xAA" "s"},
+      {"la", "Latina"}, {"eo", "Esperanto"},
+    };
+    html += F("<div class='sec'><h2><i class='fa-solid fa-book-open'></i>Wikipedia Language</h2>"
+              "<div class='key'>WIKI LANGUAGE</div><select name='wiki_lang'>");
+    for (unsigned i = 0; i < sizeof(kWikiLangs)/sizeof(kWikiLangs[0]); ++i) {
+      html += F("<option value='");
+      html += kWikiLangs[i].code;
+      html += '\'';
+      if (strcmp(g_wikiLang, kWikiLangs[i].code) == 0) html += F(" selected");
+      html += '>';
+      html += kWikiLangs[i].label;
+      html += F("</option>");
+    }
+    html += F("</select><p class='hint'><i class='fa-solid fa-circle-info'></i> "
+              "Language for Wikipedia feeds (Featured, On This Day, Random). Independent from the system language.</p></div>");
   }
   html += F("<div class='sec'><h2><i class='fa-solid fa-location-dot'></i>Weather & Location</h2><div class='grid2'><div><div class='key'>PLACE SEARCH</div><input id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='key'>CITY LABEL</div><input id='weather_city' name='weather_city' maxlength='31' value='");
   appendHtmlEscaped(html, runtimeWeatherCityLabel());
@@ -3855,7 +3885,7 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     String lang = g_webConfigServer.arg("wc_lang");
     lang.trim();
     lang.toLowerCase();
-    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "nap", "l33t", "sha", "val", "bellazio", nullptr};
+    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "l33t", "sha", "val", "bellazio", nullptr};
     bool valid = false;
     for (int i = 0; kAllowed[i]; i++) { if (lang == kAllowed[i]) { valid = true; break; } }
     if (!valid) {
@@ -3866,6 +3896,20 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
       copyStringSafe(g_wordClockLang, sizeof(g_wordClockLang), lang.c_str());
       langChanged = true;
       Serial.printf("[CFG][WEB] wc_lang='%s'\n", g_wordClockLang);
+    }
+  }
+
+  if (g_webConfigServer.hasArg("wiki_lang")) {
+    hasInput = true;
+    String wl = g_webConfigServer.arg("wiki_lang");
+    wl.trim(); wl.toLowerCase();
+    const char* kWikiLangs[] = {"en","it","fr","de","es","pt","la","eo",nullptr};
+    bool wlValid = false;
+    for (const char **p = kWikiLangs; *p; ++p) { if (wl == *p) { wlValid = true; break; } }
+    if (wlValid && strncmp(g_wikiLang, wl.c_str(), sizeof(g_wikiLang)) != 0) {
+      strncpy(g_wikiLang, wl.c_str(), sizeof(g_wikiLang) - 1);
+      g_wikiLang[sizeof(g_wikiLang) - 1] = '\0';
+      Serial.printf("[CFG][WEB] wiki_lang='%s'\n", g_wikiLang);
     }
   }
 
@@ -4726,50 +4770,6 @@ static const char* weatherCodeUiLabelEo(int code) {
 }
 
 // ---------------------------------------------------------------------------
-// Neapolitan weather labels — da wikibooks.org/wiki/Napoletano/Tempo
-// Sole: "ce sta 'o sole / assulato"; pioggia: "chiove / schizzechea";
-// neva: napoletano per "neve"; gragnola: grandine.
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortNap(int code) {
-  if (code == 0 || code == 1) return "'O sole";
-  if (code == 2) return "Nuvuluso";
-  if (code == 3) return "Cuviert'";
-  if (code == 45 || code == 48) return "Nebbia";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Chiove";
-  if (code >= 71 && code <= 77) return "'A neva";
-  if (code >= 95) return "Tempurale";
-  return "N/D";
-}
-
-static const char* weatherCodeUiLabelNap(int code) {
-  if (code == 0) return "Assulato";          // "assulato" = soleggiato
-  if (code == 1) return "Ce sta 'o sole";    // "ce sta 'o sole" = è soleggiato
-  if (code == 2) return "Nuvuluso";
-  if (code == 3) return "Cuviert'";
-  if (code == 45) return "Nebbia";
-  if (code == 48) return "Nebbia gelata";
-  if (code == 51) return "Schizzechea";      // pioviggina leggera
-  if (code == 53) return "Schizzechea mod.";
-  if (code == 55) return "Schizzechea fort'";
-  if (code == 56 || code == 57) return "Schizzechea gelata";
-  if (code == 61) return "Chiove nu poco";
-  if (code == 63) return "Chiove";           // "sta chiuvenno"
-  if (code == 65) return "Chiove assaje";    // piove molto
-  if (code == 66 || code == 67) return "Chiove e gela";
-  if (code == 71) return "'A neva leggera";
-  if (code == 73) return "'A neva mod.";
-  if (code == 75) return "'A neva fort'";
-  if (code == 77) return "Granuli 'e neva";
-  if (code == 80) return "Acquazzoni lievi";
-  if (code == 81) return "Acquazzoni mod.";
-  if (code == 82) return "Acquazzoni forti";
-  if (code == 85 || code == 86) return "Acquazzoni 'e neva";
-  if (code == 95) return "Tempurale";
-  if (code == 96 || code == 99) return "Tempurale e gragnola";
-  return "N/D";
-}
-
-// ---------------------------------------------------------------------------
 // Klingon weather labels
 // ---------------------------------------------------------------------------
 static const char* weatherCodeShortTlh(int code) {
@@ -4989,7 +4989,7 @@ static const char* weatherCodeUiLabel(int code) {
   if (strcmp(g_wordClockLang, "pt")   == 0) return weatherCodeUiLabelPt  (code);
   if (strcmp(g_wordClockLang, "la")   == 0) return weatherCodeUiLabelLa  (code);
   if (strcmp(g_wordClockLang, "eo")   == 0) return weatherCodeUiLabelEo  (code);
-  if (strcmp(g_wordClockLang, "nap")  == 0) return weatherCodeUiLabelNap (code);
+
   if (strcmp(g_wordClockLang, "tlh")  == 0) return weatherCodeUiLabelTlh (code);
   if (strcmp(g_wordClockLang, "l33t") == 0) return weatherCodeUiLabelL33t(code);
   if (strcmp(g_wordClockLang, "sha")  == 0) return weatherCodeUiLabelSha (code);
@@ -5006,7 +5006,7 @@ static const char* weatherCodeShort(int code) {
   if (strcmp(g_wordClockLang, "pt")   == 0) return weatherCodeShortPt  (code);
   if (strcmp(g_wordClockLang, "la")   == 0) return weatherCodeShortLa  (code);
   if (strcmp(g_wordClockLang, "eo")   == 0) return weatherCodeShortEo  (code);
-  if (strcmp(g_wordClockLang, "nap")  == 0) return weatherCodeShortNap (code);
+
   if (strcmp(g_wordClockLang, "tlh")  == 0) return weatherCodeShortTlh (code);
   if (strcmp(g_wordClockLang, "l33t") == 0) return weatherCodeShortL33t(code);
   if (strcmp(g_wordClockLang, "sha")  == 0) return weatherCodeShortSha (code);
@@ -6156,6 +6156,91 @@ static bool updateRssFromFeed(bool force) {
   return true;
 }
 
+// Extract a JSON string value by key. Handles simple "key":"value" patterns.
+// For nested keys like "thumbnail.source", call with the inner key on a substring.
+static bool extractJsonStringField(const String &json, const char *key, String &out) {
+  String needle = String("\"") + key + "\"";
+  int pos = json.indexOf(needle);
+  if (pos < 0) return false;
+  int i = pos + needle.length();
+  // skip whitespace and colon
+  while (i < (int)json.length() && (json[i] == ' ' || json[i] == ':' || json[i] == '\t' || json[i] == '\n' || json[i] == '\r')) ++i;
+  if (i >= (int)json.length() || json[i] != '"') return false;
+  ++i; // skip opening quote
+  int start = i;
+  while (i < (int)json.length() && json[i] != '"') {
+    if (json[i] == '\\') ++i; // skip escaped char
+    ++i;
+  }
+  if (i >= (int)json.length()) return false;
+  out = json.substring(start, i);
+  return out.length() > 0;
+}
+
+// Fetch a random Wikipedia article via REST API. Returns true if item populated.
+static bool fetchWikiRandomArticle(RssItem &item) {
+  char url[128];
+  snprintf(url, sizeof(url),
+           "https://%s.wikipedia.org/api/rest_v1/page/random/summary",
+           g_wikiLang);
+
+  HTTPClient http;
+  http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
+  http.setTimeout(RSS_HTTP_TIMEOUT_MS);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+  WiFiClientSecure tls;
+  tls.setInsecure();
+  if (!http.begin(tls, url)) return false;
+  http.addHeader("Accept", "application/json; charset=utf-8");
+
+  pumpWebUiDuringIo();
+  const int code = http.GET();
+  if (code != HTTP_CODE_OK) { http.end(); return false; }
+
+  pumpWebUiDuringIo();
+  String payload = http.getString();
+  http.end();
+  if (payload.length() == 0) return false;
+
+  String title, extract, pageUrl, thumbUrl;
+  if (!extractJsonStringField(payload, "title", title)) return false;
+  if (!extractJsonStringField(payload, "extract", extract)) return false;
+
+  // content_urls.desktop.page — find "desktop" block first, then "page" within it
+  int desktopPos = payload.indexOf("\"desktop\"");
+  if (desktopPos >= 0) {
+    String sub = payload.substring(desktopPos);
+    extractJsonStringField(sub, "page", pageUrl);
+  }
+  if (pageUrl.length() == 0) return false;
+
+  // thumbnail.source (optional)
+  int thumbPos = payload.indexOf("\"thumbnail\"");
+  if (thumbPos >= 0) {
+    String sub = payload.substring(thumbPos);
+    extractJsonStringField(sub, "source", thumbUrl);
+  }
+
+  normalizeRssText(title);
+  normalizeRssText(extract);
+
+  copyStringSafe(item.title, sizeof(item.title), title.c_str());
+  copyStringSafe(item.summary, sizeof(item.summary), extract.c_str());
+  copyStringSafe(item.link, sizeof(item.link), pageUrl.c_str());
+  item.feedSlot = 2;
+  item.pubDate[0] = '\0';
+
+  // Store thumbnail URL in shortLink for later fetch
+  if (thumbUrl.length() > 0) {
+    copyStringSafe(item.shortLink, sizeof(item.shortLink), thumbUrl.c_str());
+    item.shortReady = false;
+    item.shortTried = false;
+  }
+
+  return true;
+}
+
 static bool updateWikiFromFeed(bool force) {
   if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
   const uint32_t now = millis();
@@ -6169,24 +6254,29 @@ static bool updateWikiFromFeed(bool force) {
   uint8_t feedsWithItems = 0;
   int firstHttpErr = 0;
 
-  // Build a date-explicit URL for "On This Day" to avoid Wikipedia CDN serving a stale cached day.
-  // Slot 1 = onthisday. Wikipedia supports ?month=MM&day=DD to force the correct date.
-  char wikiOnThisDayUrl[160] = {0};
+  // Build language-parameterized URLs for Featured (slot 0) and On This Day (slot 1).
+  // Slot 2 (Random) is handled separately via REST API JSON below.
+  char wikiFeedUrls[2][160];
+  snprintf(wikiFeedUrls[0], sizeof(wikiFeedUrls[0]),
+           "https://%s.wikipedia.org/w/api.php?action=featuredfeed&feed=featured&feedformat=rss",
+           g_wikiLang);
   {
     struct tm tNow;
     if (getLocalTime(&tNow, 50)) {
-      snprintf(wikiOnThisDayUrl, sizeof(wikiOnThisDayUrl),
-               "https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday"
+      snprintf(wikiFeedUrls[1], sizeof(wikiFeedUrls[1]),
+               "https://%s.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday"
                "&feedformat=rss&month=%02d&day=%02d",
-               tNow.tm_mon + 1, tNow.tm_mday);
+               g_wikiLang, tNow.tm_mon + 1, tNow.tm_mday);
     } else {
-      copyStringSafe(wikiOnThisDayUrl, sizeof(wikiOnThisDayUrl), kWikiFeedUrl[1]);
+      snprintf(wikiFeedUrls[1], sizeof(wikiFeedUrls[1]),
+               "https://%s.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday&feedformat=rss",
+               g_wikiLang);
     }
   }
 
-  for (uint8_t slot = 0; slot < WIKI_FEED_SLOT_COUNT && count < RSS_MAX_ITEMS; ++slot) {
-    // Slot 1 uses the date-explicit URL; all others use the static array.
-    const char *feedUrl = (slot == 1) ? wikiOnThisDayUrl : kWikiFeedUrl[slot];
+  // Slots 0-1: RSS feeds (Featured, On This Day)
+  for (uint8_t slot = 0; slot < 2 && count < RSS_MAX_ITEMS; ++slot) {
+    const char *feedUrl = wikiFeedUrls[slot];
     if (!startsWithHttp(feedUrl)) continue;
     pumpWebUiDuringIo();
     ++feedsTried;
@@ -6195,7 +6285,29 @@ static bool updateWikiFromFeed(bool force) {
     uint8_t feedCap = RSS_DEFAULT_FEED_ITEMS;
     if (feedCap > remaining) feedCap = remaining;
     int httpCode = 0;
-    const uint8_t got = fetchRssItemsFromUrl(feedUrl, &g_rssParseBuf[count], feedCap, &httpCode);
+
+    // Wikipedia feeds return ~10 days oldest-first.
+    // Parse all into a PSRAM buffer and keep only the last feedCap (most recent).
+    uint8_t got = 0;
+    {
+      static constexpr uint8_t WIKI_PARSE_MAX = 10;
+      RssItem *tmpBuf = (RssItem *)ps_calloc(WIKI_PARSE_MAX, sizeof(RssItem));
+      if (tmpBuf) {
+        const uint8_t parsed = fetchRssItemsFromUrl(feedUrl, tmpBuf, WIKI_PARSE_MAX, &httpCode);
+        if (parsed > 0) {
+          const uint8_t take = (parsed < feedCap) ? parsed : feedCap;
+          const uint8_t skip = parsed - take;
+          for (uint8_t k = 0; k < take; ++k) {
+            g_rssParseBuf[count + k] = tmpBuf[skip + k];
+          }
+          got = take;
+        }
+        free(tmpBuf);
+      } else {
+        got = fetchRssItemsFromUrl(feedUrl, &g_rssParseBuf[count], feedCap, &httpCode);
+      }
+    }
+
     pumpWebUiDuringIo();
     if (got > 0) {
       for (uint8_t k = 0; k < got; ++k) {
@@ -6205,6 +6317,19 @@ static bool updateWikiFromFeed(bool force) {
       ++feedsWithItems;
     } else if (firstHttpErr == 0 && httpCode != 0) {
       firstHttpErr = httpCode;
+    }
+  }
+
+  // Slot 2: Random article via REST API (JSON, not RSS)
+  if (count < RSS_MAX_ITEMS) {
+    ++feedsTried;
+    pumpWebUiDuringIo();
+    RssItem randomItem;
+    memset(&randomItem, 0, sizeof(randomItem));
+    if (fetchWikiRandomArticle(randomItem)) {
+      g_rssParseBuf[count] = randomItem;
+      ++count;
+      ++feedsWithItems;
     }
   }
 
@@ -7763,13 +7888,6 @@ static const char *const kSaverQuotesEo[] = {
     "Mi ne estas pigra, mi kontemplas.",
 };
 
-static const char *const kSaverQuotesNap[] = {
-    "Mastico erba e penzo a Nietzsche.",
-    "Tengo quatto stommache e nisciuna risposta.",
-    "Ll'arbetrio fernesce arrete o recinto.",
-    "Tutte cercano o senso, io cerco o trifoglio.",
-};
-
 static const char *const kSaverQuotesTlh[] = {
     "yotlh vISoptaH, Nietzsche vIqel.",
     "loS burgh vIghaj, pagh jangmey.",
@@ -7818,7 +7936,7 @@ static void lvglScreenSaverQuotePackForLang(const char *const **items, uint8_t *
   if (strcmp(g_wordClockLang, "pt") == 0) { *items = kSaverQuotesPt; *count = (uint8_t)(sizeof(kSaverQuotesPt) / sizeof(kSaverQuotesPt[0])); return; }
   if (strcmp(g_wordClockLang, "la") == 0) { *items = kSaverQuotesLa; *count = (uint8_t)(sizeof(kSaverQuotesLa) / sizeof(kSaverQuotesLa[0])); return; }
   if (strcmp(g_wordClockLang, "eo") == 0) { *items = kSaverQuotesEo; *count = (uint8_t)(sizeof(kSaverQuotesEo) / sizeof(kSaverQuotesEo[0])); return; }
-  if (strcmp(g_wordClockLang, "nap") == 0) { *items = kSaverQuotesNap; *count = (uint8_t)(sizeof(kSaverQuotesNap) / sizeof(kSaverQuotesNap[0])); return; }
+
   if (strcmp(g_wordClockLang, "tlh") == 0) { *items = kSaverQuotesTlh; *count = (uint8_t)(sizeof(kSaverQuotesTlh) / sizeof(kSaverQuotesTlh[0])); return; }
   if (strcmp(g_wordClockLang, "l33t") == 0) { *items = kSaverQuotesL33t; *count = (uint8_t)(sizeof(kSaverQuotesL33t) / sizeof(kSaverQuotesL33t[0])); return; }
   if (strcmp(g_wordClockLang, "sha") == 0) { *items = kSaverQuotesSha; *count = (uint8_t)(sizeof(kSaverQuotesSha) / sizeof(kSaverQuotesSha[0])); return; }
@@ -9134,71 +9252,6 @@ static void composeWordClockSentenceEo(const tm &timeinfo, char *out, size_t out
   else               { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Estas %d minutoj al la %s", 60 - m5, wordHourEo(nh)); }
 }
 
-// --- Napoletano (NAP) — da wikibooks.org/wiki/Napoletano ---
-
-static const char* wordHourNap(int h12) {
-  switch (h12) {
-    case 1:  return "ll'una";    // Num: una; raddoppiamento dell'articolo
-    case 2:  return "'e ddoje";
-    case 3:  return "'e tre";
-    case 4:  return "'e quatto";
-    case 5:  return "'e cinche";
-    case 6:  return "'e seje";   // Num: sei → seje
-    case 7:  return "'e sette";
-    case 8:  return "'e otto";
-    case 9:  return "'e nove";
-    case 10: return "'e diece";
-    case 11: return "'e unnece"; // Num: undici → unnece
-    default: return "'e dudece"; // Num: dodici → dudece
-  }
-}
-
-// Minuti "e passa" (5,10,20,25) in parole napoletane
-static const char* minutePastNap(int m5) {
-  switch (m5) {
-    case 5:  return "cinche";
-    case 10: return "diece";
-    case 20: return "vinte";
-    case 25: return "vinte e cinche";
-    default: return "";
-  }
-}
-
-// Minuti "manco" (35,40,45,50,55) in parole napoletane
-static const char* minuteMancoNap(int m5) {
-  switch (m5) {
-    case 35: return "vinte e cinche";
-    case 40: return "vinte";
-    case 45: return "nu quarto";
-    case 50: return "diece";
-    case 55: return "cinche";
-    default: return "";
-  }
-}
-
-static void composeWordClockSentenceNap(const tm &timeinfo, char *out, size_t outLen) {
-  int h12 = timeinfo.tm_hour % 12;
-  if (h12 == 0) h12 = 12;
-  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
-  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
-  int nh = (h12 % 12) + 1;
-  bool sing = (h12 == 1);  // ll'una → verbo è E' non So'
-  if (m5 == 0) {
-    snprintf(out, outLen, sing ? "E' %s"              : "So' %s",              wordHourNap(h12));
-  } else if (m5 == 15) {
-    snprintf(out, outLen, sing ? "E' %s e nu quarto"  : "So' %s e nu quarto",  wordHourNap(h12));
-  } else if (m5 == 30) {
-    snprintf(out, outLen, sing ? "E' %s e mezza"      : "So' %s e mezza",      wordHourNap(h12));
-  } else if (m5 > 30) {
-    // Struttura autentica: "'E sette manco vinte" (cfr. wikibooks Calendario)
-    snprintf(out, outLen, "%s manco %s", wordHourNap(nh), minuteMancoNap(m5));
-  } else {
-    // m5 in {5, 10, 20, 25}
-    snprintf(out, outLen, sing ? "E' %s e %s"         : "So' %s e %s",
-             wordHourNap(h12), minutePastNap(m5));
-  }
-}
-
 // --- 1337 Speak word clock ---
 
 static const char* wordHourL33t(int h12) {
@@ -9472,7 +9525,7 @@ static void composeWordClockSentenceActive(const tm &timeinfo, char *out, size_t
   else if (strcmp(g_wordClockLang, "pt")   == 0) composeWordClockSentencePt  (timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "la")   == 0) composeWordClockSentenceLa  (timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "eo")   == 0) composeWordClockSentenceEo  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "nap")  == 0) composeWordClockSentenceNap (timeinfo, out, outLen);
+
   else if (strcmp(g_wordClockLang, "l33t") == 0) composeWordClockSentenceL33t(timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "sha")  == 0) composeWordClockSentenceSha (timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "val")  == 0) composeWordClockSentenceVal (timeinfo, out, outLen);
@@ -9488,7 +9541,7 @@ static const UiStrings* activeUiStrings() {
   if (strcmp(g_wordClockLang, "pt")   == 0) return &kUiLang_pt;
   if (strcmp(g_wordClockLang, "la")   == 0) return &kUiLang_la;
   if (strcmp(g_wordClockLang, "eo")   == 0) return &kUiLang_eo;
-  if (strcmp(g_wordClockLang, "nap")  == 0) return &kUiLang_nap;
+
   if (strcmp(g_wordClockLang, "tlh")  == 0) return &kUiLang_tlh;
   if (strcmp(g_wordClockLang, "l33t") == 0) return &kUiLang_l33t;
   if (strcmp(g_wordClockLang, "sha")  == 0) return &kUiLang_sha;
@@ -10209,7 +10262,7 @@ static const char *wikiFeedUiName(uint8_t slot) {
   switch (slot) {
     case 0: return "Featured";
     case 1: return "On this day";
-    case 2: return "Wikinews";
+    case 2: return "Random";
     default: return "Wikipedia";
   }
 }
@@ -10218,7 +10271,7 @@ static const char *wikiFeedUiBadge(uint8_t slot) {
   switch (slot) {
     case 0: return "WF";
     case 1: return "WD";
-    case 2: return "WN";
+    case 2: return "WR";
     default: return "W";
   }
 }
@@ -10227,7 +10280,7 @@ static uint32_t wikiFeedUiColorHex(uint8_t slot) {
   switch (slot) {
     case 0: return 0x295FA8;
     case 1: return 0x2D7D64;
-    case 2: return 0x7A3FA8;
+    case 2: return 0xD4A017;
     default: return 0x2B468E;
   }
 }
@@ -10599,18 +10652,6 @@ static void formatDateEo(const tm &timeinfo, char *out, size_t outLen) {
     timeinfo.tm_year+1900);
 }
 
-static void formatDateNap(const tm &timeinfo, char *out, size_t outLen) {
-  // Giorni: wikibooks Napoletano/Calendario — lunnerì, marterì, miercurì, gioverì, viernarì, sabbato, dummeneca
-  // Mesi:   wikibooks Napoletano/Calendario — abbrile, austo, nuvembre, decembre, ecc.
-  static const char* kWeekday[] = {"Dummeneca","Lunneri","Marteri","Miercuri","Gioveri","Viernari","Sabbato"};
-  static const char* kMonth[] = {"Jennaro","Frevaro","Marzo","Abbrile","Maggio","Giugno","Luglio","Austo","Settembre","Uttombre","Nuvembre","Decembre"};
-  snprintf(out, outLen, "%s %d %s %d",
-    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
-    timeinfo.tm_mday,
-    (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
-    timeinfo.tm_year+1900);
-}
-
 static void formatDateTlh(const tm &timeinfo, char *out, size_t outLen) {
   // Klingon: "jaj N jar M, DIS Y" (day N month M, year Y)
   // Fan-made weekday names in ASCII transliteration
@@ -10670,7 +10711,7 @@ static void formatDateActive(const tm &timeinfo, char *out, size_t outLen) {
   else if (strcmp(g_wordClockLang, "pt")   == 0) formatDatePt  (timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "la")   == 0) formatDateLa  (timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "eo")   == 0) formatDateEo  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "nap")  == 0) formatDateNap (timeinfo, out, outLen);
+
   else if (strcmp(g_wordClockLang, "tlh")  == 0) formatDateTlh (timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "l33t") == 0) formatDateL33t(timeinfo, out, outLen);
   else if (strcmp(g_wordClockLang, "sha")  == 0) formatDateSha (timeinfo, out, outLen);
@@ -12476,7 +12517,7 @@ static void handleSerialCommand(const char *line) {
     String langArg = raw.substring(5);
     langArg.trim();
     langArg.toLowerCase();
-    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "nap", "l33t", "sha", "val", "bellazio", nullptr};
+    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "l33t", "sha", "val", "bellazio", nullptr};
     bool valid = false;
     for (int i = 0; kAllowed[i]; ++i) {
       if (langArg == kAllowed[i]) { valid = true; break; }

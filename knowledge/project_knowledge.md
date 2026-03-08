@@ -31,7 +31,7 @@ Use these compile/upload parameters as baseline:
 - Flash: `16MB`
 - PSRAM: `OPI`
 - Flash mode: `QIO`
-- Partition: `app3M_fat9M_16MB`
+- Partition: `noota_app15M_16MB` (custom single-app, no OTA, ~15.9MB app space)
 - Upload speed: `921600`
 - USB mode: `hwcdc`, CDC on boot enabled
 
@@ -42,7 +42,7 @@ Compile:
 ```bash
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
   .
 ```
 
@@ -50,7 +50,7 @@ Upload:
 
 ```bash
 arduino-cli upload -p <PORT> \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
   .
 ```
@@ -83,6 +83,7 @@ Use them to confirm a flash landed (`[FW] Build=...` at boot).
 
 - Theme id: `uiTheme` (`ui_theme` in web/API payloads)
 - System language: `g_wordClockLang` (`wc_lang` in web/API payloads)
+- Wikipedia language: `g_wikiLang` (`wiki_lang` in web/API payloads, independent from system language)
 - Preferred Wi-Fi SSID: `g_wifiPreferredSsid` (`wifi_pref_ssid` in web/API payloads)
 - Wi-Fi direct mode: `g_wifiSetupMode` (`wifi_setup_mode` in web/API payloads, values `off|auto|on`)
 - Weather city/lat/lon
@@ -227,9 +228,9 @@ This keeps clock text visually full across resolutions/themes without clipping.
 
 `g_wordClockLang` is the single language pivot for display content.
 
-Supported 14 language codes:
+Supported 13 language codes:
 
-- Standard: `it`, `en`, `fr`, `de`, `es`, `pt`, `la`, `eo`, `nap`, `tlh`
+- Standard: `it`, `en`, `fr`, `de`, `es`, `pt`, `la`, `eo`, `tlh`
 - Creative/fun: `l33t`, `sha`, `val`, `bellazio`
 
 Bellazio sentence style rule:
@@ -323,17 +324,19 @@ Discard touch frames where:
 
 ## View Model and Navigation
 
-- Runtime pages: `INFO`, `HOME`, `AUX` (RSS), `WIKI`.
+- Runtime pages: `INFO`, `HOME`, `AUX` (RSS), `WIKI`, `ANSI`.
 - Swipe graph:
-  - `INFO <-> HOME <-> AUX <-> WIKI`
+  - `INFO <-> HOME <-> AUX <-> WIKI <-> ANSI`
   - `AUX/WIKI` share the same content deck widgets and controls.
 - AUX/WIKI controls:
   - `SKIP` = next item
   - `NXT` = next feed
   - `QR` = modal on-demand (not always visible)
 - WIKI deck model:
-  - 3 fixed feed families (`Featured`, `On this day`, `Wikinews`)
+  - 3 feed families: `Featured`, `On this day`, `Random Article`
   - up to 3 items per family (total max 9 items/cycle)
+  - Wikipedia language (`wiki_lang`) is independent from system language — supports `en`, `it`, `fr`, `de`, `es`, `pt`, `la`, `eo`
+  - Random Article fetched via REST API (`/api/rest_v1/page/random/summary`) in selected wiki language
   - refresh cadence uses `RSS_REFRESH_MS` / `RSS_RETRY_MS` (defaults 15m / 2m)
 - Physical buttons (current mapping):
   - `PWR` short press: screensaver (debounced)
@@ -509,12 +512,12 @@ If the device is not found, check:
 ```bash
 alias scry-build='arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
   .'
 
 alias scry-flash='arduino-cli upload \
   -p $(ls /dev/cu.usbmodem* | head -1) \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
   .'
 

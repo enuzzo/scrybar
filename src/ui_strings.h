@@ -184,27 +184,6 @@ static const UiStrings kUiLang_eo = {
 };
 
 // ---------------------------------------------------------------------------
-// Neapolitan (nap) — da wikibooks.org/wiki/Napoletano
-// viento=vento, tiempo=tempo/meteo, astutato=spento, attaccate=collegati
-// ---------------------------------------------------------------------------
-static const UiStrings kUiLang_nap = {
-    /* windFmt              */ "Viento %.0f km/h",
-    /* windNa               */ "Viento -- km/h",
-    /* forecast3h           */ "Fra 3h: %s",
-    /* forecastNow          */ "Mo: %s",           // mo = adesso
-    /* forecastNa           */ "Fra 3h: --",
-    /* weatherOffline       */ "'O tiempo nun va",
-    /* wifiOff              */ "WiFi astutato",    // astutare = spegnere
-    /* rssOffline           */ "RSS offline.\nAttaccate 'o WiFi\ne riprovate.",
-    /* rssFeedError         */ "Feed nun disp.\nRiprovo auto'\ntra nu poco.",
-    /* rssSyncing           */ "Sincronizz' RSS...\nAspetta nu poco.\n",
-    /* rssDisabled          */ "RSS disabilitato.",
-    /* touchToClose         */ "Tocca pe' chiudere",
-    /* touchToCloseAnywhere */ "Tocca ovunque pe' chiudere",
-    /* generatingQr         */ "Genero QR...",
-};
-
-// ---------------------------------------------------------------------------
 // 1337 Speak (l33t)
 // ---------------------------------------------------------------------------
 static const UiStrings kUiLang_l33t = {

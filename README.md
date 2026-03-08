@@ -3,8 +3,8 @@
 [![Arduino](https://img.shields.io/badge/Arduino-Firmware-00979D?style=for-the-badge&logo=arduino&logoColor=white)](https://arduino.cc/)
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
-[![Languages](https://img.shields.io/badge/Word_Clock-14_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
-[![Views](https://img.shields.io/badge/Views-4_live_views-3B82F6?style=for-the-badge)](#views)
+[![Languages](https://img.shields.io/badge/Word_Clock-13_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
+[![Views](https://img.shields.io/badge/Views-5_live_views-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
 ## Theme Previews (HOME + Weather)
@@ -15,29 +15,10 @@
 
 > Yes, that is cyberpunk in Latin. If you want neon UI saying *Hora septima est*, ScryBar will not judge.
 
-> A mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture.
-> It tells time in fourteen languages — Italian, English, French, German, Spanish, Portuguese, Latin, Esperanto, Neapolitan, Klingon, 1337, Shakespearean, Valley Girl, and Bellazio — like it's poetry,
-> checks weather you could learn by opening a window, and scrolls news you've already read.
+> It tells time in thirteen languages, checks weather you could learn by opening a window, scrolls news you've already read, and browses Wikipedia random articles.
 > All of this on an ESP32 that didn't ask for this life.
 
-**ScryBar** is an open-source ESP32-S3 desk companion with a fantasy twist. One 3.49" touchscreen, four live views, and a word clock that composes real sentences in fourteen languages — from Italian and Latin to Klingon, 1337 Speak, Shakespearean English, and Bellazio — not uppercase block-letter tiles, actual grammar — rendered at 240 MHz in LVGL on hardware that costs less than a good lunch.
-
-The name comes from *scrying*: the practice of seeing what matters from afar. That is what ScryBar does from your desk.
-
-It is not a smart home gadget. Smart home gadgets have apps.
-This has *physics-tuned touch filtering, a hand-composed Italian word clock, and an INFO panel that tells you things about your battery you probably didn't want to know.*
-
----
-
-## Why This Exists
-
-Every ESP32 project starts the same way: blink an LED.
-
-Then you add a display because a blinking LED isn't really telling you anything. Then a touch controller because a display without interaction is just a slow TV. Then Wi-Fi because weather exists. Then NTP because the clock needs to know what time it is. Then RSS because why pull weather if you're pulling nothing else. Then QR codes because URLs are for people who type on phones with two thumbs.
-
-By the time you stop, you've built something that tells time in Italian like it's dictating verse, shows a weather summary with an icon, scrolls headlines from three feeds in rotation, supports preferred-known-WiFi selection, and opens a web config UI on your LAN when you can't find the USB cable.
-
-We gave it four live views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there. But reflashing firmware at 2 AM because a glyph is three pixels off and literally nobody will ever notice is not a hobby — it's a clinical condition. ScryBar exists so the rest of your devices don't have to suffer.
+**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, five live views, a word clock that composes real sentences in thirteen languages — from Italian and Latin to Klingon, 1337 Speak, and Bellazio — actual grammar, not uppercase tiles — plus a Wikipedia viewer, ANSI art gallery, and a web config UI.
 
 ---
 
@@ -77,23 +58,21 @@ The physical profile: a horizontal bar that sits flat on your desk. Wide enough 
 
 ## Views
 
-Four views, navigated by swipe. Left or right, like flipping pages. There is no tap-to-navigate because tapping is for widgets.
+Five views, navigated by swipe.
 
 ```
-          swipe right                swipe left
-  ┌───────────────────────────────────────────────────────────────┐
-  │   INFO   ◄── HOME (clock+weather) ──► AUX (RSS) ──► WIKI     │
-  │ (tech)        (default boot)          (headlines)   (wiki)   │
-  └───────────────────────────────────────────────────────────────┘
+  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► ANSI
 ```
 
-**HOME** — Word clock in natural sentence form, switchable across 14 languages: Italiano, English, Français, Deutsch, Español, Português, Latina, Esperanto, Napoletano, tlhIngan Hol (Klingon), 1337 Speak, Shakespearean English, Valley Girl, and Bellazio. Not uppercase tiles — actual grammar, composed at runtime. Plus weather icon, temperature, and humidity. Typography is theme-driven at runtime (Montserrat/Space Mono/Delius Unicase/Chakra Petch/IBM Plex Mono) with auto-fit sizing so the sentence always fills the panel cleanly.
+**HOME** — Word clock in natural sentence form (13 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing.
 
-**AUX** — RSS rotation. Up to 5 configurable feeds. `SKIP` moves to next article, `NXT` moves to next feed, and QR opens only on demand.
+**AUX** — RSS rotation with up to 5 configurable feeds. `SKIP`/`NXT`/`QR` controls.
 
-**WIKI** — Dedicated Wikipedia stream (3 feed families, up to 3 items per family). Same ergonomics as AUX (`SKIP`, `NXT`, on-demand QR), with summary-first body text. Refresh cadence follows firmware feed timers (`RSS_REFRESH_MS`, default 15 minutes).
+**WIKI** — Wikipedia stream: Featured Article, On This Day, and Random Article. Language is independently selectable (8 real languages) from system language via web UI. Same `SKIP`/`NXT`/`QR` controls as AUX.
 
-**INFO** — Diagnostics panel. Wi-Fi state, SSID, IP, DNS, MAC, power mode (`CHARGING/BATTERY`), and battery percentage. Placed before HOME in the swipe order — left of boot — like an iPhone widget page you only visit when something feels wrong.
+**ANSI** — BBS/ANSI art gallery (27 embedded files). Portrait mode, tap to advance, swipe to exit.
+
+**INFO** — Diagnostics: Wi-Fi, IP, DNS, MAC, power mode, battery.
 
 Physical buttons:
 
@@ -107,9 +86,9 @@ Auto-idle screensaver target is currently `2h` on both USB and battery.
 
 ## Word Clock Languages
 
-The word clock composes time as a real sentence, not a grid of lit tiles. All 14 languages are built-in and selectable from the LAN web UI without reflashing. The web UI separates them into two groups.
+13 languages, all selectable from the web UI without reflashing. Setting persists to NVS.
 
-**Creative & Constructed** (shown first in the web UI selector):
+**Creative & Constructed:**
 
 | Code | Language | Example (3:15) |
 |---|---|---|
@@ -117,7 +96,6 @@ The word clock composes time as a real sentence, not a grid of lit tiles. All 14
 | `val` | Valley Girl | *It's like quarter past three, totally* |
 | `l33t` | 1337 Speak | *1T'5 QU4R73R P457 7HR33* |
 | `sha` | Shakespearean English | *Verily, 'tis quarter past three* |
-| `nap` | Napoletano | *so' 'e tre e nu quarto* |
 | `eo` | Esperanto | *estas kvarono post la tri* |
 | `la` | Latina | *hora tertia et quadrans* |
 | `tlh` | tlhIngan Hol (Klingon) | *wej rep wa'maH vagh tup* |
@@ -133,35 +111,15 @@ The word clock composes time as a real sentence, not a grid of lit tiles. All 14
 | `de` | Deutsch | *es ist viertel nach drei* |
 | `pt` | Português | *são três e quinze* |
 
-Language setting persists to NVS — survives power cycles. The full UI (weather labels, status strings, RSS panel) follows the selected language.
-
 ---
 
 ## How It Works
 
-At boot, ScryBar:
+At boot: assert SYS_EN via TCA9554, cycle Wi-Fi SSIDs (or use preferred SSID), fall back to setup AP if no known network, sync NTP, render HOME.
 
-1. Asserts `SYS_EN=HIGH` via TCA9554 (battery fallback safety on USB disconnect).
-2. Cycles Wi-Fi SSIDs in non-blocking retry loops — 10 seconds per SSID, then next, indefinitely (or prioritizes the selected known SSID when set from web config).
-3. If no known SSID is reachable, starts Wi-Fi Direct setup AP fallback (`2.4 GHz only`) so you can still open the control UI and provision a new network.
-4. Syncs NTP once connected.
-5. Renders `HOME` and enters the main loop.
+Serial `[SUMMARY]` every 30s: build, Wi-Fi, NTP, UI, weather state.
 
-Every 30 seconds, a `[SUMMARY]` block prints to serial: build, Wi-Fi, NTP, UI, and weather state. It is the firmware's heartbeat and the fastest way to know if something has gone quietly wrong.
-
-Touch events pass through a multi-layer anti-ghost filter before reaching the swipe detector:
-
-```
-raw I2C frame
-  │
-  ├─ discard if point_count == 0 or > 5
-  ├─ discard if any coordinate ≥ 0x0FFF  (sentinel value)
-  ├─ discard if rawX ≥ width or rawY ≥ height
-  │
-  └─ valid frame ──► swipe accumulator ──► page transition
-```
-
-The filter exists because the AXS15231B produces ghost frames at idle — real observed case: `points=117` with spurious coordinates. Without filtering, the display navigates itself at random while sitting on a desk doing nothing. This is not acceptable behavior in furniture.
+Touch passes through anti-ghost filtering (AXS15231B produces spurious frames at idle).
 
 ---
 
@@ -174,7 +132,7 @@ The filter exists because the AXS15231B produces ghost frames at idle — real o
 ```bash
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
   .
 ```
 
@@ -182,7 +140,7 @@ arduino-cli compile --clean \
 
 ```bash
 arduino-cli upload -p <PORT> \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
   .
 ```
@@ -243,32 +201,11 @@ http://<DEVICE_IP>:8080
 | `POST /config` | Form body | Update config via form UI |
 | `POST /reload` | — | Force refresh weather and RSS feeds |
 
-Runtime config persists to NVS. Survives power cycles. Writable without reflash.
+Config persists to NVS. Configurable: Wi-Fi preferred SSID, Wi-Fi Direct mode, new Wi-Fi provisioning (scan + password), weather city/lat/lon, logo URL, up to 5 RSS feeds, system language, Wikipedia language, and UI theme.
 
-Configurable from the UI: preferred known Wi-Fi network (`Auto` rotation or one saved SSID), Wi-Fi Direct mode (`off`, `auto fallback`, `always on`), provisioning of new Wi-Fi credentials via in-page `2.4 GHz` scan + password, weather city, latitude/longitude, logo URL, and up to 5 RSS feeds — each with a friendly name, URL, and max post count. The feed composer is in-page: search, add, edit, delete, no page reloads.
+### Wi-Fi Field Recovery
 
-Web UI loading behavior is resilient by design: critical styles are inline, while remote font/icon stylesheets are loaded asynchronously to keep first paint responsive even with slow CDN paths.
-
-Wi-Fi password UX detail: the password field is always rendered in monospaced glyphs (theme-agnostic) and has an eye toggle for show/hide, so uppercase-heavy themes do not turn provisioning into guesswork.
-
-Provisioned Wi-Fi credentials are stored in NVS and survive reboot/reflash (until NVS erase).
-
-### Wi-Fi Field Recovery (When You Are In a Random Parking Lot)
-
-If ScryBar cannot join any known network, this is the recovery flow:
-
-1. Firmware keeps rotating known SSIDs from `secrets.h` and runtime NVS credentials.
-2. If still offline (and direct mode is `auto` or `on`), setup AP starts: `ScryBar-Setup-XXXX`.
-3. Join that AP from phone/laptop (2.4 GHz only).
-4. Open `http://192.168.4.1:8080`.
-5. Use `Scan networks`, pick SSID, enter password, save.
-
-About captive portal behavior:
-
-- Captive DNS/probe redirects are implemented and often work.
-- Some OSes still decide they are too cool for captive popups on a given day.
-- That is fine: the QR and direct IP are the canonical path and do not lie.
-- If popup fails, scan QR or type `192.168.4.1:8080` manually and continue.
+If no known network is reachable, setup AP starts (`ScryBar-Setup-XXXX`, 2.4 GHz). Join it and open `http://192.168.4.1:8080` to scan and provision a new network.
 
 ---
 
@@ -299,32 +236,11 @@ A `[SUMMARY]` block is emitted automatically every 30 seconds: build, Wi-Fi, NTP
 
 ## Screenshot Workflow
 
-ScryBar can dump the current frame buffer over serial for capture and archival.
-
 ```bash
-# Step 1 — force a stable frame (send SAVERON via serial first)
-
-# Step 2 — capture
 python3 tools/capture_snapshot.py --port <PORT> --out-dir screenshots
 ```
 
-The frame on wire is `rgb565be` (big-endian) due to `LV_COLOR_16_SWAP=1`. If manual decoding is needed:
-
-```bash
-python3 tools/capture_snapshot.py --port <PORT> --out-dir screenshots --pix-fmt rgb565be
-```
-
-Send `SAVERON` before the capture script to avoid a race between the render cycle and the dump. This is documented, expected, and not something we are going to fix because the workaround works.
-
----
-
-## Orientation
-
-Default: `DISPLAY_FLIP_180=1`.
-
-Physical reference: USB-C port on the left, speaker on top, microphone on the bottom. The 180° rotation is applied via hardware mirror (`esp_lcd`) combined with `rotation+2` in Arduino_GFX. Touch mapping at this orientation: `x=rawX`, `y=rawY` — no axis swap.
-
-If you intentionally mount the board reversed — USB-C right, speaker bottom — set `DISPLAY_FLIP_180=0` and reflash. The touch mapping adjusts with it.
+Send `SAVERON` first to freeze the frame. Wire format is `rgb565be`.
 
 ---
 
@@ -350,7 +266,7 @@ If you fork ScryBar, make it yours:
 
 - swap feeds and weather locations,
 - redesign views or add new ones,
-- switch the word clock language from the web UI — 14 already built-in (see the `composeWordClockSentence*` family), or add your own,
+- switch the word clock language from the web UI — 13 built-in, or add your own,
 - publish your variant and share improvements back.
 
 Small screen. Wide horizon.
