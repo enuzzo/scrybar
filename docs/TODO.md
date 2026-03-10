@@ -28,6 +28,21 @@ controlli: IMU gyroscope per girarsi, touch per sparare/usare/avanzare.
 - Touch sinistro: use
 - Touch destro: fire
 
+**Base tecnica consigliata (ricognizione 2026-03-10):**
+- Donor principale: `ducalex/retro-go`, prendendo `prboom-go` come base del motore.
+- Non conviene portarsi dietro tutto `retro-go`: per ScryBar serve solo il core DOOM
+  piu' il glue locale.
+- Nodo critico: `retro-go` prevede driver display nativi soprattutto per
+  `ILI9341/ST7789`; qui va scritto il glue per il nostro display `AXS15231B`
+  / pipeline `esp_lcd`.
+- Fallback utile solo per spike: `espressif/esp32-doom`, ma come proof-of-concept,
+  non come base finale.
+
+**Come iniziare davvero:**
+1. Ispezionare `prboom-go` e il suo layer platform / video.
+2. Ottenere il primo frame sul display ScryBar, anche senza input.
+3. Solo dopo agganciare controlli `gyro + touch`.
+
 **Effort:** ALTO
 **Rischio:** MEDIO-ALTO
 
