@@ -7628,30 +7628,33 @@ static uint8_t lvglScreenSaverWrapCols() {
   return cols;
 }
 
-static uint16_t lvglScreenSaverEstimateBalloonWidth(const char *text) {
-  const uint16_t kMinW = 112;
-  uint16_t kCharPx = 12;
-  const lv_font_t *f = lvglFontScreenSaverBalloonText();
-  if (f && f->line_height > 0) {
-    kCharPx = (uint16_t)((f->line_height * 58u) / 100u);
-    if (kCharPx < 9u) kCharPx = 9u;
-  }
-  const uint16_t kPadPx = 10;
-  if (!text || !text[0]) return kMinW;
-  uint16_t maxLineLen = 0;
-  uint16_t lineLen = 0;
-  for (const char *p = text; *p; ++p) {
-    if (*p == '\n') {
-      if (lineLen > maxLineLen) maxLineLen = lineLen;
-      lineLen = 0;
-    } else {
-      ++lineLen;
-    }
-  }
-  if (lineLen > maxLineLen) maxLineLen = lineLen;
-  uint16_t w = (uint16_t)(kPadPx + (maxLineLen * kCharPx));
+static lv_coord_t lvglScreenSaverBalloonMaxWidthPx() {
   const int16_t cw = canvasWidth();
-  const uint16_t kMaxW = (cw > 40) ? (uint16_t)((cw * 66) / 100) : 320;
+  lv_coord_t maxW = (cw > 40) ? (lv_coord_t)((cw * 66) / 100) : 320;
+  if (maxW < 112) maxW = 112;
+  return maxW;
+}
+
+static lv_coord_t lvglScreenSaverMeasureBalloonTextWidth(const char *text) {
+  if (!text || !text[0]) return 0;
+  const lv_font_t *f = lvglFontScreenSaverBalloonText();
+  if (!f) return 0;
+  lv_point_t size = {0, 0};
+  lv_txt_get_size(&size, text, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+  return size.x;
+}
+
+static uint16_t lvglScreenSaverResolvedBalloonWidth(const char *text) {
+  const uint16_t kMinW = 112;
+  const lv_font_t *f = lvglFontScreenSaverBalloonText();
+  uint16_t padPx = 10;
+  if (f && f->line_height > 24) padPx = 12;
+  uint16_t w = kMinW;
+  if (text && text[0]) {
+    const lv_coord_t measured = lvglScreenSaverMeasureBalloonTextWidth(text);
+    if (measured > 0) w = (uint16_t)(measured + padPx);
+  }
+  const uint16_t kMaxW = (uint16_t)lvglScreenSaverBalloonMaxWidthPx();
   if (w < kMinW) w = kMinW;
   if (w > kMaxW) w = kMaxW;
   return w;
@@ -7965,10 +7968,18 @@ static void lvglScreenSaverSetBalloonText() {
   }
   const char *quote = quotes[g_lvglScreenSaverBalloonIdx];
   static char wrapped[256];
-  lvglScreenSaverWrapQuote(quote, wrapped, sizeof(wrapped), lvglScreenSaverWrapCols(), kScreenSaverThoughtMaxLines);
+  uint8_t cols = lvglScreenSaverWrapCols();
+  const lv_coord_t maxBalloonW = lvglScreenSaverBalloonMaxWidthPx();
+  while (true) {
+    lvglScreenSaverWrapQuote(quote, wrapped, sizeof(wrapped), cols, kScreenSaverThoughtMaxLines);
+    if (cols <= 8) break;
+    if (lvglScreenSaverMeasureBalloonTextWidth(wrapped) <= maxBalloonW) break;
+    --cols;
+  }
   if (strcmp(g_wordClockLang, "l33t") == 0) toUpperAsciiInPlace(wrapped);
   lv_label_set_text(g_lvglScreenSaverBalloon, wrapped);
-  lv_obj_set_size(g_lvglScreenSaverBalloon, lvglScreenSaverEstimateBalloonWidth(wrapped), LV_SIZE_CONTENT);
+  lv_label_set_long_mode(g_lvglScreenSaverBalloon, LV_LABEL_LONG_CLIP);
+  lv_obj_set_size(g_lvglScreenSaverBalloon, lvglScreenSaverResolvedBalloonWidth(wrapped), LV_SIZE_CONTENT);
   lv_obj_update_layout(g_lvglScreenSaverBalloon);
   if (g_lvglScreenSaverBalloonTail) {
     const int16_t bw = lv_obj_get_width(g_lvglScreenSaverBalloon);
@@ -11884,7 +11895,7 @@ static bool initLvglUi() {
   lv_obj_set_style_pad_ver(g_lvglScreenSaverBalloon, 0, 0);
   lv_obj_set_style_text_letter_space(g_lvglScreenSaverBalloon, 0, 0);
   lv_obj_set_style_text_line_space(g_lvglScreenSaverBalloon, 0, 0);
-  lv_label_set_long_mode(g_lvglScreenSaverBalloon, LV_LABEL_LONG_WRAP);
+  lv_label_set_long_mode(g_lvglScreenSaverBalloon, LV_LABEL_LONG_CLIP);
   lv_obj_set_size(g_lvglScreenSaverBalloon, (cW * 56) / 100, LV_SIZE_CONTENT);
   lv_obj_set_pos(g_lvglScreenSaverBalloon, 166, cH - 126);
   lv_label_set_text(g_lvglScreenSaverBalloon, "");
