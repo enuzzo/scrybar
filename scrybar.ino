@@ -23,6 +23,18 @@
 #include "src/ansi/font_ibmvga8x16.h"
 #include "src/ansi/ansi_parser.h"
 #include "src/ansi/ansi_files.h"
+#if __has_include("src/doom/scrybar_prboom_runtime.h") && __has_include("src/doom/prboom/doomtype.h")
+#include "src/doom/scrybar_prboom_runtime.h"
+#define DB_HAS_PRBOOM_DONOR 1
+#else
+#define DB_HAS_PRBOOM_DONOR 0
+#endif
+#if __has_include("src/doom/doom_titlepic.h")
+#include "src/doom/doom_titlepic.h"
+#define DB_HAS_DOOM_SPIKE_ASSETS 1
+#else
+#define DB_HAS_DOOM_SPIKE_ASSETS 0
+#endif
 #endif
 
 #if TEST_WIFI || TEST_NTP
@@ -642,6 +654,18 @@ struct RuntimeRssFeedConfig {
   uint8_t maxItems = RSS_DEFAULT_FEED_ITEMS;
 };
 
+static constexpr uint8_t UI_VIEW_FLAG_INFO = 0x01;
+static constexpr uint8_t UI_VIEW_FLAG_AUX  = 0x02;
+static constexpr uint8_t UI_VIEW_FLAG_WIKI = 0x04;
+static constexpr uint8_t UI_VIEW_FLAG_ANSI = 0x08;
+static constexpr uint8_t UI_VIEW_FLAG_DOOM = 0x10;
+static constexpr uint8_t UI_VIEW_MASK_DEFAULT =
+    UI_VIEW_FLAG_INFO |
+    UI_VIEW_FLAG_AUX |
+    UI_VIEW_FLAG_WIKI |
+    UI_VIEW_FLAG_ANSI |
+    UI_VIEW_FLAG_DOOM;
+
 struct RuntimeNetConfig {
   char weatherCity[32];
   float weatherLat = WEATHER_LAT;
@@ -649,12 +673,20 @@ struct RuntimeNetConfig {
   RuntimeRssFeedConfig rssFeeds[RSS_FEED_SLOT_COUNT];
   char logoUrl[220];
   char uiTheme[UI_THEME_ID_LEN];
+  uint8_t enabledViewsMask = UI_VIEW_MASK_DEFAULT;
   bool ready = false;
 };
 static RuntimeNetConfig g_runtimeNetConfig = {};
 static bool g_runtimeNetConfigNvsLoaded = false;
 static char g_wordClockLang[16] = WORD_CLOCK_LANG_DEFAULT;
 static char g_wikiLang[8] = "en";
+enum UiPageMode : uint8_t;
+static bool uiPageEnabledNoEnsure(UiPageMode mode);
+static UiPageMode uiLastEnabledMainViewNoEnsure();
+static void setUiPage(UiPageMode mode);
+#if TEST_IMU
+static void syncImuActiveForUi();
+#endif
 #if WEB_CONFIG_ENABLED
 static WebServer g_webConfigServer(WEB_CONFIG_PORT);
 static bool g_webConfigServerStarted = false;
@@ -662,9 +694,9 @@ static bool g_webConfigRoutesRegistered = false;
 static DNSServer g_webConfigDnsServer;
 static bool g_webConfigDnsStarted = false;
 #if DB_HAS_QRCODEGEN
-// Keep QR work buffers off callback stack to avoid stack canary/panic on web task.
-static uint8_t g_webQrTempBuf[qrcodegen_BUFFER_LEN_MAX];
-static uint8_t g_webQrDataBuf[qrcodegen_BUFFER_LEN_MAX];
+// Allocate QR work buffers lazily in PSRAM to keep internal heap free for TLS.
+static uint8_t *g_webQrTempBuf = nullptr;
+static uint8_t *g_webQrDataBuf = nullptr;
 #endif
 #endif
 
@@ -735,7 +767,7 @@ struct RssState {
 };
 static RssState g_rss = {};
 static RssState g_wiki = {};
-static RssItem g_rssParseBuf[RSS_MAX_ITEMS];
+static RssItem *g_rssParseBuf = nullptr;
 struct RssShortCacheEntry {
   char longUrl[280];
   char shortUrl[96];
@@ -766,6 +798,7 @@ enum UiPageMode : uint8_t {
   UI_PAGE_AUX = 2,
   UI_PAGE_WIKI = 3,
   UI_PAGE_ANSI = 4,
+  UI_PAGE_DOOM = 5,
 };
 static UiPageMode g_uiPageMode = UI_PAGE_HOME;
 static bool g_uiNeedsRedraw = true;
@@ -855,6 +888,7 @@ static FeedDeckUi g_wikiDeck;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
 static lv_obj_t *g_lvglAnsiRoot = nullptr;
+static lv_obj_t *g_lvglDoomRoot = nullptr;
 // ── ANSI view state ───────────────────────────────────────────────────────────
 #if TEST_DISPLAY
 static uint16_t  *g_ansiBuf           = nullptr; // PSRAM: g_ansiRenderW × g_ansiTotalH
@@ -868,6 +902,59 @@ static SauceRecord g_ansiSauce        = {};
 // Portrait mirror: calibrate after first test (false=no flip, true=flip)
 #define ANSI_PORTRAIT_MIRROR_X true
 #define ANSI_PORTRAIT_MIRROR_Y true
+#if DOOM_SPIKE_ENABLED
+static constexpr uint8_t DOOM_TOUCH_NONE = 0;
+static constexpr uint8_t DOOM_TOUCH_LEFT = 1;
+static constexpr uint8_t DOOM_TOUCH_CENTER = 2;
+static constexpr uint8_t DOOM_TOUCH_RIGHT = 3;
+static bool      g_doomPaletteReady = false;
+static bool      g_doomFrameDirty   = true;
+static bool      g_doomLaunchRequested = false;
+static uint16_t  g_doomPalette565[256] = {0};
+static uint32_t  g_doomLastRenderLogMs = 0;
+static constexpr int16_t kDoomFrameW = ((LCD_WIDTH * 4) + 2) / 3;  // 4:3 content in 172px height
+static constexpr int16_t kDoomFrameH = LCD_WIDTH;
+static constexpr int16_t kDoomFrameX = (LCD_HEIGHT - kDoomFrameW) / 2;
+static constexpr int16_t kDoomFrameY = 0;
+static constexpr int16_t kDoomLeftBandW = kDoomFrameX;
+static constexpr int16_t kDoomRightBandX = kDoomFrameX + kDoomFrameW;
+static constexpr float   kDoomRadToDeg = 57.2957795f;
+static constexpr float   kDoomTiltComplementaryAlpha = 0.94f;
+static constexpr float   kDoomMoveDeadbandDeg = 4.5f;
+static constexpr float   kDoomTurnDeadbandDeg = 4.0f;
+static constexpr float   kDoomMoveBinDeg = 4.5f;
+static constexpr float   kDoomTurnBinDeg = 4.0f;
+static constexpr uint16_t kDoomNeutralCaptureDelayMs = 180;
+static constexpr uint16_t kDoomNeutralStableWindowMs = 320;
+static constexpr uint16_t kDoomNeutralStableMinSamples = 8;
+static constexpr float   kDoomNeutralCaptureGyroMaxDps = 12.0f;
+static constexpr float   kDoomAxisResponseAlpha = 0.24f;
+static constexpr int8_t  kDoomMoveBinMin = -6;
+static constexpr int8_t  kDoomMoveBinMax = 6;
+static constexpr int8_t  kDoomTurnBinMin = -6;
+static constexpr int8_t  kDoomTurnBinMax = 6;
+static constexpr int8_t  kDoomMoveTiltSign = -1;
+static constexpr int8_t  kDoomTurnTiltSign = 1;
+static uint8_t g_doomTouchZone = DOOM_TOUCH_NONE;
+static bool g_doomTiltFilterReady = false;
+static bool g_doomNeutralPending = false;
+static bool g_doomNeutralReady = false;
+static uint32_t g_doomNeutralArmAtMs = 0;
+static uint32_t g_doomNeutralStableSinceMs = 0;
+static uint32_t g_doomLastTiltSampleMs = 0;
+static float g_doomMoveTiltDeg = 0.0f;
+static float g_doomTurnTiltDeg = 0.0f;
+static float g_doomNeutralMoveTiltDeg = 0.0f;
+static float g_doomNeutralTurnTiltDeg = 0.0f;
+static float g_doomNeutralAccumMoveDeg = 0.0f;
+static float g_doomNeutralAccumTurnDeg = 0.0f;
+static uint16_t g_doomNeutralStableSamples = 0;
+static bool g_doomAxisFilterReady = false;
+static float g_doomMoveDeltaFilteredDeg = 0.0f;
+static float g_doomTurnDeltaFilteredDeg = 0.0f;
+static int8_t g_doomMoveBin = 0;
+static int8_t g_doomTurnBin = 0;
+#endif
 #endif
 // ── fine ANSI globals ─────────────────────────────────────────────────────────
 static uint32_t g_lvglPageAnimUntilMs = 0;
@@ -940,6 +1027,7 @@ static uint32_t g_touchStartMs = 0;
 
 #if TEST_IMU
 static bool g_imuReady = false;
+static bool g_imuSensorsActive = false;
 static uint8_t g_imuAddr = 0;
 static uint32_t g_lastImuPrintMs = 0;
 static uint32_t g_lastShakeMs = 0;
@@ -971,13 +1059,14 @@ static esp_lcd_panel_handle_t g_panel = nullptr;
 static SemaphoreHandle_t g_dispFlushSem = nullptr;
 static uint16_t *g_canvasBuf = nullptr;  // logical 640x172
 // g_rotBuf eliminated — rotation now done directly into DMA chunks
-static uint16_t *g_dmaBuf = nullptr;     // native chunk (172x64) — ping
-static uint16_t *g_dmaBuf2 = nullptr;    // native chunk (172x64) — pong
+static uint16_t *g_dmaBuf = nullptr;     // native chunk (172x32) — ping
+static uint16_t *g_dmaBuf2 = nullptr;    // native chunk (172x32) — pong
 static constexpr int16_t DB_CANVAS_W = LCD_HEIGHT;  // 640
 static constexpr int16_t DB_CANVAS_H = LCD_WIDTH;   // 172
 static constexpr int16_t DB_NATIVE_W = LCD_WIDTH;   // 172
 static constexpr int16_t DB_NATIVE_H = LCD_HEIGHT;  // 640
-static constexpr int16_t DB_CHUNK_ROWS = 64;
+// Keep DMA chunks small enough to leave internal heap available for TLS handshakes.
+static constexpr int16_t DB_CHUNK_ROWS = 32;
 
 // --- Frame performance counters (lightweight, no per-frame logging) ---
 static uint32_t g_perfFlushCount = 0;
@@ -994,6 +1083,8 @@ static int detectTca9554Addr();
 static void setUiPage(UiPageMode mode);
 static bool isPwrButtonPressed();
 static void setBacklightPercent(uint8_t percent);
+static bool initDisplay();
+static bool dispFlush();
 
 #if TEST_BATTERY
 static int batteryPercentFromVoltage(float vbat) {
@@ -1997,6 +2088,482 @@ static void updateDisplayAnsi(bool force) {
 #endif // TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
 // ── fine ANSI flush ───────────────────────────────────────────────────────────
 
+// ── DOOM TITLEPIC spike ───────────────────────────────────────────────────────
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED && DB_HAS_DOOM_SPIKE_ASSETS
+static inline uint16_t doomRgb888To565(uint8_t r, uint8_t g, uint8_t b) {
+  return (uint16_t)(((uint16_t)(r & 0xF8u) << 8) |
+                    ((uint16_t)(g & 0xFCu) << 3) |
+                    ((uint16_t)(b & 0xF8u) >> 3));
+}
+
+static inline uint8_t doomTouchZoneFromX(int16_t x) {
+  if (x < kDoomFrameX) return DOOM_TOUCH_LEFT;
+  if (x >= kDoomRightBandX) return DOOM_TOUCH_RIGHT;
+  return DOOM_TOUCH_CENTER;
+}
+
+static inline int8_t doomQuantizeAxis(float deltaDeg, float deadbandDeg, float binDeg,
+                                      int8_t minBin, int8_t maxBin) {
+  if (fabsf(deltaDeg) < deadbandDeg) return 0;
+  return (int8_t)constrain((int)lroundf(deltaDeg / binDeg), (int)minBin, (int)maxBin);
+}
+
+static const char *doomTouchZoneName(uint8_t zone) {
+  switch (zone) {
+    case DOOM_TOUCH_LEFT: return "LEFT";
+    case DOOM_TOUCH_CENTER: return "CENTER";
+    case DOOM_TOUCH_RIGHT: return "RIGHT";
+    default: return "NONE";
+  }
+}
+
+static void doomRequestNeutralCalibrate() {
+  g_doomNeutralPending = true;
+  g_doomNeutralReady = false;
+  g_doomNeutralArmAtMs = millis() + kDoomNeutralCaptureDelayMs;
+  g_doomNeutralStableSinceMs = 0;
+  g_doomNeutralStableSamples = 0;
+  g_doomNeutralAccumMoveDeg = 0.0f;
+  g_doomNeutralAccumTurnDeg = 0.0f;
+  g_doomTiltFilterReady = false;
+  g_doomLastTiltSampleMs = 0;
+  g_doomMoveTiltDeg = 0.0f;
+  g_doomTurnTiltDeg = 0.0f;
+  g_doomAxisFilterReady = false;
+  g_doomMoveDeltaFilteredDeg = 0.0f;
+  g_doomTurnDeltaFilteredDeg = 0.0f;
+  g_doomMoveBin = 0;
+  g_doomTurnBin = 0;
+  g_doomFrameDirty = true;
+  Serial.println("[DOOM][IMU] neutral calibration requested");
+}
+
+static inline void doomFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+  if (!g_canvasBuf || w <= 0 || h <= 0) return;
+  if (x < 0) { w += x; x = 0; }
+  if (y < 0) { h += y; y = 0; }
+  if ((x + w) > DB_CANVAS_W) w = DB_CANVAS_W - x;
+  if ((y + h) > DB_CANVAS_H) h = DB_CANVAS_H - y;
+  if (w <= 0 || h <= 0) return;
+  for (int16_t yy = y; yy < (y + h); ++yy) {
+    uint16_t *row = g_canvasBuf + ((size_t)yy * DB_CANVAS_W) + x;
+    for (int16_t xx = 0; xx < w; ++xx) row[xx] = color;
+  }
+}
+
+static void doomDrawText(int16_t x, int16_t y, const char *text, uint8_t fgIdx, uint8_t bgIdx,
+                         int16_t fontW = 6, int16_t fontH = 12) {
+  if (!g_canvasBuf || !text || !*text) return;
+  int16_t cursorX = x;
+  while (*text) {
+    if ((cursorX + fontW) > 0 && cursorX < DB_CANVAS_W &&
+        (y + fontH) > 0 && y < DB_CANVAS_H) {
+      drawAnsiChar(g_canvasBuf, DB_CANVAS_W, cursorX, y, (uint8_t)*text, fgIdx, bgIdx, fontW, fontH);
+    }
+    cursorX += fontW;
+    ++text;
+  }
+}
+
+static inline void doomSetPixel(int16_t x, int16_t y, uint16_t color) {
+  if (!g_canvasBuf) return;
+  if (x < 0 || x >= DB_CANVAS_W || y < 0 || y >= DB_CANVAS_H) return;
+  g_canvasBuf[((size_t)y * DB_CANVAS_W) + (size_t)x] = color;
+}
+
+static inline uint8_t doomFontBitmapAlpha(const uint8_t *bitmap, uint32_t pixelIndex, uint8_t bpp) {
+  if (!bitmap || bpp == 0) return 0;
+  switch (bpp) {
+    case 1: {
+      const uint8_t byte = bitmap[pixelIndex >> 3];
+      return (byte & (0x80u >> (pixelIndex & 0x7u))) ? 255u : 0u;
+    }
+    case 2: {
+      const uint8_t byte = bitmap[pixelIndex >> 2];
+      const uint8_t shift = (uint8_t)(6u - ((pixelIndex & 0x3u) << 1));
+      return (uint8_t)(((byte >> shift) & 0x03u) * 85u);
+    }
+    case 4: {
+      const uint8_t byte = bitmap[pixelIndex >> 1];
+      const uint8_t nibble = (pixelIndex & 0x1u) ? (byte & 0x0Fu) : ((byte >> 4) & 0x0Fu);
+      return (uint8_t)(nibble * 17u);
+    }
+    default:
+      return bitmap[pixelIndex];
+  }
+}
+
+static int16_t doomMeasureFontText(const lv_font_t *font, const char *text) {
+  if (!font || !text) return 0;
+  int16_t width = 0;
+  while (*text) {
+    const uint32_t letter = (uint8_t)*text;
+    const uint32_t next = (uint8_t)*(text + 1);
+    width += (int16_t)lv_font_get_glyph_width(font, letter, next);
+    ++text;
+  }
+  return width;
+}
+
+static void doomDrawFontText(int16_t x, int16_t y, const char *text,
+                             const lv_font_t *font, uint16_t fg,
+                             bool opaqueBg = false, uint16_t bg = 0) {
+  if (!g_canvasBuf || !text || !*text || !font) return;
+  const int16_t lineH = (int16_t)lv_font_get_line_height(font);
+  const int16_t textW = doomMeasureFontText(font, text);
+  if (opaqueBg && textW > 0 && lineH > 0) doomFillRect(x, y, textW, lineH, bg);
+
+  int16_t cursorX = x;
+  while (*text) {
+    const uint32_t letter = (uint8_t)*text;
+    const uint32_t next = (uint8_t)*(text + 1);
+    lv_font_glyph_dsc_t glyph = {};
+    if (lv_font_get_glyph_dsc(font, &glyph, letter, next)) {
+      const uint8_t *bitmap = lv_font_get_glyph_bitmap(font, letter);
+      if (bitmap && glyph.box_w > 0 && glyph.box_h > 0) {
+        const int16_t glyphX = cursorX + glyph.ofs_x;
+        const int16_t glyphY = y + lineH - font->base_line - glyph.box_h - glyph.ofs_y;
+        uint32_t pixelIndex = 0;
+        for (uint16_t row = 0; row < glyph.box_h; ++row) {
+          for (uint16_t col = 0; col < glyph.box_w; ++col, ++pixelIndex) {
+            if (doomFontBitmapAlpha(bitmap, pixelIndex, glyph.bpp) >= 48u) {
+              doomSetPixel(glyphX + (int16_t)col, glyphY + (int16_t)row, fg);
+            }
+          }
+        }
+      }
+    }
+    cursorX += (int16_t)lv_font_get_glyph_width(font, letter, next);
+    ++text;
+  }
+}
+
+static void doomDrawFontTextCentered(int16_t centerX, int16_t y, const char *text,
+                                     const lv_font_t *font, uint16_t fg,
+                                     bool opaqueBg = false, uint16_t bg = 0) {
+  const int16_t textW = doomMeasureFontText(font, text);
+  doomDrawFontText(centerX - (textW / 2), y, text, font, fg, opaqueBg, bg);
+}
+
+static inline void doomDrawRectOutline(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+  if (w < 2 || h < 2) return;
+  doomFillRect(x, y, w, 1, color);
+  doomFillRect(x, y + h - 1, w, 1, color);
+  doomFillRect(x, y, 1, h, color);
+  doomFillRect(x + w - 1, y, 1, h, color);
+}
+
+static void doomDrawHudBackdrop(int16_t x, int16_t y, int16_t w, int16_t h,
+                                uint16_t baseColor, uint16_t lineColor, uint16_t accentColor) {
+  if (w <= 0 || h <= 0) return;
+  doomFillRect(x, y, w, h, baseColor);
+  for (int16_t yy = y + 2; yy < (y + h); yy += 4) {
+    doomFillRect(x, yy, w, 1, lineColor);
+  }
+  for (int16_t yy = y + 10; yy < (y + h); yy += 18) {
+    const int16_t inset = (int16_t)(((yy - y) / 6) % 18);
+    const int16_t stripeW = min<int16_t>(32, max<int16_t>(12, w - 28));
+    doomFillRect(x + 10 + inset, yy, stripeW, 1, accentColor);
+    doomFillRect(x + w - stripeW - 10 - inset, yy + 6, stripeW, 1, accentColor);
+  }
+}
+
+static void doomDrawHudPanel(int16_t x, int16_t y, int16_t w, int16_t h,
+                             uint16_t accentColor, bool active) {
+  const uint16_t panelBg = lv_color_make(8, 12, 18).full;
+  const uint16_t panelStripe = lv_color_make(14, 18, 26).full;
+  const uint16_t frameColor = active ? accentColor : lv_color_make(74, 80, 92).full;
+  const uint16_t topGlow = active ? accentColor : lv_color_make(42, 48, 56).full;
+  const uint16_t shadow = lv_color_make(2, 3, 5).full;
+  doomFillRect(x, y, w, h, panelBg);
+  for (int16_t yy = y + 7; yy < (y + h - 4); yy += 8) {
+    doomFillRect(x + 2, yy, w - 4, 1, panelStripe);
+  }
+  doomDrawRectOutline(x, y, w, h, frameColor);
+  doomFillRect(x + 1, y + 1, w - 2, 2, topGlow);
+  doomFillRect(x + 1, y + h - 3, w - 2, 2, shadow);
+  doomFillRect(x + 6, y + 6, 10, h - 12, active ? accentColor : panelStripe);
+  doomFillRect(x + 5, y + 5, 16, 2, accentColor);
+  doomFillRect(x + w - 21, y + 5, 16, 2, accentColor);
+  doomFillRect(x + 5, y + h - 7, 16, 2, accentColor);
+  doomFillRect(x + w - 21, y + h - 7, 16, 2, accentColor);
+}
+
+static void doomDrawHudBadge(int16_t x, int16_t y, int16_t w, int16_t h,
+                             const char *text, const lv_font_t *font,
+                             uint16_t accentColor, uint16_t textColor) {
+  const uint16_t badgeBg = lv_color_make(14, 12, 6).full;
+  const uint16_t badgeGlow = lv_color_make(42, 32, 10).full;
+  doomFillRect(x, y, w, h, badgeBg);
+  doomDrawRectOutline(x, y, w, h, accentColor);
+  doomFillRect(x + 1, y + 1, w - 2, 2, badgeGlow);
+  doomDrawFontTextCentered(x + (w / 2), y + 3, text, font, textColor);
+}
+
+static void doomDrawAxisMeter(int16_t x, int16_t y, int16_t w, int16_t h,
+                              int8_t value, int8_t maxAbs,
+                              uint16_t bgColor, uint16_t fillColor, uint16_t centerColor) {
+  if (w <= 4 || h <= 4 || maxAbs <= 0) return;
+  doomFillRect(x, y, w, h, bgColor);
+  doomDrawRectOutline(x, y, w, h, centerColor);
+  for (int16_t tick = 1; tick < maxAbs; ++tick) {
+    const int16_t tickX = x + (w / 2) + (int16_t)((tick * ((w / 2) - 3)) / maxAbs);
+    doomFillRect(tickX, y + 2, 1, h - 4, lv_color_make(36, 42, 50).full);
+    doomFillRect((x + w - 1) - (tickX - x), y + 2, 1, h - 4, lv_color_make(36, 42, 50).full);
+  }
+  const int16_t centerX = x + (w / 2);
+  doomFillRect(centerX - 1, y - 2, 2, h + 4, centerColor);
+  if (value == 0) return;
+  const int16_t halfW = (w / 2) - 3;
+  if (halfW <= 0) return;
+  const int16_t span = max<int16_t>(1, (int16_t)((abs(value) * halfW) / maxAbs));
+  if (value < 0) doomFillRect(centerX - span, y + 2, span, h - 4, fillColor);
+  else doomFillRect(centerX + 1, y + 2, span, h - 4, fillColor);
+}
+
+static void doomDrawAxisMeterVertical(int16_t x, int16_t y, int16_t w, int16_t h,
+                                      int8_t value, int8_t maxAbs,
+                              uint16_t bgColor, uint16_t fillColor, uint16_t centerColor) {
+  if (w <= 4 || h <= 4 || maxAbs <= 0) return;
+  doomFillRect(x, y, w, h, bgColor);
+  doomDrawRectOutline(x, y, w, h, centerColor);
+  for (int16_t tick = 1; tick < maxAbs; ++tick) {
+    const int16_t tickY = y + (h / 2) + (int16_t)((tick * ((h / 2) - 3)) / maxAbs);
+    doomFillRect(x + 2, tickY, w - 4, 1, lv_color_make(36, 42, 50).full);
+    doomFillRect(x + 2, (y + h - 1) - (tickY - y), w - 4, 1, lv_color_make(36, 42, 50).full);
+  }
+  const int16_t centerY = y + (h / 2);
+  doomFillRect(x - 2, centerY - 1, w + 4, 2, centerColor);
+  if (value == 0) return;
+  const int16_t halfH = (h / 2) - 3;
+  if (halfH <= 0) return;
+  const int16_t span = max<int16_t>(1, (int16_t)((abs(value) * halfH) / maxAbs));
+  if (value < 0) doomFillRect(x + 2, centerY - span, w - 4, span, fillColor);
+  else doomFillRect(x + 2, centerY + 1, w - 4, span, fillColor);
+}
+
+static void doomDrawActionButton(int16_t x, int16_t y, int16_t w, int16_t h,
+                                 const char *label, bool active, uint16_t accentColor) {
+  const uint16_t face = active ? lv_color_make(32, 38, 48).full : lv_color_make(18, 22, 30).full;
+  const uint16_t border = active ? accentColor : lv_color_make(82, 88, 98).full;
+  const uint16_t topGlow = active ? kAnsiPalette[15] : lv_color_make(88, 96, 110).full;
+  const uint16_t shadow = lv_color_make(4, 6, 10).full;
+  const uint16_t textColor = active ? kAnsiPalette[15] : kAnsiPalette[7];
+  doomFillRect(x, y, w, h, shadow);
+  doomFillRect(x + 1, y + 1, w - 2, h - 2, face);
+  doomDrawRectOutline(x, y, w, h, border);
+  doomFillRect(x + 2, y + 2, w - 4, 2, topGlow);
+  doomFillRect(x + 2, y + h - 4, w - 4, 2, shadow);
+  doomFillRect(x + 8, y + 4, 10, h - 8, accentColor);
+  doomDrawFontTextCentered(x + (w / 2) + 8, y + 4, label, &scry_font_space_mono_18, textColor);
+}
+
+static void doomDrawBandOverlay() {
+  const bool leftActive = (g_doomTouchZone == DOOM_TOUCH_LEFT);
+  const bool rightActive = (g_doomTouchZone == DOOM_TOUCH_RIGHT);
+  const uint16_t labelColor = kAnsiPalette[15];
+  const uint16_t mutedColor = kAnsiPalette[8];
+  const uint16_t valueColor = g_imuReady ? kAnsiPalette[14] : kAnsiPalette[12];
+  const uint16_t moveColor = kAnsiPalette[11];
+  const uint16_t turnColor = kAnsiPalette[14];
+  const uint16_t meterBg = lv_color_make(6, 8, 12).full;
+  const uint16_t centerLine = lv_color_make(124, 132, 148).full;
+  const uint16_t leftBandBg = lv_color_make(4, 6, 11).full;
+  const uint16_t rightBandBg = lv_color_make(11, 7, 4).full;
+  const uint16_t leftBandLine = lv_color_make(10, 16, 24).full;
+  const uint16_t rightBandLine = lv_color_make(24, 16, 8).full;
+
+  const int16_t leftCardX = 24;
+  const int16_t leftCardY = 12;
+  const int16_t leftCardW = kDoomLeftBandW - 48;
+  const int16_t leftCardH = 122;
+  const int16_t rightCardX = kDoomRightBandX + 24;
+  const int16_t rightCardY = 12;
+  const int16_t rightCardW = (DB_CANVAS_W - kDoomRightBandX) - 48;
+  const int16_t rightCardH = 122;
+  char moveBuf[16];
+  char turnBuf[16];
+  char promptBuf[24];
+
+#if TEST_IMU
+  if (!g_imuReady) {
+    snprintf(moveBuf, sizeof(moveBuf), "IMU?");
+    snprintf(turnBuf, sizeof(turnBuf), "IMU?");
+  } else if (!g_doomNeutralReady) {
+    snprintf(moveBuf, sizeof(moveBuf), "CAL");
+    snprintf(turnBuf, sizeof(turnBuf), "CAL");
+  } else {
+    snprintf(moveBuf, sizeof(moveBuf), "FB %+d", (int)g_doomMoveBin);
+    snprintf(turnBuf, sizeof(turnBuf), "LR %+d", (int)g_doomTurnBin);
+  }
+#else
+  snprintf(moveBuf, sizeof(moveBuf), "IMU OFF");
+  snprintf(turnBuf, sizeof(turnBuf), "IMU OFF");
+#endif
+
+  doomDrawHudBackdrop(0, 0, kDoomLeftBandW, DB_CANVAS_H, leftBandBg, leftBandLine, lv_color_make(12, 26, 40).full);
+  doomDrawHudBackdrop(kDoomRightBandX, 0, DB_CANVAS_W - kDoomRightBandX, DB_CANVAS_H,
+                      rightBandBg, rightBandLine, lv_color_make(40, 26, 10).full);
+  doomFillRect(kDoomFrameX - 4, 0, 4, DB_CANVAS_H, leftActive ? moveColor : mutedColor);
+  doomFillRect(kDoomRightBandX, 0, 4, DB_CANVAS_H, rightActive ? turnColor : mutedColor);
+
+  doomDrawHudPanel(leftCardX, leftCardY, leftCardW, leftCardH, moveColor, leftActive);
+  doomDrawHudPanel(rightCardX, rightCardY, rightCardW, rightCardH, turnColor, rightActive);
+
+  doomDrawFontTextCentered(kDoomLeftBandW / 2, 20, "MOVE", &scry_font_space_mono_20, labelColor);
+  doomDrawFontTextCentered(kDoomLeftBandW / 2, 44, moveBuf, &scry_font_space_mono_16, valueColor);
+  doomDrawFontTextCentered(kDoomLeftBandW / 2, 58, "FWD", &scry_font_space_mono_12, moveColor);
+  doomDrawAxisMeterVertical((kDoomLeftBandW / 2) - 12, 70, 24, 44,
+                            g_doomMoveBin, kDoomMoveBinMax,
+                            meterBg, moveColor, centerLine);
+  doomDrawFontTextCentered(kDoomLeftBandW / 2, 116, "BACK", &scry_font_space_mono_12, mutedColor);
+
+  const int16_t rightCenterX = kDoomRightBandX + ((DB_CANVAS_W - kDoomRightBandX) / 2);
+  doomDrawFontTextCentered(rightCenterX, 20, "TURN", &scry_font_space_mono_20, labelColor);
+  doomDrawFontTextCentered(rightCenterX, 44, turnBuf, &scry_font_space_mono_16, valueColor);
+  doomDrawFontText(rightCardX + 16, 66, "L", &scry_font_space_mono_12, mutedColor);
+  doomDrawFontText(rightCardX + rightCardW - 24, 66, "R", &scry_font_space_mono_12, mutedColor);
+  doomDrawAxisMeter(rightCardX + 22, 78, rightCardW - 44, 12,
+                    g_doomTurnBin, kDoomTurnBinMax,
+                    meterBg, turnColor, centerLine);
+
+#if DB_HAS_PRBOOM_DONOR
+  if (!doomPrboomHasFrame()) {
+    if (!g_doomLaunchRequested) snprintf(promptBuf, sizeof(promptBuf), "PRESS FIRE");
+    else snprintf(promptBuf, sizeof(promptBuf), "%s", doomPrboomStatus() ? doomPrboomStatus() : "BOOT");
+    doomDrawHudBadge(rightCardX + 24, 102, rightCardW - 48, 20, promptBuf,
+                     &scry_font_space_mono_16, turnColor, valueColor);
+  }
+#endif
+
+  doomDrawActionButton(24, DB_CANVAS_H - 38, kDoomLeftBandW - 48, 26, "USE", leftActive, moveColor);
+  doomDrawActionButton(kDoomRightBandX + 24, DB_CANVAS_H - 38,
+                       (DB_CANVAS_W - kDoomRightBandX) - 48, 26,
+                       "FIRE", rightActive, turnColor);
+}
+
+bool doomScrybarPageVisible() {
+  return g_uiPageMode == UI_PAGE_DOOM;
+}
+
+bool doomScrybarGetInputState(int8_t *moveBin, int8_t *turnBin, uint8_t *touchZone) {
+  const bool visible = (g_uiPageMode == UI_PAGE_DOOM);
+  if (moveBin) *moveBin = visible ? g_doomMoveBin : 0;
+  if (turnBin) *turnBin = visible ? g_doomTurnBin : 0;
+  if (touchZone) *touchZone = visible ? g_doomTouchZone : DOOM_TOUCH_NONE;
+  return visible;
+}
+
+bool doomScrybarBlitIndexedFrame(const uint8_t *pixels,
+                                 int srcWidth,
+                                 int srcHeight,
+                                 const uint16_t *palette565be,
+                                 bool forceFlush) {
+  if (!pixels || !palette565be) return false;
+  if (g_uiPageMode != UI_PAGE_DOOM) return false;
+  if (!g_canvasBuf) return false;
+  if (!initDisplay()) return false;
+
+  memset(g_canvasBuf, 0, (size_t)DB_CANVAS_W * DB_CANVAS_H * sizeof(uint16_t));
+  for (int16_t y = 0; y < kDoomFrameH; ++y) {
+    const int srcY = ((int32_t)y * srcHeight) / kDoomFrameH;
+    const size_t srcRow = (size_t)srcY * (size_t)srcWidth;
+    uint16_t *dst = g_canvasBuf + ((size_t)(kDoomFrameY + y) * DB_CANVAS_W) + kDoomFrameX;
+    for (int16_t x = 0; x < kDoomFrameW; ++x) {
+      const int srcX = ((int32_t)x * srcWidth) / kDoomFrameW;
+      dst[x] = palette565be[pixels[srcRow + (size_t)srcX]];
+    }
+  }
+
+  doomDrawBandOverlay();
+  if (forceFlush) {
+    setBacklightPercent(100);
+    dispFlush();
+  }
+  return true;
+}
+
+static void doomBuildPalette() {
+  if (g_doomPaletteReady) return;
+  for (uint16_t i = 0; i < 256; ++i) {
+    const uint8_t r = pgm_read_byte(kDoomTitlePicPalette + (i * 3) + 0);
+    const uint8_t g = pgm_read_byte(kDoomTitlePicPalette + (i * 3) + 1);
+    const uint8_t b = pgm_read_byte(kDoomTitlePicPalette + (i * 3) + 2);
+    const uint16_t raw565 = doomRgb888To565(r, g, b);
+    g_doomPalette565[i] = (uint16_t)((raw565 << 8) | (raw565 >> 8));
+  }
+  g_doomPaletteReady = true;
+}
+
+static void doomBlitTitlePicToCanvas() {
+  if (!g_canvasBuf) return;
+  doomBuildPalette();
+  memset(g_canvasBuf, 0, (size_t)DB_CANVAS_W * DB_CANVAS_H * sizeof(uint16_t));
+
+  for (int16_t y = 0; y < kDoomFrameH; ++y) {
+    const int16_t srcY = (int16_t)(((int32_t)y * kDoomTitlePicHeight) / kDoomFrameH);
+    const size_t srcRow = (size_t)srcY * kDoomTitlePicWidth;
+    uint16_t *dst = g_canvasBuf + ((size_t)(kDoomFrameY + y) * DB_CANVAS_W) + kDoomFrameX;
+    for (int16_t x = 0; x < kDoomFrameW; ++x) {
+      const int16_t srcX = (int16_t)(((int32_t)x * kDoomTitlePicWidth) / kDoomFrameW);
+      const uint8_t idx = pgm_read_byte(kDoomTitlePicPixels + srcRow + srcX);
+      const uint16_t color = g_doomPalette565[idx];
+      dst[x] = color;
+    }
+  }
+
+  doomDrawBandOverlay();
+}
+
+static void doomRenderSpike(bool force) {
+  if (g_uiPageMode != UI_PAGE_DOOM) return;
+  if (!initDisplay()) return;
+#if DB_HAS_PRBOOM_DONOR
+  if (g_doomLaunchRequested) {
+    doomPrboomEnsureStarted();
+    if (doomPrboomHasFrame()) {
+      g_doomFrameDirty = false;
+      return;
+    }
+  }
+#endif
+  if (!force && !g_doomFrameDirty) return;
+
+  setBacklightPercent(100);
+  doomBlitTitlePicToCanvas();
+  dispFlush();
+  g_doomFrameDirty = false;
+
+  const uint32_t now = millis();
+  if (force || g_doomLastRenderLogMs == 0 || (now - g_doomLastRenderLogMs) >= 2000) {
+    g_doomLastRenderLogMs = now;
+    const char *status = doomPrboomStatus();
+    Serial.printf("[DOOM] TITLEPIC rendered src=%ux%u frame=%dx%d@x=%d bands=%d/%d move=%d turn=%d status=%s donor=prboom-go\n",
+                  (unsigned)kDoomTitlePicWidth,
+                  (unsigned)kDoomTitlePicHeight,
+                  (int)kDoomFrameW,
+                  (int)kDoomFrameH,
+                  (int)kDoomFrameX,
+                  (int)kDoomLeftBandW,
+                  (int)(DB_CANVAS_W - kDoomRightBandX),
+                  (int)g_doomMoveBin,
+                  (int)g_doomTurnBin,
+                  status ? status : "boot");
+  }
+}
+#elif TEST_DISPLAY && DOOM_SPIKE_ENABLED
+static void doomRenderSpike(bool force) {
+  (void)force;
+  if (g_uiPageMode != UI_PAGE_DOOM) return;
+  Serial.println("[DOOM][ERR] spike assets missing (src/doom/doom_titlepic.h)");
+}
+#else
+static void doomRenderSpike(bool force) {
+  (void)force;
+}
+#endif
+// ── fine DOOM spike ───────────────────────────────────────────────────────────
+
 // Tile-based transpose+flip of one chunk from canvasBuf into a DMA buffer.
 // 8×8 tiles reduce PSRAM cache misses ~8× vs pixel-by-pixel stride.
 static inline void dispRotateChunk(uint16_t *dst, int16_t colBase) {
@@ -2756,6 +3323,10 @@ static void syncActiveUiThemeFromRuntimeConfig(const RuntimeNetConfig &cfg) {
   setActiveUiThemeById(cfg.uiTheme);
 }
 
+static uint8_t normalizeRuntimeViewMask(uint8_t mask) {
+  return mask & UI_VIEW_MASK_DEFAULT;
+}
+
 static const char *runtimeUiThemeId() {
   ensureRuntimeNetConfig();
   return g_runtimeNetConfig.uiTheme[0] ? g_runtimeNetConfig.uiTheme : kUiThemes[0].id;
@@ -2989,6 +3560,10 @@ static void loadRuntimeNetConfigFromNvs() {
       loadedAny = true;
     }
   }
+  if (prefs.isKey("ui_views")) {
+    g_runtimeNetConfig.enabledViewsMask = normalizeRuntimeViewMask(prefs.getUChar("ui_views", UI_VIEW_MASK_DEFAULT));
+    loadedAny = true;
+  }
   // Wiki language (independent from system language)
   {
     char wl[8] = "en";
@@ -3020,16 +3595,18 @@ static void loadRuntimeNetConfigFromNvs() {
 
   normalizeRuntimeRssFeeds(g_runtimeNetConfig);
   normalizeRuntimeUiTheme(g_runtimeNetConfig);
+  g_runtimeNetConfig.enabledViewsMask = normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask);
 
   if (loadedAny) {
     const int activeIdx = runtimeFirstConfiguredRssFeedIndexNoEnsure();
-    Serial.printf("[CFG][NVS] loaded city='%s' lat=%.4f lon=%.4f rss_feeds=%u active='%s' theme='%s' wiki_lang='%s' wifi_pref='%s' wifi_setup='%s' wifi_dyn=%u\n",
+    Serial.printf("[CFG][NVS] loaded city='%s' lat=%.4f lon=%.4f rss_feeds=%u active='%s' theme='%s' views=0x%02X wiki_lang='%s' wifi_pref='%s' wifi_setup='%s' wifi_dyn=%u\n",
                   g_runtimeNetConfig.weatherCity,
                   g_runtimeNetConfig.weatherLat,
                   g_runtimeNetConfig.weatherLon,
                   (unsigned)runtimeRssConfiguredFeedCountNoEnsure(),
                   activeIdx >= 0 ? g_runtimeNetConfig.rssFeeds[activeIdx].url : "-",
                   g_runtimeNetConfig.uiTheme,
+                  (unsigned)g_runtimeNetConfig.enabledViewsMask,
                   g_wikiLang,
                   g_wifiPreferredSsid[0] ? g_wifiPreferredSsid : "auto",
                   g_wifiSetupMode,
@@ -3064,17 +3641,18 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n5 = prefs.putString("logo_url", g_runtimeNetConfig.logoUrl);
   const size_t n6 = prefs.putString("wc_lang", g_wordClockLang);
   const size_t n7 = prefs.putString("ui_theme", g_runtimeNetConfig.uiTheme);
+  const size_t nViewMask = prefs.putUChar("ui_views", normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask));
   const size_t nWikiLang = prefs.putString("wiki_lang", g_wikiLang);
   const size_t n8 = prefs.putString("wifi_pref", g_wifiPreferredSsid);
   const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSetupMode);
   const size_t n10 = saveRuntimeWiFiCredentialsToPrefs(prefs);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
-  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
+  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u views=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
                 ok ? "OK" : "ERR",
                 (unsigned)n1, (unsigned)n2, (unsigned)n3, (unsigned)n4,
                 (unsigned)nFeedName, (unsigned)nFeedUrl, (unsigned)nFeedMax, (unsigned)n5,
-                (unsigned)n6, (unsigned)n7, (unsigned)nWikiLang, (unsigned)n8, (unsigned)n9, (unsigned)n10);
+                (unsigned)n6, (unsigned)n7, (unsigned)nViewMask, (unsigned)nWikiLang, (unsigned)n8, (unsigned)n9, (unsigned)n10);
   return ok;
 }
 
@@ -3093,6 +3671,7 @@ static void ensureRuntimeNetConfig() {
   loadRuntimeNetConfigFromNvs();
   normalizeRuntimeRssFeeds(g_runtimeNetConfig);
   normalizeRuntimeUiTheme(g_runtimeNetConfig);
+  g_runtimeNetConfig.enabledViewsMask = normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask);
   syncActiveUiThemeFromRuntimeConfig(g_runtimeNetConfig);
   g_runtimeNetConfig.ready = true;
 }
@@ -3167,6 +3746,21 @@ static bool parseStrictUint8(const String &text, uint8_t &outValue) {
   return true;
 }
 
+static bool parseStrictBool(const String &text, bool &outValue) {
+  String t = text;
+  t.trim();
+  t.toLowerCase();
+  if (t == "1" || t == "true" || t == "on" || t == "yes") {
+    outValue = true;
+    return true;
+  }
+  if (t == "0" || t == "false" || t == "off" || t == "no") {
+    outValue = false;
+    return true;
+  }
+  return false;
+}
+
 static void appendHtmlEscaped(String &out, const char *text) {
   if (!text) return;
   for (const char *p = text; *p; ++p) {
@@ -3232,6 +3826,29 @@ static void appendWebThemeCssVars(String &out, const UiThemeWebTokens &t) {
   out += '}';
 }
 
+#if WEB_CONFIG_ENABLED && DB_HAS_QRCODEGEN
+static bool ensureWebQrBuffers() {
+  if (g_webQrTempBuf && g_webQrDataBuf) return true;
+  if (!g_webQrTempBuf) {
+    g_webQrTempBuf = (uint8_t *)ps_malloc(qrcodegen_BUFFER_LEN_MAX);
+    if (!g_webQrTempBuf) g_webQrTempBuf = (uint8_t *)malloc(qrcodegen_BUFFER_LEN_MAX);
+  }
+  if (!g_webQrDataBuf) {
+    g_webQrDataBuf = (uint8_t *)ps_malloc(qrcodegen_BUFFER_LEN_MAX);
+    if (!g_webQrDataBuf) g_webQrDataBuf = (uint8_t *)malloc(qrcodegen_BUFFER_LEN_MAX);
+  }
+  if (!g_webQrTempBuf || !g_webQrDataBuf) {
+    Serial.printf("[WEB][QR][ERR] alloc failed temp=%d data=%d heap=%u psram=%u\n",
+                  g_webQrTempBuf ? 1 : 0,
+                  g_webQrDataBuf ? 1 : 0,
+                  (unsigned)ESP.getFreeHeap(),
+                  (unsigned)ESP.getFreePsram());
+    return false;
+  }
+  return true;
+}
+#endif
+
 static String buildWebConfigPage(const char *statusMsg) {
   ensureRuntimeNetConfig();
   char latBuf[24];
@@ -3241,9 +3858,20 @@ static String buildWebConfigPage(const char *statusMsg) {
   const uint8_t configuredFeeds = runtimeRssConfiguredFeedCount();
   const UiThemeDefinition &themeDef = activeUiTheme();
   const UiThemeWebTokens &webTheme = themeDef.web;
+  const bool infoViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) != 0;
+  const bool auxViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) != 0;
+  const bool wikiViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) != 0;
+  const bool ansiViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_ANSI) != 0;
+  const bool doomFeatureAvailable =
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+      true;
+#else
+      false;
+#endif
+  const bool doomViewOn = doomFeatureAvailable && ((g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) != 0);
 
   String html;
-  html.reserve(28000);
+  html.reserve(32000);
   html += F("<!doctype html><html lang='en'><head><meta charset='utf-8'>");
   html += F("<meta name='viewport' content='width=device-width,initial-scale=1'>");
   html += F("<title>ScryBar Control Surface</title>");
@@ -3293,6 +3921,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F(".rss-list{display:grid;gap:8px;margin-top:10px}.rss-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid rgba(57,184,255,.28);border-left:3px solid rgba(117,81,255,.78);border-radius:12px;padding:10px;background:rgba(9,16,44,.76)}");
   html += F(".rss-title{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#e7eeff;margin:0 0 2px}.rss-title i{color:#39B8FF;font-size:12px}.rss-meta{font-size:12px;color:#98acd8;margin:0;word-break:break-all}.rss-chip{display:inline-block;margin-left:7px;padding:2px 7px;border-radius:999px;background:rgba(57,184,255,.17);color:#9fd9ff;font-size:11px;font-weight:700}");
   html += F(".rss-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rss-status{margin:6px 0 2px;color:#9bb3ee;font-size:12px;min-height:16px}.rss-empty{padding:12px;border:1px dashed rgba(255,255,255,.2);border-radius:12px;color:#8ea2cf;font-size:12px;background:rgba(10,18,50,.35)}.hidden{display:none}");
+  html += F(".view-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}.view-card{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border:1px solid rgba(57,184,255,.24);border-radius:12px;background:rgba(9,16,44,.62)}.view-card input{width:18px;height:18px;margin:2px 0 0;accent-color:#39B8FF;flex:0 0 auto}.view-copy{display:grid;gap:3px;min-width:0}.view-copy strong{font-size:13px;color:#eef4ff}.view-copy small{color:#93a6d5;line-height:1.35}.view-card.fixed{border-style:dashed}.view-card.disabled{opacity:.55}");
   html += F(".api-note{margin-top:12px;padding:8px 10px;border-radius:10px;background:rgba(57,184,255,.10);border:1px solid rgba(57,184,255,.28)}.setup-quick{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin-top:10px}.setup-qr{width:138px;height:138px;border:1px solid rgba(255,255,255,.2);background:#fff;padding:6px;border-radius:8px;display:block}.setup-url{font:600 13px var(--font-mono);word-break:break-all}");
   html += F(".site-footer{margin-top:18px;padding:12px 2px 4px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#8fa4d2;line-height:1.5}.site-footer strong{color:#dbe7ff}.site-footer a{color:#9fd9ff;text-decoration:none}.site-footer a:hover{color:#c7ebff;text-decoration:underline}");
   html += F("small{color:var(--txt2)}code{color:#d2ddff}@media(prefers-reduced-motion:reduce){.fx-grid *{animation-duration:0.01ms !important;transition-duration:0.01ms !important}}@media(max-width:980px){.grid2,.rss-composer{grid-template-columns:1fr}.fx-grid__plane{height:68vh;bottom:-4vh;background-size:32px 32px;opacity:1}.fx-grid__glow{height:66%;background:linear-gradient(to top,rgba(117,81,255,0.24) 0%,rgba(57,184,255,0.11) 45%,transparent 100%)}.fx-grid__horizon{bottom:58%}.hero-top{flex-wrap:nowrap;align-items:center}.hero-left{min-width:0;flex:1 1 auto}.logo{height:54px}.hero-right{justify-items:end;flex:0 0 auto}.release-box{width:auto}.hero-copy{padding:10px}}@media(max-width:420px){.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}}@media(max-width:480px){.btns{flex-direction:column}.btn.primary{width:100%;justify-content:center}}");
@@ -3328,6 +3957,32 @@ static String buildWebConfigPage(const char *statusMsg) {
       html += F("</option>");
     }
     html += F("</select><p class='hint'><i class='fa-solid fa-bolt'></i> One selector drives both interfaces: this web control surface and the ESP32 display UI. Switching theme applies instantly and persists in NVS.</p></div>");
+  }
+  {
+    html += F("<div class='sec'><h2><i class='fa-solid fa-table-cells-large'></i>Views</h2><div class='card'><div class='view-grid'>");
+    html += F("<label class='view-card'><input id='view_info_cb' type='checkbox'");
+    if (infoViewOn) html += F(" checked");
+    html += F("><span class='view-copy'><strong>Info</strong><small>Word clock and ambient status page.</small></span></label>");
+    html += F("<label class='view-card fixed'><input type='checkbox' checked disabled><span class='view-copy'><strong>Home</strong><small>Always on. Safe fallback when other pages are disabled.</small></span></label>");
+    html += F("<label class='view-card'><input id='view_aux_cb' type='checkbox'");
+    if (auxViewOn) html += F(" checked");
+    html += F("><span class='view-copy'><strong>RSS / AUX</strong><small>News feed deck, QR and refresh actions.</small></span></label>");
+    html += F("<label class='view-card'><input id='view_wiki_cb' type='checkbox'");
+    if (wikiViewOn) html += F(" checked");
+    html += F("><span class='view-copy'><strong>Wikipedia</strong><small>Featured, On This Day and random article cards.</small></span></label>");
+    html += F("<label class='view-card'><input id='view_ansi_cb' type='checkbox'");
+    if (ansiViewOn) html += F(" checked");
+    html += F("><span class='view-copy'><strong>ANSI</strong><small>Portrait text-art viewer. Direct-only for now.</small></span></label>");
+    html += F("<label class='view-card");
+    if (!doomFeatureAvailable) html += F(" disabled");
+    html += F("'><input id='view_doom_cb' type='checkbox'");
+    if (doomViewOn) html += F(" checked");
+    if (!doomFeatureAvailable) html += F(" disabled");
+    html += F("><span class='view-copy'><strong>DOOM</strong><small>");
+    if (doomFeatureAvailable) html += F("Swipe-reachable game page with gyro + touch controls.");
+    else html += F("Not available in this firmware build.");
+    html += F("</small></span></label>");
+    html += F("</div><p class='hint'><i class='fa-solid fa-hand-pointer'></i> Swipe navigation only includes enabled pages. ANSI stays available via direct command because portrait touch does not yet have a clean bidirectional carousel gesture.</p><div id='view_hidden_inputs' class='hidden'></div></div></div>");
   }
 #if TEST_WIFI
   // Wi-Fi preferred network section
@@ -3456,7 +4111,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("/5</span></h2><p class='hint'>One composer for name, URL and max posts. Press + to add to the list (max 5 feeds).</p>");
   html += F("<div class='card'><div class='rss-composer'><div><div class='key'>FRIENDLY NAME</div><input id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='key'>FEED URL</div><input id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='key'>MAX POSTS</div><input id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='btn primary' type='button'><i class='fa-solid fa-circle-plus'></i>Add</button><button id='rss_reset' class='btn ghost' type='button'><i class='fa-solid fa-broom'></i>Reset</button></div><p id='rss_status' class='rss-status'></p></div>");
   html += F("<div id='rss_list' class='rss-list'></div><p id='rss_empty' class='rss-empty'>No feeds configured.</p><div id='rss_hidden_inputs' class='hidden'></div></div>");
-  html += F("<div class='btns'><button class='btn primary' type='submit'><i class='fa-solid fa-floppy-disk'></i>Save Config</button><button class='btn ghost' type='submit' formaction='/reload' formmethod='post'><i class='fa-solid fa-rotate-right'></i>Force Weather + RSS Reload</button></div></form>");
+  html += F("<div class='btns'><button class='btn primary' type='submit'><i class='fa-solid fa-floppy-disk'></i>Save Config</button><button class='btn ghost' type='submit' formaction='/reload' formmethod='post'><i class='fa-solid fa-rotate-right'></i>Force Weather + RSS + Wiki Reload</button></div></form>");
   // System Info section — built at request time from live globals
   {
     char siBuf[48];
@@ -3542,7 +4197,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("function setWifiStatus(msg){if(wifiScanStatus)wifiScanStatus.textContent=msg||'';}function escHtml(s){return (s||'').replace(/[&<>]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;'})[c];});}");
   html += F("async function scanWifiNow(){if(!wifiScanResults)return;const ctl=(window.AbortController?new AbortController():null);let tm=0;try{setWifiStatus('Scanning 2.4 GHz networks...');wifiScanResults.innerHTML=\"<option value=''>Scanning...</option>\";if(ctl){tm=window.setTimeout(function(){ctl.abort();},9000);}const res=await fetch('/api/wifi/scan',{cache:'no-store',signal:ctl?ctl.signal:undefined});if(tm)window.clearTimeout(tm);if(!res.ok)throw new Error('http '+res.status);const data=await res.json();const rows=(data&&data.networks)?data.networks:[];wifiScanResults.innerHTML=\"\";if(!rows.length){wifiScanResults.innerHTML=\"<option value=''>No 2.4 GHz network found</option>\";setWifiStatus((data&&data.message==='scan_timeout')?'Scan timed out, retry in a few seconds.':'No 2.4 GHz networks found.');return;}rows.forEach(function(n){const opt=document.createElement('option');const lock=n.secure?'SEC':'OPEN';opt.value=n.ssid||'';opt.dataset.secure=n.secure?'1':'0';opt.dataset.channel=String(n.channel||0);opt.innerHTML=escHtml((n.ssid||'(hidden)')+'  '+lock+'  ch'+(n.channel||'?')+'  '+(n.rssi||0)+'dBm');wifiScanResults.appendChild(opt);});setWifiStatus('Scan complete. Pick an SSID and press Save Config.');if(rows[0]&&rows[0].ssid&&wifiNewSsid&&!wifiNewSsid.value){wifiNewSsid.value=rows[0].ssid;}}catch(e){if(tm)window.clearTimeout(tm);wifiScanResults.innerHTML=\"<option value=''>Scan failed</option>\";setWifiStatus((e&&e.name==='AbortError')?'Scan timeout. Retry.':'Scan unavailable right now.');}}");
   html += F("function syncWifiPwdToggle(){if(!wifiPwdToggle||!wifiNewPassword)return;const visible=wifiNewPassword.type==='text';wifiPwdToggle.innerHTML=visible?\"<i class='fa-solid fa-eye-slash'></i>\":\"<i class='fa-solid fa-eye'></i>\";wifiPwdToggle.title=visible?'Hide password':'Show password';wifiPwdToggle.setAttribute('aria-label',wifiPwdToggle.title);}if(wifiPwdToggle&&wifiNewPassword){wifiPwdToggle.addEventListener('click',function(){wifiNewPassword.type=(wifiNewPassword.type==='password')?'text':'password';syncWifiPwdToggle();});syncWifiPwdToggle();}if(wifiScanBtn)wifiScanBtn.addEventListener('click',function(){scanWifiNow();});if(wifiScanResults)wifiScanResults.addEventListener('change',function(){const v=wifiScanResults.value||'';if(wifiNewSsid&&v)wifiNewSsid.value=v;const sel=wifiScanResults.options[wifiScanResults.selectedIndex];if(wifiNewPassword&&sel&&sel.dataset.secure==='0'){wifiNewPassword.value='';wifiNewPassword.placeholder='Open network (no password)';}else if(wifiNewPassword){wifiNewPassword.placeholder='Password (WPA/WPA2)';}});");
-  html += F("const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');");
+  html += F("const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');const viewHidden=document.getElementById('view_hidden_inputs');");
   html += F("const maxSlots=5;const minPosts=1;const maxPosts=8;let editIndex=-1;");
   html += F("const initialFeeds=[");
   for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
@@ -3564,7 +4219,8 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML=\"<i class='fa-solid fa-rss'></i> RSS feeds \"+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.innerHTML=\"<i class='fa-solid fa-signal'></i>\";t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='btn sm warn';bEdit.innerHTML=\"<i class='fa-solid fa-pen-to-square'></i>Edit\";bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.innerHTML=\"<i class='fa-solid fa-floppy-disk'></i>Update\";setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='btn sm danger';bDel.innerHTML=\"<i class='fa-solid fa-trash-can'></i>Delete\";bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}");
   html += F("function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}");
   html += F("function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}");
-  html += F("if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();});renderFeeds();");
+  html += F("function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_ansi','view_ansi_cb'],['view_doom','view_doom_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}");
+  html += F("if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();");
   html += F("})();</script>");
   html += F("</section></main></body></html>");
   return html;
@@ -3643,7 +4299,17 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   appendJsonEscaped(out, runtimeUiThemeId());
   out += F("\",\"theme_label\":\"");
   appendJsonEscaped(out, runtimeUiThemeLabel());
-  out += F("\",\"themes\":[");
+  out += F("\",\"views\":{\"info\":");
+  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) ? F("true") : F("false");
+  out += F(",\"home\":true,\"aux\":");
+  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) ? F("true") : F("false");
+  out += F(",\"wiki\":");
+  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) ? F("true") : F("false");
+  out += F(",\"ansi\":");
+  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_ANSI) ? F("true") : F("false");
+  out += F(",\"doom\":");
+  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? F("true") : F("false");
+  out += F("},\"themes\":[");
   for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
     if (i) out += ',';
     out += F("{\"id\":\"");
@@ -3671,6 +4337,7 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   RuntimeNetConfig next = g_runtimeNetConfig;
   bool hasInput = false;
   bool langChanged = false;
+  bool wikiLangChanged = false;
   bool wifiPrefChanged = false;
   bool wifiSetupModeChanged = false;
   bool wifiProvisioned = false;
@@ -3809,6 +4476,31 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     copyStringSafe(next.uiTheme, sizeof(next.uiTheme), theme.c_str());
   }
 
+  bool viewsInput = false;
+  struct ViewArgDef { const char *key; uint8_t bit; };
+  static const ViewArgDef kViewArgs[] = {
+      {"view_info", UI_VIEW_FLAG_INFO},
+      {"view_aux", UI_VIEW_FLAG_AUX},
+      {"view_wiki", UI_VIEW_FLAG_WIKI},
+      {"view_ansi", UI_VIEW_FLAG_ANSI},
+      {"view_doom", UI_VIEW_FLAG_DOOM},
+  };
+  for (const ViewArgDef &viewArg : kViewArgs) {
+    if (!g_webConfigServer.hasArg(viewArg.key)) continue;
+    hasInput = true;
+    viewsInput = true;
+    bool enabled = false;
+    if (!parseStrictBool(g_webConfigServer.arg(viewArg.key), enabled)) {
+      errorOut = String(viewArg.key) + " non valido";
+      return false;
+    }
+    if (enabled) next.enabledViewsMask |= viewArg.bit;
+    else next.enabledViewsMask &= (uint8_t)~viewArg.bit;
+  }
+  if (viewsInput) {
+    next.enabledViewsMask = normalizeRuntimeViewMask(next.enabledViewsMask);
+  }
+
   if (g_webConfigServer.hasArg("wifi_setup_mode")) {
     hasInput = true;
     String setupMode = g_webConfigServer.arg("wifi_setup_mode");
@@ -3909,6 +4601,7 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     if (wlValid && strncmp(g_wikiLang, wl.c_str(), sizeof(g_wikiLang)) != 0) {
       strncpy(g_wikiLang, wl.c_str(), sizeof(g_wikiLang) - 1);
       g_wikiLang[sizeof(g_wikiLang) - 1] = '\0';
+      wikiLangChanged = true;
       Serial.printf("[CFG][WEB] wiki_lang='%s'\n", g_wikiLang);
     }
   }
@@ -3935,9 +4628,12 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
       (strncmp(g_runtimeNetConfig.logoUrl, next.logoUrl, sizeof(next.logoUrl)) != 0);
   const bool themeChanged =
       (strncmp(g_runtimeNetConfig.uiTheme, next.uiTheme, sizeof(next.uiTheme)) != 0);
+  const bool viewsChanged =
+      (g_runtimeNetConfig.enabledViewsMask != next.enabledViewsMask);
 
   g_runtimeNetConfig = next;
   normalizeRuntimeUiTheme(g_runtimeNetConfig);
+  g_runtimeNetConfig.enabledViewsMask = normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask);
   syncActiveUiThemeFromRuntimeConfig(g_runtimeNetConfig);
   g_runtimeNetConfig.ready = true;
   const bool nvsSaved = saveRuntimeNetConfigToNvs();
@@ -3960,11 +4656,23 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     strncpy(g_rss.fetchedAt, "--/-- --:--", sizeof(g_rss.fetchedAt) - 1);
     g_rss.fetchedAt[sizeof(g_rss.fetchedAt) - 1] = '\0';
   }
+  if (wikiLangChanged) {
+    g_wiki.valid = false;
+    g_wiki.itemCount = 0;
+    g_wiki.currentIndex = 0;
+    g_wiki.lastFetchMs = 0;
+    g_wiki.lastAttemptMs = 0;
+    g_wiki.lastRotateMs = 0;
+    g_wiki.lastShortenAttemptMs = 0;
+    g_wiki.lastHttpCode = 0;
+    strncpy(g_wiki.fetchedAt, "--/-- --:--", sizeof(g_wiki.fetchedAt) - 1);
+    g_wiki.fetchedAt[sizeof(g_wiki.fetchedAt) - 1] = '\0';
+  }
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
   if (themeChanged && g_lvglReady) lvglApplyThemeStyles(true);
 #endif
 #if TEST_NTP
-  if (weatherChanged || rssChanged || brandingChanged || themeChanged || langChanged) g_uiNeedsRedraw = true;
+  if (weatherChanged || rssChanged || brandingChanged || themeChanged || langChanged || wikiLangChanged || viewsChanged) g_uiNeedsRedraw = true;
 #endif
   if (wifiPrefChanged) {
     if (wifiPrefIdx >= 0) g_wifiReconnectIdx = (uint8_t)wifiPrefIdx;
@@ -3993,12 +4701,16 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   }
   if (weatherChanged) (void)updateWeatherFromApi(true);
   if (rssChanged) (void)updateRssFromFeed(true);
+  if (wikiLangChanged) (void)updateWikiFromFeed(true);
+  if (viewsChanged && !uiPageEnabledNoEnsure(g_uiPageMode)) {
+    setUiPage(uiLastEnabledMainViewNoEnsure());
+  }
   return true;
 }
 
 static const char *statusMessageFromCode(const String &status) {
   if (status == "saved") return "Configuration saved to NVS.";
-  if (status == "reloaded") return "Weather / RSS reload complete.";
+  if (status == "reloaded") return "Weather / RSS / Wiki reload complete.";
   if (status == "invalid") return "Invalid request: please check the fields.";
   return "";
 }
@@ -4123,6 +4835,10 @@ static void handleWebWifiSetupQrSvgApi() {
   wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
 
 #if DB_HAS_QRCODEGEN
+  if (!ensureWebQrBuffers()) {
+    g_webConfigServer.send(500, "text/plain", "QR buffers unavailable");
+    return;
+  }
   const bool ok = qrcodegen_encodeText(
       setupUrl,
       g_webQrTempBuf,
@@ -4203,11 +4919,17 @@ static bool webRequestHasConfigParams() {
   if (g_webConfigServer.hasArg("weather_lat")) return true;
   if (g_webConfigServer.hasArg("weather_lon")) return true;
   if (g_webConfigServer.hasArg("wc_lang")) return true;
+  if (g_webConfigServer.hasArg("wiki_lang")) return true;
   if (g_webConfigServer.hasArg("wifi_pref_ssid")) return true;
   if (g_webConfigServer.hasArg("wifi_setup_mode")) return true;
   if (g_webConfigServer.hasArg("wifi_new_ssid")) return true;
   if (g_webConfigServer.hasArg("wifi_new_password")) return true;
   if (g_webConfigServer.hasArg("ui_theme")) return true;
+  if (g_webConfigServer.hasArg("view_info")) return true;
+  if (g_webConfigServer.hasArg("view_aux")) return true;
+  if (g_webConfigServer.hasArg("view_wiki")) return true;
+  if (g_webConfigServer.hasArg("view_ansi")) return true;
+  if (g_webConfigServer.hasArg("view_doom")) return true;
   if (g_webConfigServer.hasArg("rss_feed_url")) return true;
   if (g_webConfigServer.hasArg("logo_url")) return true;
   for (uint8_t i = 1; i <= RSS_FEED_SLOT_COUNT; ++i) {
@@ -4227,10 +4949,11 @@ static void handleWebReloadForm() {
   }
   const bool wOk = updateWeatherFromApi(true);
   const bool rOk = updateRssFromFeed(true);
+  const bool kOk = updateWikiFromFeed(true);
 #if TEST_NTP
   g_uiNeedsRedraw = true;
 #endif
-  Serial.printf("[WEB] reload weather=%d rss=%d\n", wOk ? 1 : 0, rOk ? 1 : 0);
+  Serial.printf("[WEB] reload weather=%d rss=%d wiki=%d\n", wOk ? 1 : 0, rOk ? 1 : 0, kOk ? 1 : 0);
   webConfigRedirect("reloaded");
 }
 
@@ -4244,11 +4967,14 @@ static void handleWebReloadApi() {
   }
   const bool wOk = updateWeatherFromApi(true);
   const bool rOk = updateRssFromFeed(true);
+  const bool kOk = updateWikiFromFeed(true);
   String msg = "weather=";
   msg += (wOk ? "ok" : "fail");
   msg += ",rss=";
   msg += (rOk ? "ok" : "fail");
-  sendWebConfigJson((wOk || rOk) ? 200 : 503, (wOk || rOk), msg.c_str());
+  msg += ",wiki=";
+  msg += (kOk ? "ok" : "fail");
+  sendWebConfigJson((wOk || rOk || kOk) ? 200 : 503, (wOk || rOk || kOk), msg.c_str());
 }
 
 static void ensureWebConfigServerStarted() {
@@ -5850,6 +6576,14 @@ static bool rssExtractWikipediaArticleRef(const char *url, String &hostOut, Stri
   return true;
 }
 
+static bool buildHttpDowngradeUrl(const char *srcUrl, char *out, size_t outLen) {
+  if (!srcUrl || !out || outLen == 0) return false;
+  if (strncmp(srcUrl, "https://", 8) != 0) return false;
+  snprintf(out, outLen, "http://%s", srcUrl + 8);
+  out[outLen - 1] = '\0';
+  return true;
+}
+
 static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSummary) {
   outSummary = "";
   if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
@@ -5858,30 +6592,58 @@ static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSumm
   if (!rssExtractWikipediaArticleRef(articleUrl, wikiHost, wikiTitlePath)) return false;
 
   const String apiUrl = String("https://") + wikiHost + "/api/rest_v1/page/summary/" + wikiTitlePath;
-  WiFiClientSecure tls;
-  tls.setInsecure();
-  HTTPClient http;
-  http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
-  http.setTimeout(RSS_HTTP_TIMEOUT_MS);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  if (!http.begin(tls, apiUrl)) return false;
-  http.addHeader("Accept", "application/json");
-  http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
-  const int code = http.GET();
-  if (code != HTTP_CODE_OK) {
-    http.end();
-    return false;
-  }
-  const String body = http.getString();
-  http.end();
-  if (body.length() == 0) return false;
+  char httpFallback[320];
+  const char *requestUrl = apiUrl.c_str();
+  bool triedHttpFallback = false;
 
-  String summary;
-  if (extractJsonStringFieldLoose(body, "\"extract\"", summary)) {
-    normalizeRssText(summary);
-    if (summary.length() > 0) outSummary = summary;
+  while (true) {
+    HTTPClient http;
+    http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
+    http.setTimeout(RSS_HTTP_TIMEOUT_MS);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.useHTTP10(true);
+
+    bool beginOk = false;
+    WiFiClientSecure tls;
+    if (strncmp(requestUrl, "https://", 8) == 0) {
+      tls.setInsecure();
+      tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
+      beginOk = http.begin(tls, requestUrl);
+    } else {
+      beginOk = http.begin(requestUrl);
+    }
+    if (!beginOk) {
+      if (!triedHttpFallback && buildHttpDowngradeUrl(requestUrl, httpFallback, sizeof(httpFallback))) {
+        triedHttpFallback = true;
+        requestUrl = httpFallback;
+        continue;
+      }
+      return false;
+    }
+    http.addHeader("Accept", "application/json");
+    http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
+    http.addHeader("Connection", "close");
+    const int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+      http.end();
+      if (code < 0 && !triedHttpFallback && buildHttpDowngradeUrl(requestUrl, httpFallback, sizeof(httpFallback))) {
+        triedHttpFallback = true;
+        requestUrl = httpFallback;
+        continue;
+      }
+      return false;
+    }
+    const String body = http.getString();
+    http.end();
+    if (body.length() == 0) return false;
+
+    String summary;
+    if (extractJsonStringFieldLoose(body, "\"extract\"", summary)) {
+      normalizeRssText(summary);
+      if (summary.length() > 0) outSummary = summary;
+    }
+    return outSummary.length() > 0;
   }
-  return outSummary.length() > 0;
 }
 
 static bool rssTryEnrichItemWikipediaMeta(RssItem &item) {
@@ -6014,45 +6776,105 @@ static uint32_t rssSiteColorHexFromHost(const char *host) {
 static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint8_t cap, int *httpCodeOut) {
   if (httpCodeOut) *httpCodeOut = -1;
   if (!feedUrl || !feedUrl[0] || !outItems || cap == 0) return 0;
+  char httpFallback[RSS_FEED_URL_LEN];
+  const char *requestUrl = feedUrl;
+  bool triedHttpFallback = false;
 
-  HTTPClient http;
-  http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
-  http.setTimeout(RSS_HTTP_TIMEOUT_MS);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  while (true) {
+    HTTPClient http;
+    http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
+    http.setTimeout(RSS_HTTP_TIMEOUT_MS);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.useHTTP10(true);
 
-  bool beginOk = false;
-  WiFiClientSecure tls;
-  if (strncmp(feedUrl, "https://", 8) == 0) {
-    tls.setInsecure();
-    beginOk = http.begin(tls, feedUrl);
-  } else {
-    beginOk = http.begin(feedUrl);
-  }
-  if (!beginOk) return 0;
+    bool beginOk = false;
+    WiFiClientSecure tls;
+    if (strncmp(requestUrl, "https://", 8) == 0) {
+      tls.setInsecure();
+      tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
+      beginOk = http.begin(tls, requestUrl);
+    } else {
+      beginOk = http.begin(requestUrl);
+    }
+    if (!beginOk) {
+      Serial.printf("[RSS][HTTP] begin failed feed=%s heap=%u psram=%u\n",
+                    requestUrl,
+                    (unsigned)ESP.getFreeHeap(),
+                    (unsigned)ESP.getFreePsram());
+      if (!triedHttpFallback && buildHttpDowngradeUrl(requestUrl, httpFallback, sizeof(httpFallback))) {
+        triedHttpFallback = true;
+        requestUrl = httpFallback;
+        continue;
+      }
+      return 0;
+    }
 
-  pumpWebUiDuringIo();
-  const int code = http.GET();
-  if (httpCodeOut) *httpCodeOut = code;
-  if (code != HTTP_CODE_OK) {
+    http.addHeader("Accept", "application/rss+xml, application/xml, text/xml, application/atom+xml;q=0.9, */*;q=0.1");
+    http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
+    http.addHeader("Connection", "close");
+
+    pumpWebUiDuringIo();
+    const int code = http.GET();
+    if (httpCodeOut) *httpCodeOut = code;
+    if (code != HTTP_CODE_OK) {
+      Serial.printf("[RSS][HTTP] GET fail feed=%s code=%d heap=%u psram=%u\n",
+                    requestUrl,
+                    code,
+                    (unsigned)ESP.getFreeHeap(),
+                    (unsigned)ESP.getFreePsram());
+      http.end();
+      if (code < 0 && !triedHttpFallback && buildHttpDowngradeUrl(requestUrl, httpFallback, sizeof(httpFallback))) {
+        triedHttpFallback = true;
+        requestUrl = httpFallback;
+        continue;
+      }
+      return 0;
+    }
+
+    pumpWebUiDuringIo();
+    String payload = http.getString();
     http.end();
-    return 0;
+    if (payload.length() <= 0) return 0;
+    const uint8_t parsed = parseRssItems(payload, outItems, cap);
+    if (parsed == 0) {
+      String preview = payload;
+      preview.replace('\n', ' ');
+      preview.replace('\r', ' ');
+      if (preview.length() > 160) preview = preview.substring(0, 160) + "...";
+      Serial.printf("[RSS][PARSE] zero-items url=%s code=%d preview=%s\n", requestUrl, code, preview.c_str());
+    }
+    return parsed;
   }
+}
 
-  pumpWebUiDuringIo();
-  String payload = http.getString();
-  http.end();
-  if (payload.length() <= 0) return 0;
-  return parseRssItems(payload, outItems, cap);
+static RssItem *ensureRssParseBuf() {
+  if (g_rssParseBuf) return g_rssParseBuf;
+  g_rssParseBuf = (RssItem *)ps_calloc(RSS_MAX_ITEMS, sizeof(RssItem));
+  if (!g_rssParseBuf) g_rssParseBuf = (RssItem *)calloc(RSS_MAX_ITEMS, sizeof(RssItem));
+  if (!g_rssParseBuf) {
+    Serial.printf("[RSS][OOM] parse buf alloc failed bytes=%u heap=%u psram=%u\n",
+                  (unsigned)(RSS_MAX_ITEMS * sizeof(RssItem)),
+                  (unsigned)ESP.getFreeHeap(),
+                  (unsigned)ESP.getFreePsram());
+    return nullptr;
+  }
+  Serial.printf("[RSS] parse buf ready bytes=%u heap=%u psram=%u\n",
+                (unsigned)(RSS_MAX_ITEMS * sizeof(RssItem)),
+                (unsigned)ESP.getFreeHeap(),
+                (unsigned)ESP.getFreePsram());
+  return g_rssParseBuf;
 }
 
 static bool updateRssFromFeed(bool force) {
   if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
+  RssItem *parseBuf = ensureRssParseBuf();
+  if (!parseBuf) return false;
   const uint32_t now = millis();
   const uint32_t waitMs = g_rss.valid ? rssRefreshIntervalByEnergy() : rssRetryIntervalByEnergy();
   if (!force && g_rss.lastAttemptMs != 0 && (now - g_rss.lastAttemptMs) < waitMs) return g_rss.valid;
   g_rss.lastAttemptMs = now;
 
-  memset(g_rssParseBuf, 0, sizeof(g_rssParseBuf));
+  memset(parseBuf, 0, sizeof(RssItem) * RSS_MAX_ITEMS);
   uint8_t count = 0;
   uint8_t feedsTried = 0;
   uint8_t feedsWithItems = 0;
@@ -6078,16 +6900,46 @@ static bool updateRssFromFeed(bool force) {
     }
     if (feedCap > remaining) feedCap = remaining;
     int httpCode = 0;
-    const uint8_t got = fetchRssItemsFromUrl(feed->url, &g_rssParseBuf[count], feedCap, &httpCode);
+    const uint8_t got = fetchRssItemsFromUrl(feed->url, &parseBuf[count], feedCap, &httpCode);
     pumpWebUiDuringIo();
     if (got > 0) {
       for (uint8_t k = 0; k < got; ++k) {
-        g_rssParseBuf[count + k].feedSlot = slot;
+        parseBuf[count + k].feedSlot = slot;
       }
       count = (uint8_t)(count + got);
       ++feedsWithItems;
     } else if (firstHttpErr == 0 && httpCode != 0) {
       firstHttpErr = httpCode;
+    }
+  }
+
+  if (count == 0 && startsWithHttp(RSS_FEED_URL)) {
+    bool alreadyConfigured = false;
+    for (uint8_t slot = 0; slot < RSS_FEED_SLOT_COUNT; ++slot) {
+      const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(slot);
+      if (!feed || !startsWithHttp(feed->url)) continue;
+      if (strncmp(feed->url, RSS_FEED_URL, sizeof(feed->url)) == 0) {
+        alreadyConfigured = true;
+        break;
+      }
+    }
+    if (!alreadyConfigured || configuredFeeds == 0) {
+      ++feedsTried;
+      int httpCode = 0;
+      const uint8_t got = fetchRssItemsFromUrl(RSS_FEED_URL,
+                                               &parseBuf[count],
+                                               clampRssFeedMaxItems(RSS_DEFAULT_FEED_ITEMS),
+                                               &httpCode);
+      if (got > 0) {
+        for (uint8_t k = 0; k < got; ++k) {
+          parseBuf[count + k].feedSlot = 0;
+        }
+        count = (uint8_t)(count + got);
+        ++feedsWithItems;
+        Serial.printf("[RSS] fallback default feed used url=%s items=%u\n", RSS_FEED_URL, (unsigned)got);
+      } else if (firstHttpErr == 0 && httpCode != 0) {
+        firstHttpErr = httpCode;
+      }
     }
   }
 
@@ -6101,11 +6953,11 @@ static bool updateRssFromFeed(bool force) {
   const bool changed =
       (!g_rss.valid) ||
       (g_rss.itemCount != count) ||
-      (strncmp(g_rss.items[0].title, g_rssParseBuf[0].title, sizeof(g_rss.items[0].title) - 1) != 0);
+      (strncmp(g_rss.items[0].title, parseBuf[0].title, sizeof(g_rss.items[0].title) - 1) != 0);
 
   g_rss.itemCount = count;
   for (uint8_t i = 0; i < count; ++i) {
-    g_rss.items[i] = g_rssParseBuf[i];
+    g_rss.items[i] = parseBuf[i];
     char cachedShort[sizeof(g_rss.items[i].shortLink)] = {0};
     if (g_rss.items[i].link[0] && rssShortCacheLookup(g_rss.items[i].link, cachedShort, sizeof(cachedShort))) {
       strncpy(g_rss.items[i].shortLink, cachedShort, sizeof(g_rss.items[i].shortLink) - 1);
@@ -6183,25 +7035,57 @@ static bool fetchWikiRandomArticle(RssItem &item) {
   snprintf(url, sizeof(url),
            "https://%s.wikipedia.org/api/rest_v1/page/random/summary",
            g_wikiLang);
+  char httpFallback[160];
+  const char *requestUrl = url;
+  bool triedHttpFallback = false;
+  String payload;
 
-  HTTPClient http;
-  http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
-  http.setTimeout(RSS_HTTP_TIMEOUT_MS);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  while (true) {
+    HTTPClient http;
+    http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
+    http.setTimeout(RSS_HTTP_TIMEOUT_MS);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.useHTTP10(true);
 
-  WiFiClientSecure tls;
-  tls.setInsecure();
-  if (!http.begin(tls, url)) return false;
-  http.addHeader("Accept", "application/json; charset=utf-8");
+    bool beginOk = false;
+    WiFiClientSecure tls;
+    if (strncmp(requestUrl, "https://", 8) == 0) {
+      tls.setInsecure();
+      tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
+      beginOk = http.begin(tls, requestUrl);
+    } else {
+      beginOk = http.begin(requestUrl);
+    }
+    if (!beginOk) {
+      if (!triedHttpFallback && buildHttpDowngradeUrl(requestUrl, httpFallback, sizeof(httpFallback))) {
+        triedHttpFallback = true;
+        requestUrl = httpFallback;
+        continue;
+      }
+      return false;
+    }
+    http.addHeader("Accept", "application/json; charset=utf-8");
+    http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
+    http.addHeader("Connection", "close");
 
-  pumpWebUiDuringIo();
-  const int code = http.GET();
-  if (code != HTTP_CODE_OK) { http.end(); return false; }
+    pumpWebUiDuringIo();
+    const int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+      http.end();
+      if (code < 0 && !triedHttpFallback && buildHttpDowngradeUrl(requestUrl, httpFallback, sizeof(httpFallback))) {
+        triedHttpFallback = true;
+        requestUrl = httpFallback;
+        continue;
+      }
+      return false;
+    }
 
-  pumpWebUiDuringIo();
-  String payload = http.getString();
-  http.end();
-  if (payload.length() == 0) return false;
+    pumpWebUiDuringIo();
+    payload = http.getString();
+    http.end();
+    if (payload.length() == 0) return false;
+    break;
+  }
 
   String title, extract, pageUrl, thumbUrl;
   if (!extractJsonStringField(payload, "title", title)) return false;
@@ -6243,12 +7127,14 @@ static bool fetchWikiRandomArticle(RssItem &item) {
 
 static bool updateWikiFromFeed(bool force) {
   if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
+  RssItem *parseBuf = ensureRssParseBuf();
+  if (!parseBuf) return false;
   const uint32_t now = millis();
   const uint32_t waitMs = g_wiki.valid ? rssRefreshIntervalByEnergy() : rssRetryIntervalByEnergy();
   if (!force && g_wiki.lastAttemptMs != 0 && (now - g_wiki.lastAttemptMs) < waitMs) return g_wiki.valid;
   g_wiki.lastAttemptMs = now;
 
-  memset(g_rssParseBuf, 0, sizeof(g_rssParseBuf));
+  memset(parseBuf, 0, sizeof(RssItem) * RSS_MAX_ITEMS);
   uint8_t count = 0;
   uint8_t feedsTried = 0;
   uint8_t feedsWithItems = 0;
@@ -6298,20 +7184,20 @@ static bool updateWikiFromFeed(bool force) {
           const uint8_t take = (parsed < feedCap) ? parsed : feedCap;
           const uint8_t skip = parsed - take;
           for (uint8_t k = 0; k < take; ++k) {
-            g_rssParseBuf[count + k] = tmpBuf[skip + k];
+            parseBuf[count + k] = tmpBuf[skip + k];
           }
           got = take;
         }
         free(tmpBuf);
       } else {
-        got = fetchRssItemsFromUrl(feedUrl, &g_rssParseBuf[count], feedCap, &httpCode);
+        got = fetchRssItemsFromUrl(feedUrl, &parseBuf[count], feedCap, &httpCode);
       }
     }
 
     pumpWebUiDuringIo();
     if (got > 0) {
       for (uint8_t k = 0; k < got; ++k) {
-        g_rssParseBuf[count + k].feedSlot = slot;
+        parseBuf[count + k].feedSlot = slot;
       }
       count = (uint8_t)(count + got);
       ++feedsWithItems;
@@ -6320,14 +7206,17 @@ static bool updateWikiFromFeed(bool force) {
     }
   }
 
-  // Slot 2: Random article via REST API (JSON, not RSS)
-  if (count < RSS_MAX_ITEMS) {
+  // Slot 2: Random article via REST API (JSON, not RSS).
+  // If the feed endpoints are empty or blocked, keep this view alive by pulling
+  // multiple random summaries instead of failing hard with ERR -1.
+  const uint8_t randomTarget = (count == 0) ? 3 : 1;
+  for (uint8_t attempt = 0; attempt < randomTarget && count < RSS_MAX_ITEMS; ++attempt) {
     ++feedsTried;
     pumpWebUiDuringIo();
     RssItem randomItem;
     memset(&randomItem, 0, sizeof(randomItem));
     if (fetchWikiRandomArticle(randomItem)) {
-      g_rssParseBuf[count] = randomItem;
+      parseBuf[count] = randomItem;
       ++count;
       ++feedsWithItems;
     }
@@ -6342,11 +7231,11 @@ static bool updateWikiFromFeed(bool force) {
   const bool changed =
       (!g_wiki.valid) ||
       (g_wiki.itemCount != count) ||
-      (strncmp(g_wiki.items[0].title, g_rssParseBuf[0].title, sizeof(g_wiki.items[0].title) - 1) != 0);
+      (strncmp(g_wiki.items[0].title, parseBuf[0].title, sizeof(g_wiki.items[0].title) - 1) != 0);
 
   g_wiki.itemCount = count;
   for (uint8_t i = 0; i < count; ++i) {
-    g_wiki.items[i] = g_rssParseBuf[i];
+    g_wiki.items[i] = parseBuf[i];
     char cachedShort[sizeof(g_wiki.items[i].shortLink)] = {0};
     if (g_wiki.items[i].link[0] && rssShortCacheLookup(g_wiki.items[i].link, cachedShort, sizeof(cachedShort))) {
       strncpy(g_wiki.items[i].shortLink, cachedShort, sizeof(g_wiki.items[i].shortLink) - 1);
@@ -6519,6 +7408,18 @@ static void wikiPreloadVisibleItemStep() {
 
 }
 
+static void printTlsDiagResult(const char *label, WiFiClientSecure &client, bool ok) {
+  char errBuf[96] = {0};
+  const int lastErr = client.lastError(errBuf, sizeof(errBuf));
+  Serial.printf("[RSSDIAG] tls %s ok=%d last_err=%d detail=%s heap=%u psram=%u\n",
+                label ? label : "?",
+                ok ? 1 : 0,
+                lastErr,
+                errBuf[0] ? errBuf : "-",
+                (unsigned)ESP.getFreeHeap(),
+                (unsigned)ESP.getFreePsram());
+}
+
 static void runRssShortenerDiag() {
   Serial.println("[RSSDIAG] begin");
 #if WIFI_DNS_OVERRIDE_ENABLED
@@ -6552,15 +7453,38 @@ static void runRssShortenerDiag() {
   Serial.printf("[RSSDIAG] tcp api.spoo.me:443 ok=%d\n", tcpApi ? 1 : 0);
   if (tcpApi) tcp.stop();
 
-  WiFiClientSecure tls;
-  tls.setInsecure();
-  tls.setTimeout((RSS_SHORTENER_HTTP_TIMEOUT_MS + 999U) / 1000U);
-  const bool tlsSpoo = tls.connect("spoo.me", 443);
-  Serial.printf("[RSSDIAG] tls spoo.me:443 ok=%d\n", tlsSpoo ? 1 : 0);
-  if (tlsSpoo) tls.stop();
-  const bool tlsApi = tls.connect("api.spoo.me", 443);
-  Serial.printf("[RSSDIAG] tls api.spoo.me:443 ok=%d\n", tlsApi ? 1 : 0);
-  if (tlsApi) tls.stop();
+  {
+    WiFiClientSecure tls;
+    tls.setInsecure();
+    tls.setHandshakeTimeout((RSS_SHORTENER_HTTP_TIMEOUT_MS + 999U) / 1000U);
+    const bool ok = tls.connect("spoo.me", 443);
+    printTlsDiagResult("spoo.me:443", tls, ok);
+    if (ok) tls.stop();
+  }
+  {
+    WiFiClientSecure tls;
+    tls.setInsecure();
+    tls.setHandshakeTimeout((RSS_SHORTENER_HTTP_TIMEOUT_MS + 999U) / 1000U);
+    const bool ok = tls.connect("api.spoo.me", 443);
+    printTlsDiagResult("api.spoo.me:443", tls, ok);
+    if (ok) tls.stop();
+  }
+  {
+    WiFiClientSecure tls;
+    tls.setInsecure();
+    tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
+    const bool ok = tls.connect("rss.nytimes.com", 443);
+    printTlsDiagResult("rss.nytimes.com:443", tls, ok);
+    if (ok) tls.stop();
+  }
+  {
+    WiFiClientSecure tls;
+    tls.setInsecure();
+    tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
+    const bool ok = tls.connect("it.wikipedia.org", 443);
+    printTlsDiagResult("it.wikipedia.org:443", tls, ok);
+    if (ok) tls.stop();
+  }
 
   {
     String shortUrl;
@@ -6916,43 +7840,145 @@ static const char* uiPageName(UiPageMode mode) {
       return "WIKI";
     case UI_PAGE_ANSI:
       return "ANSI";
+    case UI_PAGE_DOOM:
+      return "DOOM";
     case UI_PAGE_HOME:
     default:
       return "HOME";
   }
 }
 
-static int8_t uiPageOrdinal(UiPageMode mode) {
+static uint8_t uiViewFlagForPage(UiPageMode mode) {
   switch (mode) {
-    case UI_PAGE_INFO: return 0;
-    case UI_PAGE_HOME: return 1;
-    case UI_PAGE_AUX: return 2;
-    case UI_PAGE_WIKI: return 3;
-    case UI_PAGE_ANSI: return 4;
-    default: return 1;
+    case UI_PAGE_INFO: return UI_VIEW_FLAG_INFO;
+    case UI_PAGE_AUX:  return UI_VIEW_FLAG_AUX;
+    case UI_PAGE_WIKI: return UI_VIEW_FLAG_WIKI;
+    case UI_PAGE_ANSI: return UI_VIEW_FLAG_ANSI;
+    case UI_PAGE_DOOM: return UI_VIEW_FLAG_DOOM;
+    case UI_PAGE_HOME:
+    default:
+      return 0;
   }
 }
 
+static bool uiPageEnabledNoEnsure(UiPageMode mode) {
+  if (mode == UI_PAGE_HOME) return true;
+  if (mode == UI_PAGE_DOOM) {
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+    return (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) != 0;
+#else
+    return false;
+#endif
+  }
+  const uint8_t flag = uiViewFlagForPage(mode);
+  return (flag != 0) && ((g_runtimeNetConfig.enabledViewsMask & flag) != 0);
+}
+
+static bool uiPageEnabled(UiPageMode mode) {
+  ensureRuntimeNetConfig();
+  return uiPageEnabledNoEnsure(mode);
+}
+
+static bool uiPageInSwipeCarousel(UiPageMode mode) {
+  switch (mode) {
+    case UI_PAGE_INFO:
+    case UI_PAGE_HOME:
+    case UI_PAGE_AUX:
+    case UI_PAGE_WIKI:
+    case UI_PAGE_DOOM:
+      return true;
+    case UI_PAGE_ANSI:
+    default:
+      return false;
+  }
+}
+
+static const UiPageMode kSwipePageOrder[] = {
+    UI_PAGE_INFO,
+    UI_PAGE_HOME,
+    UI_PAGE_AUX,
+    UI_PAGE_WIKI,
+    UI_PAGE_DOOM,
+};
+
+static int8_t uiSwipePageCountNoEnsure() {
+  int8_t count = 0;
+  for (UiPageMode mode : kSwipePageOrder) {
+    if (uiPageEnabledNoEnsure(mode)) ++count;
+  }
+  return count;
+}
+
+static UiPageMode uiFirstEnabledSwipePageNoEnsure() {
+  for (UiPageMode mode : kSwipePageOrder) {
+    if (uiPageEnabledNoEnsure(mode)) return mode;
+  }
+  return UI_PAGE_HOME;
+}
+
+static UiPageMode uiLastEnabledSwipePageNoEnsure() {
+  for (int i = (int)(sizeof(kSwipePageOrder) / sizeof(kSwipePageOrder[0])) - 1; i >= 0; --i) {
+    if (uiPageEnabledNoEnsure(kSwipePageOrder[i])) return kSwipePageOrder[i];
+  }
+  return UI_PAGE_HOME;
+}
+
+static UiPageMode uiLastEnabledMainViewNoEnsure() {
+  for (int i = (int)(sizeof(kSwipePageOrder) / sizeof(kSwipePageOrder[0])) - 1; i >= 0; --i) {
+    const UiPageMode mode = kSwipePageOrder[i];
+    if (mode == UI_PAGE_INFO) continue;
+    if (uiPageEnabledNoEnsure(mode)) return mode;
+  }
+  return UI_PAGE_HOME;
+}
+
+static int8_t uiPageOrdinal(UiPageMode mode) {
+  ensureRuntimeNetConfig();
+  if (!uiPageInSwipeCarousel(mode) || !uiPageEnabledNoEnsure(mode)) return -1;
+  int8_t ord = 0;
+  for (UiPageMode it : kSwipePageOrder) {
+    if (!uiPageEnabledNoEnsure(it)) continue;
+    if (it == mode) return ord;
+    ++ord;
+  }
+  return -1;
+}
+
 static UiPageMode uiPageFromOrdinal(int8_t ord) {
-  if (ord <= 0) return UI_PAGE_INFO;
-  if (ord == 1) return UI_PAGE_HOME;
-  if (ord == 2) return UI_PAGE_AUX;
-  if (ord == 3) return UI_PAGE_WIKI;
-  return UI_PAGE_ANSI;
+  ensureRuntimeNetConfig();
+  if (ord <= 0) return uiFirstEnabledSwipePageNoEnsure();
+  int8_t idx = 0;
+  UiPageMode lastEnabled = UI_PAGE_HOME;
+  for (UiPageMode mode : kSwipePageOrder) {
+    if (!uiPageEnabledNoEnsure(mode)) continue;
+    lastEnabled = mode;
+    if (idx == ord) return mode;
+    ++idx;
+  }
+  return lastEnabled;
 }
 
 static void setUiPage(UiPageMode mode);
 
 static bool stepUiPage(int8_t delta, bool wrap) {
+  ensureRuntimeNetConfig();
+  const int8_t pageCount = uiSwipePageCountNoEnsure();
+  if (pageCount <= 0) return false;
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
+  if (cur < 0) {
+    const UiPageMode fallback = (delta < 0) ? uiLastEnabledSwipePageNoEnsure() : uiFirstEnabledSwipePageNoEnsure();
+    if (g_uiPageMode == fallback) return false;
+    setUiPage(fallback);
+    return true;
+  }
   int8_t next = (int8_t)(cur + delta);
-  constexpr int8_t kMaxPageOrd = 4;
+  const int8_t maxOrd = pageCount - 1;
   if (wrap) {
-    if (next < 0) next = kMaxPageOrd;
-    if (next > kMaxPageOrd) next = 0;
+    if (next < 0) next = maxOrd;
+    if (next > maxOrd) next = 0;
   } else {
     if (next < 0) next = 0;
-    if (next > kMaxPageOrd) next = kMaxPageOrd;
+    if (next > maxOrd) next = maxOrd;
   }
   if (next == cur) return false;
   setUiPage(uiPageFromOrdinal(next));
@@ -7518,6 +8544,10 @@ static void lvglSetFeedNextFeedButtonPressed(bool pressed) { (void)pressed; }
 #endif
 
 static void setUiPage(UiPageMode mode) {
+  ensureRuntimeNetConfig();
+  if (!uiPageEnabledNoEnsure(mode)) {
+    mode = (mode == UI_PAGE_ANSI) ? uiLastEnabledMainViewNoEnsure() : uiFirstEnabledSwipePageNoEnsure();
+  }
   if (g_uiPageMode == mode) return;
 #if TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
   // Exit ANSI view: restore landscape mirror, hide ANSI root
@@ -7534,6 +8564,24 @@ static void setUiPage(UiPageMode mode) {
     ansiFlushViewport(); // immediate first frame
   }
 #endif
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+  if (g_uiPageMode == UI_PAGE_DOOM && mode != UI_PAGE_DOOM) {
+    if (g_lvglDoomRoot) lv_obj_add_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
+    g_doomTouchZone = DOOM_TOUCH_NONE;
+    g_doomNeutralPending = false;
+  }
+  if (mode == UI_PAGE_DOOM && g_uiPageMode != UI_PAGE_DOOM) {
+    if (g_lvglDoomRoot) lv_obj_clear_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
+    g_doomTouchZone = DOOM_TOUCH_NONE;
+#if DB_HAS_PRBOOM_DONOR
+    g_doomLaunchRequested = doomPrboomIsRunning();
+#else
+    g_doomLaunchRequested = false;
+#endif
+    doomRequestNeutralCalibrate();
+    g_doomFrameDirty = true;
+  }
+#endif
   if (!uiPageIsFeedDeck(mode)) {
     lvglSetDeckQrModalOpen(g_auxDeck, false);
     lvglSetDeckQrModalOpen(g_wikiDeck, false);
@@ -7547,6 +8595,12 @@ static void setUiPage(UiPageMode mode) {
     g_wikiDeck.lastQrPayload[0] = '\0';
   }
   g_uiPageMode = mode;
+#if TEST_IMU
+  syncImuActiveForUi();
+#endif
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+  if (mode == UI_PAGE_DOOM) doomRenderSpike(true);
+#endif
 #if TEST_WIFI && RSS_ENABLED
   if (mode == UI_PAGE_WIKI) g_wikiVisiblePreloadLastMs = 0;
 #endif
@@ -7562,7 +8616,7 @@ static void setUiPage(UiPageMode mode) {
 
 static void toggleUiPage() {
   if (g_uiPageMode == UI_PAGE_HOME) {
-    setUiPage(UI_PAGE_AUX);
+    setUiPage(uiPageEnabled(UI_PAGE_AUX) ? UI_PAGE_AUX : uiLastEnabledMainViewNoEnsure());
     return;
   }
   setUiPage(UI_PAGE_HOME);
@@ -7573,7 +8627,8 @@ static void jumpToFirstMainView() {
 }
 
 static void jumpToLastMainView() {
-  setUiPage(UI_PAGE_WIKI);
+  ensureRuntimeNetConfig();
+  setUiPage(uiLastEnabledMainViewNoEnsure());
 }
 
 static void toggleClockMode() {
@@ -8361,6 +9416,14 @@ static void handleTouchSwipeInput() {
         lvglSetFeedNextFeedButtonPressed(true);
         Serial.printf("[TOUCH] btn-down NXT x=%d y=%d\n", x, y);
       }
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+      if (g_uiPageMode == UI_PAGE_DOOM) {
+        g_doomTouchZone = doomTouchZoneFromX(x);
+        g_doomFrameDirty = true;
+        Serial.printf("[DOOM][TOUCH] down zone=%s x=%d y=%d\n",
+                      doomTouchZoneName(g_doomTouchZone), x, y);
+      }
+#endif
     }
     g_touchLastX = x;
     g_touchLastY = y;
@@ -8373,15 +9436,18 @@ static void handleTouchSwipeInput() {
       const int16_t liveDx = g_touchLastX - g_touchStartX;
       const int16_t liveDy = g_touchLastY - g_touchStartY;
       if (abs(liveDx) >= kAnsiExitPx || abs(liveDy) >= kAnsiExitPx) {
-        setUiPage(UI_PAGE_WIKI);
+        setUiPage(uiLastEnabledMainViewNoEnsure());
         g_lastSwipeToggleMs = millis();
         g_touchDown = false;
         g_touchMissCount = 0;
         g_touchAwaitRelease = true;
         g_touchReleaseStartMs = 0;
-        Serial.printf("[TOUCH] ansi-drag-exit dx=%d dy=%d -> WIKI\n", liveDx, liveDy);
+        Serial.printf("[TOUCH] ansi-drag-exit dx=%d dy=%d -> %s\n", liveDx, liveDy, uiPageName(g_uiPageMode));
         return;
       }
+    }
+    if (g_uiPageMode == UI_PAGE_DOOM) {
+      return;
     }
 #endif
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
@@ -8436,6 +9502,11 @@ static void handleTouchSwipeInput() {
                          abs(dy) <= 72);
   const TouchAuxButton touchAuxBtnDown = g_touchAuxBtnDown;
   g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
+  const uint8_t doomTouchZone = g_doomTouchZone;
+  g_doomTouchZone = DOOM_TOUCH_NONE;
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+  if (doomTouchZone != DOOM_TOUCH_NONE) g_doomFrameDirty = true;
+#endif
   if (touchAuxBtnDown == TOUCH_AUX_BTN_QR) lvglSetFeedQrButtonPressed(false);
   else if (touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) lvglSetFeedRefreshButtonPressed(false);
   else if (touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) lvglSetFeedNextFeedButtonPressed(false);
@@ -8531,6 +9602,63 @@ static void handleTouchSwipeInput() {
 #endif
   }
 
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+  if (g_uiPageMode == UI_PAGE_DOOM) {
+    if (pageSwipe) {
+      UiPageMode doomExit = uiLastEnabledMainViewNoEnsure();
+      const int8_t doomOrd = uiPageOrdinal(UI_PAGE_DOOM);
+      if (doomOrd > 0) doomExit = uiPageFromOrdinal(doomOrd - 1);
+      setUiPage(doomExit);
+      g_lastSwipeToggleMs = millis();
+      g_touchAwaitRelease = true;
+      g_touchReleaseStartMs = 0;
+      Serial.printf("[DOOM][TOUCH] swipe-exit zone=%s dx=%d dy=%d dur=%lums -> %s\n",
+                    doomTouchZoneName(doomTouchZone),
+                    dx,
+                    dy,
+                    (unsigned long)durMs,
+                    uiPageName(g_uiPageMode));
+      return;
+    }
+    if (doomTouchZone == DOOM_TOUCH_LEFT || doomTouchZone == DOOM_TOUCH_RIGHT) {
+      bool doomLaunching = g_doomLaunchRequested;
+#if DB_HAS_PRBOOM_DONOR
+      doomLaunching = doomLaunching || doomPrboomIsRunning();
+#endif
+      if (!doomLaunching && doomTouchZone == DOOM_TOUCH_RIGHT && isTap) {
+        g_doomLaunchRequested = true;
+        g_doomFrameDirty = true;
+#if DB_HAS_PRBOOM_DONOR
+        doomPrboomEnsureStarted();
+#endif
+        Serial.printf("[DOOM][TOUCH] zone=%s action=START tap=1 -> boot core\n",
+                      doomTouchZoneName(doomTouchZone));
+        g_touchAwaitRelease = true;
+        g_touchReleaseStartMs = 0;
+        return;
+      }
+      const char *action = (doomTouchZone == DOOM_TOUCH_LEFT) ? "USE" : "FIRE";
+      Serial.printf("[DOOM][TOUCH] zone=%s action=%s tap=%d dx=%d dy=%d dur=%lums\n",
+                    doomTouchZoneName(doomTouchZone),
+                    action,
+                    isTap ? 1 : 0,
+                    dx,
+                    dy,
+                    (unsigned long)durMs);
+      g_touchAwaitRelease = true;
+      g_touchReleaseStartMs = 0;
+      return;
+    }
+    if (isTap) {
+      doomRequestNeutralCalibrate();
+      g_touchAwaitRelease = true;
+      g_touchReleaseStartMs = 0;
+      Serial.printf("[DOOM][TOUCH] center-tap recalibrate x=%d y=%d\n", g_touchStartX, g_touchStartY);
+      return;
+    }
+  }
+#endif
+
   if (durMs > 3000) return;
   if (uiPageIsFeedDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
     if (durMs <= 2500) {
@@ -8543,20 +9671,31 @@ static void handleTouchSwipeInput() {
   }
   if ((millis() - g_lastSwipeToggleMs) < 140) return;
 
-  // ANSI view: any swipe exits back to WIKI (ANSI is the last page, ordinal 4,
-  // so forward-swipe has nowhere to go; treat both directions as "back to WIKI").
+  // ANSI view is direct-only for now: any swipe exits back to the last enabled
+  // main page rather than trying to infer bidirectional portrait carousel intent.
 #if TEST_DISPLAY
   if (ansiSwipe) {
-    setUiPage(UI_PAGE_WIKI);
+    setUiPage(uiLastEnabledMainViewNoEnsure());
     g_lastSwipeToggleMs = millis();
     g_touchAwaitRelease = true;
     g_touchReleaseStartMs = 0;
-    Serial.printf("[TOUCH] ansi-exit-swipe dx=%d dy=%d -> WIKI\n", dx, dy);
+    Serial.printf("[TOUCH] ansi-exit-swipe dx=%d dy=%d -> %s\n", dx, dy, uiPageName(g_uiPageMode));
+    return;
+  }
+  if (g_uiPageMode == UI_PAGE_DOOM && pageSwipe) {
+    UiPageMode doomExit = uiLastEnabledMainViewNoEnsure();
+    const int8_t doomOrd = uiPageOrdinal(UI_PAGE_DOOM);
+    if (doomOrd > 0) doomExit = uiPageFromOrdinal(doomOrd - 1);
+    setUiPage(doomExit);
+    g_lastSwipeToggleMs = millis();
+    g_touchAwaitRelease = true;
+    g_touchReleaseStartMs = 0;
+    Serial.printf("[TOUCH] doom-exit dx=%d dy=%d tap=%d -> %s\n", dx, dy, isTap ? 1 : 0, uiPageName(g_uiPageMode));
     return;
   }
 #endif
 
-  // Primary gesture: horizontal swipe changes page (INFO <-> HOME <-> AUX/WIKI).
+  // Primary gesture: horizontal swipe changes page across the enabled carousel.
   if (pageSwipe) {
     const int8_t dir = (dx < 0) ? 1 : -1;
     bool moved = false;
@@ -10488,6 +11627,7 @@ static void lvglSetObjXAnim(void *obj, int32_t x) {
 
 static bool lvglApplyPageDrag(int16_t dragDx) {
   if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot) return false;
+  if (g_uiPageMode == UI_PAGE_DOOM || g_uiPageMode == UI_PAGE_ANSI) return false;
 
   int32_t dx = dragDx;
   const int16_t w = canvasWidth();
@@ -10495,8 +11635,10 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   if (dx > w) dx = w;
   if (dx < -w) dx = -w;
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
+  const int8_t maxOrd = uiSwipePageCountNoEnsure() - 1;
+  if (cur < 0 || maxOrd < 0) return false;
   // Edge damping when dragging past first/last page.
-  if ((cur == 0 && dx > 0) || (cur == 4 && dx < 0)) dx /= 3;
+  if ((cur == 0 && dx > 0) || (cur == maxOrd && dx < 0)) dx /= 3;
 
   lv_anim_del(g_lvglInfoRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
@@ -10533,8 +11675,28 @@ static void lvglStartSlideAnim(lv_obj_t *obj, int32_t fromX, int32_t toX, uint16
 static void lvglApplyPageVisibility(bool animate) {
   if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot) return;
 
+  if (g_lvglAnsiRoot) {
+    if (g_uiPageMode == UI_PAGE_ANSI) lv_obj_clear_flag(g_lvglAnsiRoot, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(g_lvglAnsiRoot, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (g_lvglDoomRoot) {
+    if (g_uiPageMode == UI_PAGE_DOOM) lv_obj_clear_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  if (g_uiPageMode == UI_PAGE_DOOM || g_uiPageMode == UI_PAGE_ANSI) {
+    lv_obj_add_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
+    g_lvglPageDragActive = false;
+    g_lvglPageAnimUntilMs = 0;
+    return;
+  }
+
   const int16_t w = canvasWidth();
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
+  if (cur < 0) return;
   const int32_t infoTargetX = (0 - cur) * w;
   const int32_t homeTargetX = (1 - cur) * w;
   const int32_t auxTargetX  = (2 - cur) * w;
@@ -11831,6 +12993,19 @@ static bool initLvglUi() {
   lv_obj_set_scrollbar_mode(g_lvglAnsiRoot, LV_SCROLLBAR_MODE_OFF);
   lv_obj_add_flag(g_lvglAnsiRoot, LV_OBJ_FLAG_HIDDEN);
 
+  g_lvglDoomRoot = lv_obj_create(scr);
+  lv_obj_set_size(g_lvglDoomRoot, cW, cH);
+  lv_obj_set_pos(g_lvglDoomRoot, 0, 0);
+  lv_obj_set_style_radius(g_lvglDoomRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglDoomRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_lvglDoomRoot, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglDoomRoot, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglDoomRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_lvglDoomRoot, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglDoomRoot, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(g_lvglDoomRoot, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_add_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
+
 #if SCREENSAVER_ENABLED
   const uint32_t saverReadableText = lvglResolvedSaverReadableText(theme);
   g_lvglScreenSaverRoot = lv_obj_create(scr);
@@ -11967,6 +13142,10 @@ static void updateLvglUi(bool force) {
 
   lvglApplyPageVisibility(false);
   lvglUpdateWiFiBars(force);
+  if (g_uiPageMode == UI_PAGE_DOOM) {
+    g_uiNeedsRedraw = false;
+    return;
+  }
   if (g_uiPageMode == UI_PAGE_INFO) {
     lvglUpdateInfoPanel(force);
     g_lastClockSecond = timeinfo.tm_sec;
@@ -12155,6 +13334,10 @@ static void runLvglLoop() {
   if (elapsed == 0) elapsed = 1;
   g_lvglLastTickMs = now;
   lv_tick_inc(elapsed);
+  if (g_uiPageMode == UI_PAGE_DOOM) {
+    g_canvasDirty = false;
+    return;
+  }
   lvglApplyPageVisibility(false);
   lvglUpdateWiFiBars(false);
 
@@ -12172,7 +13355,7 @@ static void runLvglLoop() {
 #endif
 
 static void updateDisplayClock(bool force) {
-  if (g_uiPageMode == UI_PAGE_ANSI) return; // ANSI view owns the display
+  if (g_uiPageMode == UI_PAGE_ANSI || g_uiPageMode == UI_PAGE_DOOM) return; // direct views own the display
   if (!g_ntpSynced) return;
   if (!initDisplay()) return;
 
@@ -12446,7 +13629,7 @@ static void handleSerialCommand(const char *line) {
   cmd.toUpperCase();
 
   if (cmd == "HELP") {
-    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEWFIRST, VIEWLAST, VIEW0, VIEW1, VIEW2, VIEW3, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, VIEWWIKI, THEME, THEME <id>, LANG, LANG <code>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, NAVSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG, WIFIDIRECT, WIFIDIRECT <off|auto|on>");
+    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEWFIRST, VIEWLAST, VIEW0, VIEW1, VIEW2, VIEW3, VIEW4, VIEWDOOM, DOOM, VIEWANSI, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, VIEWWIKI, RSSSTAT, WIKISTAT, RSSRELOAD, WIKIRELOAD, RELOAD, THEME, THEME <id>, LANG, LANG <code>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, NAVSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG, WIFIDIRECT, WIFIDIRECT <off|auto|on>");
     return;
   }
 
@@ -12490,13 +13673,41 @@ static void handleSerialCommand(const char *line) {
   }
 
   if (cmd == "VIEW2" || cmd == "VIEWAUX" || cmd == "VIEWRSS") {
+    if (!uiPageEnabled(UI_PAGE_AUX)) {
+      Serial.println("[UI] AUX disabled");
+      return;
+    }
     setUiPage(UI_PAGE_AUX);
     Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
     return;
   }
 
   if (cmd == "VIEW3" || cmd == "VIEWWIKI") {
+    if (!uiPageEnabled(UI_PAGE_WIKI)) {
+      Serial.println("[UI] WIKI disabled");
+      return;
+    }
     setUiPage(UI_PAGE_WIKI);
+    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+    return;
+  }
+
+  if (cmd == "VIEW4" || cmd == "VIEWDOOM" || cmd == "DOOM") {
+    if (!uiPageEnabled(UI_PAGE_DOOM)) {
+      Serial.println("[UI] DOOM disabled");
+      return;
+    }
+    setUiPage(UI_PAGE_DOOM);
+    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+    return;
+  }
+
+  if (cmd == "VIEWANSI") {
+    if (!uiPageEnabled(UI_PAGE_ANSI)) {
+      Serial.println("[UI] ANSI disabled");
+      return;
+    }
+    setUiPage(UI_PAGE_ANSI);
     Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
     return;
   }
@@ -12692,6 +13903,12 @@ static void handleSerialCommand(const char *line) {
     if (runtimeLogoUrl()[0]) Serial.printf("[WEB] logo='%s'\n", runtimeLogoUrl());
     else Serial.println("[WEB] logo=''");
     Serial.printf("[WEB] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
+    Serial.printf("[WEB] views info=%d home=1 aux=%d wiki=%d ansi=%d doom=%d\n",
+                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) ? 1 : 0,
+                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) ? 1 : 0,
+                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) ? 1 : 0,
+                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_ANSI) ? 1 : 0,
+                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? 1 : 0);
     Serial.printf("[WEB] lang='%s'\n", g_wordClockLang);
     Serial.printf("[WEB] wifi_setup_mode='%s' setup_ap=%d runtime_known=%u\n",
                   g_wifiSetupMode,
@@ -12741,6 +13958,88 @@ static void handleSerialCommand(const char *line) {
     return;
   }
 
+  if (cmd == "RSSSTAT") {
+#if TEST_WIFI && RSS_ENABLED
+    Serial.printf("[RSSSTAT] valid=%d items=%u idx=%u http=%d fetched='%s' last_fetch=%lu last_attempt=%lu heap=%u psram=%u\n",
+                  g_rss.valid ? 1 : 0,
+                  (unsigned)g_rss.itemCount,
+                  (unsigned)g_rss.currentIndex,
+                  g_rss.lastHttpCode,
+                  g_rss.fetchedAt,
+                  (unsigned long)g_rss.lastFetchMs,
+                  (unsigned long)g_rss.lastAttemptMs,
+                  (unsigned)ESP.getFreeHeap(),
+                  (unsigned)ESP.getFreePsram());
+#else
+    Serial.println("[RSSSTAT] unavailable");
+#endif
+    return;
+  }
+
+  if (cmd == "WIKISTAT") {
+#if TEST_WIFI && RSS_ENABLED
+    Serial.printf("[WIKISTAT] valid=%d items=%u idx=%u http=%d fetched='%s' last_fetch=%lu last_attempt=%lu heap=%u psram=%u\n",
+                  g_wiki.valid ? 1 : 0,
+                  (unsigned)g_wiki.itemCount,
+                  (unsigned)g_wiki.currentIndex,
+                  g_wiki.lastHttpCode,
+                  g_wiki.fetchedAt,
+                  (unsigned long)g_wiki.lastFetchMs,
+                  (unsigned long)g_wiki.lastAttemptMs,
+                  (unsigned)ESP.getFreeHeap(),
+                  (unsigned)ESP.getFreePsram());
+#else
+    Serial.println("[WIKISTAT] unavailable");
+#endif
+    return;
+  }
+
+  if (cmd == "RSSRELOAD") {
+#if TEST_WIFI && RSS_ENABLED
+    const bool ok = updateRssFromFeed(true);
+    Serial.printf("[RSSRELOAD] ok=%d valid=%d items=%u http=%d fetched='%s'\n",
+                  ok ? 1 : 0,
+                  g_rss.valid ? 1 : 0,
+                  (unsigned)g_rss.itemCount,
+                  g_rss.lastHttpCode,
+                  g_rss.fetchedAt);
+#else
+    Serial.println("[RSSRELOAD] unavailable");
+#endif
+    return;
+  }
+
+  if (cmd == "WIKIRELOAD") {
+#if TEST_WIFI && RSS_ENABLED
+    const bool ok = updateWikiFromFeed(true);
+    Serial.printf("[WIKIRELOAD] ok=%d valid=%d items=%u http=%d fetched='%s'\n",
+                  ok ? 1 : 0,
+                  g_wiki.valid ? 1 : 0,
+                  (unsigned)g_wiki.itemCount,
+                  g_wiki.lastHttpCode,
+                  g_wiki.fetchedAt);
+#else
+    Serial.println("[WIKIRELOAD] unavailable");
+#endif
+    return;
+  }
+
+  if (cmd == "RELOAD") {
+#if TEST_WIFI
+    const bool weatherOk = updateWeatherFromApi(true);
+#if RSS_ENABLED
+    const bool rssOk = updateRssFromFeed(true);
+    const bool wikiOk = updateWikiFromFeed(true);
+    Serial.printf("[RELOAD] weather=%d rss=%d wiki=%d\n", weatherOk ? 1 : 0, rssOk ? 1 : 0, wikiOk ? 1 : 0);
+#else
+    Serial.printf("[RELOAD] weather=%d rss=0 wiki=0\n", weatherOk ? 1 : 0);
+#endif
+#else
+    Serial.println("[RELOAD] unavailable");
+#endif
+    return;
+  }
+
   Serial.printf("[CMD][WARN] comando sconosciuto: %s\n", line);
 }
 
@@ -12766,6 +14065,43 @@ static void pollSerialCommands() {
 
 // --- IMU section ---
 #if TEST_IMU
+static bool imuShouldBeActiveForUi() {
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+  return g_uiPageMode == UI_PAGE_DOOM;
+#else
+  return false;
+#endif
+}
+
+static void imuResetDoomTiltState() {
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+  g_doomLastTiltSampleMs = 0;
+  g_doomTiltFilterReady = false;
+#endif
+}
+
+static void setImuSensorsActive(bool active) {
+  if (!g_imuReady) return;
+  if (g_imuSensorsActive == active) return;
+  if (active) {
+    g_qmi.enableAccelerometer();
+    g_qmi.enableGyroscope();
+    g_lastAccelMag = 1.0f;
+    g_lastImuPrintMs = millis();
+    imuResetDoomTiltState();
+  } else {
+    g_qmi.disableGyroscope();
+    g_qmi.disableAccelerometer();
+    g_lastShakeMs = 0;
+    imuResetDoomTiltState();
+  }
+  g_imuSensorsActive = active;
+}
+
+static void syncImuActiveForUi() {
+  setImuSensorsActive(imuShouldBeActiveForUi());
+}
+
 static void runImuInitTest() {
   Serial.println();
   Serial.println("=================================================");
@@ -12811,14 +14147,17 @@ static void runImuInitTest() {
   g_lastAccelMag = 1.0f;
   g_lastShakeMs = 0;
   g_lastImuPrintMs = millis();
+  g_imuSensorsActive = true;
+  setImuSensorsActive(false);
 
   Serial.printf("[CFG] shake_jerk=%.2fg, shake_gyro=%.1f dps, debounce=%u ms\n",
                 IMU_SHAKE_JERK_G, IMU_SHAKE_GYRO_DPS, IMU_SHAKE_DEBOUNCE_MS);
-  Serial.println("[NEXT] Scuoti la board: deve apparire [SHAKE].");
+  Serial.println("[IMU] standby until DOOM view is active.");
 }
 
 static void runImuLoop() {
   if (!g_imuReady) return;
+  if (!g_imuSensorsActive) return;
   if (!g_qmi.getDataReady()) return;
 
   float ax = 0.0f, ay = 0.0f, az = 0.0f;
@@ -12826,15 +14165,121 @@ static void runImuLoop() {
   const bool okA = g_qmi.getAccelerometer(ax, ay, az);
   const bool okG = g_qmi.getGyroscope(gx, gy, gz);
   if (!okA || !okG) return;
-
-  const float accMag = sqrtf((ax * ax) + (ay * ay) + (az * az));
-  const float jerk = fabsf(accMag - g_lastAccelMag);
-  g_lastAccelMag = accMag;
-
   const float absGx = fabsf(gx);
   const float absGy = fabsf(gy);
   const float absGz = fabsf(gz);
   const float gyroPeak = fmaxf(absGx, fmaxf(absGy, absGz));
+
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+  const uint32_t sampleNow = millis();
+  float dt = 0.0f;
+  if (g_doomLastTiltSampleMs != 0 && sampleNow > g_doomLastTiltSampleMs) {
+    dt = (float)(sampleNow - g_doomLastTiltSampleMs) / 1000.0f;
+    if (dt > 0.05f) dt = 0.05f;
+  }
+  g_doomLastTiltSampleMs = sampleNow;
+
+  const float moveAccelDeg = atan2f(ay, az) * kDoomRadToDeg;
+  const float turnAccelDeg = atan2f(-ax, sqrtf((ay * ay) + (az * az))) * kDoomRadToDeg;
+
+  if (!g_doomTiltFilterReady || dt <= 0.0f) {
+    g_doomMoveTiltDeg = moveAccelDeg;
+    g_doomTurnTiltDeg = turnAccelDeg;
+    g_doomTiltFilterReady = true;
+  } else {
+    g_doomMoveTiltDeg = (kDoomTiltComplementaryAlpha * (g_doomMoveTiltDeg + (gx * dt))) +
+                        ((1.0f - kDoomTiltComplementaryAlpha) * moveAccelDeg);
+    g_doomTurnTiltDeg = (kDoomTiltComplementaryAlpha * (g_doomTurnTiltDeg + (gy * dt))) +
+                        ((1.0f - kDoomTiltComplementaryAlpha) * turnAccelDeg);
+  }
+
+  const bool touchBusy = g_touchDown || g_touchAwaitRelease;
+  if (g_doomNeutralPending) {
+    const bool canSampleNeutral =
+        g_doomTiltFilterReady &&
+        sampleNow >= g_doomNeutralArmAtMs &&
+        !touchBusy &&
+        gyroPeak <= kDoomNeutralCaptureGyroMaxDps;
+    if (!canSampleNeutral) {
+      g_doomNeutralStableSinceMs = 0;
+      g_doomNeutralStableSamples = 0;
+      g_doomNeutralAccumMoveDeg = 0.0f;
+      g_doomNeutralAccumTurnDeg = 0.0f;
+    } else {
+      if (g_doomNeutralStableSinceMs == 0) {
+        g_doomNeutralStableSinceMs = sampleNow;
+        g_doomNeutralStableSamples = 0;
+        g_doomNeutralAccumMoveDeg = 0.0f;
+        g_doomNeutralAccumTurnDeg = 0.0f;
+      }
+      g_doomNeutralAccumMoveDeg += g_doomMoveTiltDeg;
+      g_doomNeutralAccumTurnDeg += g_doomTurnTiltDeg;
+      if (g_doomNeutralStableSamples < UINT16_MAX) ++g_doomNeutralStableSamples;
+
+      if ((sampleNow - g_doomNeutralStableSinceMs) >= kDoomNeutralStableWindowMs &&
+          g_doomNeutralStableSamples >= kDoomNeutralStableMinSamples) {
+        const float sampleCount = (float)g_doomNeutralStableSamples;
+        g_doomNeutralMoveTiltDeg = g_doomNeutralAccumMoveDeg / sampleCount;
+        g_doomNeutralTurnTiltDeg = g_doomNeutralAccumTurnDeg / sampleCount;
+        g_doomNeutralPending = false;
+        g_doomNeutralReady = true;
+        g_doomAxisFilterReady = false;
+        g_doomMoveDeltaFilteredDeg = 0.0f;
+        g_doomTurnDeltaFilteredDeg = 0.0f;
+        g_doomMoveBin = 0;
+        g_doomTurnBin = 0;
+        g_doomFrameDirty = true;
+        Serial.printf("[DOOM][IMU] neutral move=%.1f turn=%.1f samples=%u\n",
+                      g_doomNeutralMoveTiltDeg,
+                      g_doomNeutralTurnTiltDeg,
+                      (unsigned)g_doomNeutralStableSamples);
+      }
+    }
+  }
+
+  int8_t moveBin = 0;
+  int8_t turnBin = 0;
+  if (g_doomNeutralReady) {
+    const float moveDeltaDegRaw = (g_doomMoveTiltDeg - g_doomNeutralMoveTiltDeg) * (float)kDoomMoveTiltSign;
+    const float turnDeltaDegRaw = (g_doomTurnTiltDeg - g_doomNeutralTurnTiltDeg) * (float)kDoomTurnTiltSign;
+    if (!g_doomAxisFilterReady) {
+      g_doomMoveDeltaFilteredDeg = moveDeltaDegRaw;
+      g_doomTurnDeltaFilteredDeg = turnDeltaDegRaw;
+      g_doomAxisFilterReady = true;
+    } else {
+      g_doomMoveDeltaFilteredDeg += (moveDeltaDegRaw - g_doomMoveDeltaFilteredDeg) * kDoomAxisResponseAlpha;
+      g_doomTurnDeltaFilteredDeg += (turnDeltaDegRaw - g_doomTurnDeltaFilteredDeg) * kDoomAxisResponseAlpha;
+    }
+    moveBin = doomQuantizeAxis(g_doomMoveDeltaFilteredDeg, kDoomMoveDeadbandDeg, kDoomMoveBinDeg,
+                               kDoomMoveBinMin, kDoomMoveBinMax);
+    turnBin = doomQuantizeAxis(g_doomTurnDeltaFilteredDeg, kDoomTurnDeadbandDeg, kDoomTurnBinDeg,
+                               kDoomTurnBinMin, kDoomTurnBinMax);
+  } else {
+    g_doomAxisFilterReady = false;
+    g_doomMoveDeltaFilteredDeg = 0.0f;
+    g_doomTurnDeltaFilteredDeg = 0.0f;
+  }
+  if (moveBin != g_doomMoveBin || turnBin != g_doomTurnBin) {
+    g_doomMoveBin = moveBin;
+    g_doomTurnBin = turnBin;
+    if (g_uiPageMode == UI_PAGE_DOOM) {
+      g_doomFrameDirty = true;
+#if IMU_VERBOSE_SERIAL
+      Serial.printf("[DOOM][IMU] move=%d turn=%d tilt=(%.1f,%.1f) neutral=(%.1f,%.1f)\n",
+                    (int)g_doomMoveBin,
+                    (int)g_doomTurnBin,
+                    g_doomMoveTiltDeg,
+                    g_doomTurnTiltDeg,
+                    g_doomNeutralMoveTiltDeg,
+                    g_doomNeutralTurnTiltDeg);
+#endif
+    }
+  }
+#endif
+
+  const float accMag = sqrtf((ax * ax) + (ay * ay) + (az * az));
+  const float jerk = fabsf(accMag - g_lastAccelMag);
+  g_lastAccelMag = accMag;
 
   const uint32_t now = millis();
   const bool shake = (jerk >= IMU_SHAKE_JERK_G) || (gyroPeak >= IMU_SHAKE_GYRO_DPS);
@@ -12843,11 +14288,13 @@ static void runImuLoop() {
     Serial.printf("[SHAKE] jerk=%.2fg gyro_peak=%.1f dps\n", jerk, gyroPeak);
   }
 
+#if IMU_VERBOSE_SERIAL
   if ((now - g_lastImuPrintMs) >= IMU_PRINT_INTERVAL_MS) {
     g_lastImuPrintMs = now;
     Serial.printf("[IMU] acc=(%.2f,%.2f,%.2f)g gyro=(%.1f,%.1f,%.1f)dps mag=%.2f jerk=%.2f\n",
                   ax, ay, az, gx, gy, gz, accMag, jerk);
   }
+#endif
 }
 #else
 static void runImuInitTest() {}
@@ -12947,6 +14394,10 @@ void setup() {
   Serial.println("[SKIP] TEST_NTP=0");
 #endif
 
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED && DOOM_SPIKE_AUTOSTART
+  setUiPage(UI_PAGE_DOOM);
+#endif
+
   applyEnergyPolicy(millis(), true);
 }
 
@@ -12990,6 +14441,7 @@ void loop() {
   }
 
 #if TEST_IMU
+  syncImuActiveForUi();
   runImuLoop();
 #endif
 
@@ -13024,6 +14476,7 @@ void loop() {
   runLvglLoop();
 #if TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
   updateDisplayAnsi(false);
+  doomRenderSpike(false);
 #endif
 #else
   updateDisplayClock(false);

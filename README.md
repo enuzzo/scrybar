@@ -4,7 +4,7 @@
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
 [![Languages](https://img.shields.io/badge/Word_Clock-13_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
-[![Views](https://img.shields.io/badge/Views-5_live_views-3B82F6?style=for-the-badge)](#views)
+[![Views](https://img.shields.io/badge/Views-6_live_views-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
 ## Theme Previews (HOME + Weather)
@@ -18,7 +18,13 @@
 > It tells time in thirteen languages, checks weather you could learn by opening a window, scrolls news you've already read, and browses Wikipedia random articles.
 > All of this on an ESP32 that didn't ask for this life.
 
-**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, five live views, a word clock that composes real sentences in thirteen languages — from Italian and Latin to Klingon, 1337 Speak, and Bellazio — actual grammar, not uppercase tiles — plus a Wikipedia viewer, ANSI art gallery, and a web config UI.
+**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, six live views, a word clock that composes real sentences in thirteen languages — from Italian and Latin to Klingon, 1337 Speak, and Bellazio — actual grammar, not uppercase tiles — plus a Wikipedia viewer, ANSI art gallery, a pillarboxed DOOM port, and a web config UI.
+
+## DOOM on ScryBar
+
+![DOOM HUD on ScryBar](assets/readme_previews/doom_hud_sci_fi.png)
+
+Real `prboom` gameplay now runs directly on the 640x172 ScryBar display with a centered 4:3 frame, game-styled side HUD, IMU controls, and touch bands for `USE` / `FIRE`.
 
 ---
 
@@ -26,6 +32,7 @@
 
 - [Hardware](#hardware)
 - [Views](#views)
+- [DOOM View](#doom-view)
 - [Word Clock Languages](#word-clock-languages)
 - [How It Works](#how-it-works)
 - [Quick Start](#quick-start)
@@ -52,16 +59,16 @@
 | **Touch** | AXS15231B integrated | Single-point touch. Carefully filtered for ghost frames and sentinel coordinates. |
 | **Power** | USB-C + optional LiPo | Charging and battery fallback managed via TCA9554 GPIO expander. Always re-asserted at boot. |
 
-The physical profile: a horizontal bar that sits flat on your desk. Wide enough to hold four views of information. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
+The physical profile: a horizontal bar that sits flat on your desk. Wide enough to host six modes of mischief. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
 
 ---
 
 ## Views
 
-Five views, navigated by swipe.
+Six views, navigated by swipe.
 
 ```
-  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► ANSI
+  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► ANSI ◄─► DOOM
 ```
 
 **HOME** — Word clock in natural sentence form (13 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing.
@@ -72,6 +79,8 @@ Five views, navigated by swipe.
 
 **ANSI** — BBS/ANSI art gallery (27 embedded files). Portrait mode, tap to advance, swipe to exit.
 
+**DOOM** — `prboom-go` donor port adapted for ScryBar. Centered `4:3` live framebuffer on the `640x172` strip, sci-fi side HUD, `TITLEPIC` welcome screen, tap `FIRE` to boot the core.
+
 **INFO** — Diagnostics: Wi-Fi, IP, DNS, MAC, power mode, battery.
 
 Physical buttons:
@@ -81,6 +90,24 @@ Physical buttons:
 - `RST` (right): hardware reset.
 
 Auto-idle screensaver target is currently `2h` on both USB and battery.
+
+## DOOM View
+
+The DOOM integration intentionally does **not** import all of `retro-go`. ScryBar vendors only the `prboom-go` core under `src/doom/prboom/` plus a local runtime shim.
+
+- Donor baseline: `ducalex/retro-go` -> `prboom-go` only
+- Render path: direct framebuffer, not LVGL widgets
+- Live frame: `320x200` source -> centered `230x172` 4:3 presentation
+- Touch:
+  - left band = `USE`
+  - right band = `FIRE`
+  - center tap = recenter IMU neutral
+  - swipe = exit DOOM
+- IMU:
+  - active only inside DOOM
+  - neutral captured after a short stable settle window on entry
+
+Current boot flow is deliberate: entering DOOM shows the title screen first, and the first tap on `FIRE` starts the live core.
 
 ---
 
@@ -132,7 +159,7 @@ Touch passes through anti-ghost filtering (AXS15231B produces spurious frames at
 ```bash
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   .
 ```
 
@@ -140,10 +167,12 @@ arduino-cli compile --clean \
 
 ```bash
 arduino-cli upload -p <PORT> \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
   .
 ```
+
+This repo now ships a checked-in `partitions.csv` and uses `PartitionScheme=custom` because the DOOM build no longer fits the stock large-app presets.
 
 If upload hangs on `Connecting...`, enter boot mode: hold `BOOT`, press and release `RST`, release `BOOT`. This is not a bug. It is a handshake.
 
@@ -177,6 +206,7 @@ Enable or disable subsystems in `config.h`. Nothing is compiled in unless explic
 | `TEST_IMU` | M0.5 | QMI8658 accelerometer + shake detection |
 | `TEST_WIFI` | M0.6 | STA connection with multi-SSID retry |
 | `TEST_NTP` | M0.7 | NTP sync, prints `local_time=...` |
+| `DOOM_SPIKE_ENABLED` | — | DOOM page + donor runtime glue |
 | `TEST_TOUCH` | — | **Required for swipe navigation.** Boot log shows `[SKIP] TEST_TOUCH=0` if disabled. |
 | `DISPLAY_FLIP_180` | — | 180° rotation (USB-C left, speaker top). Default `1`. |
 | `WEB_CONFIG_ENABLED` | — | LAN web config UI on port 8080 when Wi-Fi is connected. |
@@ -217,11 +247,13 @@ Commands sent over Serial at 115200 baud.
 |---|---|
 | `VIEW` | Toggle HOME ↔ AUX |
 | `VIEWFIRST` | Jump to first main view (`HOME`, excludes INFO) |
-| `VIEWLAST` | Jump to last main view (`WIKI`) |
+| `VIEWLAST` | Jump to last main view (`DOOM`) |
 | `VIEW0` / `VIEWINFO` | Force INFO page |
 | `VIEW1` / `VIEWHOME` | Force HOME page |
 | `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
 | `VIEW3` / `VIEWWIKI` | Force WIKI page |
+| `VIEWANSI` | Force ANSI page |
+| `VIEW4` / `VIEWDOOM` / `DOOM` | Force DOOM page |
 | `BATSTAT` | Print battery status |
 | `SAVERON` | Force screensaver on |
 | `SAVEROFF` | Force screensaver off |
@@ -259,6 +291,8 @@ Send `SAVERON` first to freeze the frame. Wire format is `rgb565be`.
 The ANSI/BBS art viewer was built with invaluable reference from **[icy_tools](https://github.com/mkrueger/icy_tools)** by Mike Krueger — a comprehensive Rust-based ANSI art toolkit (editor, viewer, terminal, parser). Studying its parser confirmed critical implementation details: the ANSI-to-CGA color index mapping, deferred wrap semantics, private CSI parameter handling, and SAUCE record parsing. If you work with ANSI art on any platform, icy_tools is the gold standard. Thank you, Mike.
 
 BBS art files included in the firmware are sourced from the [Blocktronics](http://blocktronics.org/) and [Sixteen Colors](https://16colo.rs/) archives. These artists kept the ANSI art scene alive for decades — we're honored to display their work on hardware they never imagined.
+
+The DOOM integration is based on `prboom-go` from **[ducalex/retro-go](https://github.com/ducalex/retro-go)**, but ScryBar vendors only the donor core and uses its own display/input glue. That separation is intentional.
 
 ## Open Source Spirit
 

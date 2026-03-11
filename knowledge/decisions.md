@@ -12,6 +12,30 @@ Entry format:
 
 ---
 
+## 2026-03-11 - DOOM Uses Extracted `prboom-go` Donor and Direct Framebuffer Path
+
+- Context: ScryBar needed real DOOM on-device, but importing all of `retro-go` would have carried too much platform baggage and the LVGL page model was not appropriate for live game frames.
+- Decision: Vendor only the `prboom-go` donor core under `src/doom/prboom/`, add a thin ScryBar runtime shim (`src/doom/scrybar_prboom.cpp`), embed the current IWAD/title assets locally, and render DOOM through the existing direct canvas + `dispFlush()` path instead of LVGL widgets.
+- Impact/Tradeoffs: Real gameplay works on hardware with centered 4:3 pillarboxing and side-band HUD/touch controls. The app footprint is much larger, so the project now depends on a checked-in custom partition layout and tighter RAM budgeting.
+
+---
+
+## 2026-03-11 - DOOM IMU Runs Only Inside DOOM and Calibrates After Settle
+
+- Context: Leaving IMU polling active globally wasted CPU and spammed serial logs, while taking the first IMU sample as neutral on page entry caused drift and visible HUD flicker.
+- Decision: Enable accelerometer/gyro only while `UI_PAGE_DOOM` is active; on entry or recenter, reset the tilt filter, wait a short arm delay, require a stable low-motion window, average multiple samples for neutral, and smooth deltas before quantization.
+- Impact/Tradeoffs: DOOM controls are stable at rest and the rest of the product stays quiet/cheap when DOOM is not active. There is a small calibration settle delay when entering the page, accepted as the safer baseline.
+
+---
+
+## 2026-03-11 - Keep Display DMA Flush Chunks at 32 Rows
+
+- Context: During DOOM integration, larger `64`-row DMA buffers increased internal heap pressure enough to break unrelated TLS handshakes for RSS/Wikipedia.
+- Decision: Keep `DB_CHUNK_ROWS=32` as the stable default for the rotated direct-flush display pipeline.
+- Impact/Tradeoffs: Slightly more DMA chunk launches per full frame, but better coexistence between graphics throughput and HTTPS/network reliability.
+
+---
+
 ## 2026-02-28 - Public Cross-Assistant Knowledge Layer
 
 - Context: Project needs a provider-agnostic memory layer reusable by Codex, Claude, Gemini, and humans.

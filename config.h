@@ -7,7 +7,7 @@
 #define TEST_DISPLAY 1
 #define TEST_TOUCH 1
 #define TEST_I2C_SCAN 0
-#define TEST_IMU 0
+#define TEST_IMU 1
 #define TEST_WIFI 1
 #define TEST_NTP 1
 #define TEST_BATTERY 1
@@ -24,7 +24,7 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "DB-M0-r178"
+#define FW_BUILD_TAG "DB-M0-r182"
 #define FW_RELEASE_DATE "2026-03-08"
 
 // --- M0.2 Backlight test config ---
@@ -96,6 +96,8 @@
 #define DISPLAY_TOUCH_SWIPE_MIN_PX 14
 #define DISPLAY_TOUCH_TAP_MAX_PX 12
 #define DISPLAY_TOUCH_TAP_MAX_MS 350
+#define DOOM_SPIKE_ENABLED 1
+#define DOOM_SPIKE_AUTOSTART 1
 
 // Touch controller (AXS15231B) on secondary I2C bus for this board wiring.
 #define TOUCH_I2C_ADDR 0x3B
@@ -137,6 +139,7 @@
 #define IMU_SHAKE_JERK_G 0.45f
 #define IMU_SHAKE_GYRO_DPS 120.0f
 #define IMU_SHAKE_DEBOUNCE_MS 500
+#define IMU_VERBOSE_SERIAL 0
 
 // --- M0.6 WiFi + NTP ---
 // Per-SSID connect window used by non-blocking roaming loop.
@@ -163,7 +166,7 @@
 // Force public DNS policy (never router DNS):
 // - primary: Google
 // - fallback: Cloudflare
-#define WIFI_DNS_OVERRIDE_ENABLED 1
+#define WIFI_DNS_OVERRIDE_ENABLED 0
 #define WIFI_DNS1_IP IPAddress(8, 8, 8, 8)
 #define WIFI_DNS2_IP IPAddress(1, 1, 1, 1)
 

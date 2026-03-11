@@ -1,6 +1,6 @@
 # ScryBar Firmware (M0)
 
-> ScryBar is a mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture. It tells time in 14 languages like it's poetry, checks weather you could learn by opening a window, and scrolls news you'll swear you already read. All of this on an ESP32 that didn't ask for this life. We could have stopped at a blinking LED. We didn't. We gave it four live views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there.
+> ScryBar is a mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture. It tells time in 13 languages like it's poetry, checks weather you could learn by opening a window, and scrolls news you'll swear you already read. All of this on an ESP32 that didn't ask for this life. We could have stopped at a blinking LED. We didn't. We gave it six live views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there.
 
 Minimal firmware sketch for incremental smoke testing on Waveshare ESP32-S3-Touch-LCD-3.49. ✨
 
@@ -14,12 +14,13 @@ Minimal firmware sketch for incremental smoke testing on Waveshare ESP32-S3-Touc
    - `SensorLib` (for QMI8658 IMU tests)
 5. Open:
    - `scrybar.ino`
+   - keep `build_opt.h` in the repo root (`-DHAVE_CONFIG_H`, `-DSCRYBAR_PRBOOM`)
 6. Configure `Tools`:
    - `Board`: `ESP32S3 Dev Module`
    - `Port`: board USB serial port
    - `USB CDC On Boot`: `Enabled`
    - `Flash Size`: `16MB (128Mb)`
-   - `Partition Scheme`: `16M Flash (3MB APP/9.9MB FATFS)`
+   - `Partition Scheme`: `Custom`
    - `PSRAM`: `OPI PSRAM`
    - `CPU Frequency`: `240MHz (WiFi)`
    - `Upload Speed`: `921600` (fallback `460800` if unstable)
@@ -67,6 +68,7 @@ Enable/disable tests in `config.h`:
 - `TEST_IMU`
 - `TEST_WIFI`
 - `TEST_NTP`
+- `DOOM_SPIKE_ENABLED`
 - `WEB_CONFIG_ENABLED` (runtime web config UI su LAN)
 
 Current implemented milestones:
@@ -79,6 +81,7 @@ Current implemented milestones:
 - `TEST_WIFI` (M0.6, STA connect with timeout + reason)
 - `TEST_NTP` (M0.7, NTP time sync)
 - Live display clock (M0.8, redraw optimized to reduce flicker)
+- `DOOM_SPIKE_ENABLED` (donor `prboom-go` view on direct framebuffer path)
 
 ## 6) Web Config Foundation (LAN) 🌐
 
@@ -101,12 +104,12 @@ Current scope:
 ## 7) Page Flow (Touch) 👆
 
 - Boot page: `HOME` (clock + weather), unchanged.
-- Swipe left from `HOME`: `AUX` (RSS page), then `WIKI`.
+- Swipe left from `HOME`: `AUX` (RSS page), then `WIKI`, then `ANSI`, then `DOOM`.
 - Swipe right from `HOME`: `INFO` (technical panel, includes IP + web port).
 - `INFO` is intentionally placed "before" home (iPhone-widget style).
 - `INFO` net block includes: Wi-Fi state, SSID, power mode (`CHARGING/BATTERY`) + battery %, IP/DNS/MAC.
 - `AUX` and `WIKI` share the same interaction model: `SKIP` next article, `NXT` next feed, QR on-demand.
-- `WIKI` uses 3 fixed source families (`Featured`, `On this day`, `Wikinews`) with up to 3 items each; refresh cadence follows `RSS_REFRESH_MS` (default firmware: 15 min).
+- `WIKI` uses 3 fixed source families (`Featured`, `On this day`, `Random Article`) with up to 3 items each; refresh cadence follows `RSS_REFRESH_MS` (default firmware: 15 min).
 - Wiki summaries are normalized to plain text (HTML/entities sanitized), and right-side thumbnails are rendered when metadata/media is available.
 - QR in AUX/WIKI opens on demand and falls back immediately to full URL while short-link generation is pending.
 - Physical side buttons:
@@ -121,16 +124,37 @@ Serial page shortcuts:
 - `VIEW1` / `VIEWHOME` -> `HOME`
 - `VIEW2` / `VIEWAUX` / `VIEWRSS` -> `AUX`
 - `VIEW3` / `VIEWWIKI` -> `WIKI`
+- `VIEWANSI` -> `ANSI`
+- `VIEW4` / `VIEWDOOM` / `DOOM` -> `DOOM`
 - `VIEWFIRST` -> first main page (`HOME`, excludes INFO)
-- `VIEWLAST` -> last main page (`WIKI`)
+- `VIEWLAST` -> last main page (`DOOM`)
 - `SAVERON` / `SAVEROFF` / `SAVERSTAT` -> manual screensaver control/status
 
-## 8) Canonical Orientation 🧭
+## 8) DOOM Integration Notes 🎮
+
+- Current donor: `ducalex/retro-go` -> `prboom-go` only, not the whole framework.
+- Runtime glue:
+  - `src/doom/scrybar_prboom.cpp`
+  - `src/doom/scrybar_prboom_runtime.h`
+  - `build_opt.h`
+- Current build needs `PartitionScheme=custom` because the stock presets are too small once DOOM is included.
+- Display model:
+  - DOOM/ANSI bypass LVGL widgets and own the direct framebuffer path
+  - DOOM content is centered 4:3 inside the `640x172` strip
+  - side bands are used for HUD + touch buttons
+- Controls:
+  - IMU is active only in DOOM
+  - left band = `USE`
+  - right band = `FIRE`
+  - center tap = recenter neutral
+  - swipe = exit view
+
+## 9) Canonical Orientation 🧭
 
 - Physical reference: `USB-C/power left`, `speaker top`, `microphone bottom`.
 - Firmware flag: `DISPLAY_FLIP_180=1` (default).
 - If you intentionally mount the board reversed, set `DISPLAY_FLIP_180=0` and reflash.
 
-## 9) Changelog 🧾
+## 10) Changelog 🧾
 
 - See `CHANGELOG.md` for release-by-release notes (`DB-M0-r089` and later).

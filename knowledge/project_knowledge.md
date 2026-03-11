@@ -31,7 +31,7 @@ Use these compile/upload parameters as baseline:
 - Flash: `16MB`
 - PSRAM: `OPI`
 - Flash mode: `QIO`
-- Partition: `noota_app15M_16MB` (custom single-app, no OTA, ~15.9MB app space)
+- Partition: `custom` via checked-in `partitions.csv` (`app0=0xA00000`, `fatfs=0x5F0000`)
 - Upload speed: `921600`
 - USB mode: `hwcdc`, CDC on boot enabled
 
@@ -42,7 +42,7 @@ Compile:
 ```bash
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   .
 ```
 
@@ -50,7 +50,7 @@ Upload:
 
 ```bash
 arduino-cli upload -p <PORT> \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
   .
 ```
@@ -324,14 +324,22 @@ Discard touch frames where:
 
 ## View Model and Navigation
 
-- Runtime pages: `INFO`, `HOME`, `AUX` (RSS), `WIKI`, `ANSI`.
+- Runtime pages: `INFO`, `HOME`, `AUX` (RSS), `WIKI`, `ANSI`, `DOOM`.
 - Swipe graph:
-  - `INFO <-> HOME <-> AUX <-> WIKI <-> ANSI`
+  - `INFO <-> HOME <-> AUX <-> WIKI <-> ANSI <-> DOOM`
   - `AUX/WIKI` share the same content deck widgets and controls.
+  - `ANSI` and `DOOM` are direct-render pages and bypass LVGL page dragging while active.
 - AUX/WIKI controls:
   - `SKIP` = next item
   - `NXT` = next feed
   - `QR` = modal on-demand (not always visible)
+- DOOM control baseline:
+  - `TITLEPIC` welcome screen first; `FIRE` boots the live core
+  - centered 4:3 frame (`230x172`) inside the `640x172` display
+  - left/right pillarbox bands are gameplay HUD + touch buttons
+  - IMU is active only in `UI_PAGE_DOOM`
+  - neutral is captured only after a short stable settle window
+  - left band = `USE`, right band = `FIRE`, center tap = recenter, swipe = exit
 - WIKI deck model:
   - 3 feed families: `Featured`, `On this day`, `Random Article`
   - up to 3 items per family (total max 9 items/cycle)
@@ -342,6 +350,29 @@ Discard touch frames where:
   - `PWR` short press: screensaver (debounced)
   - `BOOT` short press: jump to `HOME`
   - `RST`: hardware reset
+
+## DOOM Integration Baseline
+
+- Donor source: `ducalex/retro-go`, but only `prboom-go` is vendored into `src/doom/prboom/`.
+- ScryBar glue:
+  - `src/doom/scrybar_prboom.cpp`
+  - `src/doom/scrybar_prboom_runtime.h`
+  - `build_opt.h`
+- Current embedded DOOM assets:
+  - `src/doom/doom1.wad`
+  - `src/doom/doom_iwad.S`
+  - `src/doom/doom_titlepic.h`
+- Direct framebuffer path:
+  - DOOM writes an 8-bit `320x200` frame
+  - `doomScrybarBlitIndexedFrame()` maps it into the centered `230x172` live frame
+  - DOOM/ANSI own the display and flush directly through `dispFlush()`
+- Memory/runtime gotchas now part of the stable baseline:
+  - keep `DB_CHUNK_ROWS=32`, not `64`, to preserve TLS heap headroom
+  - DOOM task stack/framebuffer must be allowed to use PSRAM
+  - IMU must stay DOOM-only to avoid wasted CPU/log spam
+  - neutral calibration must reset filter state and wait for a stable window
+- Supporting deep note:
+  - `knowledge/doom_integration_gotchas.md`
 
 ## Power Policy
 
@@ -383,11 +414,13 @@ Discard touch frames where:
 | `THEME <id>` | Switch theme at runtime (and persist) |
 | `VIEW` | Toggle HOME ↔ AUX |
 | `VIEWFIRST` | Jump to first main view (`HOME`, INFO excluded) |
-| `VIEWLAST` | Jump to last main view (`WIKI`) |
+| `VIEWLAST` | Jump to last main view (`DOOM`) |
 | `VIEW0` / `VIEWINFO` | Force INFO page |
 | `VIEW1` / `VIEWHOME` | Force HOME page |
 | `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
 | `VIEW3` / `VIEWWIKI` | Force WIKI page |
+| `VIEWANSI` | Force ANSI page |
+| `VIEW4` / `VIEWDOOM` / `DOOM` | Force DOOM page |
 | `SNAP` | Emit framebuffer snapshot protocol |
 | `BATSTAT` | Print battery status |
 | `SAVERON` / `SAVEROFF` | Toggle screensaver |
@@ -512,12 +545,12 @@ If the device is not found, check:
 ```bash
 alias scry-build='arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   .'
 
 alias scry-flash='arduino-cli upload \
   -p $(ls /dev/cu.usbmodem* | head -1) \
-  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=noota_app15M_16MB,PSRAM=opi \
+  --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
   .'
 
