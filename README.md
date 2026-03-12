@@ -48,6 +48,28 @@ Tap **FIRE** on the title screen. The bar does the rest.
 </td>
 </tr></table>
 
+## AUX: RSS Feeds
+
+<table><tr>
+<td width="55%"><img src="assets/readme_previews/aux_rss.png" alt="AUX RSS view with headline and QR" width="100%"></td>
+<td>
+
+**Your desk reads the news so you don't have to.** Up to five RSS feeds rotating on a timer, each headline paired with a live QR code. Tap `NXT` to skip ahead, `SKIP` to jump feeds, or scan the QR to read the full article on a screen that doesn't make your optometrist cry. Configurable from the web UI: pick your feeds, set the rotation, walk away.
+
+</td>
+</tr></table>
+
+## WIKI: Wikipedia Stream
+
+<table><tr>
+<td width="55%"><img src="assets/readme_previews/wiki_stream.png" alt="WIKI view with random Wikipedia article" width="100%"></td>
+<td>
+
+**A bottomless pit of trivia you never asked for.** Featured Article, On This Day, Random Article, all pulled from the Wikipedia API in eight selectable languages (independent from the system language, because maybe you want your clock in Klingon but your trivia in Portuguese). Same `SKIP`/`NXT`/`QR` controls. The kind of feature that makes you 20 minutes late to meetings and completely fine with it.
+
+</td>
+</tr></table>
+
 ## More Themes
 
 | ScryBar Default | Cyberpunk 2077 | Tokyo Transit | Minimal Brutalist Mono |
