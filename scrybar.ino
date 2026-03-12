@@ -1995,193 +1995,198 @@ static inline void doomDrawRectOutline(int16_t x, int16_t y, int16_t w, int16_t 
   doomFillRect(x + w - 1, y, 1, h, color);
 }
 
-static void doomDrawHudBackdrop(int16_t x, int16_t y, int16_t w, int16_t h,
-                                uint16_t baseColor, uint16_t lineColor, uint16_t accentColor) {
-  if (w <= 0 || h <= 0) return;
-  doomFillRect(x, y, w, h, baseColor);
-  for (int16_t yy = y + 2; yy < (y + h); yy += 4) {
-    doomFillRect(x, yy, w, 1, lineColor);
-  }
-  for (int16_t yy = y + 10; yy < (y + h); yy += 18) {
-    const int16_t inset = (int16_t)(((yy - y) / 6) % 18);
-    const int16_t stripeW = min<int16_t>(32, max<int16_t>(12, w - 28));
-    doomFillRect(x + 10 + inset, yy, stripeW, 1, accentColor);
-    doomFillRect(x + w - stripeW - 10 - inset, yy + 6, stripeW, 1, accentColor);
-  }
-}
-
-static void doomDrawHudPanel(int16_t x, int16_t y, int16_t w, int16_t h,
-                             uint16_t accentColor, bool active) {
-  const uint16_t panelBg = lv_color_make(8, 12, 18).full;
-  const uint16_t panelStripe = lv_color_make(14, 18, 26).full;
-  const uint16_t frameColor = active ? accentColor : lv_color_make(74, 80, 92).full;
-  const uint16_t topGlow = active ? accentColor : lv_color_make(42, 48, 56).full;
-  const uint16_t shadow = lv_color_make(2, 3, 5).full;
-  doomFillRect(x, y, w, h, panelBg);
-  for (int16_t yy = y + 7; yy < (y + h - 4); yy += 8) {
-    doomFillRect(x + 2, yy, w - 4, 1, panelStripe);
-  }
-  doomDrawRectOutline(x, y, w, h, frameColor);
-  doomFillRect(x + 1, y + 1, w - 2, 2, topGlow);
-  doomFillRect(x + 1, y + h - 3, w - 2, 2, shadow);
-  doomFillRect(x + 6, y + 6, 10, h - 12, active ? accentColor : panelStripe);
-  doomFillRect(x + 5, y + 5, 16, 2, accentColor);
-  doomFillRect(x + w - 21, y + 5, 16, 2, accentColor);
-  doomFillRect(x + 5, y + h - 7, 16, 2, accentColor);
-  doomFillRect(x + w - 21, y + h - 7, 16, 2, accentColor);
-}
-
-static void doomDrawHudBadge(int16_t x, int16_t y, int16_t w, int16_t h,
-                             const char *text, const lv_font_t *font,
-                             uint16_t accentColor, uint16_t textColor) {
-  const uint16_t badgeBg = lv_color_make(14, 12, 6).full;
-  const uint16_t badgeGlow = lv_color_make(42, 32, 10).full;
-  doomFillRect(x, y, w, h, badgeBg);
-  doomDrawRectOutline(x, y, w, h, accentColor);
-  doomFillRect(x + 1, y + 1, w - 2, 2, badgeGlow);
-  doomDrawFontTextCentered(x + (w / 2), y + 3, text, font, textColor);
-}
-
-static void doomDrawAxisMeter(int16_t x, int16_t y, int16_t w, int16_t h,
-                              int8_t value, int8_t maxAbs,
-                              uint16_t bgColor, uint16_t fillColor, uint16_t centerColor) {
-  if (w <= 4 || h <= 4 || maxAbs <= 0) return;
-  doomFillRect(x, y, w, h, bgColor);
-  doomDrawRectOutline(x, y, w, h, centerColor);
-  for (int16_t tick = 1; tick < maxAbs; ++tick) {
-    const int16_t tickX = x + (w / 2) + (int16_t)((tick * ((w / 2) - 3)) / maxAbs);
-    doomFillRect(tickX, y + 2, 1, h - 4, lv_color_make(36, 42, 50).full);
-    doomFillRect((x + w - 1) - (tickX - x), y + 2, 1, h - 4, lv_color_make(36, 42, 50).full);
-  }
-  const int16_t centerX = x + (w / 2);
-  doomFillRect(centerX - 1, y - 2, 2, h + 4, centerColor);
-  if (value == 0) return;
-  const int16_t halfW = (w / 2) - 3;
-  if (halfW <= 0) return;
-  const int16_t span = max<int16_t>(1, (int16_t)((abs(value) * halfW) / maxAbs));
-  if (value < 0) doomFillRect(centerX - span, y + 2, span, h - 4, fillColor);
-  else doomFillRect(centerX + 1, y + 2, span, h - 4, fillColor);
-}
-
-static void doomDrawAxisMeterVertical(int16_t x, int16_t y, int16_t w, int16_t h,
-                                      int8_t value, int8_t maxAbs,
-                              uint16_t bgColor, uint16_t fillColor, uint16_t centerColor) {
-  if (w <= 4 || h <= 4 || maxAbs <= 0) return;
-  doomFillRect(x, y, w, h, bgColor);
-  doomDrawRectOutline(x, y, w, h, centerColor);
-  for (int16_t tick = 1; tick < maxAbs; ++tick) {
-    const int16_t tickY = y + (h / 2) + (int16_t)((tick * ((h / 2) - 3)) / maxAbs);
-    doomFillRect(x + 2, tickY, w - 4, 1, lv_color_make(36, 42, 50).full);
-    doomFillRect(x + 2, (y + h - 1) - (tickY - y), w - 4, 1, lv_color_make(36, 42, 50).full);
-  }
-  const int16_t centerY = y + (h / 2);
-  doomFillRect(x - 2, centerY - 1, w + 4, 2, centerColor);
-  if (value == 0) return;
-  const int16_t halfH = (h / 2) - 3;
-  if (halfH <= 0) return;
-  const int16_t span = max<int16_t>(1, (int16_t)((abs(value) * halfH) / maxAbs));
-  if (value < 0) doomFillRect(x + 2, centerY - span, w - 4, span, fillColor);
-  else doomFillRect(x + 2, centerY + 1, w - 4, span, fillColor);
-}
-
-static void doomDrawActionButton(int16_t x, int16_t y, int16_t w, int16_t h,
-                                 const char *label, bool active, uint16_t accentColor) {
-  const uint16_t face = active ? lv_color_make(32, 38, 48).full : lv_color_make(18, 22, 30).full;
-  const uint16_t border = active ? accentColor : lv_color_make(82, 88, 98).full;
-  const uint16_t topGlow = active ? kCgaPalette16[15] : lv_color_make(88, 96, 110).full;
-  const uint16_t shadow = lv_color_make(4, 6, 10).full;
-  const uint16_t textColor = active ? kCgaPalette16[15] : kCgaPalette16[7];
-  doomFillRect(x, y, w, h, shadow);
-  doomFillRect(x + 1, y + 1, w - 2, h - 2, face);
-  doomDrawRectOutline(x, y, w, h, border);
-  doomFillRect(x + 2, y + 2, w - 4, 2, topGlow);
-  doomFillRect(x + 2, y + h - 4, w - 4, 2, shadow);
-  doomFillRect(x + 8, y + 4, 10, h - 8, accentColor);
-  doomDrawFontTextCentered(x + (w / 2) + 8, y + 4, label, &scry_font_space_mono_18, textColor);
-}
+// ── DOOM HUD — "Bunker Console" ─────────────────────────────────────────────
+// Dark olive-black CRT aesthetic, DOOM-authentic palette, oversized tilt
+// meters, industrial touch buttons. Minimal text — the meters speak.
 
 static void doomDrawBandOverlay() {
-  const bool leftActive = (g_doomTouchZone == DOOM_TOUCH_LEFT);
+  const bool leftActive  = (g_doomTouchZone == DOOM_TOUCH_LEFT);
   const bool rightActive = (g_doomTouchZone == DOOM_TOUCH_RIGHT);
-  const uint16_t labelColor = kCgaPalette16[15];
-  const uint16_t mutedColor = kCgaPalette16[8];
-  const uint16_t valueColor = g_imuReady ? kCgaPalette16[14] : kCgaPalette16[12];
-  const uint16_t moveColor = kCgaPalette16[11];
-  const uint16_t turnColor = kCgaPalette16[14];
-  const uint16_t meterBg = lv_color_make(6, 8, 12).full;
-  const uint16_t centerLine = lv_color_make(124, 132, 148).full;
-  const uint16_t leftBandBg = lv_color_make(4, 6, 11).full;
-  const uint16_t rightBandBg = lv_color_make(11, 7, 4).full;
-  const uint16_t leftBandLine = lv_color_make(10, 16, 24).full;
-  const uint16_t rightBandLine = lv_color_make(24, 16, 8).full;
 
-  const int16_t leftCardX = 24;
-  const int16_t leftCardY = 12;
-  const int16_t leftCardW = kDoomLeftBandW - 48;
-  const int16_t leftCardH = 122;
-  const int16_t rightCardX = kDoomRightBandX + 24;
-  const int16_t rightCardY = 12;
-  const int16_t rightCardW = (DB_CANVAS_W - kDoomRightBandX) - 48;
-  const int16_t rightCardH = 122;
-  char moveBuf[16];
-  char turnBuf[16];
-  char promptBuf[24];
+  // ── Palette ───────────────────────────────────────────────────────────
+  const uint16_t bgDark      = lv_color_make(6, 8, 4).full;
+  const uint16_t scan        = lv_color_make(10, 13, 7).full;
+  const uint16_t frameDim    = lv_color_make(44, 38, 28).full;
+  const uint16_t textMuted   = lv_color_make(68, 60, 44).full;
+  const uint16_t textAmber   = lv_color_make(255, 176, 0).full;
+  const uint16_t textWhite   = kCgaPalette16[15];
+  const uint16_t greenHi     = lv_color_make(32, 210, 32).full;
+  const uint16_t greenMid    = lv_color_make(16, 110, 16).full;
+  const uint16_t greenDim    = lv_color_make(8, 44, 8).full;
+  const uint16_t redHi       = lv_color_make(210, 36, 16).full;
+  const uint16_t redMid      = lv_color_make(110, 18, 8).full;
+  const uint16_t redDim      = lv_color_make(44, 10, 4).full;
+  const uint16_t meterBg     = lv_color_make(3, 4, 2).full;
+  const uint16_t tickCol     = lv_color_make(26, 22, 16).full;
+  const uint16_t centerMark  = lv_color_make(84, 74, 54).full;
+  const uint16_t shadowCol   = lv_color_make(2, 2, 1).full;
 
-#if TEST_IMU
-  if (!g_imuReady) {
-    snprintf(moveBuf, sizeof(moveBuf), "IMU?");
-    snprintf(turnBuf, sizeof(turnBuf), "IMU?");
-  } else if (!g_doomNeutralReady) {
-    snprintf(moveBuf, sizeof(moveBuf), "CAL");
-    snprintf(turnBuf, sizeof(turnBuf), "CAL");
-  } else {
-    snprintf(moveBuf, sizeof(moveBuf), "FB %+d", (int)g_doomMoveBin);
-    snprintf(turnBuf, sizeof(turnBuf), "LR %+d", (int)g_doomTurnBin);
+  const int16_t lw  = kDoomLeftBandW;                 // 205
+  const int16_t rw  = DB_CANVAS_W - kDoomRightBandX;  // 206
+  const int16_t rx  = kDoomRightBandX;                 // 434
+  const int16_t bh  = DB_CANVAS_H;                     // 172
+  const int16_t lcx = lw / 2;
+  const int16_t rcx = rx + (rw / 2);
+  const uint16_t readoutCol = g_imuReady ? textAmber : redHi;
+
+  // ── Backgrounds: dark olive + CRT scanlines ───────────────────────────
+  doomFillRect(0, 0, lw, bh, bgDark);
+  doomFillRect(rx, 0, rw, bh, bgDark);
+  for (int16_t y = 1; y < bh; y += 3) {
+    doomFillRect(0,  y, lw, 1, scan);
+    doomFillRect(rx, y, rw, 1, scan);
   }
+
+  // ── Separator bars at game-frame edges ────────────────────────────────
+  doomFillRect(kDoomFrameX - 3, 0, 3, bh, leftActive  ? greenHi : frameDim);
+  doomFillRect(rx,               0, 3, bh, rightActive ? redHi   : frameDim);
+  if (leftActive)  doomFillRect(kDoomFrameX - 5, 0, 2, bh, greenDim);
+  if (rightActive) doomFillRect(rx + 3,          0, 2, bh, redDim);
+
+  // ── IMU readout strings ───────────────────────────────────────────────
+  char moveBuf[16], turnBuf[16];
+#if TEST_IMU
+  if      (!g_imuReady)         { snprintf(moveBuf, sizeof(moveBuf), "NO IMU");
+                                  snprintf(turnBuf, sizeof(turnBuf), "NO IMU"); }
+  else if (!g_doomNeutralReady) { snprintf(moveBuf, sizeof(moveBuf), "CAL");
+                                  snprintf(turnBuf, sizeof(turnBuf), "CAL"); }
+  else                          { snprintf(moveBuf, sizeof(moveBuf), "%+d", (int)g_doomMoveBin);
+                                  snprintf(turnBuf, sizeof(turnBuf), "%+d", (int)g_doomTurnBin); }
 #else
-  snprintf(moveBuf, sizeof(moveBuf), "IMU OFF");
-  snprintf(turnBuf, sizeof(turnBuf), "IMU OFF");
+  snprintf(moveBuf, sizeof(moveBuf), "--");
+  snprintf(turnBuf, sizeof(turnBuf), "--");
 #endif
 
-  doomDrawHudBackdrop(0, 0, kDoomLeftBandW, DB_CANVAS_H, leftBandBg, leftBandLine, lv_color_make(12, 26, 40).full);
-  doomDrawHudBackdrop(kDoomRightBandX, 0, DB_CANVAS_W - kDoomRightBandX, DB_CANVAS_H,
-                      rightBandBg, rightBandLine, lv_color_make(40, 26, 10).full);
-  doomFillRect(kDoomFrameX - 4, 0, 4, DB_CANVAS_H, leftActive ? moveColor : mutedColor);
-  doomFillRect(kDoomRightBandX, 0, 4, DB_CANVAS_H, rightActive ? turnColor : mutedColor);
+  // ═══════════════════════════════════════════════════════════════════════
+  //  LEFT BAND — MOVEMENT
+  // ═══════════════════════════════════════════════════════════════════════
 
-  doomDrawHudPanel(leftCardX, leftCardY, leftCardW, leftCardH, moveColor, leftActive);
-  doomDrawHudPanel(rightCardX, rightCardY, rightCardW, rightCardH, turnColor, rightActive);
+  const uint16_t leftFrame = leftActive ? greenMid : frameDim;
+  doomDrawRectOutline(2, 2, lw - 6, bh - 4, leftFrame);
+  doomDrawFontText(8, 6, "MOVE", &scry_font_space_mono_12, textMuted);
 
-  doomDrawFontTextCentered(kDoomLeftBandW / 2, 20, "MOVE", &scry_font_space_mono_20, labelColor);
-  doomDrawFontTextCentered(kDoomLeftBandW / 2, 44, moveBuf, &scry_font_space_mono_16, valueColor);
-  doomDrawFontTextCentered(kDoomLeftBandW / 2, 58, "FWD", &scry_font_space_mono_12, moveColor);
-  doomDrawAxisMeterVertical((kDoomLeftBandW / 2) - 12, 70, 24, 44,
-                            g_doomMoveBin, kDoomMoveBinMax,
-                            meterBg, moveColor, centerLine);
-  doomDrawFontTextCentered(kDoomLeftBandW / 2, 116, "BACK", &scry_font_space_mono_12, mutedColor);
+  // ── Vertical tilt meter (large) ───────────────────────────────────────
+  const int16_t vmW = 36, vmH = 100;
+  const int16_t vmX = lcx - (vmW / 2), vmY = 22;
+  const int16_t vmCY = vmY + (vmH / 2);
 
-  const int16_t rightCenterX = kDoomRightBandX + ((DB_CANVAS_W - kDoomRightBandX) / 2);
-  doomDrawFontTextCentered(rightCenterX, 20, "TURN", &scry_font_space_mono_20, labelColor);
-  doomDrawFontTextCentered(rightCenterX, 44, turnBuf, &scry_font_space_mono_16, valueColor);
-  doomDrawFontText(rightCardX + 16, 66, "L", &scry_font_space_mono_12, mutedColor);
-  doomDrawFontText(rightCardX + rightCardW - 24, 66, "R", &scry_font_space_mono_12, mutedColor);
-  doomDrawAxisMeter(rightCardX + 22, 78, rightCardW - 44, 12,
-                    g_doomTurnBin, kDoomTurnBinMax,
-                    meterBg, turnColor, centerLine);
+  doomFillRect(vmX, vmY, vmW, vmH, meterBg);
+  doomDrawRectOutline(vmX, vmY, vmW, vmH, leftFrame);
 
+  for (int8_t t = 1; t < kDoomMoveBinMax; ++t) {
+    const int16_t off = (int16_t)((t * ((vmH / 2) - 6)) / kDoomMoveBinMax);
+    doomFillRect(vmX + 1,       vmCY - off, 4, 1, tickCol);
+    doomFillRect(vmX + vmW - 5, vmCY - off, 4, 1, tickCol);
+    doomFillRect(vmX + 1,       vmCY + off, 4, 1, tickCol);
+    doomFillRect(vmX + vmW - 5, vmCY + off, 4, 1, tickCol);
+  }
+
+  doomFillRect(vmX - 5, vmCY - 1, vmW + 10, 2, centerMark);
+
+  if (g_doomMoveBin != 0) {
+    const int16_t halfH = (vmH / 2) - 6;
+    const int16_t span  = max<int16_t>(2, (int16_t)((abs(g_doomMoveBin) * halfH) / kDoomMoveBinMax));
+    const uint16_t fillC = leftActive ? greenHi : greenMid;
+    if (g_doomMoveBin < 0) {
+      doomFillRect(vmX + 3, vmCY - span,     vmW - 6, span, fillC);
+      doomFillRect(vmX + 3, vmCY - span - 1, vmW - 6, 1,    greenDim);
+    } else {
+      doomFillRect(vmX + 3, vmCY + 2,        vmW - 6, span, fillC);
+      doomFillRect(vmX + 3, vmCY + span + 2, vmW - 6, 1,    greenDim);
+    }
+  }
+
+  doomDrawFontText(vmX + vmW + 6, vmCY - 8, moveBuf,
+                   &scry_font_space_mono_16, readoutCol);
+
+  // ── Divider + USE button ──────────────────────────────────────────────
+  const int16_t btnH = 30, btnM = 10, btnY = bh - btnH - 6;
+  doomFillRect(8, btnY - 6, lw - 18, 1, frameDim);
+  {
+    const int16_t  bw   = lw - (btnM * 2) - 4;
+    const uint16_t bg   = leftActive ? greenDim : lv_color_make(10, 12, 8).full;
+    const uint16_t bord = leftActive ? greenHi  : frameDim;
+    const uint16_t glow = leftActive ? greenMid : lv_color_make(18, 20, 14).full;
+    const uint16_t txt  = leftActive ? textWhite : lv_color_make(110, 100, 78).full;
+    doomFillRect(btnM, btnY, bw, btnH, bg);
+    doomDrawRectOutline(btnM, btnY, bw, btnH, bord);
+    doomFillRect(btnM + 1, btnY + 1,        bw - 2, 2, glow);
+    doomFillRect(btnM + 1, btnY + btnH - 3, bw - 2, 2, shadowCol);
+    doomDrawFontTextCentered(lcx - 2, btnY + 5, "USE", &scry_font_space_mono_20, txt);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  RIGHT BAND — COMBAT
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const uint16_t rightFrame = rightActive ? redMid : frameDim;
+  doomDrawRectOutline(rx + 4, 2, rw - 6, bh - 4, rightFrame);
+  doomDrawFontText(rx + 8, 6, "TURN", &scry_font_space_mono_12, textMuted);
+
+  // ── Horizontal tilt meter (large) ─────────────────────────────────────
+  const int16_t hmW = rw - 28, hmH = 26;
+  const int16_t hmX = rx + 14, hmY = 24;
+  const int16_t hmCX = hmX + (hmW / 2);
+
+  doomFillRect(hmX, hmY, hmW, hmH, meterBg);
+  doomDrawRectOutline(hmX, hmY, hmW, hmH, rightFrame);
+
+  for (int8_t t = 1; t < kDoomTurnBinMax; ++t) {
+    const int16_t off = (int16_t)((t * ((hmW / 2) - 6)) / kDoomTurnBinMax);
+    doomFillRect(hmCX + off, hmY + 1,        1, 4, tickCol);
+    doomFillRect(hmCX + off, hmY + hmH - 5,  1, 4, tickCol);
+    doomFillRect(hmCX - off, hmY + 1,        1, 4, tickCol);
+    doomFillRect(hmCX - off, hmY + hmH - 5,  1, 4, tickCol);
+  }
+
+  doomFillRect(hmCX, hmY - 3, 2, hmH + 6, centerMark);
+
+  if (g_doomTurnBin != 0) {
+    const int16_t halfW = (hmW / 2) - 6;
+    const int16_t span  = max<int16_t>(2, (int16_t)((abs(g_doomTurnBin) * halfW) / kDoomTurnBinMax));
+    const uint16_t fillC = rightActive ? textAmber : lv_color_make(180, 120, 0).full;
+    if (g_doomTurnBin < 0)
+      doomFillRect(hmCX - span, hmY + 4, span, hmH - 8, fillC);
+    else
+      doomFillRect(hmCX + 2,    hmY + 4, span, hmH - 8, fillC);
+  }
+
+  doomDrawFontText(hmX + 3,        hmY + 7, "<", &scry_font_space_mono_12, textMuted);
+  doomDrawFontText(hmX + hmW - 11, hmY + 7, ">", &scry_font_space_mono_12, textMuted);
+  doomDrawFontTextCentered(rcx, hmY + hmH + 5, turnBuf,
+                           &scry_font_space_mono_16, readoutCol);
+
+  // ── Status badge (pre-game) ───────────────────────────────────────────
 #if DB_HAS_PRBOOM_DONOR
   if (!doomPrboomHasFrame()) {
+    char promptBuf[24];
     if (!g_doomLaunchRequested) snprintf(promptBuf, sizeof(promptBuf), "PRESS FIRE");
-    else snprintf(promptBuf, sizeof(promptBuf), "%s", doomPrboomStatus() ? doomPrboomStatus() : "BOOT");
-    doomDrawHudBadge(rightCardX + 24, 102, rightCardW - 48, 20, promptBuf,
-                     &scry_font_space_mono_16, turnColor, valueColor);
+    else { const char *s = doomPrboomStatus();
+           snprintf(promptBuf, sizeof(promptBuf), "%s", s ? s : "BOOTING"); }
+    const int16_t bdW = rw - 36, bdX = rx + 18, bdY = 82, bdH = 24;
+    doomFillRect(bdX, bdY, bdW, bdH, lv_color_make(14, 10, 4).full);
+    doomDrawRectOutline(bdX, bdY, bdW, bdH,
+                        g_doomLaunchRequested ? textAmber : redHi);
+    doomFillRect(bdX + 1, bdY + 1, bdW - 2, 1, lv_color_make(36, 26, 10).full);
+    doomDrawFontTextCentered(rcx, bdY + 4, promptBuf,
+                             &scry_font_space_mono_16, textAmber);
   }
 #endif
 
-  doomDrawActionButton(24, DB_CANVAS_H - 38, kDoomLeftBandW - 48, 26, "USE", leftActive, moveColor);
-  doomDrawActionButton(kDoomRightBandX + 24, DB_CANVAS_H - 38,
-                       (DB_CANVAS_W - kDoomRightBandX) - 48, 26,
-                       "FIRE", rightActive, turnColor);
+  // ── Divider + FIRE button ─────────────────────────────────────────────
+  doomFillRect(rx + 10, btnY - 6, rw - 22, 1, frameDim);
+  {
+    const int16_t  bw   = rw - (btnM * 2) - 4;
+    const uint16_t bg   = rightActive ? redDim  : lv_color_make(12, 8, 6).full;
+    const uint16_t bord = rightActive ? redHi   : frameDim;
+    const uint16_t glow = rightActive ? redMid  : lv_color_make(20, 14, 10).full;
+    const uint16_t txt  = rightActive ? textWhite : lv_color_make(110, 84, 66).full;
+    doomFillRect(rx + btnM + 2, btnY, bw, btnH, bg);
+    doomDrawRectOutline(rx + btnM + 2, btnY, bw, btnH, bord);
+    doomFillRect(rx + btnM + 3, btnY + 1,        bw - 2, 2, glow);
+    doomFillRect(rx + btnM + 3, btnY + btnH - 3, bw - 2, 2, shadowCol);
+    doomDrawFontTextCentered(rcx, btnY + 5, "FIRE", &scry_font_space_mono_20, txt);
+  }
 }
 
 bool doomScrybarPageVisible() {
