@@ -11,6 +11,7 @@ Stable technical context for all AI assistants.
 - `assets/`: static resources (logos, design system, README previews, source TTFs).
 - `assets/scrybar_design_system/`: standalone HTML/CSS design system with runtime theme selector.
 - `tools/`: operational scripts (notably screenshot capture via serial framebuffer dump).
+- `data/ansi/`: raw `.ans` files for FAT filesystem provisioning (uploaded to device via `tools/provision_ansi.py`).
 - `knowledge/`: shared, sanitized cross-assistant knowledge (public, versioned).
 - `memory/`: local assistant memory (project-local, not canonical public documentation).
 
@@ -385,6 +386,14 @@ Discard touch frames where:
   - press debounce window: `45ms`
   - minimum short-press duration: `90ms`
   - sub-threshold pulses are treated as bounce/glitch and ignored
+
+## FAT Filesystem (ANSI Art Storage)
+
+- ANSI art files are stored as raw `.ans` binaries on the FAT partition, not embedded in firmware flash.
+- FAT partition: 5.9 MB at offset `0xA10000` (see `partitions.csv`).
+- Provisioning: `tools/provision_ansi.py` builds a FAT image from `data/ansi/` and flashes it to the device.
+- Runtime: `FFat.begin()` at boot, `ansiLoadCurrentFile()` reads from FAT into PSRAM.
+- If FAT is not mounted or file is missing, ANSI view is unavailable (no embedded fallback).
 
 ## RSS/WIKI Data Pipeline Notes
 

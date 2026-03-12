@@ -48,6 +48,7 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
+#include <FFat.h>
 #if __has_include(<qrcodegen.h>)
 #include <qrcodegen.h>
 #define DB_HAS_QRCODEGEN 1
@@ -680,6 +681,12 @@ static RuntimeNetConfig g_runtimeNetConfig = {};
 static bool g_runtimeNetConfigNvsLoaded = false;
 static char g_wordClockLang[16] = WORD_CLOCK_LANG_DEFAULT;
 static char g_wikiLang[8] = "en";
+// ── Canonical language whitelist (single source of truth) ────────────────────
+static const char* const kAllowedLangs[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "l33t", "sha", "val", "bellazio", nullptr};
+static bool isValidLangCode(const String &code) {
+  for (int i = 0; kAllowedLangs[i]; ++i) { if (code == kAllowedLangs[i]) return true; }
+  return false;
+}
 enum UiPageMode : uint8_t;
 static bool uiPageEnabledNoEnsure(UiPageMode mode);
 static UiPageMode uiLastEnabledMainViewNoEnsure();
@@ -2016,11 +2023,30 @@ static void ansiFlushViewport() {
 }
 
 // Load and render the current ANSI file (g_ansiFileIdx) into PSRAM g_ansiBuf.
+// File data is read from FAT filesystem into a temporary PSRAM buffer, then rendered.
 static void ansiLoadCurrentFile() {
   if (g_ansiFileIdx >= kAnsiFileCount) g_ansiFileIdx = 0;
   const AnsiFileEntry &f = kAnsiFiles[g_ansiFileIdx];
 
-  parseSauceRecord(f.data, f.len, g_ansiSauce);
+  // Read raw ANSI data from FAT into a temporary PSRAM buffer
+  File file = FFat.open(f.fatPath, "r");
+  if (!file) {
+    Serial.printf("[ANSI] FAT open failed: %s\n", f.fatPath);
+    g_ansiTotalH = 0;
+    return;
+  }
+  const size_t fileLen = file.size();
+  uint8_t *rawBuf = (uint8_t*)heap_caps_malloc(fileLen, MALLOC_CAP_SPIRAM);
+  if (!rawBuf) {
+    Serial.printf("[ANSI] PSRAM alloc for raw file failed (%u bytes)\n", (unsigned)fileLen);
+    file.close();
+    g_ansiTotalH = 0;
+    return;
+  }
+  file.read(rawBuf, fileLen);
+  file.close();
+
+  parseSauceRecord(rawBuf, fileLen, g_ansiSauce);
 
   int fontW, fontH;
   ansiCalcFont(g_ansiSauce, fontW, fontH);
@@ -2044,12 +2070,14 @@ static void ansiLoadCurrentFile() {
   g_ansiBuf = (uint16_t*)heap_caps_malloc(needed, MALLOC_CAP_SPIRAM);
   if (!g_ansiBuf) {
     Serial.printf("[ANSI] PSRAM alloc failed (%u bytes)\n", (unsigned)needed);
+    heap_caps_free(rawBuf);
     g_ansiTotalH = 0;
     return;
   }
 
-  g_ansiTotalH   = ansiRenderFile(f.data, f.len, g_ansiBuf,
+  g_ansiTotalH   = ansiRenderFile(rawBuf, fileLen, g_ansiBuf,
                                   renderW, maxH, fontW, fontH, g_ansiSauce);
+  heap_caps_free(rawBuf);
   g_ansiScrollY  = 0;
   g_ansiOverlayShowMs = millis();
   Serial.printf("[ANSI] file=%s font=%dx%d cols=%d renderW=%d totalH=%d PSRAM=%u\n",
@@ -3540,11 +3568,7 @@ static void loadRuntimeNetConfigFromNvs() {
       langNeedsPersist = true;
       Serial.println("[CFG][NVS] wc_lang legacy 'bellazi' -> 'bellazio'");
     }
-    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "l33t", "sha", "val", "bellazio", nullptr};
-    bool valid = false;
-    for (int i = 0; kAllowed[i]; ++i) {
-      if (lang == kAllowed[i]) { valid = true; break; }
-    }
+    bool valid = isValidLangCode(lang);
     if (valid && lang.length() > 0 && lang.length() < sizeof(g_wordClockLang)) {
       strncpy(g_wordClockLang, lang.c_str(), sizeof(g_wordClockLang) - 1);
       g_wordClockLang[sizeof(g_wordClockLang) - 1] = '\0';
@@ -4577,10 +4601,7 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     String lang = g_webConfigServer.arg("wc_lang");
     lang.trim();
     lang.toLowerCase();
-    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "l33t", "sha", "val", "bellazio", nullptr};
-    bool valid = false;
-    for (int i = 0; kAllowed[i]; i++) { if (lang == kAllowed[i]) { valid = true; break; } }
-    if (!valid) {
+    if (!isValidLangCode(lang)) {
       errorOut = "wc_lang non valido";
       return false;
     }
@@ -13739,12 +13760,7 @@ static void handleSerialCommand(const char *line) {
     String langArg = raw.substring(5);
     langArg.trim();
     langArg.toLowerCase();
-    const char* kAllowed[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "l33t", "sha", "val", "bellazio", nullptr};
-    bool valid = false;
-    for (int i = 0; kAllowed[i]; ++i) {
-      if (langArg == kAllowed[i]) { valid = true; break; }
-    }
-    if (!valid) {
+    if (!isValidLangCode(langArg)) {
       Serial.printf("[LANG][ERR] code non valido: '%s'\n", langArg.c_str());
       return;
     }
@@ -14318,6 +14334,16 @@ void setup() {
   Serial.printf("[CFG] SERIAL=%d BACKLIGHT=%d DISPLAY=%d TOUCH=%d I2C_SCAN=%d IMU=%d WIFI=%d NTP=%d\n",
                 TEST_SERIAL_INFO, TEST_BACKLIGHT, TEST_DISPLAY, TEST_TOUCH,
                 TEST_I2C_SCAN, TEST_IMU, TEST_WIFI, TEST_NTP);
+
+  // Mount FAT filesystem (ANSI art files live here)
+  if (!FFat.begin(false)) {
+    Serial.println("[FAT] mount failed — ANSI art unavailable (run tools/provision_ansi.py)");
+  } else {
+    Serial.printf("[FAT] mounted, %u KB total, %u KB used\n",
+                  (unsigned)(FFat.totalBytes() / 1024),
+                  (unsigned)((FFat.totalBytes() - FFat.freeBytes()) / 1024));
+  }
+
 #if TEST_WIFI
   ensureRuntimeNetConfig();
 #endif
