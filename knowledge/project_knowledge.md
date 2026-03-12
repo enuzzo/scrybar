@@ -11,7 +11,7 @@ Stable technical context for all AI assistants.
 - `assets/`: static resources (logos, design system, README previews, source TTFs).
 - `assets/scrybar_design_system/`: standalone HTML/CSS design system with runtime theme selector.
 - `tools/`: operational scripts (notably screenshot capture via serial framebuffer dump).
-- `data/ansi/`: raw `.ans` files for FAT filesystem provisioning (uploaded to device via `tools/provision_ansi.py`).
+- `archive/ansi/`: archived ANSI art viewer (removed in r183 — low replay value; see `archive/ansi/README.md` for restoration).
 - `knowledge/`: shared, sanitized cross-assistant knowledge (public, versioned).
 - `memory/`: local assistant memory (project-local, not canonical public documentation).
 
@@ -325,11 +325,11 @@ Discard touch frames where:
 
 ## View Model and Navigation
 
-- Runtime pages: `INFO`, `HOME`, `AUX` (RSS), `WIKI`, `ANSI`, `DOOM`.
+- Runtime pages: `INFO`, `HOME`, `AUX` (RSS), `WIKI`, `DOOM`.
 - Swipe graph:
-  - `INFO <-> HOME <-> AUX <-> WIKI <-> ANSI <-> DOOM`
+  - `INFO <-> HOME <-> AUX <-> WIKI <-> DOOM`
   - `AUX/WIKI` share the same content deck widgets and controls.
-  - `ANSI` and `DOOM` are direct-render pages and bypass LVGL page dragging while active.
+  - `DOOM` is a direct-render page and bypasses LVGL page dragging while active.
 - AUX/WIKI controls:
   - `SKIP` = next item
   - `NXT` = next feed
@@ -366,7 +366,7 @@ Discard touch frames where:
 - Direct framebuffer path:
   - DOOM writes an 8-bit `320x200` frame
   - `doomScrybarBlitIndexedFrame()` maps it into the centered `230x172` live frame
-  - DOOM/ANSI own the display and flush directly through `dispFlush()`
+  - DOOM owns the display and flushes directly through `dispFlush()`
 - Memory/runtime gotchas now part of the stable baseline:
   - keep `DB_CHUNK_ROWS=32`, not `64`, to preserve TLS heap headroom
   - DOOM task stack/framebuffer must be allowed to use PSRAM
@@ -387,13 +387,11 @@ Discard touch frames where:
   - minimum short-press duration: `90ms`
   - sub-threshold pulses are treated as bounce/glitch and ignored
 
-## FAT Filesystem (ANSI Art Storage)
+## FAT Filesystem
 
-- ANSI art files are stored as raw `.ans` binaries on the FAT partition, not embedded in firmware flash.
 - FAT partition: 5.9 MB at offset `0xA10000` (see `partitions.csv`).
-- Provisioning: `tools/provision_ansi.py` builds a FAT image from `data/ansi/` and flashes it to the device.
-- Runtime: `FFat.begin()` at boot, `ansiLoadCurrentFile()` reads from FAT into PSRAM.
-- If FAT is not mounted or file is missing, ANSI view is unavailable (no embedded fallback).
+- Currently unused after ANSI viewer removal (r183). Available for future features.
+- `FFat.begin(false)` is called at boot (no format-on-fail) for readiness.
 
 ## RSS/WIKI Data Pipeline Notes
 
@@ -428,7 +426,6 @@ Discard touch frames where:
 | `VIEW1` / `VIEWHOME` | Force HOME page |
 | `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
 | `VIEW3` / `VIEWWIKI` | Force WIKI page |
-| `VIEWANSI` | Force ANSI page |
 | `VIEW4` / `VIEWDOOM` / `DOOM` | Force DOOM page |
 | `SNAP` | Emit framebuffer snapshot protocol |
 | `BATSTAT` | Print battery status |
