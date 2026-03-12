@@ -7,6 +7,10 @@
 [![Views](https://img.shields.io/badge/Views-5_live_views-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
+**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, five swipeable views, a word clock that composes real sentences in thirteen languages (from Italian and Latin to Klingon, 1337 Speak, and Bellazio), actual grammar, not uppercase tiles, plus RSS feeds, a Wikipedia viewer, a full DOOM port with gyro controls, and a LAN web config UI.
+
+*Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls random Wikipedia facts nobody asked for, and opens a portal to Hell. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
+
 ## Theme Previews (HOME + Weather)
 
 | ScryBar Default | Cyberpunk 2077 | Toxic Candy | Tokyo Transit | Minimal Brutalist Mono |
@@ -15,11 +19,7 @@
 
 > Yes, that is cyberpunk in Latin. If you want neon UI saying *Hora septima est*, ScryBar will not judge.
 
-> It tells time in thirteen languages, checks weather you could learn by opening a window, scrolls news you've already read, browses Wikipedia for trivia nobody asked for, and runs DOOM — because apparently an ESP32 on your desk wasn't doing enough already.
-
-**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, five swipeable views, a word clock that composes real sentences in thirteen languages — from Italian and Latin to Klingon, 1337 Speak, and Bellazio — actual grammar, not uppercase tiles — plus RSS feeds, a Wikipedia viewer, a full DOOM port with gyro controls, and a LAN web config UI.
-
-*Why "ScryBar"?* — Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it — it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls random Wikipedia facts nobody asked for, and opens a portal to Hell. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
+> It tells time in thirteen languages, checks weather you could learn by opening a window, scrolls news you've already read, browses Wikipedia for trivia nobody asked for, and runs DOOM, because apparently an ESP32 on your desk wasn't doing enough already.
 
 ## DOOM on ScryBar
 
@@ -29,29 +29,20 @@
 
 **Yes, it runs DOOM.**
 
-Native `prboom` on a desk bar. Gyroscope controls — tilt forward to charge, sideways to turn. Dark olive CRT-scanline HUD with oversized tilt meters, because when you're dodging fireballs on a 3.49" strip, subtlety is not a virtue.
+Native `prboom` on a desk bar. Gyroscope controls: tilt forward to charge, sideways to turn. Dark olive CRT-scanline HUD with oversized tilt meters, because when you're dodging fireballs on a 3.49" strip, subtlety is not a virtue.
 
 Tap **FIRE** on the title screen. The bar does the rest.
 
 </td>
 </tr></table>
 
-## Live Views
+## INFO Panel
 
 <table><tr>
-<td width="55%"><img src="assets/readme_previews/home_weather_live.png" alt="HOME view — word clock + weather" width="100%"></td>
+<td width="55%"><img src="assets/readme_previews/info_panel.png" alt="INFO panel, system diagnostics" width="100%"></td>
 <td>
 
-**HOME** — The default view. A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from OpenWeatherMap. Thirteen languages, five themes, all switchable from the web UI without reflashing. The display you leave on when nobody's playing DOOM.
-
-</td>
-</tr></table>
-
-<table><tr>
-<td width="55%"><img src="assets/readme_previews/info_panel.png" alt="INFO panel — system diagnostics" width="100%"></td>
-<td>
-
-**INFO** — The nervous system, exposed. Wi-Fi signal, IP, MAC, battery level, firmware tag, NTP sync. The QR code points to the web config UI — scan it from your phone and you're in. Swipe right to get back to the interesting stuff.
+**The nervous system, exposed.** Wi-Fi signal, IP, MAC, battery level, firmware tag, NTP sync. The QR code points straight to the web config UI: scan it from your phone and you're in. Swipe right to get back to the interesting stuff.
 
 </td>
 </tr></table>
@@ -83,7 +74,7 @@ Tap **FIRE** on the title screen. The bar does the rest.
 
 | Component | Spec | Role |
 |---|---|---|
-| **MCU** | ESP32-S3, 240 MHz, dual-core | The brain. 16 MB flash, OPI PSRAM in octal mode — because LVGL needs room to think. |
+| **MCU** | ESP32-S3, 240 MHz, dual-core | The brain. 16 MB flash, OPI PSRAM in octal mode, because LVGL needs room to think. |
 | **Board** | Waveshare ESP32-S3-Touch-LCD-3.49 | The whole stack in one unit: display, touch controller, IMU, power management, battery connector. |
 | **Display** | AXS15231B, 3.49", 640×172 | The face. Horizontal strip format. `LV_COLOR_16_SWAP=1` because it expects RGB565 big-endian and is not open to discussion about this. |
 | **Touch** | AXS15231B integrated | Single-point touch. Carefully filtered for ghost frames and sentinel coordinates. |
@@ -102,11 +93,11 @@ Five views, navigated by swipe.
   INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► DOOM
 ```
 
-**HOME** — Word clock in natural sentence form (13 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing. Switches between themes via the web UI without reflashing.
+**HOME** — Word clock in natural sentence form (13 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing. Themes switchable from the web UI without reflashing.
 
-**AUX** — RSS feed rotation with up to 5 configurable sources. `SKIP`/`NXT`/`QR` controls. Every headline gets a live QR code — because sometimes you want to read the full article on a real screen, and that's fine. We don't judge.
+**AUX** — RSS feed rotation with up to 5 configurable sources. `SKIP`/`NXT`/`QR` controls. Every headline gets a live QR code, because sometimes you want to read the full article on a real screen, and that's fine.
 
-**WIKI** — Wikipedia stream: Featured Article, On This Day, and Random Article. Language is independently selectable (8 real languages) from the system language via web UI. Same `SKIP`/`NXT`/`QR` controls as AUX. A bottomless pit of trivia that you didn't need but now can't stop reading.
+**WIKI** — Wikipedia stream: Featured Article, On This Day, and Random Article. Language independently selectable (8 real languages) from the system language via web UI. Same `SKIP`/`NXT`/`QR` controls as AUX. A bottomless pit of trivia that you didn't need but now can't stop reading.
 
 **DOOM** — `prboom-go` donor port adapted for ScryBar. Centered 4:3 live framebuffer on the 640×172 strip, "Bunker Console" side HUD with oversized tilt meters, IMU gyroscope controls, and touch bands for `USE` / `FIRE`. Tap FIRE on the title screen to boot the engine. Tilt forward to move, tilt sideways to turn. [Details below.](#doom-view)
 
@@ -130,17 +121,17 @@ The DOOM integration intentionally does **not** import all of `retro-go`. ScryBa
 - Render path: direct framebuffer blit, bypasses LVGL entirely
 - Live frame: `320×200` source → centered `229×172` 4:3 pillarbox
 - Touch zones:
-  - Left band = `USE` (doors, switches, elevators — the polite button)
+  - Left band = `USE` (doors, switches, elevators, the polite button)
   - Right band = `FIRE` (the other one)
   - Center tap = recenter IMU neutral point
   - Swipe left = exit DOOM and return to WIKI
 - IMU (QMI8658):
-  - Active only inside DOOM — the rest of the UI ignores tilt
+  - Active only inside DOOM, the rest of the UI ignores tilt
   - Neutral orientation captured after a short stable settle window on entry
   - Forward/backward tilt → move/retreat
   - Left/right tilt → turn
 
-Boot flow: entering DOOM shows the title screen with live tilt meters. Tap `FIRE` to start the engine. This is deliberate — it gives you a moment to find a comfortable tilt angle before you're in a room full of demons.
+Boot flow: entering DOOM shows the title screen with live tilt meters. Tap `FIRE` to start the engine. This is deliberate: it gives you a moment to find a comfortable tilt angle before you're in a room full of demons.
 
 ---
 
@@ -181,7 +172,7 @@ At boot: assert SYS_EN via TCA9554, cycle Wi-Fi SSIDs (or use preferred SSID), f
 
 Serial `[SUMMARY]` every 30s: build tag, Wi-Fi, NTP, UI page, weather state. Read it like a flight data recorder.
 
-Touch passes through anti-ghost filtering (AXS15231B produces spurious frames at idle — the controller has opinions about how often it wants to be touched).
+Touch passes through anti-ghost filtering (AXS15231B produces spurious frames at idle; the controller has opinions about how often it wants to be touched).
 
 ---
 
@@ -207,11 +198,11 @@ arduino-cli upload -p <PORT> \
   .
 ```
 
-This repo ships a checked-in `partitions.csv` and uses `PartitionScheme=custom` — the standard presets ran out of room around the time DOOM moved in.
+This repo ships a checked-in `partitions.csv` and uses `PartitionScheme=custom`. The standard presets ran out of room around the time DOOM moved in.
 
 If upload hangs on `Connecting...`, enter boot mode: hold `BOOT`, press and release `RST`, release `BOOT`. This is not a bug. It is a handshake.
 
-Open Serial Monitor at **115200 baud**. You will see the boot banner, chip diagnostics, and — if `TEST_WIFI=1` — a connection attempt cycling through every configured SSID in sequence.
+Open Serial Monitor at **115200 baud**. You will see the boot banner, chip diagnostics, and (if `TEST_WIFI=1`) a connection attempt cycling through every configured SSID in sequence.
 
 ---
 
@@ -259,19 +250,19 @@ http://<DEVICE_IP>:8080
 
 | Endpoint | Method | Does |
 |---|---|---|
-| `GET /` | — | Config UI (Tron-grid themed, responsive, reduced-motion fallback) |
-| `GET /api/config` | — | Current config as JSON |
-| `GET /api/wifi/scan` | — | Scan nearby 2.4 GHz Wi-Fi networks (bounded timeout, safe in AP setup mode) |
-| `GET /api/wifi/setup-qr.svg` | — | SVG QR for setup URL (`http://192.168.4.1:8080` in AP mode) |
+| `GET /` | | Config UI (Tron-grid themed, responsive, reduced-motion fallback) |
+| `GET /api/config` | | Current config as JSON |
+| `GET /api/wifi/scan` | | Scan nearby 2.4 GHz Wi-Fi networks (bounded timeout, safe in AP setup mode) |
+| `GET /api/wifi/setup-qr.svg` | | SVG QR for setup URL (`http://192.168.4.1:8080` in AP mode) |
 | `POST /api/config` | JSON body | Update config fields |
 | `POST /config` | Form body | Update config via form UI |
-| `POST /reload` | — | Force refresh weather and RSS feeds |
+| `POST /reload` | | Force refresh weather and RSS feeds |
 
 Config persists to NVS. Configurable: Wi-Fi preferred SSID, Wi-Fi Direct mode, new Wi-Fi provisioning (scan + password), weather city/lat/lon, logo URL, up to 5 RSS feeds, system language, Wikipedia language, and UI theme.
 
 ### Wi-Fi Field Recovery
 
-If no known network is reachable, setup AP starts (`ScryBar-Setup-XXXX`, 2.4 GHz). Join it and open `http://192.168.4.1:8080` to scan and provision a new network. The INFO panel shows a QR code pointing to the config URL — scan it with your phone and you're in.
+If no known network is reachable, setup AP starts (`ScryBar-Setup-XXXX`, 2.4 GHz). Join it and open `http://192.168.4.1:8080` to scan and provision a new network. The INFO panel shows a QR code pointing to the config URL; scan it with your phone and you're in.
 
 ---
 
@@ -322,7 +313,7 @@ Commands sent over Serial at 115200 baud. Case-insensitive.
 | `SAVERON` / `SAVEROFF` | Force screensaver on / off |
 | `SAVERSTAT` | Print screensaver state + active idle target |
 | `PWROFF` | Soft power-off (recoverable via power button) |
-| `PWROFFHARD` | Hard power-off — **requires hardware power cycle. Handle with care.** |
+| `PWROFFHARD` | Hard power-off. **Requires hardware power cycle. Handle with care.** |
 
 A `[SUMMARY]` block is emitted automatically every 30 seconds: build, Wi-Fi, NTP, UI, and weather state. Read it like a flight data recorder.
 
@@ -340,7 +331,7 @@ python3 tools/capture_snapshot.py --port <PORT> --out-dir screenshots
 python3 tools/capture_snapshot.py --port <PORT> --pre-cmd VIEWDOOM --out-dir screenshots
 ```
 
-The `--pre-cmd` flag sends a serial command before taking the snapshot — useful for switching views without touching the device. Add `--pre-wait` and `--pre-gap` to tune boot / settle timing.
+The `--pre-cmd` flag sends a serial command before taking the snapshot, useful for switching views without touching the device. Add `--pre-wait` and `--pre-gap` to tune boot / settle timing.
 
 Wire format is `rgb565be`. Resolution is always `640×172`.
 
@@ -358,15 +349,15 @@ Wire format is `rgb565be`. Resolution is always `640×172`.
 
 ## Archive
 
-The `archive/ansi/` directory contains the former ANSI/BBS art viewer — 27 embedded files from [Blocktronics](http://blocktronics.org/) and [Sixteen Colors](https://16colo.rs/), a full ANSI parser with SAUCE support, CGA palette, and CP437 rendering. Removed in r183 because the replay value of ten art files on a desk bar is approximately one afternoon. The code is fully intact with restoration instructions in `archive/ansi/README.md` if you disagree.
+The `archive/ansi/` directory contains the former ANSI/BBS art viewer: 27 embedded files from [Blocktronics](http://blocktronics.org/) and [Sixteen Colors](https://16colo.rs/), a full ANSI parser with SAUCE support, CGA palette, and CP437 rendering. Removed in r183 because the replay value of ten art files on a desk bar is approximately one afternoon. The code is fully intact with restoration instructions in `archive/ansi/README.md` if you disagree.
 
-The ANSI parser was built with invaluable reference from **[icy_tools](https://github.com/mkrueger/icy_tools)** by Mike Krueger — the gold standard for ANSI art tooling. If you work with ANSI art on any platform, start there.
+The ANSI parser was built with invaluable reference from **[icy_tools](https://github.com/mkrueger/icy_tools)** by Mike Krueger, the gold standard for ANSI art tooling. If you work with ANSI art on any platform, start there.
 
 ---
 
 ## Acknowledgments
 
-The DOOM integration is based on `prboom-go` from **[ducalex/retro-go](https://github.com/ducalex/retro-go)**, but ScryBar vendors only the donor core and uses its own display/input glue. That separation is intentional — we wanted DOOM, not the entire retro-go ecosystem pretending to be DOOM.
+The DOOM integration is based on `prboom-go` from **[ducalex/retro-go](https://github.com/ducalex/retro-go)**, but ScryBar vendors only the donor core and uses its own display/input glue. That separation is intentional: we wanted DOOM, not the entire retro-go ecosystem pretending to be DOOM.
 
 ## Open Source Spirit
 
