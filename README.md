@@ -11,15 +11,16 @@
 
 *Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls random Wikipedia facts nobody asked for, and opens a portal to Hell. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
 
-## Theme Previews (HOME + Weather)
+## HOME
 
-| ScryBar Default | Cyberpunk 2077 | Toxic Candy | Tokyo Transit | Minimal Brutalist Mono |
-|---|---|---|---|---|
-| ![ScryBar Default HOME Weather](assets/readme_previews/home_weather_scrybar-default.png) | ![Cyberpunk 2077 HOME Weather](assets/readme_previews/home_weather_cyberpunk-2077.png) | ![Toxic Candy HOME Weather](assets/readme_previews/home_weather_toxic-candy.png) | ![Tokyo Transit HOME Weather](assets/readme_previews/home_weather_tokyo-transit.png) | ![Minimal Brutalist Mono HOME Weather](assets/readme_previews/home_weather_minimal-brutalist-mono.png) |
+<table><tr>
+<td width="55%"><img src="assets/readme_previews/home_weather_toxic-candy.png" alt="HOME view, Toxic Candy theme" width="100%"></td>
+<td>
 
-> Yes, that is cyberpunk in Latin. If you want neon UI saying *Hora septima est*, ScryBar will not judge.
+**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from OpenWeatherMap. Thirteen languages, five themes, all switchable from the web UI without reflashing. This is what you leave on when nobody's playing DOOM.
 
-> It tells time in thirteen languages, checks weather you could learn by opening a window, scrolls news you've already read, browses Wikipedia for trivia nobody asked for, and runs DOOM, because apparently an ESP32 on your desk wasn't doing enough already.
+</td>
+</tr></table>
 
 ## DOOM on ScryBar
 
@@ -46,6 +47,14 @@ Tap **FIRE** on the title screen. The bar does the rest.
 
 </td>
 </tr></table>
+
+## More Themes
+
+| ScryBar Default | Cyberpunk 2077 | Tokyo Transit | Minimal Brutalist Mono |
+|---|---|---|---|
+| ![ScryBar Default](assets/readme_previews/home_weather_scrybar-default.png) | ![Cyberpunk 2077](assets/readme_previews/home_weather_cyberpunk-2077.png) | ![Tokyo Transit](assets/readme_previews/home_weather_tokyo-transit.png) | ![Minimal Brutalist Mono](assets/readme_previews/home_weather_minimal-brutalist-mono.png) |
+
+> Yes, that is cyberpunk in Latin. If you want neon UI saying *Hora septima est*, ScryBar will not judge.
 
 ---
 
