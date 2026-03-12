@@ -4,7 +4,7 @@
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
 [![Languages](https://img.shields.io/badge/Word_Clock-13_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
-[![Views](https://img.shields.io/badge/Views-6_live_views-3B82F6?style=for-the-badge)](#views)
+[![Views](https://img.shields.io/badge/Views-5_live_views-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
 ## Theme Previews (HOME + Weather)
@@ -18,7 +18,7 @@
 > It tells time in thirteen languages, checks weather you could learn by opening a window, scrolls news you've already read, and browses Wikipedia random articles.
 > All of this on an ESP32 that didn't ask for this life.
 
-**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, six live views, a word clock that composes real sentences in thirteen languages — from Italian and Latin to Klingon, 1337 Speak, and Bellazio — actual grammar, not uppercase tiles — plus a Wikipedia viewer, ANSI art gallery, a pillarboxed DOOM port, and a web config UI.
+**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, five live views, a word clock that composes real sentences in thirteen languages — from Italian and Latin to Klingon, 1337 Speak, and Bellazio — actual grammar, not uppercase tiles — plus a Wikipedia viewer, a pillarboxed DOOM port, and a web config UI.
 
 ## DOOM on ScryBar
 
@@ -59,16 +59,16 @@ Real `prboom` gameplay now runs directly on the 640x172 ScryBar display with a c
 | **Touch** | AXS15231B integrated | Single-point touch. Carefully filtered for ghost frames and sentinel coordinates. |
 | **Power** | USB-C + optional LiPo | Charging and battery fallback managed via TCA9554 GPIO expander. Always re-asserted at boot. |
 
-The physical profile: a horizontal bar that sits flat on your desk. Wide enough to host six modes of mischief. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
+The physical profile: a horizontal bar that sits flat on your desk. Wide enough to host five modes of mischief. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
 
 ---
 
 ## Views
 
-Six views, navigated by swipe.
+Five views, navigated by swipe.
 
 ```
-  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► ANSI ◄─► DOOM
+  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► DOOM
 ```
 
 **HOME** — Word clock in natural sentence form (13 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing.
@@ -76,8 +76,6 @@ Six views, navigated by swipe.
 **AUX** — RSS rotation with up to 5 configurable feeds. `SKIP`/`NXT`/`QR` controls.
 
 **WIKI** — Wikipedia stream: Featured Article, On This Day, and Random Article. Language is independently selectable (8 real languages) from system language via web UI. Same `SKIP`/`NXT`/`QR` controls as AUX.
-
-**ANSI** — BBS/ANSI art gallery (27 embedded files). Portrait mode, tap to advance, swipe to exit.
 
 **DOOM** — `prboom-go` donor port adapted for ScryBar. Centered `4:3` live framebuffer on the `640x172` strip, sci-fi side HUD, `TITLEPIC` welcome screen, tap `FIRE` to boot the core.
 
@@ -252,7 +250,6 @@ Commands sent over Serial at 115200 baud.
 | `VIEW1` / `VIEWHOME` | Force HOME page |
 | `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
 | `VIEW3` / `VIEWWIKI` | Force WIKI page |
-| `VIEWANSI` | Force ANSI page |
 | `VIEW4` / `VIEWDOOM` / `DOOM` | Force DOOM page |
 | `BATSTAT` | Print battery status |
 | `SAVERON` | Force screensaver on |
@@ -287,10 +284,6 @@ Send `SAVERON` first to freeze the frame. Wire format is `rgb565be`.
 ---
 
 ## Acknowledgments
-
-The ANSI/BBS art viewer was built with invaluable reference from **[icy_tools](https://github.com/mkrueger/icy_tools)** by Mike Krueger — a comprehensive Rust-based ANSI art toolkit (editor, viewer, terminal, parser). Studying its parser confirmed critical implementation details: the ANSI-to-CGA color index mapping, deferred wrap semantics, private CSI parameter handling, and SAUCE record parsing. If you work with ANSI art on any platform, icy_tools is the gold standard. Thank you, Mike.
-
-BBS art files included in the firmware are sourced from the [Blocktronics](http://blocktronics.org/) and [Sixteen Colors](https://16colo.rs/) archives. These artists kept the ANSI art scene alive for decades — we're honored to display their work on hardware they never imagined.
 
 The DOOM integration is based on `prboom-go` from **[ducalex/retro-go](https://github.com/ducalex/retro-go)**, but ScryBar vendors only the donor core and uses its own display/input glue. That separation is intentional.
 
