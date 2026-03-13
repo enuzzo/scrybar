@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-03-13
+
+### Firmware DB-M0-r185
+- Power button UX pass:
+  - `PWR` long-press now triggers while the button is still held, instead of waiting for release
+  - soft-off and wake thresholds reduced to `3s`
+  - wake from soft-off now resumes directly to `HOME`
+  - added held-key release gate after wake/boot to avoid immediate retrigger loops
+- Power/button docs refresh:
+  - updated README and knowledge notes to match `3s` hold behavior and `HOME` resume policy
+- DOOM startup policy:
+  - disabled automatic DOOM page autostart at boot; default landing page remains clock + meteo
+- DOOM IMU tuning:
+  - reduced near-neutral twitchiness with wider engage thresholds, softer filtering, and hysteresis around zero
+
 ## 2026-03-06
 
 ### Firmware DB-M0-r152

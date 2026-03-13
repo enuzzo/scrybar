@@ -114,7 +114,7 @@ Current scope:
 - QR in AUX/WIKI opens on demand and falls back immediately to full URL while short-link generation is pending.
 - Physical side buttons:
   - `BOOT` (left): single click -> `HOME`
-  - `PWR` (center): screensaver (debounced short-press path to reject glitches)
+  - `PWR` (center): short press screensaver toggle; hold `3s` -> soft-off / wake to `HOME`
   - `RST` (right): hardware reset
 - Screensaver auto-idle target is `2h` on both USB and battery.
 

@@ -97,7 +97,7 @@
 #define DISPLAY_TOUCH_TAP_MAX_PX 12
 #define DISPLAY_TOUCH_TAP_MAX_MS 350
 #define DOOM_SPIKE_ENABLED 1
-#define DOOM_SPIKE_AUTOSTART 1
+#define DOOM_SPIKE_AUTOSTART 0
 
 // Touch controller (AXS15231B) on secondary I2C bus for this board wiring.
 #define TOUCH_I2C_ADDR 0x3B
@@ -180,8 +180,8 @@
 // Board vendor example maps PWR key to GPIO16 (active low).
 #define PWR_BUTTON_PIN 16
 #define PWR_BUTTON_ACTIVE_LOW 1
-#define PWR_HOLD_SHUTDOWN_MS 5000
-#define PWR_HOLD_WAKE_MS 5000
+#define PWR_HOLD_SHUTDOWN_MS 3000
+#define PWR_HOLD_WAKE_MS 3000
 #define PWR_RELEASE_DEBOUNCE_MS 120
 
 // --- Navigation button shortcuts (main views only, INFO excluded) ---

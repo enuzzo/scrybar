@@ -348,7 +348,8 @@ Discard touch frames where:
   - Random Article fetched via REST API (`/api/rest_v1/page/random/summary`) in selected wiki language
   - refresh cadence uses `RSS_REFRESH_MS` / `RSS_RETRY_MS` (defaults 15m / 2m)
 - Physical buttons (current mapping):
-  - `PWR` short press: screensaver (debounced)
+  - `PWR` short press: screensaver toggle (debounced)
+  - `PWR` long press `3s`: soft-off / wake to `HOME`
   - `BOOT` short press: jump to `HOME`
   - `RST`: hardware reset
 
@@ -377,14 +378,14 @@ Discard touch frames where:
 
 ## Power Policy
 
-- Long-press 5s: soft-off (wakeup via long-press)
+- Long-press 3s: soft-off (wakeup via long-press, resume on `HOME`)
 - Hard-off only by serial `PWROFFHARD`
 - Boot always re-asserts `SYS_EN` via TCA9554
 - Battery monitor: ADC1 CH3, 12dB attenuation, ×3 divider
 - Screensaver idle target: `2h` on USB and `2h` on battery
 - Power short-press hardening:
   - press debounce window: `45ms`
-  - minimum short-press duration: `90ms`
+  - minimum short-press duration: `70ms`
   - sub-threshold pulses are treated as bounce/glitch and ignored
 
 ## FAT Filesystem

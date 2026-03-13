@@ -55,7 +55,7 @@ Entry format:
 ## 2026-02-28 - Hard Power-Off Not Mapped to Physical Button
 
 - Context: Mapping hard-off to the physical button risked device entering a non-recoverable state (requiring a hardware power cycle) from an accidental long-press.
-- Decision: Hard-off is only accessible via serial command `PWROFFHARD`; the physical button handles soft-off (5s) and wake (5–6s) only.
+- Decision: Hard-off is only accessible via serial command `PWROFFHARD`; the physical button handles soft-off (`3s`) and wake (`3s`) only.
 - Impact/Tradeoffs: Safer user-facing UX with no accidental hard lock; technical hard-off still reachable for diagnostics.
 
 ---
@@ -237,6 +237,14 @@ Entry format:
 - Context: Wiki ingestion was introduced as content expansion, but a regression risked replacing existing RSS runtime feeds/userspace behavior.
 - Decision: Preserve AUX/RSS behavior unchanged (runtime-configurable up to 5 feeds) and add Wiki as a separate dedicated view (`UI_PAGE_WIKI`) with its own fixed 3-source rotation and independent state.
 - Impact/Tradeoffs: Existing RSS operators keep their current feed setup and controls; Wiki adds extra value without configuration churn. Slightly higher code/UI complexity is accepted to isolate concerns and avoid regressions.
+
+---
+
+## 2026-03-13 - Power Long-Press Triggers While Held and Wake Returns to Home
+
+- Context: Requiring power-button release after the hold window felt unnatural compared to normal consumer devices, and restart-based wake could re-enter transient pages like DOOM instead of the default home view.
+- Decision: Trigger physical `PWR` long-press actions as soon as the `3s` hold threshold is crossed while the button is still held. On soft-off wake, resume in-place without `esp_restart()`, force `UI_PAGE_HOME`, and ignore the still-held key until release to avoid immediate re-trigger.
+- Impact/Tradeoffs: Power behavior now feels device-like and predictable; wake is faster and consistently returns to clock/weather. Slightly more button state complexity is accepted to prevent accidental re-shutdown loops.
 
 ---
 

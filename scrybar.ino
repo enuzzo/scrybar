@@ -198,11 +198,12 @@ static bool g_backlightReady = false;
 static bool g_pwrButtonDown = false;
 static uint32_t g_pwrButtonDownMs = 0;
 static bool g_pwrHoldReported = false;
+static bool g_pwrIgnoreUntilRelease = false;
 static int g_pwrLastRawLevel = -1;
 static uint32_t g_pwrPressCandidateMs = 0;
 static uint32_t g_pwrReleaseCandidateMs = 0;
 static constexpr uint32_t kPwrPressDebounceMs = 45UL;
-static constexpr uint32_t kPwrShortPressMinMs = 90UL;
+static constexpr uint32_t kPwrShortPressMinMs = 70UL;
 static bool g_navFirstButtonDown = false;
 static uint32_t g_navFirstButtonDownMs = 0;
 static int g_navFirstLastRawLevel = -1;
@@ -712,13 +713,19 @@ static void handleWebConfigServerLoop();
 static void formatCityLabel(const char *src, char *out, size_t outLen);
 static const char *runtimeUiThemeId();
 static const char *runtimeUiThemeLabel();
+static bool runWiFiConnectTest();
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
 static void lvglApplyThemeStyles(bool forceInvalidate);
+static void updateLvglUi(bool force);
+static void runLvglLoop();
 #endif
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
 static void markUserInteraction(uint32_t nowMs);
 static void lvglSetScreenSaverActive(bool on);
 static void handleScreenSaverLoop(uint32_t nowMs);
+#endif
+#if TEST_DISPLAY && TEST_NTP
+static void updateDisplayClock(bool force);
 #endif
 
 static inline void pumpWebUiDuringIo() {
@@ -910,15 +917,17 @@ static constexpr int16_t kDoomLeftBandW = kDoomFrameX;
 static constexpr int16_t kDoomRightBandX = kDoomFrameX + kDoomFrameW;
 static constexpr float   kDoomRadToDeg = 57.2957795f;
 static constexpr float   kDoomTiltComplementaryAlpha = 0.94f;
-static constexpr float   kDoomMoveDeadbandDeg = 4.5f;
-static constexpr float   kDoomTurnDeadbandDeg = 4.0f;
-static constexpr float   kDoomMoveBinDeg = 4.5f;
-static constexpr float   kDoomTurnBinDeg = 4.0f;
+static constexpr float   kDoomMoveEngageDeg = 8.0f;
+static constexpr float   kDoomMoveReleaseDeg = 5.5f;
+static constexpr float   kDoomTurnEngageDeg = 7.0f;
+static constexpr float   kDoomTurnReleaseDeg = 4.5f;
+static constexpr float   kDoomMoveBinDeg = 5.5f;
+static constexpr float   kDoomTurnBinDeg = 5.0f;
 static constexpr uint16_t kDoomNeutralCaptureDelayMs = 180;
 static constexpr uint16_t kDoomNeutralStableWindowMs = 320;
 static constexpr uint16_t kDoomNeutralStableMinSamples = 8;
 static constexpr float   kDoomNeutralCaptureGyroMaxDps = 12.0f;
-static constexpr float   kDoomAxisResponseAlpha = 0.24f;
+static constexpr float   kDoomAxisResponseAlpha = 0.16f;
 static constexpr int8_t  kDoomMoveBinMin = -6;
 static constexpr int8_t  kDoomMoveBinMax = 6;
 static constexpr int8_t  kDoomTurnBinMin = -6;
@@ -1473,10 +1482,14 @@ static bool isNavFirstButtonPressed() {
 static void preparePowerButtonPin() {
   pinMode(PWR_BUTTON_PIN, PWR_BUTTON_ACTIVE_LOW ? INPUT_PULLUP : INPUT_PULLDOWN);
   g_pwrLastRawLevel = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
+  g_pwrIgnoreUntilRelease = isPwrButtonPressed();
   Serial.printf("[PWR] init pin=%d raw=%d active_low=%d\n",
                 PWR_BUTTON_PIN,
                 g_pwrLastRawLevel,
                 PWR_BUTTON_ACTIVE_LOW ? 1 : 0);
+  if (g_pwrIgnoreUntilRelease) {
+    Serial.println("[PWR] Ignoring held key until release after boot.");
+  }
 }
 
 static void prepareNavFirstButtonPin() {
@@ -1545,6 +1558,44 @@ static void enterDeepSleepFromPowerButton() {
   esp_deep_sleep_start();
 }
 
+static void resumeFromSoftPowerOff() {
+  const uint32_t nowMs = millis();
+  g_softPowerOff = false;
+  g_pwrIgnoreUntilRelease = true;
+  g_pwrButtonDown = false;
+  g_pwrHoldReported = false;
+  g_pwrPressCandidateMs = 0;
+  g_pwrReleaseCandidateMs = 0;
+
+  setBacklightPercent(100);
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
+  if (g_lvglReady && g_lvglScreenSaverActive) {
+    lvglSetScreenSaverActive(false);
+  }
+  markUserInteraction(nowMs);
+#endif
+
+  setUiPage(UI_PAGE_HOME);
+  g_uiNeedsRedraw = true;
+  applyEnergyPolicy(nowMs, true);
+
+#if TEST_WIFI
+  runWiFiConnectTest();
+#endif
+#if TEST_NTP
+  g_lastNtpAttemptMs = 0;
+#endif
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  if (g_lvglReady) {
+    updateLvglUi(true);
+    runLvglLoop();
+  }
+#elif TEST_DISPLAY && TEST_NTP
+  updateDisplayClock(true);
+#endif
+  Serial.println("[PWR] Soft-off wake confirmed, resuming HOME.");
+}
+
 static void enterSoftPowerOffFromPowerButton() {
   g_softPowerOff = true;
   Serial.println("[PWR] Entering soft-off fallback (USB-safe).");
@@ -1575,9 +1626,8 @@ static void enterSoftPowerOffFromPowerButton() {
         Serial.printf("[PWR] Soft-off wake hold (%lu/%d ms)\n", (unsigned long)heldMs, PWR_HOLD_WAKE_MS);
       }
       if (heldMs >= (uint32_t)PWR_HOLD_WAKE_MS) {
-        Serial.println("[PWR] Soft-off wake confirmed, restarting.");
-        delay(80);
-        esp_restart();
+        resumeFromSoftPowerOff();
+        return;
       }
     } else {
       holdStartMs = 0;
@@ -1605,13 +1655,14 @@ static void shutdownFromPowerButton(bool hardOffRequested) {
 
 static void onPowerButtonShortPress(uint32_t nowMs) {
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
-  (void)nowMs;
   if (!g_lvglReady) {
     Serial.println("[PWR] Short press: screensaver unavailable (LVGL not ready).");
     return;
   }
-  lvglSetScreenSaverActive(true);
-  Serial.println("[PWR] Short press: screensaver ON.");
+  markUserInteraction(nowMs);
+  const bool nextSaverState = !g_lvglScreenSaverActive;
+  lvglSetScreenSaverActive(nextSaverState);
+  Serial.printf("[PWR] Short press: screensaver %s.\n", nextSaverState ? "ON" : "OFF");
 #else
   (void)nowMs;
   Serial.println("[PWR] Short press ignored (screensaver disabled).");
@@ -1626,6 +1677,18 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
   }
 
   const bool pressed = isPwrButtonPressed();
+  if (g_pwrIgnoreUntilRelease) {
+    if (!pressed) {
+      g_pwrIgnoreUntilRelease = false;
+      g_pwrButtonDown = false;
+      g_pwrHoldReported = false;
+      g_pwrPressCandidateMs = 0;
+      g_pwrReleaseCandidateMs = 0;
+      Serial.println("[PWR] Release gate cleared.");
+    }
+    return;
+  }
+
   if (pressed) {
     g_pwrReleaseCandidateMs = 0;
     if (!g_pwrButtonDown) {
@@ -1645,6 +1708,14 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
       if (!g_pwrHoldReported && heldMs >= 1000UL) {
         g_pwrHoldReported = true;
         Serial.printf("[PWR] Keep holding (%lu/%d ms)\n", (unsigned long)heldMs, PWR_HOLD_SHUTDOWN_MS);
+      }
+      if (heldMs >= (uint32_t)PWR_HOLD_SHUTDOWN_MS) {
+        Serial.printf("[PWR] Long press confirmed (%lu ms).\n", (unsigned long)heldMs);
+        g_pwrButtonDown = false;
+        g_pwrHoldReported = false;
+        g_pwrPressCandidateMs = 0;
+        g_pwrReleaseCandidateMs = 0;
+        shutdownFromPowerButton(false);
       }
     }
     return;
@@ -1727,7 +1798,7 @@ static void handleNavFirstButtonLoop(uint32_t nowMs) {
 
 static void handleWakeHoldGate() {
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT0) return;
-  Serial.println("[PWR] Wake from PWR key, waiting 5s hold to continue boot.");
+  Serial.printf("[PWR] Wake from PWR key, waiting %d ms hold to continue boot.\n", PWR_HOLD_WAKE_MS);
   const uint32_t start = millis();
   while (isPwrButtonPressed()) {
     const uint32_t held = millis() - start;
@@ -1844,10 +1915,21 @@ static inline uint8_t doomTouchZoneFromX(int16_t x) {
   return DOOM_TOUCH_CENTER;
 }
 
-static inline int8_t doomQuantizeAxis(float deltaDeg, float deadbandDeg, float binDeg,
-                                      int8_t minBin, int8_t maxBin) {
-  if (fabsf(deltaDeg) < deadbandDeg) return 0;
-  return (int8_t)constrain((int)lroundf(deltaDeg / binDeg), (int)minBin, (int)maxBin);
+// Use a wider engage threshold and a smaller release threshold so DOOM does
+// not chatter between 0 and +/-1 when the device is near neutral.
+static inline int8_t doomQuantizeAxis(float deltaDeg, float engageDeg, float releaseDeg, float binDeg,
+                                      int8_t previousBin, int8_t minBin, int8_t maxBin) {
+  const float absDelta = fabsf(deltaDeg);
+  const bool reversing = (previousBin != 0) && ((deltaDeg > 0.0f) != (previousBin > 0));
+  const float threshold = (previousBin == 0 || reversing) ? engageDeg : releaseDeg;
+  if (absDelta < threshold) return 0;
+
+  float effectiveDeg = absDelta - engageDeg;
+  if (effectiveDeg < 0.0f) effectiveDeg = 0.0f;
+
+  int bin = 1 + (int)floorf(effectiveDeg / binDeg);
+  if (deltaDeg < 0.0f) bin = -bin;
+  return (int8_t)constrain(bin, (int)minBin, (int)maxBin);
 }
 
 static const char *doomTouchZoneName(uint8_t zone) {
@@ -13877,10 +13959,10 @@ static void runImuLoop() {
       g_doomMoveDeltaFilteredDeg += (moveDeltaDegRaw - g_doomMoveDeltaFilteredDeg) * kDoomAxisResponseAlpha;
       g_doomTurnDeltaFilteredDeg += (turnDeltaDegRaw - g_doomTurnDeltaFilteredDeg) * kDoomAxisResponseAlpha;
     }
-    moveBin = doomQuantizeAxis(g_doomMoveDeltaFilteredDeg, kDoomMoveDeadbandDeg, kDoomMoveBinDeg,
-                               kDoomMoveBinMin, kDoomMoveBinMax);
-    turnBin = doomQuantizeAxis(g_doomTurnDeltaFilteredDeg, kDoomTurnDeadbandDeg, kDoomTurnBinDeg,
-                               kDoomTurnBinMin, kDoomTurnBinMax);
+    moveBin = doomQuantizeAxis(g_doomMoveDeltaFilteredDeg, kDoomMoveEngageDeg, kDoomMoveReleaseDeg,
+                               kDoomMoveBinDeg, g_doomMoveBin, kDoomMoveBinMin, kDoomMoveBinMax);
+    turnBin = doomQuantizeAxis(g_doomTurnDeltaFilteredDeg, kDoomTurnEngageDeg, kDoomTurnReleaseDeg,
+                               kDoomTurnBinDeg, g_doomTurnBin, kDoomTurnBinMin, kDoomTurnBinMax);
   } else {
     g_doomAxisFilterReady = false;
     g_doomMoveDeltaFilteredDeg = 0.0f;

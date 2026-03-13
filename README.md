@@ -136,7 +136,7 @@ Five views, navigated by swipe.
 
 Physical buttons:
 
-- `PWR` (center): short press toggles screensaver (debounced against false micro-presses).
+- `PWR` (center): short press toggles screensaver; hold `3s` for soft-off; hold `3s` again to wake back to `HOME`.
 - `BOOT` (left): single click jumps to `HOME`.
 - `RST` (right): hardware reset. The nuclear option.
 
