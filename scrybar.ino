@@ -17,6 +17,7 @@
 
 #if TEST_DISPLAY
 #include "assets/netmilk_logo/netmilk_logo_283x152_rgb565.h"
+#include "assets/img_test/cover-test-150-rgb565.h"
 #if !TEST_LVGL_UI
 #include "assets/weather_demo/weather_icons_mini_rgb565.h"
 #endif
@@ -809,7 +810,8 @@ enum UiPageMode : uint8_t {
   UI_PAGE_HOME = 1,
   UI_PAGE_AUX = 2,
   UI_PAGE_WIKI = 3,
-  UI_PAGE_DOOM = 4,
+  UI_PAGE_NOW_PLAYING = 4,
+  UI_PAGE_DOOM = 5,
 };
 static UiPageMode g_uiPageMode = UI_PAGE_HOME;
 static bool g_uiNeedsRedraw = true;
@@ -896,9 +898,128 @@ struct FeedDeckUi {
 };
 static FeedDeckUi g_auxDeck;
 static FeedDeckUi g_wikiDeck;
+struct FakeNowPlayingTrack;
+struct NowPlayingUi {
+  lv_obj_t *card = nullptr;
+  lv_obj_t *header = nullptr;
+  lv_obj_t *headerFill = nullptr;
+  lv_obj_t *title = nullptr;
+  lv_obj_t *statusDot = nullptr;
+  lv_obj_t *status = nullptr;
+  lv_obj_t *controlPrev = nullptr;
+  lv_obj_t *controlPrevText = nullptr;
+  lv_obj_t *controlPause = nullptr;
+  lv_obj_t *controlPauseText = nullptr;
+  lv_obj_t *controlNext = nullptr;
+  lv_obj_t *controlNextText = nullptr;
+  lv_obj_t *coverShell = nullptr;
+  lv_obj_t *cover = nullptr;
+  lv_obj_t *coverImage = nullptr;
+  lv_obj_t *coverStripe = nullptr;
+  lv_obj_t *coverOrb = nullptr;
+  lv_obj_t *coverTop = nullptr;
+  lv_obj_t *coverBottom = nullptr;
+  lv_obj_t *track = nullptr;
+  lv_obj_t *artist = nullptr;
+  lv_obj_t *album = nullptr;
+  lv_obj_t *source = nullptr;
+  lv_obj_t *progressRail = nullptr;
+  lv_obj_t *progressFill = nullptr;
+  lv_obj_t *progressElapsed = nullptr;
+  lv_obj_t *progressRemaining = nullptr;
+  int8_t lastTrackIndex = -1;
+};
+struct FakeNowPlayingTrack {
+  const char *title;
+  const char *artist;
+  const char *album;
+  const char *source;
+  const char *coverTop;
+  const char *coverBottom;
+  uint16_t durationSec;
+  uint16_t baseElapsedSec;
+  uint32_t pageBgA;
+  uint32_t pageBgB;
+  uint32_t coverBgA;
+  uint32_t coverBgB;
+  uint32_t coverStripe;
+  uint32_t coverOrb;
+  uint32_t coverText;
+  uint32_t progressFill;
+};
+static NowPlayingUi g_nowPlayingUi;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
+static lv_obj_t *g_lvglNowPlayingRoot = nullptr;
 static lv_obj_t *g_lvglDoomRoot = nullptr;
+static constexpr uint32_t NOW_PLAYING_FAKE_ROTATE_MS = 18000UL;
+static const lv_img_dsc_t kNowPlayingRealCover150 = {
+    .header = {
+        .cf = LV_IMG_CF_TRUE_COLOR,
+        .always_zero = 0,
+        .reserved = 0,
+        .w = 150,
+        .h = 150,
+    },
+    .data_size = sizeof(assets_img_test_cover_test_150_rgb565),
+    .data = assets_img_test_cover_test_150_rgb565,
+};
+static constexpr FakeNowPlayingTrack kFakeNowPlayingTracks[] = {
+    {
+        "The City Was Electric and the Night Smelled Like Rain (Extended Skyline Rebuild Mix)",
+        "Marta Bellavita and the Extremely Overprepared Weather Satellites",
+        "Paper Maps for Neon Highways and Other Late Decisions",
+        "TIDAL",
+        "CITY",
+        "RAIN",
+        567,
+        221,
+        0x3B0A52,
+        0xD43A6C,
+        0x121C67,
+        0x2E9BFF,
+        0xF8C145,
+        0xFFE26A,
+        0xF7F2FF,
+        0xFFD24D,
+    },
+    {
+        "Dancing Through Seven Overlapping Calendars in a Borrowed Neon Suit",
+        "The Committee for Loud, Unreasonable, and Surprisingly Elegant Synthesizers",
+        "This Floor Is Lava But Make It Tasteful",
+        "Spotify",
+        "SEVEN",
+        "SUIT",
+        734,
+        418,
+        0x153A5B,
+        0x6E1FE8,
+        0x051B32,
+        0x16B6C9,
+        0xFF5F7A,
+        0x7CF4FF,
+        0xEFFFFF,
+        0x7CF4FF,
+    },
+    {
+        "Archive of Warm Machines, Side B: Notes Left Inside the Last Working Cassette Library",
+        "Her Future Ghost Orchestra Featuring Alessandro From Accounting On Portable Percussion",
+        "Friendly Failures, Volume IV",
+        "Podcasts",
+        "TAPE",
+        "GLOW",
+        401,
+        143,
+        0x2B102D,
+        0xD86A29,
+        0x311339,
+        0xF28C38,
+        0x6EF2C4,
+        0xFFD08A,
+        0xFFF5E7,
+        0x6EF2C4,
+    },
+};
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
 static constexpr uint8_t DOOM_TOUCH_NONE = 0;
 static constexpr uint8_t DOOM_TOUCH_LEFT = 1;
@@ -7636,6 +7757,8 @@ static void lvglSetFeedRefreshButtonPressed(bool pressed);
 static void lvglSetFeedNextFeedButtonPressed(bool pressed);
 static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bool force);
 static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki);
+static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root);
+static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force);
 #endif
 
 // Returns true for pages that have a feed deck (AUX/RSS and WIKI).
@@ -7652,6 +7775,8 @@ static const char* uiPageName(UiPageMode mode) {
       return "AUX";
     case UI_PAGE_WIKI:
       return "WIKI";
+    case UI_PAGE_NOW_PLAYING:
+      return "NOW";
     case UI_PAGE_DOOM:
       return "DOOM";
     case UI_PAGE_HOME:
@@ -7666,6 +7791,7 @@ static uint8_t uiViewFlagForPage(UiPageMode mode) {
     case UI_PAGE_AUX:  return UI_VIEW_FLAG_AUX;
     case UI_PAGE_WIKI: return UI_VIEW_FLAG_WIKI;
     case UI_PAGE_DOOM: return UI_VIEW_FLAG_DOOM;
+    case UI_PAGE_NOW_PLAYING:
     case UI_PAGE_HOME:
     default:
       return 0;
@@ -7674,6 +7800,7 @@ static uint8_t uiViewFlagForPage(UiPageMode mode) {
 
 static bool uiPageEnabledNoEnsure(UiPageMode mode) {
   if (mode == UI_PAGE_HOME) return true;
+  if (mode == UI_PAGE_NOW_PLAYING) return true;  // Prototype tab is always visible for layout iteration.
   if (mode == UI_PAGE_DOOM) {
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
     return (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) != 0;
@@ -7696,6 +7823,7 @@ static bool uiPageInSwipeCarousel(UiPageMode mode) {
     case UI_PAGE_HOME:
     case UI_PAGE_AUX:
     case UI_PAGE_WIKI:
+    case UI_PAGE_NOW_PLAYING:
     case UI_PAGE_DOOM:
       return true;
     default:
@@ -7708,6 +7836,7 @@ static const UiPageMode kSwipePageOrder[] = {
     UI_PAGE_HOME,
     UI_PAGE_AUX,
     UI_PAGE_WIKI,
+    UI_PAGE_NOW_PLAYING,
     UI_PAGE_DOOM,
 };
 
@@ -7929,6 +8058,165 @@ static uint16_t lvglColorContrastLuma(uint32_t fg, uint32_t bg) {
   const uint16_t lf = lvglColorLuma(fg);
   const uint16_t lb = lvglColorLuma(bg);
   return (lf >= lb) ? (uint16_t)(lf - lb) : (uint16_t)(lb - lf);
+}
+
+static uint32_t lvglBlendRgb(uint32_t a, uint32_t b, uint8_t mixB) {
+  const uint16_t wa = (uint16_t)(255u - mixB);
+  const uint16_t wb = (uint16_t)mixB;
+  const uint16_t r = (uint16_t)(((((a >> 16) & 0xFFu) * wa) + (((b >> 16) & 0xFFu) * wb)) / 255u);
+  const uint16_t g = (uint16_t)(((((a >> 8) & 0xFFu) * wa) + (((b >> 8) & 0xFFu) * wb)) / 255u);
+  const uint16_t bl = (uint16_t)((((a & 0xFFu) * wa) + ((b & 0xFFu) * wb)) / 255u);
+  return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)bl;
+}
+
+static uint32_t lvglDarkenRgb(uint32_t rgb, uint8_t amount) {
+  return lvglBlendRgb(rgb, 0x000000, amount);
+}
+
+static uint32_t lvglLightenRgb(uint32_t rgb, uint8_t amount) {
+  return lvglBlendRgb(rgb, 0xFFFFFF, amount);
+}
+
+static uint8_t lvglRgbChroma(uint32_t rgb) {
+  const uint8_t r = (uint8_t)((rgb >> 16) & 0xFFu);
+  const uint8_t g = (uint8_t)((rgb >> 8) & 0xFFu);
+  const uint8_t b = (uint8_t)(rgb & 0xFFu);
+  uint8_t maxc = r;
+  if (g > maxc) maxc = g;
+  if (b > maxc) maxc = b;
+  uint8_t minc = r;
+  if (g < minc) minc = g;
+  if (b < minc) minc = b;
+  return (uint8_t)(maxc - minc);
+}
+
+static float lvglRelativeLuminance(uint32_t rgb) {
+  auto linearize = [](uint8_t c) -> float {
+    const float s = (float)c / 255.0f;
+    if (s <= 0.04045f) return s / 12.92f;
+    return powf((s + 0.055f) / 1.055f, 2.4f);
+  };
+  const float r = linearize((uint8_t)((rgb >> 16) & 0xFFu));
+  const float g = linearize((uint8_t)((rgb >> 8) & 0xFFu));
+  const float b = linearize((uint8_t)(rgb & 0xFFu));
+  return (0.2126f * r) + (0.7152f * g) + (0.0722f * b);
+}
+
+static float lvglContrastRatio(uint32_t a, uint32_t b) {
+  const float la = lvglRelativeLuminance(a);
+  const float lb = lvglRelativeLuminance(b);
+  const float hi = (la >= lb) ? la : lb;
+  const float lo = (la >= lb) ? lb : la;
+  return (hi + 0.05f) / (lo + 0.05f);
+}
+
+static uint32_t lvglResolvedOnColorText(uint32_t bg) {
+  const float whiteContrast = lvglContrastRatio(0xFFFFFF, bg);
+  const float blackContrast = lvglContrastRatio(0x000000, bg);
+  return (whiteContrast >= blackContrast) ? 0xFFFFFF : 0x000000;
+}
+
+static uint32_t lvglRgb565ToRgb888(uint16_t rgb565) {
+  const uint8_t r5 = (uint8_t)((rgb565 >> 11) & 0x1Fu);
+  const uint8_t g6 = (uint8_t)((rgb565 >> 5) & 0x3Fu);
+  const uint8_t b5 = (uint8_t)(rgb565 & 0x1Fu);
+  const uint8_t r = (uint8_t)((r5 * 255u) / 31u);
+  const uint8_t g = (uint8_t)((g6 * 255u) / 63u);
+  const uint8_t b = (uint8_t)((b5 * 255u) / 31u);
+  return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+}
+
+static uint32_t lvglNowPlayingCoverAccentColor() {
+  static bool cached = false;
+  static uint32_t cachedColor = 0x2D8BFF;
+  if (cached) return cachedColor;
+
+  const uint8_t *data = assets_img_test_cover_test_150_rgb565;
+  const size_t dataSize = sizeof(assets_img_test_cover_test_150_rgb565);
+  uint32_t bestColor = cachedColor;
+  uint32_t bestScore = 0;
+
+  for (size_t i = 0; (i + 1u) < dataSize; i += 6u) {
+    const uint16_t px = (uint16_t)(((uint16_t)data[i] << 8) | (uint16_t)data[i + 1u]);
+    const uint32_t rgb = lvglRgb565ToRgb888(px);
+    const uint8_t chroma = lvglRgbChroma(rgb);
+    const uint16_t luma = lvglColorLuma(rgb);
+    uint32_t score = (uint32_t)chroma * 5u;
+    if (luma >= 56u && luma <= 210u) score += 96u;
+    else if (luma < 36u || luma > 232u) score /= 2u;
+    if (((rgb >> 16) & 0xFFu) >= 170u || ((rgb >> 8) & 0xFFu) >= 170u || (rgb & 0xFFu) >= 170u) {
+      score += 24u;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestColor = rgb;
+    }
+  }
+
+  const uint16_t luma = lvglColorLuma(bestColor);
+  if (luma < 68u) bestColor = lvglLightenRgb(bestColor, 28);
+  if (luma > 206u) bestColor = lvglDarkenRgb(bestColor, 24);
+
+  cachedColor = bestColor;
+  cached = true;
+  return cachedColor;
+}
+
+static uint32_t lvglResolvedNowPlayingVividBg(uint32_t c0, uint32_t c1, uint32_t c2, uint32_t c3, uint32_t c4) {
+  const uint32_t candidates[] = {
+      c0,
+      c1,
+      c2,
+      c3,
+      c4,
+  };
+  uint32_t best = candidates[0];
+  uint16_t bestScore = 0;
+  for (size_t i = 0; i < (sizeof(candidates) / sizeof(candidates[0])); ++i) {
+    const uint32_t c = candidates[i];
+    uint16_t score = (uint16_t)lvglRgbChroma(c) * 3u;
+    const uint16_t luma = lvglColorLuma(c);
+    if (luma < 38u || luma > 228u) score = (score > 32u) ? (uint16_t)(score - 32u) : 0u;
+    if (score > bestScore) {
+      best = c;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+static uint32_t lvglBestContrastColor3(uint32_t c0, uint32_t c1, uint32_t c2, uint32_t bg) {
+  uint32_t best = c0;
+  uint16_t bestScore = lvglColorContrastLuma(c0, bg);
+  const uint32_t candidates[] = {c1, c2};
+  for (uint8_t i = 0; i < 2; ++i) {
+    const uint16_t score = lvglColorContrastLuma(candidates[i], bg);
+    if (score > bestScore) {
+      best = candidates[i];
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+static uint32_t lvglResolvedNowPlayingPrimaryText(uint32_t accent, uint32_t bg) {
+  const uint32_t lightAccent = lvglLightenRgb(accent, 132);
+  const uint32_t darkAccent = lvglDarkenRgb(accent, 112);
+  uint32_t best = lvglBestContrastColor3(lightAccent, 0xFFF8FB, 0x15181F, bg);
+  if (lvglColorContrastLuma(best, bg) < 108u) {
+    best = lvglBestContrastColor3(0xFFF8FB, 0xF2F5FF, 0x15181F, bg);
+  }
+  return best;
+}
+
+static uint32_t lvglResolvedNowPlayingSecondaryText(uint32_t primary, uint32_t bg) {
+  uint32_t toned = lvglBlendRgb(primary, bg, 72);
+  if (lvglColorContrastLuma(toned, bg) >= 74u) return toned;
+  toned = (lvglColorLuma(primary) >= lvglColorLuma(bg))
+              ? lvglLightenRgb(primary, 26)
+              : lvglDarkenRgb(primary, 26);
+  if (lvglColorContrastLuma(toned, bg) >= 74u) return toned;
+  return (lvglColorLuma(bg) >= 118u) ? 0x28303A : 0xE8EDF7;
 }
 
 static uint32_t lvglActivePanelBgForContrast() {
@@ -10770,6 +11058,46 @@ static const lv_font_t* lvglFontBig() {
 #endif
 }
 
+static const lv_font_t* lvglNowPlayingTitleFont() {
+#if defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
+  return &lv_font_montserrat_22;
+#elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
+  return &lv_font_montserrat_20;
+#else
+  return lvglFontMeta();
+#endif
+}
+
+static const lv_font_t* lvglNowPlayingBodyFont() {
+#if defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
+  return &lv_font_montserrat_20;
+#elif defined(LV_FONT_MONTSERRAT_18) && LV_FONT_MONTSERRAT_18
+  return &lv_font_montserrat_18;
+#else
+  return lvglFontBody();
+#endif
+}
+
+static const lv_font_t* lvglNowPlayingArtistFont() {
+#if defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
+  return &lv_font_montserrat_22;
+#elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
+  return &lv_font_montserrat_20;
+#else
+  return lvglFontMeta();
+#endif
+}
+
+static const lv_font_t* lvglNowPlayingMetaFont() {
+#if defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
+  return &lv_font_montserrat_16;
+#elif defined(LV_FONT_MONTSERRAT_14) && LV_FONT_MONTSERRAT_14
+  return &lv_font_montserrat_14;
+#else
+  return lvglFontTiny();
+#endif
+}
+
 static const lv_font_t* lvglFontTemp() {
   if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
   if (lvglThemeIsToxicCandy()) return lvglFontToxicTitle();
@@ -10875,6 +11203,49 @@ static void lvglApplyClockSentenceAutoFit(const char *text) {
   lvglCenterClockSentenceLabel();
 }
 
+static void formatTrackDuration(uint16_t seconds, char *out, size_t outLen) {
+  const uint16_t mins = seconds / 60U;
+  const uint16_t secs = seconds % 60U;
+  snprintf(out, outLen, "%u:%02u", (unsigned)mins, (unsigned)secs);
+}
+
+static void resolveFakeNowPlayingTrack(uint32_t nowMs, uint16_t *elapsedSecOut, uint8_t *indexOut) {
+  const size_t trackCount = sizeof(kFakeNowPlayingTracks) / sizeof(kFakeNowPlayingTracks[0]);
+  if (trackCount == 0) {
+    if (elapsedSecOut) *elapsedSecOut = 0;
+    if (indexOut) *indexOut = 0;
+    return;
+  }
+  const uint8_t idx = (uint8_t)((nowMs / NOW_PLAYING_FAKE_ROTATE_MS) % trackCount);
+  const FakeNowPlayingTrack &track = kFakeNowPlayingTracks[idx];
+  const uint32_t trackMs = nowMs % NOW_PLAYING_FAKE_ROTATE_MS;
+  uint16_t elapsed = (uint16_t)(track.baseElapsedSec + (trackMs / 1000UL));
+  if (elapsed >= track.durationSec) elapsed = (uint16_t)(track.durationSec - 1U);
+  if (elapsedSecOut) *elapsedSecOut = elapsed;
+  if (indexOut) *indexOut = idx;
+}
+
+static void lvglApplyAdaptiveWrapFont(lv_obj_t *label, const char *text, lv_coord_t maxHeight,
+                                      const lv_font_t *f0, const lv_font_t *f1,
+                                      const lv_font_t *f2, const lv_font_t *f3) {
+  if (!label || !text) return;
+  const lv_font_t *fonts[] = {f0, f1, f2, f3};
+  const lv_font_t *chosenFallback = fonts[3] ? fonts[3] : lvglFontTiny();
+  const lv_font_t *chosen = chosenFallback;
+  for (const lv_font_t *font : fonts) {
+    if (!font) continue;
+    lv_obj_set_style_text_font(label, font, 0);
+    lv_label_set_text(label, text);
+    lv_obj_update_layout(label);
+    if (lv_obj_get_height(label) <= maxHeight) {
+      chosen = font;
+      break;
+    }
+  }
+  lv_obj_set_style_text_font(label, chosen, 0);
+  lv_label_set_text(label, text);
+}
+
 static void lvglApplyThemeFonts() {
   if (g_lvglInfoTitle) lv_obj_set_style_text_font(g_lvglInfoTitle, lvglFontSmall(), 0);
   if (g_lvglInfoEndpoint) lv_obj_set_style_text_font(g_lvglInfoEndpoint, lvglFontSmall(), 0);
@@ -10893,6 +11264,19 @@ static void lvglApplyThemeFonts() {
   if (g_lvglWind) lv_obj_set_style_text_font(g_lvglWind, lvglFontTiny(), 0);
   if (g_lvglForecastNow) lv_obj_set_style_text_font(g_lvglForecastNow, lvglFontSmall(), 0);
   if (g_lvglForecastTomorrow) lv_obj_set_style_text_font(g_lvglForecastTomorrow, lvglFontTiny(), 0);
+  if (g_nowPlayingUi.title) lv_obj_set_style_text_font(g_nowPlayingUi.title, lvglNowPlayingMetaFont(), 0);
+  if (g_nowPlayingUi.status) lv_obj_set_style_text_font(g_nowPlayingUi.status, lvglNowPlayingMetaFont(), 0);
+  if (g_nowPlayingUi.coverTop) lv_obj_set_style_text_font(g_nowPlayingUi.coverTop, lvglFontTiny(), 0);
+  if (g_nowPlayingUi.coverBottom) lv_obj_set_style_text_font(g_nowPlayingUi.coverBottom, lvglFontSmall(), 0);
+  if (g_nowPlayingUi.track) lv_obj_set_style_text_font(g_nowPlayingUi.track, lvglNowPlayingTitleFont(), 0);
+  if (g_nowPlayingUi.artist) lv_obj_set_style_text_font(g_nowPlayingUi.artist, lvglNowPlayingArtistFont(), 0);
+  if (g_nowPlayingUi.album) lv_obj_set_style_text_font(g_nowPlayingUi.album, lvglFontTiny(), 0);
+  if (g_nowPlayingUi.source) lv_obj_set_style_text_font(g_nowPlayingUi.source, lvglFontTiny(), 0);
+  if (g_nowPlayingUi.progressElapsed) lv_obj_set_style_text_font(g_nowPlayingUi.progressElapsed, lvglFontTiny(), 0);
+  if (g_nowPlayingUi.progressRemaining) lv_obj_set_style_text_font(g_nowPlayingUi.progressRemaining, lvglFontTiny(), 0);
+  if (g_nowPlayingUi.controlPrevText) lv_obj_set_style_text_font(g_nowPlayingUi.controlPrevText, lvglNowPlayingArtistFont(), 0);
+  if (g_nowPlayingUi.controlPauseText) lv_obj_set_style_text_font(g_nowPlayingUi.controlPauseText, lvglNowPlayingArtistFont(), 0);
+  if (g_nowPlayingUi.controlNextText) lv_obj_set_style_text_font(g_nowPlayingUi.controlNextText, lvglNowPlayingArtistFont(), 0);
 
   {
     FeedDeckUi *feedDecks[] = {&g_auxDeck, &g_wikiDeck};
@@ -11369,7 +11753,7 @@ static void lvglSetObjXAnim(void *obj, int32_t x) {
 }
 
 static bool lvglApplyPageDrag(int16_t dragDx) {
-  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot) return false;
+  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot || !g_lvglNowPlayingRoot) return false;
   if (g_uiPageMode == UI_PAGE_DOOM) return false;
 
   int32_t dx = dragDx;
@@ -11387,6 +11771,7 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglWikiRoot, lvglSetObjXAnim);
+  lv_anim_del(g_lvglNowPlayingRoot, lvglSetObjXAnim);
   g_lvglPageAnimUntilMs = 0;
   g_lvglPageDragActive = true;
 
@@ -11394,11 +11779,13 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   lv_obj_clear_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_clear_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_HIDDEN);
 
   lv_obj_set_pos(g_lvglInfoRoot, (lv_coord_t)(((0 - cur) * w) + dx), 0);
   lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)(((1 - cur) * w) + dx), 0);
   lv_obj_set_pos(g_lvglAuxRoot, (lv_coord_t)(((2 - cur) * w) + dx), 0);
   lv_obj_set_pos(g_lvglWikiRoot, (lv_coord_t)(((3 - cur) * w) + dx), 0);
+  lv_obj_set_pos(g_lvglNowPlayingRoot, (lv_coord_t)(((4 - cur) * w) + dx), 0);
   return true;
 }
 
@@ -11416,7 +11803,7 @@ static void lvglStartSlideAnim(lv_obj_t *obj, int32_t fromX, int32_t toX, uint16
 }
 
 static void lvglApplyPageVisibility(bool animate) {
-  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot) return;
+  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot || !g_lvglNowPlayingRoot) return;
 
   if (g_lvglDoomRoot) {
     if (g_uiPageMode == UI_PAGE_DOOM) lv_obj_clear_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
@@ -11428,6 +11815,7 @@ static void lvglApplyPageVisibility(bool animate) {
     lv_obj_add_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_HIDDEN);
     g_lvglPageDragActive = false;
     g_lvglPageAnimUntilMs = 0;
     return;
@@ -11440,12 +11828,14 @@ static void lvglApplyPageVisibility(bool animate) {
   const int32_t homeTargetX = (1 - cur) * w;
   const int32_t auxTargetX  = (2 - cur) * w;
   const int32_t wikiTargetX = (3 - cur) * w;
+  const int32_t nowTargetX  = (4 - cur) * w;
   const uint32_t now = millis();
 
   lv_obj_clear_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_clear_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_HIDDEN);
 
   if (!animate) {
     if (g_lvglPageDragActive) return;
@@ -11455,19 +11845,23 @@ static void lvglApplyPageVisibility(bool animate) {
     const bool homeOk = (lv_obj_get_x(g_lvglHomeRoot) == (lv_coord_t)homeTargetX);
     const bool auxOk  = (lv_obj_get_x(g_lvglAuxRoot)  == (lv_coord_t)auxTargetX);
     const bool wikiOk = (lv_obj_get_x(g_lvglWikiRoot) == (lv_coord_t)wikiTargetX);
-    if (infoOk && homeOk && auxOk && wikiOk) return;
+    const bool nowOk  = (lv_obj_get_x(g_lvglNowPlayingRoot) == (lv_coord_t)nowTargetX);
+    if (infoOk && homeOk && auxOk && wikiOk && nowOk) return;
     lv_anim_del(g_lvglInfoRoot, lvglSetObjXAnim);
     lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
     lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
     lv_anim_del(g_lvglWikiRoot, lvglSetObjXAnim);
+    lv_anim_del(g_lvglNowPlayingRoot, lvglSetObjXAnim);
     if (!infoOk) lv_obj_set_pos(g_lvglInfoRoot, (lv_coord_t)infoTargetX, 0);
     if (!homeOk) lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)homeTargetX, 0);
     if (!auxOk)  lv_obj_set_pos(g_lvglAuxRoot,  (lv_coord_t)auxTargetX, 0);
     if (!wikiOk) lv_obj_set_pos(g_lvglWikiRoot, (lv_coord_t)wikiTargetX, 0);
+    if (!nowOk)  lv_obj_set_pos(g_lvglNowPlayingRoot, (lv_coord_t)nowTargetX, 0);
     if (abs(infoTargetX) >= w) lv_obj_add_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
     if (abs(homeTargetX) >= w) lv_obj_add_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
     if (abs(auxTargetX)  >= w) lv_obj_add_flag(g_lvglAuxRoot,  LV_OBJ_FLAG_HIDDEN);
     if (abs(wikiTargetX) >= w) lv_obj_add_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
+    if (abs(nowTargetX)  >= w) lv_obj_add_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_HIDDEN);
     g_lvglPageDragActive = false;
     return;
   }
@@ -11477,10 +11871,12 @@ static void lvglApplyPageVisibility(bool animate) {
   const int32_t homeFromX = lv_obj_get_x(g_lvglHomeRoot);
   const int32_t auxFromX  = lv_obj_get_x(g_lvglAuxRoot);
   const int32_t wikiFromX = lv_obj_get_x(g_lvglWikiRoot);
+  const int32_t nowFromX  = lv_obj_get_x(g_lvglNowPlayingRoot);
   lvglStartSlideAnim(g_lvglInfoRoot, infoFromX, infoTargetX, kSlideMs);
   lvglStartSlideAnim(g_lvglHomeRoot, homeFromX, homeTargetX, kSlideMs);
   lvglStartSlideAnim(g_lvglAuxRoot,  auxFromX,  auxTargetX,  kSlideMs);
   lvglStartSlideAnim(g_lvglWikiRoot, wikiFromX, wikiTargetX, kSlideMs);
+  lvglStartSlideAnim(g_lvglNowPlayingRoot, nowFromX, nowTargetX, kSlideMs);
   g_lvglPageDragActive = false;
   g_lvglPageAnimUntilMs = now + kSlideMs + 30;
 }
@@ -12142,6 +12538,335 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
 #endif
 }
 
+static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
+  const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
+  const int16_t cW = canvasWidth();
+  const int16_t cH = canvasHeight();
+  const int16_t headerH = 22;
+  const int16_t coverGapRight = 18;
+  const int16_t rightPad = 10;
+  const int16_t bodyTop = headerH;
+  const int16_t coverSize = cH - bodyTop;
+  const int16_t contentX = coverSize + coverGapRight;
+  const int16_t contentW = cW - contentX - rightPad;
+  const int16_t controlsW = 34;
+  const int16_t controlsGap = 10;
+  const int16_t textW = contentW - controlsW - controlsGap;
+
+  ui.card = lv_obj_create(root);
+  lv_obj_set_size(ui.card, cW, cH);
+  lv_obj_set_pos(ui.card, 0, 0);
+  lv_obj_set_style_radius(ui.card, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(ui.card, lv_color_hex(theme.screenBg), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(ui.card, lv_color_hex(theme.panelBg), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(ui.card, LV_GRAD_DIR_HOR, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ui.card, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.card, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.card, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(ui.card, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(ui.card, LV_OBJ_FLAG_SCROLLABLE);
+
+  ui.header = lv_obj_create(ui.card);
+  lv_obj_set_size(ui.header, cW, headerH);
+  lv_obj_set_pos(ui.header, 0, 0);
+  lv_obj_set_style_bg_color(ui.header, lv_color_hex(0x140C23), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(ui.header, lv_color_hex(0x140C23), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ui.header, LV_OPA_40, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.header, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.header, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(ui.header, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(ui.header, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(ui.header, LV_OBJ_FLAG_SCROLLABLE);
+
+  ui.headerFill = lv_obj_create(ui.header);
+  lv_obj_set_size(ui.headerFill, cW, 1);
+  lv_obj_set_pos(ui.headerFill, 0, headerH - 1);
+  lv_obj_set_style_bg_color(ui.headerFill, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ui.headerFill, LV_OPA_20, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(ui.headerFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(ui.headerFill, LV_OBJ_FLAG_SCROLLABLE);
+
+  ui.title = lv_label_create(ui.header);
+  lv_obj_set_style_text_font(ui.title, lvglNowPlayingMetaFont(), 0);
+  lv_obj_set_style_text_color(ui.title, lv_color_hex(0xFFF5F8), 0);
+  lv_obj_align(ui.title, LV_ALIGN_LEFT_MID, 8, -1);
+  lv_label_set_text(ui.title, "Now Playing");
+  lvglForceLabelVisible(ui.title);
+
+  ui.statusDot = lv_obj_create(ui.header);
+  lv_obj_set_size(ui.statusDot, 8, 8);
+  lv_obj_align(ui.statusDot, LV_ALIGN_RIGHT_MID, -82, -1);
+  lv_obj_set_style_bg_color(ui.statusDot, lv_color_hex(0x7CFF9D), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ui.statusDot, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.statusDot, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.statusDot, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(ui.statusDot, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+  lv_obj_clear_flag(ui.statusDot, LV_OBJ_FLAG_SCROLLABLE);
+
+  ui.status = lv_label_create(ui.header);
+  lv_obj_set_style_text_font(ui.status, lvglNowPlayingMetaFont(), 0);
+  lv_obj_set_style_text_color(ui.status, lv_color_hex(0xB8F7D4), 0);
+  lv_obj_align(ui.status, LV_ALIGN_RIGHT_MID, -10, -1);
+  lv_label_set_text(ui.status, "IN SYNC");
+  lvglForceLabelVisible(ui.status);
+
+  ui.coverShell = lv_obj_create(ui.card);
+  lv_obj_set_size(ui.coverShell, coverSize, coverSize);
+  lv_obj_set_pos(ui.coverShell, 0, bodyTop);
+  lv_obj_set_style_bg_color(ui.coverShell, lv_color_hex(0x09111B), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ui.coverShell, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.coverShell, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.coverShell, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(ui.coverShell, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(ui.coverShell, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(ui.coverShell, LV_OBJ_FLAG_SCROLLABLE);
+
+  ui.cover = lv_obj_create(ui.coverShell);
+  lv_obj_set_size(ui.cover, coverSize, coverSize);
+  lv_obj_set_pos(ui.cover, 0, 0);
+  lv_obj_set_style_bg_color(ui.cover, lv_color_hex(0x2E145C), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(ui.cover, lv_color_hex(0xD34B70), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(ui.cover, LV_GRAD_DIR_VER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.cover, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.cover, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(ui.cover, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(ui.cover, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(ui.cover, LV_OBJ_FLAG_SCROLLABLE);
+
+  ui.coverImage = lv_img_create(ui.cover);
+  lv_img_set_src(ui.coverImage, &kNowPlayingRealCover150);
+  lv_obj_center(ui.coverImage);
+  lv_obj_clear_flag(ui.coverImage, LV_OBJ_FLAG_SCROLLABLE);
+
+  ui.coverStripe = lv_obj_create(ui.cover);
+  lv_obj_set_size(ui.coverStripe, coverSize, 22);
+  lv_obj_set_pos(ui.coverStripe, 0, 16);
+  lv_obj_set_style_bg_color(ui.coverStripe, lv_color_hex(0xFFB847), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ui.coverStripe, LV_OPA_70, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.coverStripe, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.coverStripe, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(ui.coverStripe, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(ui.coverStripe, LV_OBJ_FLAG_SCROLLABLE);
+
+  ui.coverOrb = lv_obj_create(ui.cover);
+  lv_obj_set_size(ui.coverOrb, 52, 52);
+  lv_obj_align(ui.coverOrb, LV_ALIGN_CENTER, 10, 3);
+  lv_obj_set_style_bg_color(ui.coverOrb, lv_color_hex(0xFFE17F), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(ui.coverOrb, lv_color_hex(0xFFF1B4), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(ui.coverOrb, LV_GRAD_DIR_VER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.coverOrb, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.coverOrb, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(ui.coverOrb, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(ui.coverOrb, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(ui.coverOrb, LV_OBJ_FLAG_SCROLLABLE);
+
+  ui.coverTop = lv_label_create(ui.cover);
+  lv_obj_set_style_text_font(ui.coverTop, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(ui.coverTop, lv_color_hex(0xFDF7FF), 0);
+  lv_obj_set_pos(ui.coverTop, 8, 5);
+  lv_label_set_text(ui.coverTop, "CITY");
+  lvglForceLabelVisible(ui.coverTop);
+
+  ui.coverBottom = lv_label_create(ui.cover);
+  lv_obj_set_style_text_font(ui.coverBottom, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(ui.coverBottom, lv_color_hex(0xFDF7FF), 0);
+  lv_obj_align(ui.coverBottom, LV_ALIGN_BOTTOM_LEFT, 8, -8);
+  lv_label_set_text(ui.coverBottom, "RAIN");
+  lvglForceLabelVisible(ui.coverBottom);
+
+  ui.track = lv_label_create(ui.card);
+  lv_obj_set_style_text_font(ui.track, lvglNowPlayingTitleFont(), 0);
+  lv_obj_set_style_text_color(ui.track, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_text_line_space(ui.track, 0, 0);
+  lv_label_set_long_mode(ui.track, LV_LABEL_LONG_WRAP);
+  lv_obj_set_size(ui.track, textW, 72);
+  lv_obj_set_pos(ui.track, contentX, bodyTop + 8);
+  lv_label_set_text(ui.track, "");
+  lvglForceLabelVisible(ui.track);
+
+  ui.artist = lv_label_create(ui.card);
+  lv_obj_set_style_text_font(ui.artist, lvglNowPlayingArtistFont(), 0);
+  lv_obj_set_style_text_color(ui.artist, lv_color_hex(0xFFF3F8), 0);
+  lv_obj_set_style_text_line_space(ui.artist, 0, 0);
+  lv_label_set_long_mode(ui.artist, LV_LABEL_LONG_WRAP);
+  lv_obj_set_size(ui.artist, textW, 52);
+  lv_obj_set_pos(ui.artist, contentX, cH - 44);
+  lv_label_set_text(ui.artist, "");
+  lvglForceLabelVisible(ui.artist);
+
+  ui.album = lv_label_create(ui.card);
+  lv_obj_set_style_text_font(ui.album, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(ui.album, lv_color_hex(0xFFE5A8), 0);
+  lv_label_set_long_mode(ui.album, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(ui.album, textW, 12);
+  lv_obj_set_pos(ui.album, contentX, cH - 18);
+  lv_label_set_text(ui.album, "");
+  lv_obj_add_flag(ui.album, LV_OBJ_FLAG_HIDDEN);
+
+  ui.source = lv_label_create(ui.card);
+  lv_obj_set_style_text_font(ui.source, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(ui.source, lv_color_hex(0xF7D9FF), 0);
+  lv_label_set_long_mode(ui.source, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(ui.source, textW, 12);
+  lv_obj_set_pos(ui.source, contentX, cH - 18);
+  lv_label_set_text(ui.source, "");
+  lv_obj_add_flag(ui.source, LV_OBJ_FLAG_HIDDEN);
+
+  ui.progressElapsed = lv_label_create(ui.card);
+  lv_obj_set_style_text_font(ui.progressElapsed, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(ui.progressElapsed, lv_color_hex(0xFFF5F8), 0);
+  lv_obj_set_pos(ui.progressElapsed, contentX, cH - 18);
+  lv_label_set_text(ui.progressElapsed, "0:00 / 0:00");
+  lv_obj_add_flag(ui.progressElapsed, LV_OBJ_FLAG_HIDDEN);
+
+  ui.progressRemaining = lv_label_create(ui.card);
+  lv_obj_set_style_text_font(ui.progressRemaining, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(ui.progressRemaining, lv_color_hex(0xFFF5F8), 0);
+  lv_obj_align(ui.progressRemaining, LV_ALIGN_TOP_RIGHT, -18, cH - 18);
+  lv_label_set_text(ui.progressRemaining, "0% left");
+  lv_obj_add_flag(ui.progressRemaining, LV_OBJ_FLAG_HIDDEN);
+
+  ui.progressRail = lv_obj_create(ui.card);
+  lv_obj_set_size(ui.progressRail, textW, 5);
+  lv_obj_set_pos(ui.progressRail, contentX, cH - 16);
+  lv_obj_set_style_bg_color(ui.progressRail, lv_color_hex(0x2A203A), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ui.progressRail, LV_OPA_70, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.progressRail, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.progressRail, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(ui.progressRail, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(ui.progressRail, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(ui.progressRail, LV_OBJ_FLAG_SCROLLABLE);
+
+  ui.progressFill = lv_obj_create(ui.progressRail);
+  lv_obj_set_size(ui.progressFill, 1, 5);
+  lv_obj_set_pos(ui.progressFill, 0, 0);
+  lv_obj_set_style_bg_color(ui.progressFill, lv_color_hex(0xFFD86F), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ui.progressFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.progressFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.progressFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(ui.progressFill, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(ui.progressFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(ui.progressFill, LV_OBJ_FLAG_SCROLLABLE);
+
+  const int16_t controlX = contentX + textW + controlsGap;
+  const int16_t controlY0 = bodyTop + 6;
+  const int16_t controlSize = controlsW;
+  const int16_t controlGapY = 8;
+  lv_obj_t *controls[] = {nullptr, nullptr, nullptr};
+  lv_obj_t *controlText[] = {nullptr, nullptr, nullptr};
+  const char *controlGlyphs[] = {LV_SYMBOL_PREV, LV_SYMBOL_PAUSE, LV_SYMBOL_NEXT};
+
+  for (uint8_t i = 0; i < 3; ++i) {
+    controls[i] = lv_obj_create(ui.card);
+    lv_obj_set_size(controls[i], controlSize, controlSize);
+    lv_obj_set_pos(controls[i], controlX, controlY0 + (int16_t)(i * (controlSize + controlGapY)));
+    lv_obj_set_style_bg_color(controls[i], lv_color_hex(0x1E2030), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(controls[i], LV_OPA_70, LV_PART_MAIN);
+    lv_obj_set_style_border_width(controls[i], 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(controls[i], lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(controls[i], LV_OPA_10, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(controls[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(controls[i], 8, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(controls[i], 0, LV_PART_MAIN);
+    lv_obj_clear_flag(controls[i], LV_OBJ_FLAG_SCROLLABLE);
+
+    controlText[i] = lv_label_create(controls[i]);
+    lv_obj_set_style_text_font(controlText[i], lvglFontMeta(), 0);
+    lv_obj_set_style_text_color(controlText[i], lv_color_hex(0xFFFFFF), 0);
+    lv_obj_center(controlText[i]);
+    lv_label_set_text(controlText[i], controlGlyphs[i]);
+    lvglForceLabelVisible(controlText[i]);
+  }
+
+  ui.controlPrev = controls[0];
+  ui.controlPause = controls[1];
+  ui.controlNext = controls[2];
+  ui.controlPrevText = controlText[0];
+  ui.controlPauseText = controlText[1];
+  ui.controlNextText = controlText[2];
+}
+
+static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
+  if (!ui.card) return;
+  uint16_t elapsedSec = 0;
+  uint8_t trackIndex = 0;
+  resolveFakeNowPlayingTrack(millis(), &elapsedSec, &trackIndex);
+  const FakeNowPlayingTrack &track = kFakeNowPlayingTracks[trackIndex];
+
+  const uint16_t durationSec = track.durationSec ? track.durationSec : 1U;
+  const uint32_t bgSurface = lvglNowPlayingCoverAccentColor();
+  const uint16_t bgLuma = lvglColorLuma(bgSurface);
+  const bool bgIsDark = bgLuma < 116u;
+  const uint32_t headerBg = bgIsDark ? lvglLightenRgb(bgSurface, 10) : lvglDarkenRgb(bgSurface, 10);
+  const uint32_t primaryText = lvglResolvedOnColorText(bgSurface);
+  const uint32_t railBg = bgIsDark ? lvglLightenRgb(bgSurface, 22) : lvglDarkenRgb(bgSurface, 18);
+  const uint32_t buttonBg = bgIsDark ? lvglLightenRgb(bgSurface, 40) : lvglDarkenRgb(bgSurface, 44);
+  const uint32_t buttonText = lvglResolvedOnColorText(buttonBg);
+  char headerTitle[64];
+  snprintf(headerTitle, sizeof(headerTitle), "Now Playing / %s", track.source);
+
+  if (force || ui.lastTrackIndex != (int8_t)trackIndex) {
+    ui.lastTrackIndex = (int8_t)trackIndex;
+    lv_obj_set_style_bg_color(ui.card, lv_color_hex(bgSurface), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(ui.card, lv_color_hex(bgSurface), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_dir(ui.card, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.header, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(ui.header, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.headerFill, lv_color_hex(primaryText), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.statusDot, lv_color_hex(0x7CFF9D), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.cover, lv_color_hex(track.coverBgA), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(ui.cover, lv_color_hex(track.coverBgB), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_dir(ui.cover, LV_GRAD_DIR_VER, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.coverStripe, lv_color_hex(track.coverStripe), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.coverOrb, lv_color_hex(track.coverOrb), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(ui.coverOrb, lv_color_hex(track.coverOrb), LV_PART_MAIN);
+    lv_obj_set_style_text_color(ui.coverTop, lv_color_hex(primaryText), 0);
+    lv_obj_set_style_text_color(ui.coverBottom, lv_color_hex(primaryText), 0);
+    lv_obj_set_style_text_color(ui.title, lv_color_hex(primaryText), 0);
+    lv_obj_set_style_text_color(ui.status, lv_color_hex(primaryText), 0);
+    lv_obj_set_style_text_color(ui.track, lv_color_hex(primaryText), 0);
+    lv_obj_set_style_text_color(ui.artist, lv_color_hex(primaryText), 0);
+    lv_obj_set_style_bg_color(ui.progressRail, lv_color_hex(railBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.progressFill, lv_color_hex(primaryText), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.controlPrev, lv_color_hex(buttonBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.controlPause, lv_color_hex(buttonBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.controlNext, lv_color_hex(buttonBg), LV_PART_MAIN);
+    lv_obj_set_style_text_color(ui.controlPrevText, lv_color_hex(buttonText), 0);
+    lv_obj_set_style_text_color(ui.controlPauseText, lv_color_hex(buttonText), 0);
+    lv_obj_set_style_text_color(ui.controlNextText, lv_color_hex(buttonText), 0);
+    lv_label_set_text(ui.coverTop, track.coverTop);
+    lv_label_set_text(ui.coverBottom, track.coverBottom);
+    lv_label_set_text(ui.title, headerTitle);
+    lv_label_set_text(ui.status, "IN SYNC");
+    lv_obj_add_flag(ui.coverStripe, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui.coverOrb, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui.coverTop, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui.coverBottom, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  lvglApplyAdaptiveWrapFont(ui.track, track.title, 72, lvglNowPlayingTitleFont(), lvglNowPlayingBodyFont(),
+                            lvglFontMeta(), lvglNowPlayingMetaFont());
+  lv_obj_update_layout(ui.track);
+  lv_obj_set_style_text_font(ui.artist, lvglNowPlayingArtistFont(), 0);
+  lv_label_set_text(ui.artist, track.artist);
+  lv_obj_update_layout(ui.artist);
+
+  const lv_coord_t trackY = lv_obj_get_y(ui.track);
+  const lv_coord_t trackBottom = (lv_coord_t)(trackY + lv_obj_get_height(ui.track));
+  const lv_coord_t desiredArtistY = (lv_coord_t)(trackBottom + 10);
+  const lv_coord_t maxArtistY = (lv_coord_t)(lv_obj_get_y(ui.progressRail) - lv_obj_get_height(ui.artist) - 8);
+  const lv_coord_t artistY = (desiredArtistY <= maxArtistY) ? desiredArtistY : maxArtistY;
+  lv_obj_set_y(ui.artist, artistY);
+
+  const lv_coord_t railW = lv_obj_get_width(ui.progressRail);
+  lv_coord_t fillW = (lv_coord_t)((railW * (int32_t)elapsedSec) / durationSec);
+  if (fillW < 8) fillW = 8;
+  if (fillW > railW) fillW = railW;
+  lv_obj_set_width(ui.progressFill, fillW);
+}
+
 static bool initLvglUi() {
   if (g_lvglReady) return true;
   if (!initDisplay()) return false;
@@ -12718,6 +13443,19 @@ static bool initLvglUi() {
 
   lvglInitFeedDeck(g_auxDeck, g_lvglAuxRoot, false);
 
+  g_lvglNowPlayingRoot = lv_obj_create(scr);
+  lv_obj_set_size(g_lvglNowPlayingRoot, cW, cH);
+  lv_obj_set_pos(g_lvglNowPlayingRoot, cW, 0);  // layout managed by swipe visibility system
+  lv_obj_set_style_radius(g_lvglNowPlayingRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglNowPlayingRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglNowPlayingRoot, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglNowPlayingRoot, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_lvglNowPlayingRoot, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(g_lvglNowPlayingRoot, LV_SCROLLBAR_MODE_OFF);
+
+  lvglInitNowPlayingUi(g_nowPlayingUi, g_lvglNowPlayingRoot);
+
   g_lvglDoomRoot = lv_obj_create(scr);
   lv_obj_set_size(g_lvglDoomRoot, cW, cH);
   lv_obj_set_pos(g_lvglDoomRoot, 0, 0);
@@ -12887,6 +13625,13 @@ static void updateLvglUi(bool force) {
   }
   if (g_uiPageMode == UI_PAGE_WIKI) {
     lvglUpdateFeedDeck(g_wikiDeck, g_wiki, true, force);
+    g_lastClockSecond = timeinfo.tm_sec;
+    g_lastDateKey = dateKey;
+    g_uiNeedsRedraw = false;
+    return;
+  }
+  if (g_uiPageMode == UI_PAGE_NOW_PLAYING) {
+    lvglUpdateNowPlayingUi(g_nowPlayingUi, force);
     g_lastClockSecond = timeinfo.tm_sec;
     g_lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
@@ -13354,7 +14099,7 @@ static void handleSerialCommand(const char *line) {
   cmd.toUpperCase();
 
   if (cmd == "HELP") {
-    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEWFIRST, VIEWLAST, VIEW0, VIEW1, VIEW2, VIEW3, VIEW4, VIEWDOOM, DOOM, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, VIEWWIKI, RSSSTAT, WIKISTAT, RSSRELOAD, WIKIRELOAD, RELOAD, THEME, THEME <id>, LANG, LANG <code>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, NAVSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG, WIFIDIRECT, WIFIDIRECT <off|auto|on>");
+    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEWFIRST, VIEWLAST, VIEW0, VIEW1, VIEW2, VIEW3, VIEW4, VIEW5, VIEWNOW, VIEWNP, VIEWPLAY, VIEWDOOM, DOOM, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, VIEWWIKI, RSSSTAT, WIKISTAT, RSSRELOAD, WIKIRELOAD, RELOAD, THEME, THEME <id>, LANG, LANG <code>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, NAVSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG, WIFIDIRECT, WIFIDIRECT <off|auto|on>");
     return;
   }
 
@@ -13417,7 +14162,13 @@ static void handleSerialCommand(const char *line) {
     return;
   }
 
-  if (cmd == "VIEW4" || cmd == "VIEWDOOM" || cmd == "DOOM") {
+  if (cmd == "VIEW4" || cmd == "VIEWNOW" || cmd == "VIEWNP" || cmd == "VIEWPLAY") {
+    setUiPage(UI_PAGE_NOW_PLAYING);
+    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+    return;
+  }
+
+  if (cmd == "VIEW5" || cmd == "VIEWDOOM" || cmd == "DOOM") {
     if (!uiPageEnabled(UI_PAGE_DOOM)) {
       Serial.println("[UI] DOOM disabled");
       return;

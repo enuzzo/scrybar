@@ -1,5 +1,5 @@
 # ScryBar — Future Views (active shortlist)
-# Aggiornato: 2026-03-11
+# Aggiornato: 2026-03-18
 
 Questo file contiene solo idee ancora vive. Le feature gia' realizzate o scartate
 sono state rimosse dal backlog.
@@ -13,8 +13,22 @@ Ogni view ha: descrizione, fattibilita' tecnica, effort stimato, rischi.
 
 ## 1. Radio Metadata — "Now Playing"
 
-**Concept:** Mostra artista + titolo della traccia in onda su una radio internet,
+**Concept:** Mostra artista + titolo della traccia in onda o in riproduzione,
 senza riprodurre l'audio. E' una view "what's playing", non un player.
+
+**Direzione aggiornata:**
+- `assets/spainify/` resta solo reference visiva per cover art / gerarchia testo / mood.
+- L'implementazione ScryBar deve essere piu' universale e basarsi su una companion app macOS.
+- Il firmware ha gia' un prototipo visuale live sul device:
+  - cover art quadrata full-height;
+  - colore di sfondo derivato dalla cover;
+  - gerarchia tipografica in stile player;
+  - progress bar e controlli `back / pause / forward`;
+  - dati ancora fake, utili per iterare il layout sulla barra vera.
+- La companion deve:
+  - trovare automaticamente la ScryBar in LAN tramite identificazione broadcast/annuncio device;
+  - permettere fallback manuale con IP o hostname se l'auto-discovery fallisce o tarda;
+  - normalizzare sorgenti diverse (`Music`, `Spotify`, `TIDAL`, podcast, altre app del Mac) in un payload unico per il firmware.
 
 **Fattibilita' tecnica:**
 - Molte radio Shoutcast/Icecast espongono metadata ICY dentro lo stream HTTP.
@@ -27,6 +41,7 @@ senza riprodurre l'audio. E' una view "what's playing", non un player.
 **Note pratiche:**
 - Funziona con radio internet vere, tipo SomaFM o Radio Swiss Jazz.
 - Non funziona con Spotify/Apple Music.
+- La companion Mac e' la via preferita per supportare sorgenti "app-driven" invece di stream ICY puri.
 
 **Effort:** MEDIO
 **Rischio:** MEDIO

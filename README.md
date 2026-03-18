@@ -4,10 +4,10 @@
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
 [![Languages](https://img.shields.io/badge/Word_Clock-13_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
-[![Views](https://img.shields.io/badge/Views-5_live_views-3B82F6?style=for-the-badge)](#views)
+[![Views](https://img.shields.io/badge/Views-6_live_views-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
-**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, five swipeable views, a word clock that composes real sentences in thirteen languages (from Italian and Latin to Klingon, 1337 Speak, and Bellazio), actual grammar, not uppercase tiles, plus RSS feeds, a Wikipedia viewer, a full DOOM port with gyro controls, and a LAN web config UI.
+**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, six swipeable views, a word clock that composes real sentences in thirteen languages (from Italian and Latin to Klingon, 1337 Speak, and Bellazio), actual grammar, not uppercase tiles, plus RSS feeds, a Wikipedia viewer, a `Now Playing` strip with cover art, a full DOOM port with gyro controls, and a LAN web config UI.
 
 *Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls random Wikipedia facts nobody asked for, and opens a portal to Hell. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
 
@@ -118,10 +118,10 @@ The physical profile: a horizontal bar that sits flat on your desk. Wide enough 
 
 ## Views
 
-Five views, navigated by swipe.
+Six views, navigated by swipe.
 
 ```
-  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► DOOM
+  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► DOOM
 ```
 
 **HOME** — Word clock in natural sentence form (13 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing. Themes switchable from the web UI without reflashing.
@@ -129,6 +129,8 @@ Five views, navigated by swipe.
 **AUX** — RSS feed rotation with up to 5 configurable sources. `SKIP`/`NXT`/`QR` controls. Every headline gets a live QR code, because sometimes you want to read the full article on a real screen, and that's fine.
 
 **WIKI** — Wikipedia stream: Featured Article, On This Day, and Random Article. Language independently selectable (8 real languages) from the system language via web UI. Same `SKIP`/`NXT`/`QR` controls as AUX. A bottomless pit of trivia that you didn't need but now can't stop reading.
+
+**NOW PLAYING** — Cover art on the left, metadata on the right, playback progress and transport controls. The current firmware build ships a visual prototype with fake metadata and real cover-art rendering so layout, typography, and color extraction can be tuned on-device. The planned production path is a small macOS companion that normalizes metadata from Music, Spotify, TIDAL, podcasts, and other local Mac sources into one payload for ScryBar.
 
 **DOOM** — `prboom-go` donor port adapted for ScryBar. Centered 4:3 live framebuffer on the 640×172 strip, "Bunker Console" side HUD with oversized tilt meters, IMU gyroscope controls, and touch bands for `USE` / `FIRE`. Tap FIRE on the title screen to boot the engine. Tilt forward to move, tilt sideways to turn. [Details below.](#doom-view)
 

@@ -13,7 +13,26 @@
 
 - `FW_BUILD_TAG` e `FW_RELEASE_DATE` in `config.h` — **incrementare r-number e aggiornare data ad ogni release**.
 - Visibili su: web UI (hero card, sotto logo) e device INFO panel (`ScryBar Stats`, colonna destra).
-- Corrente: `DB-M0-r143`, `2026-03-04`.
+- Corrente: `DB-M0-r185`, `2026-03-18`.
+
+## Now Playing Companion (2026-03-18)
+
+- `assets/spainify/` e' solo reference visiva / UX, non la base tecnica della companion.
+- Direzione desiderata: companion app macOS piccola e universale, con payload unico verso ScryBar.
+- Stato firmware attuale:
+  - view `NOW PLAYING` gia' live su ScryBar come prototipo visuale;
+  - cover reale embeddeda e resa full-height a sinistra;
+  - background ricavato dalla cover;
+  - header con source + stato `IN SYNC`;
+  - controlli verticali `prev/pause/next`;
+  - titolo e artista attualmente allineati su Montserrat per tuning tipografico;
+  - artista ancorato dinamicamente sotto il titolo, non a Y fissa.
+- Requisito discovery:
+  - la ScryBar deve annunciarsi in LAN in modo identificabile per auto-discovery dalla companion;
+  - la companion deve comunque consentire inserimento manuale di `IP` o `hostname`.
+- Requisito prodotto:
+  - la companion deve cercare da sola il device;
+  - se non lo trova subito, l'utente deve poter puntare manualmente la barra senza attriti.
 
 ## Theming + Fonts (r143)
 
