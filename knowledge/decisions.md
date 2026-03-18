@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-03-18 - Local macOS Companion Uses `MediaRemote.framework` as Primary Now Playing Source
+
+- Context: The product needs a practical, universal `Now Playing` feed for a local GitHub-distributed macOS companion, not an App Store-safe media app. Public Apple media APIs are oriented around publishing metadata for the current app, while the Mac already exposes a system-wide Now Playing feed internally.
+- Decision: Use private `MediaRemote.framework` as the primary source for the companion's system-wide now-playing metadata, and keep app-specific providers such as `Music.app` only as fallback/special-case integrations.
+- Impact/Tradeoffs: The companion can read the same Now Playing session shown by macOS Control Center, including title/artist/album/playback state and artwork bytes. The tradeoff is reliance on private Apple API, which is acceptable for a local hacker tool but may require maintenance after macOS updates.
+
+---
+
 ## 2026-03-11 - DOOM Uses Extracted `prboom-go` Donor and Direct Framebuffer Path
 
 - Context: ScryBar needed real DOOM on-device, but importing all of `retro-go` would have carried too much platform baggage and the LVGL page model was not appropriate for live game frames.

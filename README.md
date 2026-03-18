@@ -130,7 +130,7 @@ Six views, navigated by swipe.
 
 **WIKI** — Wikipedia stream: Featured Article, On This Day, and Random Article. Language independently selectable (8 real languages) from the system language via web UI. Same `SKIP`/`NXT`/`QR` controls as AUX. A bottomless pit of trivia that you didn't need but now can't stop reading.
 
-**NOW PLAYING** — Cover art on the left, metadata on the right, playback progress and transport controls. The current firmware build ships a visual prototype with fake metadata and real cover-art rendering so layout, typography, and color extraction can be tuned on-device. The planned production path is a small macOS companion that normalizes metadata from Music, Spotify, TIDAL, podcasts, and other local Mac sources into one payload for ScryBar.
+**NOW PLAYING** — Cover art on the left, metadata on the right, playback progress and transport controls. The firmware UI is now live on-device, and the production path is a small macOS companion that discovers the bar over Bonjour, posts metadata to `/api/now-playing`, and by default reads the system-wide Mac `Now Playing` session through `MediaRemote.framework`. That gives ScryBar one practical feed for Music, Spotify, TIDAL, podcasts, and whatever else macOS itself is already surfacing.
 
 **DOOM** — `prboom-go` donor port adapted for ScryBar. Centered 4:3 live framebuffer on the 640×172 strip, "Bunker Console" side HUD with oversized tilt meters, IMU gyroscope controls, and touch bands for `USE` / `FIRE`. Tap FIRE on the title screen to boot the engine. Tilt forward to move, tilt sideways to turn. [Details below.](#doom-view)
 

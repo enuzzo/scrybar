@@ -22,6 +22,7 @@ Stable technical context for all AI assistants.
 - Display/touch target: Waveshare ESP32-S3-Touch-LCD-3.49
 - UI: LVGL 8.x
 - Local config UI: embedded HTTP server (`/`, `/config`, `/api/config`, `/api/reload`)
+- Companion: macOS SwiftUI app under `companion/mac/ScryBarCompanion/`
 
 ## Canonical Board Profile
 
@@ -97,6 +98,31 @@ Apply paths:
 - Web form POST `/config`
 - API POST `/api/config`
 - Serial command `THEME <id>` (theme only)
+
+## Now Playing Companion
+
+Current production direction:
+
+- Firmware advertises `_scrybar._tcp` and accepts `GET/POST /api/now-playing`.
+- Firmware `Now Playing` UI is tuned on real hardware and already consumes live payloads from the companion.
+- Companion default provider is the macOS system now-playing feed via private `MediaRemote.framework`.
+- Fallback providers can stay source-specific (`Music.app`, future adapters) but should not be the primary architecture anymore.
+
+Validated `MediaRemote` bridge surface:
+
+- `MRMediaRemoteGetNowPlayingInfo`
+- `MRMediaRemoteGetNowPlayingApplicationPlaybackState`
+- `MRMediaRemoteGetNowPlayingClient`
+- `MRMediaRemoteRegisterForNowPlayingNotifications`
+- `MRMediaRemoteUnregisterForNowPlayingNotifications`
+- `MRMediaRemoteSendCommand`
+
+Observed behavior rules:
+
+- Track metadata can be present even when client/app labeling is missing.
+- Artwork bytes and MIME type can be read directly from the system feed.
+- Provider code should use a background queue for callback-based `MediaRemote` fetches.
+- Firmware sync badge is freshness-based: keep content visible, but flip sync state when payload refresh stops.
 
 Wi-Fi preference behavior:
 

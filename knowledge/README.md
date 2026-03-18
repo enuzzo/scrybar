@@ -17,6 +17,7 @@ This folder is public and versioned by design.
 - `project_knowledge.md`: stable technical context and defaults.
 - `decisions.md`: concise architectural/operational decisions (ADR-lite).
 - `theme_proposals_catalog.md`: living backlog of theme concepts (palette, fonts, references, implementation notes).
+- `now_playing_companion_gotchas.md`: stable notes and caveats for the macOS Now Playing companion path.
 
 ## Data Policy (Mandatory)
 

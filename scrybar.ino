@@ -47,6 +47,8 @@
 #include <WiFiClientSecure.h>
 #include <WebServer.h>
 #include <DNSServer.h>
+#include <ESPmDNS.h>
+#define DB_HAS_MDNS 1
 #include <Preferences.h>
 #include <FFat.h>
 #if __has_include(<qrcodegen.h>)
@@ -79,6 +81,8 @@ LV_FONT_DECLARE(scry_font_delius_unicase_20);
 LV_FONT_DECLARE(scry_font_delius_unicase_24);
 LV_FONT_DECLARE(scry_font_delius_unicase_28);
 LV_FONT_DECLARE(scry_font_delius_unicase_32);
+LV_FONT_DECLARE(scry_font_montserrat_semibold_22);
+LV_FONT_DECLARE(scry_font_montserrat_semibold_23);
 #if __has_include("assets/weather_icons_min/generated/weather_icons_lvgl_min.h")
 #include "assets/weather_icons_min/generated/weather_icons_lvgl_min.h"
 #define DB_HAS_LVGL_WEATHER_MIN_IMAGES 1
@@ -700,6 +704,11 @@ static bool g_webConfigServerStarted = false;
 static bool g_webConfigRoutesRegistered = false;
 static DNSServer g_webConfigDnsServer;
 static bool g_webConfigDnsStarted = false;
+#if DB_HAS_MDNS
+static bool g_scrybarMdnsStarted = false;
+static char g_scrybarMdnsHost[32] = {0};
+static char g_scrybarMdnsInstanceName[40] = {0};
+#endif
 #if DB_HAS_QRCODEGEN
 // Allocate QR work buffers lazily in PSRAM to keep internal heap free for TLS.
 static uint8_t *g_webQrTempBuf = nullptr;
@@ -715,6 +724,13 @@ static void formatCityLabel(const char *src, char *out, size_t outLen);
 static const char *runtimeUiThemeId();
 static const char *runtimeUiThemeLabel();
 static bool runWiFiConnectTest();
+#if TEST_WIFI && WEB_CONFIG_ENABLED
+static void handleWebNowPlayingGetApi();
+static void handleWebNowPlayingPostApi();
+static bool applyNowPlayingPayloadJson(const String &body, String &err);
+static void ensureScryBarMdnsStarted();
+static void stopScryBarMdns();
+#endif
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
 static void lvglApplyThemeStyles(bool forceInvalidate);
 static void updateLvglUi(bool force);
@@ -928,6 +944,24 @@ struct NowPlayingUi {
   lv_obj_t *progressElapsed = nullptr;
   lv_obj_t *progressRemaining = nullptr;
   int8_t lastTrackIndex = -1;
+  uint32_t lastLiveToken = 0;
+  bool lastUsingLive = false;
+  bool lastInSync = false;
+};
+struct LiveNowPlayingState {
+  bool valid = false;
+  bool isPlaying = false;
+  bool inSync = false;
+  uint32_t receivedAtMs = 0;
+  uint32_t contentToken = 0;
+  uint16_t durationSec = 0;
+  uint16_t elapsedSec = 0;
+  char title[220] = {0};
+  char artist[220] = {0};
+  char album[160] = {0};
+  char source[48] = {0};
+  char appName[48] = {0};
+  char artworkUrl[220] = {0};
 };
 struct FakeNowPlayingTrack {
   const char *title;
@@ -948,11 +982,14 @@ struct FakeNowPlayingTrack {
   uint32_t progressFill;
 };
 static NowPlayingUi g_nowPlayingUi;
+static LiveNowPlayingState g_liveNowPlaying = {};
+static uint32_t g_liveNowPlayingTokenSeq = 0;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
 static lv_obj_t *g_lvglNowPlayingRoot = nullptr;
 static lv_obj_t *g_lvglDoomRoot = nullptr;
 static constexpr uint32_t NOW_PLAYING_FAKE_ROTATE_MS = 18000UL;
+static constexpr uint32_t NOW_PLAYING_SYNC_TTL_MS = 5000UL;
 static const lv_img_dsc_t kNowPlayingRealCover150 = {
     .header = {
         .cf = LV_IMG_CF_TRUE_COLOR,
@@ -1020,6 +1057,22 @@ static constexpr FakeNowPlayingTrack kFakeNowPlayingTracks[] = {
         0x6EF2C4,
     },
 };
+
+static bool liveNowPlayingAvailable() {
+  return g_liveNowPlaying.valid && g_liveNowPlaying.title[0] != '\0';
+}
+
+static bool liveNowPlayingDisplayInSync(uint32_t nowMs) {
+  if (!liveNowPlayingAvailable()) return false;
+  if (!g_liveNowPlaying.inSync) return false;
+  return (uint32_t)(nowMs - g_liveNowPlaying.receivedAtMs) <= NOW_PLAYING_SYNC_TTL_MS;
+}
+
+static const char *liveNowPlayingSourceLabel() {
+  if (g_liveNowPlaying.source[0]) return g_liveNowPlaying.source;
+  if (g_liveNowPlaying.appName[0]) return g_liveNowPlaying.appName;
+  return "Companion";
+}
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
 static constexpr uint8_t DOOM_TOUCH_NONE = 0;
 static constexpr uint8_t DOOM_TOUCH_LEFT = 1;
@@ -2862,12 +2915,18 @@ static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
                   WiFi.dnsIP(1).toString().c_str(),
                   dnsOk ? "OK" : "ERR");
     wifiScheduleNextAttempt(millis(), 0UL);
+#if WEB_CONFIG_ENABLED
+    ensureScryBarMdnsStarted();
+#endif
   } else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
     const bool attemptWasActive = g_wifiReconnectAttemptActive;
     g_wifiConnected = false;
     g_wifiLastDisconnectMs = millis();
     if (g_wifiNoLinkSinceMs == 0) g_wifiNoLinkSinceMs = g_wifiLastDisconnectMs;
     g_lastWifiDiscReason = (int)info.wifi_sta_disconnected.reason;
+#if WEB_CONFIG_ENABLED
+    stopScryBarMdns();
+#endif
     Serial.printf("[WIFI][DISC] reason=%d (%s)\n",
                   g_lastWifiDiscReason,
                   WiFi.disconnectReasonName((wifi_err_reason_t)g_lastWifiDiscReason));
@@ -3168,6 +3227,67 @@ static void copyStringSafe(char *dst, size_t dstLen, const char *src) {
   strncpy(dst, src, dstLen - 1);
   dst[dstLen - 1] = '\0';
 }
+
+#if WEB_CONFIG_ENABLED && DB_HAS_MDNS
+static void buildScryBarMdnsIdentity(char *hostOut, size_t hostLen, char *instanceOut, size_t instanceLen) {
+  const uint64_t mac = ESP.getEfuseMac();
+  const uint8_t tailA = (uint8_t)((mac >> 8) & 0xFFu);
+  const uint8_t tailB = (uint8_t)(mac & 0xFFu);
+  if (hostOut && hostLen > 0) {
+    snprintf(hostOut, hostLen, "scrybar-%02x%02x", tailA, tailB);
+    hostOut[hostLen - 1] = '\0';
+  }
+  if (instanceOut && instanceLen > 0) {
+    snprintf(instanceOut, instanceLen, "ScryBar %02X%02X", tailA, tailB);
+    instanceOut[instanceLen - 1] = '\0';
+  }
+}
+
+static void ensureScryBarMdnsStarted() {
+  if (g_scrybarMdnsStarted) return;
+  if (!g_wifiConnected || WiFi.status() != WL_CONNECTED) return;
+
+  char host[sizeof(g_scrybarMdnsHost)] = {0};
+  char instance[sizeof(g_scrybarMdnsInstanceName)] = {0};
+  buildScryBarMdnsIdentity(host, sizeof(host), instance, sizeof(instance));
+  if (!host[0]) return;
+
+  if (!MDNS.begin(host)) {
+    Serial.printf("[MDNS][ERR] begin failed for '%s'\n", host);
+    return;
+  }
+
+  MDNS.setInstanceName(instance);
+  if (!MDNS.addService("scrybar", "tcp", WEB_CONFIG_PORT)) {
+    Serial.printf("[MDNS][ERR] addService failed for '%s'\n", host);
+    MDNS.end();
+    return;
+  }
+  MDNS.addServiceTxt("scrybar", "tcp", "device", "ScryBar");
+  MDNS.addServiceTxt("scrybar", "tcp", "fw", FW_BUILD_TAG);
+  MDNS.addServiceTxt("scrybar", "tcp", "api", "/api/now-playing");
+
+  copyStringSafe(g_scrybarMdnsHost, sizeof(g_scrybarMdnsHost), host);
+  copyStringSafe(g_scrybarMdnsInstanceName, sizeof(g_scrybarMdnsInstanceName), instance);
+  g_scrybarMdnsStarted = true;
+  Serial.printf("[MDNS] service='%s' host=%s.local type=_scrybar._tcp port=%u\n",
+                g_scrybarMdnsInstanceName,
+                g_scrybarMdnsHost,
+                (unsigned)WEB_CONFIG_PORT);
+}
+
+static void stopScryBarMdns() {
+  if (!g_scrybarMdnsStarted) return;
+  MDNS.end();
+  g_scrybarMdnsStarted = false;
+  g_scrybarMdnsHost[0] = '\0';
+  g_scrybarMdnsInstanceName[0] = '\0';
+  Serial.println("[MDNS] stopped");
+}
+#elif WEB_CONFIG_ENABLED
+static void ensureScryBarMdnsStarted() {}
+static void stopScryBarMdns() {}
+#endif
 
 static bool startsWithHttp(const char *url) {
   if (!url) return false;
@@ -4917,11 +5037,14 @@ static void ensureWebConfigServerStarted() {
   const bool staUp = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
   if (!staUp && !g_wifiSetupApActive) {
     if (g_webConfigDnsStarted) webConfigStopCaptiveDns();
+    stopScryBarMdns();
     return;
   }
   if (g_webConfigServerStarted) {
     if (g_wifiSetupApActive) webConfigStartCaptiveDnsIfNeeded();
     else if (g_webConfigDnsStarted) webConfigStopCaptiveDns();
+    if (staUp) ensureScryBarMdnsStarted();
+    else stopScryBarMdns();
     return;
   }
 
@@ -4938,6 +5061,8 @@ static void ensureWebConfigServerStarted() {
     g_webConfigServer.on("/reload", HTTP_POST, handleWebReloadForm);
     g_webConfigServer.on("/api/config", HTTP_GET, handleWebConfigGet);
     g_webConfigServer.on("/api/config", HTTP_POST, handleWebConfigApplyApi);
+    g_webConfigServer.on("/api/now-playing", HTTP_GET, handleWebNowPlayingGetApi);
+    g_webConfigServer.on("/api/now-playing", HTTP_POST, handleWebNowPlayingPostApi);
     g_webConfigServer.on("/api/wifi/scan", HTTP_GET, handleWebWifiScanApi);
     g_webConfigServer.on("/api/wifi/setup-qr.svg", HTTP_GET, handleWebWifiSetupQrSvgApi);
     g_webConfigServer.on("/api/reload", HTTP_POST, handleWebReloadApi);
@@ -4953,6 +5078,7 @@ static void ensureWebConfigServerStarted() {
 
   g_webConfigServer.begin();
   g_webConfigServerStarted = true;
+  if (staUp) ensureScryBarMdnsStarted();
   if (staUp) {
     Serial.printf("[WEB] config ui ready (STA): http://%s:%u\n",
                   WiFi.localIP().toString().c_str(),
@@ -5003,6 +5129,37 @@ static bool extractJsonNumberField(const String &json, const char *key, float &o
     out = json.substring(i, j).toFloat();
     return true;
   }
+}
+
+static bool extractJsonBoolFieldLoose(const String &json, const char *key, bool &out) {
+  int pos = json.indexOf(key);
+  if (pos < 0) return false;
+  pos = json.indexOf(':', pos);
+  if (pos < 0) return false;
+  ++pos;
+  while (pos < (int)json.length() &&
+         (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\n' || json[pos] == '\r')) {
+    ++pos;
+  }
+  if (pos >= (int)json.length()) return false;
+  if (json.startsWith("true", pos)) {
+    out = true;
+    return true;
+  }
+  if (json.startsWith("false", pos)) {
+    out = false;
+    return true;
+  }
+  if (json[pos] == '1' || json[pos] == '0') {
+    out = (json[pos] == '1');
+    return true;
+  }
+  if (json[pos] != '"') return false;
+  const int end = json.indexOf('"', pos + 1);
+  if (end <= pos) return false;
+  String token = json.substring(pos + 1, end);
+  token.trim();
+  return parseStrictBool(token, out);
 }
 
 static bool extractJsonArrayNumberAt(const String &json, const char *key, int index, float &out) {
@@ -6158,6 +6315,171 @@ static String jsonEscape(const String &in) {
   }
   return out;
 }
+
+#if WEB_CONFIG_ENABLED
+static bool applyNowPlayingPayloadJson(const String &body, String &err) {
+  String title;
+  String artist;
+  String album;
+  String source;
+  String appName;
+  String artworkUrl;
+  float durationSecF = 0.0f;
+  float elapsedSecF = 0.0f;
+  bool isPlaying = true;
+  bool inSync = true;
+
+  if (!extractJsonStringFieldLoose(body, "\"title\"", title) || title.length() == 0) {
+    err = "Missing required field: title";
+    return false;
+  }
+  (void)extractJsonStringFieldLoose(body, "\"artist\"", artist);
+  (void)extractJsonStringFieldLoose(body, "\"album\"", album);
+  (void)extractJsonStringFieldLoose(body, "\"source\"", source);
+  (void)extractJsonStringFieldLoose(body, "\"appName\"", appName);
+  (void)extractJsonStringFieldLoose(body, "\"artworkURL\"", artworkUrl);
+  (void)extractJsonBoolFieldLoose(body, "\"isPlaying\"", isPlaying);
+  (void)extractJsonBoolFieldLoose(body, "\"inSync\"", inSync);
+  (void)extractJsonNumberField(body, "\"durationSec\"", durationSecF);
+  (void)extractJsonNumberField(body, "\"elapsedSec\"", elapsedSecF);
+
+  if (durationSecF < 0.0f) durationSecF = 0.0f;
+  if (elapsedSecF < 0.0f) elapsedSecF = 0.0f;
+  if (durationSecF > 65535.0f) durationSecF = 65535.0f;
+  if (elapsedSecF > 65535.0f) elapsedSecF = 65535.0f;
+
+  LiveNowPlayingState next = {};
+  next.valid = true;
+  next.isPlaying = isPlaying;
+  next.inSync = inSync;
+  next.receivedAtMs = millis();
+  next.durationSec = (uint16_t)lroundf(durationSecF);
+  next.elapsedSec = (uint16_t)lroundf(elapsedSecF);
+  if (next.durationSec > 0 && next.elapsedSec > next.durationSec) next.elapsedSec = next.durationSec;
+  copyStringSafe(next.title, sizeof(next.title), title.c_str());
+  copyStringSafe(next.artist, sizeof(next.artist), artist.c_str());
+  copyStringSafe(next.album, sizeof(next.album), album.c_str());
+  copyStringSafe(next.source, sizeof(next.source), source.c_str());
+  copyStringSafe(next.appName, sizeof(next.appName), appName.c_str());
+  copyStringSafe(next.artworkUrl, sizeof(next.artworkUrl), artworkUrl.c_str());
+
+  const bool contentChanged =
+      !g_liveNowPlaying.valid ||
+      strcmp(g_liveNowPlaying.title, next.title) != 0 ||
+      strcmp(g_liveNowPlaying.artist, next.artist) != 0 ||
+      strcmp(g_liveNowPlaying.album, next.album) != 0 ||
+      strcmp(g_liveNowPlaying.source, next.source) != 0 ||
+      strcmp(g_liveNowPlaying.appName, next.appName) != 0 ||
+      strcmp(g_liveNowPlaying.artworkUrl, next.artworkUrl) != 0 ||
+      g_liveNowPlaying.durationSec != next.durationSec ||
+      g_liveNowPlaying.isPlaying != next.isPlaying;
+  if (contentChanged) {
+    ++g_liveNowPlayingTokenSeq;
+    if (g_liveNowPlayingTokenSeq == 0) ++g_liveNowPlayingTokenSeq;
+    next.contentToken = g_liveNowPlayingTokenSeq;
+  } else {
+    next.contentToken = g_liveNowPlaying.contentToken;
+  }
+
+  g_liveNowPlaying = next;
+#if TEST_NTP
+  g_uiNeedsRedraw = true;
+#endif
+  Serial.printf("[NOWPLAYING][API] title='%s' artist='%s' source='%s' elapsed=%us duration=%us\n",
+                g_liveNowPlaying.title,
+                g_liveNowPlaying.artist,
+                liveNowPlayingSourceLabel(),
+                (unsigned)g_liveNowPlaying.elapsedSec,
+                (unsigned)g_liveNowPlaying.durationSec);
+  return true;
+}
+
+static void handleWebNowPlayingGetApi() {
+  const uint32_t nowMs = millis();
+  const bool active = liveNowPlayingAvailable();
+  const bool displaySync = liveNowPlayingDisplayInSync(nowMs);
+  String out;
+  out.reserve(1200);
+  out += F("{\"ok\":true,\"service\":{\"type\":\"_scrybar._tcp\",\"port\":");
+  out += (unsigned)WEB_CONFIG_PORT;
+  out += F(",\"path\":\"/api/now-playing\"");
+#if DB_HAS_MDNS
+  if (g_scrybarMdnsHost[0]) {
+    out += F(",\"host\":\"");
+    appendJsonEscaped(out, g_scrybarMdnsHost);
+    out += '"';
+  }
+  if (g_scrybarMdnsInstanceName[0]) {
+    out += F(",\"instance\":\"");
+    appendJsonEscaped(out, g_scrybarMdnsInstanceName);
+    out += '"';
+  }
+#endif
+  out += F("},\"nowPlaying\":{\"active\":");
+  out += active ? F("true") : F("false");
+  if (active) {
+    out += F(",\"title\":\"");
+    appendJsonEscaped(out, g_liveNowPlaying.title);
+    out += F("\",\"artist\":\"");
+    appendJsonEscaped(out, g_liveNowPlaying.artist);
+    out += F("\",\"album\":\"");
+    appendJsonEscaped(out, g_liveNowPlaying.album);
+    out += F("\",\"source\":\"");
+    appendJsonEscaped(out, g_liveNowPlaying.source);
+    out += F("\",\"appName\":\"");
+    appendJsonEscaped(out, g_liveNowPlaying.appName);
+    out += F("\",\"durationSec\":");
+    out += (unsigned)g_liveNowPlaying.durationSec;
+    out += F(",\"elapsedSec\":");
+    out += (unsigned)g_liveNowPlaying.elapsedSec;
+    out += F(",\"isPlaying\":");
+    out += g_liveNowPlaying.isPlaying ? F("true") : F("false");
+    out += F(",\"inSync\":");
+    out += g_liveNowPlaying.inSync ? F("true") : F("false");
+    out += F(",\"displayInSync\":");
+    out += displaySync ? F("true") : F("false");
+    out += F(",\"ageMs\":");
+    out += (unsigned long)(nowMs - g_liveNowPlaying.receivedAtMs);
+    if (g_liveNowPlaying.artworkUrl[0]) {
+      out += F(",\"artworkURL\":\"");
+      appendJsonEscaped(out, g_liveNowPlaying.artworkUrl);
+      out += '"';
+    }
+  }
+  out += F("}}");
+  g_webConfigServer.sendHeader("Cache-Control", "no-store", true);
+  g_webConfigServer.send(200, "application/json", out);
+}
+
+static void handleWebNowPlayingPostApi() {
+  const String body = g_webConfigServer.arg("plain");
+  if (body.length() == 0) {
+    g_webConfigServer.send(400, "application/json", "{\"ok\":false,\"message\":\"Empty JSON body\"}");
+    return;
+  }
+
+  String err;
+  if (!applyNowPlayingPayloadJson(body, err)) {
+    String out;
+    out.reserve(160);
+    out += F("{\"ok\":false,\"message\":\"");
+    appendJsonEscaped(out, err.c_str());
+    out += F("\"}");
+    g_webConfigServer.send(400, "application/json", out);
+    return;
+  }
+
+  String out;
+  out.reserve(200);
+  out += F("{\"ok\":true,\"message\":\"updated\",\"inSync\":");
+  out += liveNowPlayingDisplayInSync(millis()) ? F("true") : F("false");
+  out += F(",\"source\":\"");
+  appendJsonEscaped(out, liveNowPlayingSourceLabel());
+  out += F("\"}");
+  g_webConfigServer.sendHeader("Cache-Control", "no-store", true);
+  g_webConfigServer.send(200, "application/json", out);
+}
+#endif
 
 static bool parseShortenerResponse(String resp, String &shortUrl) {
   if (!extractJsonStringFieldLoose(resp, "\"short_url\"", shortUrl) &&
@@ -8126,38 +8448,52 @@ static uint32_t lvglRgb565ToRgb888(uint16_t rgb565) {
   return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 }
 
-static uint32_t lvglNowPlayingCoverAccentColor() {
+static uint32_t lvglNowPlayingCoverBackgroundColor() {
   static bool cached = false;
-  static uint32_t cachedColor = 0x2D8BFF;
+  static uint32_t cachedColor = 0x101418;
   if (cached) return cachedColor;
 
   const uint8_t *data = assets_img_test_cover_test_150_rgb565;
   const size_t dataSize = sizeof(assets_img_test_cover_test_150_rgb565);
-  uint32_t bestColor = cachedColor;
-  uint32_t bestScore = 0;
+  const int16_t width = 150;
+  const int16_t height = 150;
+  uint64_t sumR = 0;
+  uint64_t sumG = 0;
+  uint64_t sumB = 0;
+  uint64_t totalWeight = 0;
 
-  for (size_t i = 0; (i + 1u) < dataSize; i += 6u) {
+  for (size_t i = 0, pxIndex = 0; (i + 1u) < dataSize; i += 2u, ++pxIndex) {
     const uint16_t px = (uint16_t)(((uint16_t)data[i] << 8) | (uint16_t)data[i + 1u]);
     const uint32_t rgb = lvglRgb565ToRgb888(px);
-    const uint8_t chroma = lvglRgbChroma(rgb);
-    const uint16_t luma = lvglColorLuma(rgb);
-    uint32_t score = (uint32_t)chroma * 5u;
-    if (luma >= 56u && luma <= 210u) score += 96u;
-    else if (luma < 36u || luma > 232u) score /= 2u;
-    if (((rgb >> 16) & 0xFFu) >= 170u || ((rgb >> 8) & 0xFFu) >= 170u || (rgb & 0xFFu) >= 170u) {
-      score += 24u;
+    const uint8_t r = (uint8_t)((rgb >> 16) & 0xFFu);
+    const uint8_t g = (uint8_t)((rgb >> 8) & 0xFFu);
+    const uint8_t b = (uint8_t)(rgb & 0xFFu);
+    const int16_t x = (int16_t)(pxIndex % (size_t)width);
+    const int16_t y = (int16_t)(pxIndex / (size_t)width);
+
+    uint8_t weight = 1;
+    if (x < 18 || x >= (width - 18) || y < 18 || y >= (height - 18)) {
+      weight = 6;
+    } else if (x < 36 || x >= (width - 36) || y < 36 || y >= (height - 36)) {
+      weight = 3;
     }
-    if (score > bestScore) {
-      bestScore = score;
-      bestColor = rgb;
-    }
+
+    sumR += (uint64_t)r * weight;
+    sumG += (uint64_t)g * weight;
+    sumB += (uint64_t)b * weight;
+    totalWeight += weight;
   }
 
-  const uint16_t luma = lvglColorLuma(bestColor);
-  if (luma < 68u) bestColor = lvglLightenRgb(bestColor, 28);
-  if (luma > 206u) bestColor = lvglDarkenRgb(bestColor, 24);
+  if (totalWeight == 0) return cachedColor;
 
-  cachedColor = bestColor;
+  uint32_t avgColor = (((uint32_t)(sumR / totalWeight)) << 16) |
+                      (((uint32_t)(sumG / totalWeight)) << 8) |
+                      ((uint32_t)(sumB / totalWeight));
+  const uint16_t luma = lvglColorLuma(avgColor);
+  if (luma < 14u) avgColor = lvglLightenRgb(avgColor, 6);
+  if (luma > 242u) avgColor = lvglDarkenRgb(avgColor, 8);
+
+  cachedColor = avgColor;
   cached = true;
   return cachedColor;
 }
@@ -11059,7 +11395,9 @@ static const lv_font_t* lvglFontBig() {
 }
 
 static const lv_font_t* lvglNowPlayingTitleFont() {
-#if defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  return &scry_font_montserrat_semibold_23;
+#elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
   return &lv_font_montserrat_22;
 #elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
   return &lv_font_montserrat_20;
@@ -11069,10 +11407,12 @@ static const lv_font_t* lvglNowPlayingTitleFont() {
 }
 
 static const lv_font_t* lvglNowPlayingBodyFont() {
-#if defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
-  return &lv_font_montserrat_20;
-#elif defined(LV_FONT_MONTSERRAT_18) && LV_FONT_MONTSERRAT_18
+#if defined(LV_FONT_MONTSERRAT_18) && LV_FONT_MONTSERRAT_18
   return &lv_font_montserrat_18;
+#elif defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
+  return &lv_font_montserrat_16;
+#elif defined(LV_FONT_MONTSERRAT_14) && LV_FONT_MONTSERRAT_14
+  return &lv_font_montserrat_14;
 #else
   return lvglFontBody();
 #endif
@@ -11244,6 +11584,106 @@ static void lvglApplyAdaptiveWrapFont(lv_obj_t *label, const char *text, lv_coor
   }
   lv_obj_set_style_text_font(label, chosen, 0);
   lv_label_set_text(label, text);
+}
+
+static int16_t lvglMeasureFontTextWidth(const lv_font_t *font, const char *text) {
+  if (!font || !text) return 0;
+  int16_t width = 0;
+  while (*text) {
+    const uint32_t letter = (uint8_t)*text;
+    const uint32_t next = (uint8_t)*(text + 1);
+    width += (int16_t)lv_font_get_glyph_width(font, letter, next);
+    ++text;
+  }
+  return width;
+}
+
+static void lvglBuildWrappedTitle(char *out, size_t outSize, const char *text,
+                                  const lv_font_t *font, lv_coord_t maxWidth, uint8_t maxLines) {
+  if (!out || outSize == 0) return;
+  out[0] = '\0';
+  if (!text || !*text || !font || maxWidth <= 0 || maxLines == 0) return;
+
+  size_t outLen = 0;
+  uint8_t line = 1;
+  const char *p = text;
+  char currentLine[160] = {0};
+
+  auto appendToOut = [&](const char *chunk) {
+    if (!chunk || !*chunk || outLen >= (outSize - 1)) return;
+    const size_t remain = outSize - outLen - 1;
+    strncat(out, chunk, remain);
+    outLen = strlen(out);
+  };
+
+  while (*p && line <= maxLines) {
+    while (*p == ' ') ++p;
+    if (!*p) break;
+
+    char word[80] = {0};
+    size_t wordLen = 0;
+    while (*p && *p != ' ' && wordLen < (sizeof(word) - 1)) word[wordLen++] = *p++;
+    word[wordLen] = '\0';
+    if (!word[0]) continue;
+
+    char candidate[160] = {0};
+    if (currentLine[0]) {
+      snprintf(candidate, sizeof(candidate), "%s %s", currentLine, word);
+    } else {
+      snprintf(candidate, sizeof(candidate), "%s", word);
+    }
+
+    if (lvglMeasureFontTextWidth(font, candidate) <= maxWidth) {
+      strlcpy(currentLine, candidate, sizeof(currentLine));
+      continue;
+    }
+
+    if (line < maxLines) {
+      if (currentLine[0]) {
+        if (outLen > 0) appendToOut("\n");
+        appendToOut(currentLine);
+        strlcpy(currentLine, word, sizeof(currentLine));
+      } else {
+        char dotted[96] = {0};
+        strlcpy(currentLine, word, sizeof(currentLine));
+        while (currentLine[0]) {
+          snprintf(dotted, sizeof(dotted), "%s...", currentLine);
+          if (lvglMeasureFontTextWidth(font, dotted) <= maxWidth) break;
+          currentLine[strlen(currentLine) - 1] = '\0';
+        }
+        if (!currentLine[0]) strlcpy(currentLine, "...", sizeof(currentLine));
+      }
+      ++line;
+      continue;
+    }
+
+    char finalLine[160] = {0};
+    strlcpy(finalLine, currentLine[0] ? currentLine : word, sizeof(finalLine));
+    while (finalLine[0]) {
+      char dotted[168] = {0};
+      snprintf(dotted, sizeof(dotted), "%s...", finalLine);
+      if (lvglMeasureFontTextWidth(font, dotted) <= maxWidth) {
+        if (outLen > 0) appendToOut("\n");
+        appendToOut(dotted);
+        return;
+      }
+      char *lastSpace = strrchr(finalLine, ' ');
+      if (lastSpace) {
+        *lastSpace = '\0';
+      } else {
+        finalLine[strlen(finalLine) - 1] = '\0';
+      }
+    }
+
+    if (outLen > 0) appendToOut("\n");
+    appendToOut("...");
+    return;
+  }
+
+  if (currentLine[0]) {
+    if (outLen > 0) appendToOut("\n");
+    appendToOut(currentLine);
+  }
 }
 
 static void lvglApplyThemeFonts() {
@@ -12597,7 +13037,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
 
   ui.statusDot = lv_obj_create(ui.header);
   lv_obj_set_size(ui.statusDot, 8, 8);
-  lv_obj_align(ui.statusDot, LV_ALIGN_RIGHT_MID, -82, -1);
+  lv_obj_align(ui.statusDot, LV_ALIGN_RIGHT_MID, -10, -1);
   lv_obj_set_style_bg_color(ui.statusDot, lv_color_hex(0x7CFF9D), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(ui.statusDot, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(ui.statusDot, 0, LV_PART_MAIN);
@@ -12608,7 +13048,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   ui.status = lv_label_create(ui.header);
   lv_obj_set_style_text_font(ui.status, lvglNowPlayingMetaFont(), 0);
   lv_obj_set_style_text_color(ui.status, lv_color_hex(0xB8F7D4), 0);
-  lv_obj_align(ui.status, LV_ALIGN_RIGHT_MID, -10, -1);
+  lv_obj_align(ui.status, LV_ALIGN_RIGHT_MID, -26, -1);
   lv_label_set_text(ui.status, "IN SYNC");
   lvglForceLabelVisible(ui.status);
 
@@ -12681,8 +13121,8 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_style_text_color(ui.track, lv_color_hex(0xFFFFFF), 0);
   lv_obj_set_style_text_line_space(ui.track, 0, 0);
   lv_label_set_long_mode(ui.track, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(ui.track, textW, 72);
-  lv_obj_set_pos(ui.track, contentX, bodyTop + 8);
+  lv_obj_set_size(ui.track, textW, 48);
+  lv_obj_set_pos(ui.track, contentX, bodyTop + 13);
   lv_label_set_text(ui.track, "");
   lvglForceLabelVisible(ui.track);
 
@@ -12691,7 +13131,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_style_text_color(ui.artist, lv_color_hex(0xFFF3F8), 0);
   lv_obj_set_style_text_line_space(ui.artist, 0, 0);
   lv_label_set_long_mode(ui.artist, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(ui.artist, textW, 52);
+  lv_obj_set_size(ui.artist, textW, LV_SIZE_CONTENT);
   lv_obj_set_pos(ui.artist, contentX, cH - 44);
   lv_label_set_text(ui.artist, "");
   lvglForceLabelVisible(ui.artist);
@@ -12737,6 +13177,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_style_shadow_width(ui.progressRail, 0, LV_PART_MAIN);
   lv_obj_set_style_radius(ui.progressRail, LV_RADIUS_CIRCLE, LV_PART_MAIN);
   lv_obj_set_style_pad_all(ui.progressRail, 0, LV_PART_MAIN);
+  lv_obj_add_flag(ui.progressRail, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(ui.progressRail, LV_OBJ_FLAG_SCROLLABLE);
 
   ui.progressFill = lv_obj_create(ui.progressRail);
@@ -12748,6 +13189,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_style_shadow_width(ui.progressFill, 0, LV_PART_MAIN);
   lv_obj_set_style_radius(ui.progressFill, LV_RADIUS_CIRCLE, LV_PART_MAIN);
   lv_obj_set_style_pad_all(ui.progressFill, 0, LV_PART_MAIN);
+  lv_obj_add_flag(ui.progressFill, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(ui.progressFill, LV_OBJ_FLAG_SCROLLABLE);
 
   const int16_t controlX = contentX + textW + controlsGap;
@@ -12790,38 +13232,70 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
 
 static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   if (!ui.card) return;
+  const uint32_t nowMs = millis();
+  const bool useLive = liveNowPlayingAvailable();
+  const bool displaySync = useLive ? liveNowPlayingDisplayInSync(nowMs) : true;
   uint16_t elapsedSec = 0;
   uint8_t trackIndex = 0;
-  resolveFakeNowPlayingTrack(millis(), &elapsedSec, &trackIndex);
-  const FakeNowPlayingTrack &track = kFakeNowPlayingTracks[trackIndex];
+  const char *trackTitle = "";
+  const char *trackArtist = "";
+  const char *trackSource = "";
+  const FakeNowPlayingTrack *fakeTrack = nullptr;
+  if (useLive) {
+    elapsedSec = g_liveNowPlaying.elapsedSec;
+    trackTitle = g_liveNowPlaying.title;
+    trackArtist = g_liveNowPlaying.artist;
+    trackSource = liveNowPlayingSourceLabel();
+  } else {
+    resolveFakeNowPlayingTrack(nowMs, &elapsedSec, &trackIndex);
+    fakeTrack = &kFakeNowPlayingTracks[trackIndex];
+    trackTitle = fakeTrack->title;
+    trackArtist = fakeTrack->artist;
+    trackSource = fakeTrack->source;
+  }
 
-  const uint16_t durationSec = track.durationSec ? track.durationSec : 1U;
-  const uint32_t bgSurface = lvglNowPlayingCoverAccentColor();
+  const FakeNowPlayingTrack &coverTrack = fakeTrack ? *fakeTrack : kFakeNowPlayingTracks[0];
+  const uint16_t durationRaw = useLive ? g_liveNowPlaying.durationSec : coverTrack.durationSec;
+  const uint16_t durationSec = durationRaw ? durationRaw : 1U;
+  const uint32_t bgSurface = lvglNowPlayingCoverBackgroundColor();
   const uint16_t bgLuma = lvglColorLuma(bgSurface);
   const bool bgIsDark = bgLuma < 116u;
   const uint32_t headerBg = bgIsDark ? lvglLightenRgb(bgSurface, 10) : lvglDarkenRgb(bgSurface, 10);
   const uint32_t primaryText = lvglResolvedOnColorText(bgSurface);
   const uint32_t railBg = bgIsDark ? lvglLightenRgb(bgSurface, 22) : lvglDarkenRgb(bgSurface, 18);
-  const uint32_t buttonBg = bgIsDark ? lvglLightenRgb(bgSurface, 40) : lvglDarkenRgb(bgSurface, 44);
-  const uint32_t buttonText = lvglResolvedOnColorText(buttonBg);
+  const uint32_t buttonBg = bgIsDark ? lvglLightenRgb(bgSurface, 74) : lvglDarkenRgb(bgSurface, 62);
+  const uint32_t buttonBorder = bgIsDark ? lvglDarkenRgb(buttonBg, 16) : lvglLightenRgb(buttonBg, 16);
+  const uint32_t buttonText = bgIsDark ? 0x000000 : 0xFFFFFF;
   char headerTitle[64];
-  snprintf(headerTitle, sizeof(headerTitle), "Now Playing / %s", track.source);
+  char wrappedTitle[192];
+  snprintf(headerTitle, sizeof(headerTitle), "Now Playing / %s",
+           (trackSource && trackSource[0]) ? trackSource : "Companion");
 
-  if (force || ui.lastTrackIndex != (int8_t)trackIndex) {
-    ui.lastTrackIndex = (int8_t)trackIndex;
+  const uint32_t liveToken = useLive ? g_liveNowPlaying.contentToken : 0U;
+  const bool needsFullRefresh =
+      force ||
+      ui.lastUsingLive != useLive ||
+      ui.lastInSync != displaySync ||
+      (useLive ? (ui.lastLiveToken != liveToken) : (ui.lastTrackIndex != (int8_t)trackIndex));
+
+  if (needsFullRefresh) {
+    ui.lastUsingLive = useLive;
+    ui.lastInSync = displaySync;
+    ui.lastLiveToken = liveToken;
+    ui.lastTrackIndex = useLive ? -1 : (int8_t)trackIndex;
     lv_obj_set_style_bg_color(ui.card, lv_color_hex(bgSurface), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(ui.card, lv_color_hex(bgSurface), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_dir(ui.card, LV_GRAD_DIR_NONE, LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.header, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_color(ui.header, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.headerFill, lv_color_hex(primaryText), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(ui.statusDot, lv_color_hex(0x7CFF9D), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(ui.cover, lv_color_hex(track.coverBgA), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(ui.cover, lv_color_hex(track.coverBgB), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.statusDot, lv_color_hex(displaySync ? 0x7CFF9D : 0xFFC857), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.cover, lv_color_hex(coverTrack.coverBgA), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(ui.cover, lv_color_hex(coverTrack.coverBgB), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_dir(ui.cover, LV_GRAD_DIR_VER, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(ui.coverStripe, lv_color_hex(track.coverStripe), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(ui.coverOrb, lv_color_hex(track.coverOrb), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(ui.coverOrb, lv_color_hex(track.coverOrb), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.coverStripe, lv_color_hex(coverTrack.coverStripe), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.coverOrb, lv_color_hex(coverTrack.coverOrb), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(ui.coverOrb, lv_color_hex(coverTrack.coverOrb), LV_PART_MAIN);
     lv_obj_set_style_text_color(ui.coverTop, lv_color_hex(primaryText), 0);
     lv_obj_set_style_text_color(ui.coverBottom, lv_color_hex(primaryText), 0);
     lv_obj_set_style_text_color(ui.title, lv_color_hex(primaryText), 0);
@@ -12833,30 +13307,43 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
     lv_obj_set_style_bg_color(ui.controlPrev, lv_color_hex(buttonBg), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.controlPause, lv_color_hex(buttonBg), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.controlNext, lv_color_hex(buttonBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(ui.controlPrev, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(ui.controlPause, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(ui.controlNext, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(ui.controlPrev, lv_color_hex(buttonBorder), LV_PART_MAIN);
+    lv_obj_set_style_border_color(ui.controlPause, lv_color_hex(buttonBorder), LV_PART_MAIN);
+    lv_obj_set_style_border_color(ui.controlNext, lv_color_hex(buttonBorder), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(ui.controlPrev, LV_OPA_30, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(ui.controlPause, LV_OPA_30, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(ui.controlNext, LV_OPA_30, LV_PART_MAIN);
     lv_obj_set_style_text_color(ui.controlPrevText, lv_color_hex(buttonText), 0);
     lv_obj_set_style_text_color(ui.controlPauseText, lv_color_hex(buttonText), 0);
     lv_obj_set_style_text_color(ui.controlNextText, lv_color_hex(buttonText), 0);
-    lv_label_set_text(ui.coverTop, track.coverTop);
-    lv_label_set_text(ui.coverBottom, track.coverBottom);
+    lv_label_set_text(ui.coverTop, coverTrack.coverTop);
+    lv_label_set_text(ui.coverBottom, coverTrack.coverBottom);
     lv_label_set_text(ui.title, headerTitle);
-    lv_label_set_text(ui.status, "IN SYNC");
+    lv_label_set_text(ui.status, displaySync ? "IN SYNC" : "OUT OF SYNC");
     lv_obj_add_flag(ui.coverStripe, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(ui.coverOrb, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(ui.coverTop, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(ui.coverBottom, LV_OBJ_FLAG_HIDDEN);
   }
 
-  lvglApplyAdaptiveWrapFont(ui.track, track.title, 72, lvglNowPlayingTitleFont(), lvglNowPlayingBodyFont(),
-                            lvglFontMeta(), lvglNowPlayingMetaFont());
+  lv_obj_set_style_text_font(ui.track, lvglNowPlayingTitleFont(), 0);
+  lv_coord_t titleMeasureW = lv_obj_get_width(ui.track) - 24;
+  if (titleMeasureW < 80) titleMeasureW = lv_obj_get_width(ui.track);
+  lvglBuildWrappedTitle(wrappedTitle, sizeof(wrappedTitle), trackTitle, lvglNowPlayingTitleFont(),
+                        titleMeasureW, 2);
+  lv_label_set_text(ui.track, wrappedTitle);
   lv_obj_update_layout(ui.track);
   lv_obj_set_style_text_font(ui.artist, lvglNowPlayingArtistFont(), 0);
-  lv_label_set_text(ui.artist, track.artist);
+  lv_label_set_text(ui.artist, trackArtist);
   lv_obj_update_layout(ui.artist);
 
   const lv_coord_t trackY = lv_obj_get_y(ui.track);
   const lv_coord_t trackBottom = (lv_coord_t)(trackY + lv_obj_get_height(ui.track));
-  const lv_coord_t desiredArtistY = (lv_coord_t)(trackBottom + 10);
-  const lv_coord_t maxArtistY = (lv_coord_t)(lv_obj_get_y(ui.progressRail) - lv_obj_get_height(ui.artist) - 8);
+  const lv_coord_t desiredArtistY = (lv_coord_t)(trackBottom + 14);
+  const lv_coord_t maxArtistY = (lv_coord_t)(lv_obj_get_height(ui.card) - lv_obj_get_height(ui.artist) - 10);
   const lv_coord_t artistY = (desiredArtistY <= maxArtistY) ? desiredArtistY : maxArtistY;
   lv_obj_set_y(ui.artist, artistY);
 

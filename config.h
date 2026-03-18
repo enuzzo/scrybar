@@ -24,7 +24,7 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "DB-M0-r185"
+#define FW_BUILD_TAG "DB-M0-r187"
 #define FW_RELEASE_DATE "2026-03-18"
 
 // --- M0.2 Backlight test config ---

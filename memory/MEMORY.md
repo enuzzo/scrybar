@@ -13,7 +13,7 @@
 
 - `FW_BUILD_TAG` e `FW_RELEASE_DATE` in `config.h` — **incrementare r-number e aggiornare data ad ogni release**.
 - Visibili su: web UI (hero card, sotto logo) e device INFO panel (`ScryBar Stats`, colonna destra).
-- Corrente: `DB-M0-r185`, `2026-03-18`.
+- Corrente: `DB-M0-r187`, `2026-03-18`.
 
 ## Now Playing Companion (2026-03-18)
 
@@ -33,6 +33,34 @@
 - Requisito prodotto:
   - la companion deve cercare da sola il device;
   - se non lo trova subito, l'utente deve poter puntare manualmente la barra senza attriti.
+- Stato companion attuale:
+  - scaffold creato in `companion/mac/ScryBarCompanion/`;
+  - build Swift verificata con `swift build`;
+  - UI SwiftUI con:
+    - discovery `_scrybar._tcp`;
+    - fallback manuale `host/IP + port`;
+    - preview payload JSON;
+    - provider principale `System` via `MediaRemote.framework` per leggere il now playing globale del Mac;
+    - provider `Mock`;
+    - primo provider reale `Music.app` via AppleScript;
+    - contratto transport `POST /api/now-playing` lato companion.
+- Stato firmware attuale lato companion:
+  - `GET/POST /api/now-playing` live su `WEB_CONFIG_PORT` (`8080`);
+  - annuncio Bonjour/mDNS `_scrybar._tcp` live;
+  - hostname visto in test reale: `scrybar-db1c.local`;
+  - instance name vista in test reale: `ScryBar DB1C`;
+  - payload live tenuto a schermo anche se diventa stale; il badge `IN SYNC` dipende dal refresh recente della companion.
+  - badge sync nel firmware: testo a sinistra, semaforo fisso tutto a destra del badge; verified su screenshot reale.
+- Gotcha `MediaRemote` confermati sul Mac:
+  - `MRMediaRemoteGetNowPlayingInfo`, `MRMediaRemoteGetNowPlayingApplicationPlaybackState`, `MRMediaRemoteGetNowPlayingClient` funzionano davvero;
+  - metadata e artwork possono arrivare anche quando `displayName`/`bundleIdentifier` del client sono vuoti;
+  - la callback info va interrogata su queue dedicata, non bloccando il main thread;
+  - i bytes artwork arrivano gia' dal sistema con MIME type, utili per pipeline futura verso firmware.
+- Piano prossima sessione:
+  - spedire artwork live dalla companion alla barra;
+  - usare `MediaRemote` per `back / pause / next`;
+  - rendere piu' robusta l'identificazione app/sorgente quando il client non e' completo;
+  - poi solo in seconda battuta valutare fallback specifici per app singole.
 
 ## Theming + Fonts (r143)
 

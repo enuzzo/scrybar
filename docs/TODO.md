@@ -29,6 +29,19 @@ senza riprodurre l'audio. E' una view "what's playing", non un player.
   - trovare automaticamente la ScryBar in LAN tramite identificazione broadcast/annuncio device;
   - permettere fallback manuale con IP o hostname se l'auto-discovery fallisce o tarda;
   - normalizzare sorgenti diverse (`Music`, `Spotify`, `TIDAL`, podcast, altre app del Mac) in un payload unico per il firmware.
+- Stato companion (scaffold iniziale):
+  - esiste ora una app macOS Swift in `companion/mac/ScryBarCompanion/`;
+  - include discovery `_scrybar._tcp`, fallback manuale `host/IP`, payload preview JSON e provider `System` + `Mock` + `Music.app`;
+  - `System` usa `MediaRemote.framework` per leggere il now playing globale che macOS mostra gia' in Control Center / menu bar;
+  - il firmware ora espone `GET/POST /api/now-playing` su porta `8080`;
+  - la ScryBar ora si annuncia in LAN via Bonjour/mDNS come servizio `_scrybar._tcp`;
+  - resta da collegare provider reali aggiuntivi e artwork live dalla companion.
+
+**Piano prossima sessione:**
+- portare la cover vera dalla companion al firmware, non solo metadati;
+- usare `MediaRemote` anche per `back / pause / next`;
+- migliorare il naming della sorgente quando il client di sistema non espone bene `displayName` o `bundleIdentifier`;
+- ridurre il numero di fallback app-specifici al minimo necessario.
 
 **Fattibilita' tecnica:**
 - Molte radio Shoutcast/Icecast espongono metadata ICY dentro lo stream HTTP.
