@@ -10,7 +10,11 @@ final class AppModel: ObservableObject {
     @Published var manualHost = UserDefaults.standard.string(forKey: "manualHost") ?? ""
     @Published var manualPort = UserDefaults.standard.string(forKey: "manualPort") ?? "8080"
     @Published var currentPayload = NowPlayingPayload.placeholder(source: ProviderKind.system.rawValue)
-    @Published var autoSendEnabled = false
+    @Published var autoSendEnabled: Bool = {
+        if UserDefaults.standard.object(forKey: "autoSendEnabled") == nil { return true }
+        return UserDefaults.standard.bool(forKey: "autoSendEnabled")
+    }()
+    @Published var showSettingsOnOpen = false
     @Published var lastSendStatus = "Idle"
 
     private let discovery = ScryBarDiscovery()
@@ -56,6 +60,11 @@ final class AppModel: ObservableObject {
 
     func rescan() {
         discovery.start()
+    }
+
+    func setAutoSend(_ enabled: Bool) {
+        autoSendEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "autoSendEnabled")
     }
 
     func saveManualTarget() {
