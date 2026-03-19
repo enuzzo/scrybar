@@ -1,7 +1,5 @@
 import AppKit
-import Dispatch
 import Foundation
-import Darwin
 
 protocol NowPlayingProviding: Sendable {
     func snapshot() -> NowPlayingPayload?
@@ -126,7 +124,15 @@ final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     private var cachedPayload: NowPlayingPayload?
 
     func snapshot() -> NowPlayingPayload? {
-        guard let resolved = bestResolvedCandidate(from: rankedPlaybackCandidates()) else {
+        let candidates = rankedPlaybackCandidates()
+        NSLog("[ScryBar] TidalProvider: %d candidates found", candidates.count)
+        for (i, c) in candidates.prefix(5).enumerated() {
+            let ageSec = (nowMs() - c.timestampMs) / 1000
+            NSLog("[ScryBar]   candidate[%d]: mediaID=%@ conf=%d age=%llds origin=%@ playing=%@",
+                  i, c.mediaID, c.confidence, ageSec, c.origin, String(describing: c.isPlaying))
+        }
+        guard let resolved = bestResolvedCandidate(from: candidates) else {
+            NSLog("[ScryBar] TidalProvider: no resolved candidate (metadata lookup failed for all)")
             return nil
         }
 
@@ -559,36 +565,85 @@ final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     }
 }
 
+/// Uses JXA (JavaScript for Automation) via osascript to query MediaRemote.
+/// This bypasses the macOS 15.4+ entitlement restriction on MRMediaRemoteGetNowPlayingInfo
+/// by using the MRNowPlayingRequest Objective-C class through the JXA bridge.
 final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
-    private let bridge = MediaRemoteBridge()
-    private var cachedArtworkCacheKey: String?
-    private var cachedArtwork: EncodedArtwork?
+
+    // JXA script that loads MediaRemote.framework and reads now-playing via
+    // MRNowPlayingRequest — an Obj-C class that osascript can access without
+    // the entitlement that blocks the C function API on macOS 15.4+.
+    private static let jxaScript = """
+    function run() {
+      var MR = $.NSBundle.bundleWithPath("/System/Library/PrivateFrameworks/MediaRemote.framework/");
+      MR.load;
+      var Req = $.NSClassFromString("MRNowPlayingRequest");
+      var client = Req.localNowPlayingPlayerPath.client;
+      var ci = {};
+      try { ci.bundleIdentifier = client.bundleIdentifier.js; } catch(e) {}
+      try { ci.parentApplicationBundleIdentifier = client.parentApplicationBundleIdentifier.js; } catch(e) {}
+      var dict = Req.localNowPlayingItem.nowPlayingInfo;
+      var info = {};
+      var keys = dict.allKeys;
+      for (var i = 0; i < keys.count; i++) {
+        var k = keys.objectAtIndex(i).js;
+        var v = dict.valueForKey(keys.objectAtIndex(i));
+        try { info[k] = v.js; } catch(e) { try { info[k] = v.toString(); } catch(e2) {} }
+      }
+      return JSON.stringify({ isPlaying: Req.localIsPlaying, client: ci, info: info });
+    }
+    """
 
     func snapshot() -> NowPlayingPayload? {
-        guard let snapshot = bridge.snapshot() else {
-            NSLog("[ScryBar] SystemProvider: bridge returned nil")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-l", "JavaScript", "-e", Self.jxaScript]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+        } catch {
+            NSLog("[ScryBar] SystemProvider: osascript launch failed: %@", error.localizedDescription)
+            return nil
+        }
+        process.waitUntilExit()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard !data.isEmpty,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            NSLog("[ScryBar] SystemProvider: no output from osascript")
             return nil
         }
 
-        let info = snapshot.info
-        let debugTitle = (info[MediaRemoteBridge.titleKey] as? String) ?? "(nil)"
-        let debugArtist = (info[MediaRemoteBridge.artistKey] as? String) ?? "(nil)"
-        NSLog("[ScryBar] SystemProvider: title=%@ artist=%@", debugTitle, debugArtist)
+        let info = json["info"] as? [String: Any] ?? [:]
+        let client = json["client"] as? [String: Any] ?? [:]
+        let isPlaying = json["isPlaying"] as? Bool ?? false
 
-        guard let title = mediaRemoteString(info[MediaRemoteBridge.titleKey]), !title.isEmpty else {
+        guard let title = info["kMRMediaRemoteNowPlayingInfoTitle"] as? String, !title.isEmpty else {
             return nil
         }
 
-        let artist = mediaRemoteString(info[MediaRemoteBridge.artistKey]) ?? ""
-        let album = mediaRemoteString(info[MediaRemoteBridge.albumKey]) ?? ""
-        let durationSec = mediaRemoteDouble(info[MediaRemoteBridge.durationKey]) ?? 0
-        let elapsedSec = mediaRemoteDouble(info[MediaRemoteBridge.elapsedKey]) ?? 0
-        let playbackRate = mediaRemoteDouble(info[MediaRemoteBridge.playbackRateKey]) ?? 0
-        let clientDisplayName = mediaRemoteString(snapshot.client["displayName"])
-        let bundleIdentifier = mediaRemoteString(snapshot.client["bundleIdentifier"])
-        let appName = clientDisplayName ?? bundleIdentifier ?? "System"
-        let source = clientDisplayName ?? runningAppName(from: snapshot.client) ?? bundleIdentifier ?? "System"
-        let encodedArtwork = materializeArtwork(from: info)
+        let artist = info["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? ""
+        let album = info["kMRMediaRemoteNowPlayingInfoAlbum"] as? String ?? ""
+        let durationSec = (info["kMRMediaRemoteNowPlayingInfoDuration"] as? Double) ?? 0
+        let elapsedSec = (info["kMRMediaRemoteNowPlayingInfoElapsedTime"] as? Double) ?? 0
+        let playbackRate = (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? Double) ?? 0
+        let bundleIdentifier = client["bundleIdentifier"] as? String
+        let appName = bundleIdentifier ?? "System"
+
+        let source: String
+        if let bid = bundleIdentifier {
+            source = NSWorkspace.shared.runningApplications
+                .first(where: { $0.bundleIdentifier == bid })?
+                .localizedName ?? bid
+        } else {
+            source = "System"
+        }
+
+        NSLog("[ScryBar] SystemProvider: title=%@ artist=%@ source=%@", title, artist, source)
 
         return NowPlayingPayload(
             title: title,
@@ -598,87 +653,15 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             appName: appName,
             durationSec: durationSec,
             elapsedSec: elapsedSec,
-            isPlaying: playbackRate > 0.001 || snapshot.playbackState == 1,
+            isPlaying: isPlaying || playbackRate > 0.001,
             inSync: true,
-            artworkURL: encodedArtwork?.debugURL,
-            artworkID: encodedArtwork?.identifier,
-            artworkWidth: encodedArtwork?.width,
-            artworkHeight: encodedArtwork?.height,
-            artworkRGB565B64: encodedArtwork?.rgb565Base64,
+            artworkURL: nil,
+            artworkID: info["kMRMediaRemoteNowPlayingInfoArtworkIdentifier"] as? String,
+            artworkWidth: nil,
+            artworkHeight: nil,
+            artworkRGB565B64: nil,
             updatedAt: Date()
         )
-    }
-
-    private func runningAppName(from client: [String: Any]) -> String? {
-        guard let pidNumber = mediaRemoteNumber(client["processIdentifier"]) else { return nil }
-        return NSRunningApplication(processIdentifier: pid_t(truncating: pidNumber))?.localizedName
-    }
-
-    private func materializeArtwork(from info: [String: Any]) -> EncodedArtwork? {
-        guard let artworkData = info[MediaRemoteBridge.artworkDataKey] as? Data,
-              !artworkData.isEmpty else {
-            cachedArtworkCacheKey = nil
-            cachedArtwork = nil
-            return nil
-        }
-
-        let identifier = sanitizedArtworkIdentifier(
-            mediaRemoteString(info[MediaRemoteBridge.artworkIdentifierKey]) ?? ArtworkTranscoder.fingerprint(for: artworkData)
-        )
-        let mimeType = mediaRemoteString(info[MediaRemoteBridge.artworkMIMETypeKey]) ?? "image/jpeg"
-        let cacheKey = "\(identifier):\(artworkData.count)"
-        if cacheKey == cachedArtworkCacheKey, let cachedArtwork {
-            return cachedArtwork
-        }
-
-        let debugURL = materializeArtworkFile(identifier: identifier, mimeType: mimeType, artworkData: artworkData)
-        guard let encoded = ArtworkTranscoder.encodeRGB565Base64(from: artworkData) else {
-            return nil
-        }
-
-        let artwork = EncodedArtwork(
-            identifier: identifier,
-            debugURL: debugURL,
-            width: encoded.width,
-            height: encoded.height,
-            rgb565Base64: encoded.rgb565Base64
-        )
-        cachedArtworkCacheKey = cacheKey
-        cachedArtwork = artwork
-        return artwork
-    }
-
-    private func materializeArtworkFile(identifier: String, mimeType: String, artworkData: Data) -> String? {
-        let fileExtension: String
-        switch mimeType.lowercased() {
-        case "image/png":
-            fileExtension = "png"
-        case "image/webp":
-            fileExtension = "webp"
-        default:
-            fileExtension = "jpg"
-        }
-
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("scrybar-artwork-\(identifier)")
-            .appendingPathExtension(fileExtension)
-
-        if !FileManager.default.fileExists(atPath: url.path) {
-            do {
-                try artworkData.write(to: url, options: [.atomic])
-            } catch {
-                NSLog("SystemNowPlayingProvider artwork write failed: %@", error.localizedDescription)
-                return nil
-            }
-        }
-        return url.absoluteString
-    }
-
-    private func sanitizedArtworkIdentifier(_ raw: String) -> String {
-        raw
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ":", with: "-")
-            .replacingOccurrences(of: " ", with: "-")
     }
 }
 
@@ -797,158 +780,6 @@ private enum ArtworkTranscoder {
     }
 }
 
-private final class MediaRemoteBridge: @unchecked Sendable {
-    static let titleKey = "kMRMediaRemoteNowPlayingInfoTitle"
-    static let artistKey = "kMRMediaRemoteNowPlayingInfoArtist"
-    static let albumKey = "kMRMediaRemoteNowPlayingInfoAlbum"
-    static let durationKey = "kMRMediaRemoteNowPlayingInfoDuration"
-    static let elapsedKey = "kMRMediaRemoteNowPlayingInfoElapsedTime"
-    static let playbackRateKey = "kMRMediaRemoteNowPlayingInfoPlaybackRate"
-    static let artworkDataKey = "kMRMediaRemoteNowPlayingInfoArtworkData"
-    static let artworkMIMETypeKey = "kMRMediaRemoteNowPlayingInfoArtworkMIMEType"
-    static let artworkIdentifierKey = "kMRMediaRemoteNowPlayingInfoArtworkIdentifier"
-
-    private typealias GetNowPlayingInfoFn = @convention(c) (DispatchQueue, @escaping @convention(block) (CFDictionary?) -> Void) -> Void
-    private typealias GetPlaybackStateFn = @convention(c) (DispatchQueue, @escaping @convention(block) (Int) -> Void) -> Void
-    private typealias GetClientFn = @convention(c) (DispatchQueue, @escaping @convention(block) (AnyObject?) -> Void) -> Void
-    private typealias RegisterNotificationsFn = @convention(c) (DispatchQueue) -> Void
-    private typealias UnregisterNotificationsFn = @convention(c) (DispatchQueue) -> Void
-
-    struct Snapshot {
-        var info: [String: Any]
-        var client: [String: Any]
-        var playbackState: Int
-    }
-
-    // Separate queues: one for query callbacks, one for notification registration.
-    // Using the same queue for both caused getNowPlayingInfo callbacks to never fire.
-    private let queryQueue = DispatchQueue(label: "ScryBar.MediaRemote.query")
-    private let notifyQueue = DispatchQueue(label: "ScryBar.MediaRemote.notify")
-    private let frameworkHandle: UnsafeMutableRawPointer?
-    private let getNowPlayingInfoFn: GetNowPlayingInfoFn?
-    private let getPlaybackStateFn: GetPlaybackStateFn?
-    private let getClientFn: GetClientFn?
-
-    init() {
-        let frameworkPath = "/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote"
-        frameworkHandle = dlopen(frameworkPath, RTLD_NOW)
-
-        if frameworkHandle == nil {
-            if let err = dlerror() {
-                NSLog("MediaRemoteBridge dlopen failed: %@", String(cString: err))
-            }
-            getNowPlayingInfoFn = nil
-            getPlaybackStateFn = nil
-            getClientFn = nil
-            return
-        }
-
-        getNowPlayingInfoFn = MediaRemoteBridge.resolve("MRMediaRemoteGetNowPlayingInfo", from: frameworkHandle)
-        getPlaybackStateFn = MediaRemoteBridge.resolve("MRMediaRemoteGetNowPlayingApplicationPlaybackState", from: frameworkHandle)
-        getClientFn = MediaRemoteBridge.resolve("MRMediaRemoteGetNowPlayingClient", from: frameworkHandle)
-
-        // Register on a separate queue so notification processing
-        // doesn't block the query callback queue
-        if let registerFn: RegisterNotificationsFn = MediaRemoteBridge.resolve(
-            "MRMediaRemoteRegisterForNowPlayingNotifications", from: frameworkHandle
-        ) {
-            registerFn(notifyQueue)
-        }
-    }
-
-    deinit {
-        if let frameworkHandle {
-            if let unregisterFn: UnregisterNotificationsFn = MediaRemoteBridge.resolve(
-                "MRMediaRemoteUnregisterForNowPlayingNotifications", from: frameworkHandle
-            ) {
-                unregisterFn(notifyQueue)
-            }
-            dlclose(frameworkHandle)
-        }
-    }
-
-    /// Synchronous query to MediaRemote. Blocks the calling thread (up to
-    /// timeout) but returns guaranteed-fresh data. Safe because callers
-    /// run this on a background thread via Task.detached.
-    func snapshot(timeout: TimeInterval = 0.5) -> Snapshot? {
-        guard let getNowPlayingInfoFn else { return nil }
-
-        let deadline = DispatchTime.now() + timeout
-        var info: [String: Any] = [:]
-        var playbackState = 0
-        var client: [String: Any] = [:]
-
-        let infoSem = DispatchSemaphore(value: 0)
-        getNowPlayingInfoFn(queryQueue) { dict in
-            if let d = dict as? [String: Any] { info = d }
-            infoSem.signal()
-        }
-        guard infoSem.wait(timeout: deadline) == .success else {
-            NSLog("[ScryBar] MediaRemote info query TIMED OUT")
-            return nil
-        }
-
-        if let getPlaybackStateFn {
-            let stateSem = DispatchSemaphore(value: 0)
-            getPlaybackStateFn(queryQueue) { state in
-                playbackState = state
-                stateSem.signal()
-            }
-            _ = stateSem.wait(timeout: deadline)
-        }
-
-        if let getClientFn {
-            let clientSem = DispatchSemaphore(value: 0)
-            getClientFn(queryQueue) { obj in
-                if let d = obj as? [String: Any] { client = d }
-                else if let d = obj as? NSDictionary as? [String: Any] { client = d }
-                clientSem.signal()
-            }
-            _ = clientSem.wait(timeout: deadline)
-        }
-
-        if info.isEmpty { return nil }
-        return Snapshot(info: info, client: client, playbackState: playbackState)
-    }
-
-    private static func resolve<T>(_ symbol: String, from handle: UnsafeMutableRawPointer?) -> T? {
-        guard let handle, let raw = dlsym(handle, symbol) else { return nil }
-        return unsafeBitCast(raw, to: T.self)
-    }
-}
-
-private func mediaRemoteString(_ raw: Any?) -> String? {
-    switch raw {
-    case let string as String:
-        return string
-    case let number as NSNumber:
-        return number.stringValue
-    case let date as Date:
-        return ISO8601DateFormatter().string(from: date)
-    default:
-        return nil
-    }
-}
-
-private func mediaRemoteDouble(_ raw: Any?) -> Double? {
-    switch raw {
-    case let number as NSNumber:
-        return number.doubleValue
-    case let string as String:
-        return Double(string)
-    default:
-        return nil
-    }
-}
-
-private func mediaRemoteNumber(_ raw: Any?) -> NSNumber? {
-    switch raw {
-    case let number as NSNumber:
-        return number
-    case let string as String:
-        guard let intValue = Int(string) else { return nil }
-        return NSNumber(value: intValue)
-    default:
-        return nil
-    }
-}
+// MediaRemoteBridge removed — macOS 15.4+ blocks MRMediaRemoteGetNowPlayingInfo
+// for unsigned apps. SystemNowPlayingProvider now uses JXA via osascript which
+// accesses MRNowPlayingRequest (Obj-C class) through the entitled osascript binary.
