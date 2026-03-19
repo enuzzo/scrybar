@@ -798,7 +798,7 @@ private enum ArtworkTranscoder {
     }
 }
 
-private final class MediaRemoteBridge {
+private final class MediaRemoteBridge: @unchecked Sendable {
     static let titleKey = "kMRMediaRemoteNowPlayingInfoTitle"
     static let artistKey = "kMRMediaRemoteNowPlayingInfoArtist"
     static let albumKey = "kMRMediaRemoteNowPlayingInfoAlbum"
