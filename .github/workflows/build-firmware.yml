@@ -1,0 +1,115 @@
+name: Build Firmware & Deploy Flasher
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 core and libraries
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.1.1
+          arduino-cli lib install "ArduinoJson@7.3.0" "lvgl@8.4.0"
+
+      - name: Prepare secrets
+        run: cp .github/ci-secrets.h secrets.h
+
+      - name: Build Full variant
+        run: |
+          arduino-cli compile --clean \
+            --build-path /tmp/scrybar-full \
+            --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
+            .
+
+      - name: Build Lite variant
+        run: |
+          echo "-DHAVE_CONFIG_H" > build_opt.h
+          arduino-cli compile --clean \
+            --build-path /tmp/scrybar-lite \
+            --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
+            .
+
+      - name: Find boot_app0.bin
+        id: boot-app
+        run: |
+          BOOT_APP0=$(find ~/.arduino15/packages/esp32 -name boot_app0.bin | head -1)
+          echo "path=$BOOT_APP0" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=dev-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site/firmware/full _site/firmware/lite
+
+          # Static files from repo
+          cp docs/flasher/index.html _site/
+          cp docs/flasher/manifest-full.json _site/
+          cp docs/flasher/manifest-lite.json _site/
+
+          # Inject version into manifests
+          sed -i "s/\"version\": \"1.0.0\"/\"version\": \"${{ steps.version.outputs.tag }}\"/" \
+            _site/manifest-full.json _site/manifest-lite.json
+
+          # Full variant binaries
+          cp /tmp/scrybar-full/scrybar.ino.bootloader.bin _site/firmware/full/bootloader.bin
+          cp /tmp/scrybar-full/scrybar.ino.partitions.bin  _site/firmware/full/partitions.bin
+          cp "${{ steps.boot-app.outputs.path }}"          _site/firmware/full/boot_app0.bin
+          cp /tmp/scrybar-full/scrybar.ino.bin             _site/firmware/full/firmware.bin
+
+          # Lite variant binaries
+          cp /tmp/scrybar-lite/scrybar.ino.bootloader.bin _site/firmware/lite/bootloader.bin
+          cp /tmp/scrybar-lite/scrybar.ino.partitions.bin  _site/firmware/lite/partitions.bin
+          cp "${{ steps.boot-app.outputs.path }}"          _site/firmware/lite/boot_app0.bin
+          cp /tmp/scrybar-lite/scrybar.ino.bin             _site/firmware/lite/firmware.bin
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrybar-firmware
+          path: |
+            _site/firmware/full/
+            _site/firmware/lite/
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
