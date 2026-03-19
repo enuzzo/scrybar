@@ -72,20 +72,37 @@ extension ScryBarDiscovery: NetServiceBrowserDelegate {
 
 extension ScryBarDiscovery: NetServiceDelegate {
     func netServiceDidResolveAddress(_ sender: NetService) {
-        let hostName = sender.hostName?
-            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
-            .replacingOccurrences(of: ".local", with: "")
+        // Extract IPv4 address directly from resolved addresses for reliable connectivity.
+        // mDNS hostname resolution (.local) is unreliable for repeated HTTP connections.
+        let resolvedHost = extractIPv4(from: sender)
+            ?? sender.hostName?.trimmingCharacters(in: CharacterSet(charactersIn: "."))
 
-        guard let hostName, !hostName.isEmpty else { return }
+        guard let resolvedHost, !resolvedHost.isEmpty else { return }
 
         endpointsByName[sender.name] = ScryBarEndpoint(
             name: sender.name,
-            host: hostName,
+            host: resolvedHost,
             port: sender.port,
             source: .discovery
         )
         publish()
         onStatus?("Found \(endpointsByName.count) ScryBar device(s).")
+    }
+
+    private func extractIPv4(from service: NetService) -> String? {
+        guard let addresses = service.addresses else { return nil }
+        for addrData in addresses {
+            guard addrData.count >= MemoryLayout<sockaddr_in>.size else { continue }
+            let family = addrData.withUnsafeBytes { $0.load(as: sockaddr.self).sa_family }
+            guard family == UInt8(AF_INET) else { continue }
+            let addr = addrData.withUnsafeBytes { $0.load(as: sockaddr_in.self) }
+            var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+            var inAddr = addr.sin_addr
+            inet_ntop(AF_INET, &inAddr, &buf, socklen_t(INET_ADDRSTRLEN))
+            let ip = String(cString: buf)
+            if !ip.isEmpty && ip != "0.0.0.0" { return ip }
+        }
+        return nil
     }
 
     func netService(_ sender: NetService, didNotResolve errorDict: [String : NSNumber]) {

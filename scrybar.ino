@@ -928,6 +928,7 @@ struct NowPlayingUi {
   lv_obj_t *title = nullptr;
   lv_obj_t *statusDot = nullptr;
   lv_obj_t *status = nullptr;
+  lv_obj_t *headerTime = nullptr;
   lv_obj_t *controlPrev = nullptr;
   lv_obj_t *controlPrevText = nullptr;
   lv_obj_t *controlPause = nullptr;
@@ -951,6 +952,7 @@ struct NowPlayingUi {
   lv_obj_t *progressRemaining = nullptr;
   int8_t lastTrackIndex = -1;
   uint32_t lastLiveToken = 0;
+  uint16_t lastDisplayedElapsed = 0;
   bool lastUsingLive = false;
   bool lastInSync = false;
 };
@@ -968,7 +970,7 @@ struct LiveNowPlayingState {
   char source[48] = {0};
   char appName[48] = {0};
   char artworkUrl[220] = {0};
-  char artworkId[96] = {0};
+  char artworkId[256] = {0};
 };
 struct LiveNowPlayingArtwork {
   bool valid = false;
@@ -977,7 +979,7 @@ struct LiveNowPlayingArtwork {
   size_t dataSize = 0;
   uint8_t *data = nullptr;
   uint32_t bgColor = 0x101418;
-  char artworkId[96] = {0};
+  char artworkId[256] = {0};
 };
 struct FakeNowPlayingTrack {
   const char *title;
@@ -11624,7 +11626,9 @@ static const lv_font_t* lvglNowPlayingBodyFont() {
 }
 
 static const lv_font_t* lvglNowPlayingArtistFont() {
-#if defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  return &scry_font_montserrat_semibold_22;
+#elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
   return &lv_font_montserrat_22;
 #elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
   return &lv_font_montserrat_20;
@@ -13257,6 +13261,14 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_label_set_text(ui.status, "IN SYNC");
   lvglForceLabelVisible(ui.status);
 
+  ui.headerTime = lv_label_create(ui.header);
+  lv_obj_set_style_text_font(ui.headerTime, lvglNowPlayingMetaFont(), 0);
+  lv_obj_set_style_text_color(ui.headerTime, lv_color_hex(0xFFF5F8), 0);
+  lv_obj_set_style_text_opa(ui.headerTime, LV_OPA_70, 0);
+  lv_obj_align(ui.headerTime, LV_ALIGN_RIGHT_MID, -100, -1);
+  lv_label_set_text(ui.headerTime, "");
+  lvglForceLabelVisible(ui.headerTime);
+
   ui.coverShell = lv_obj_create(ui.card);
   lv_obj_set_size(ui.coverShell, coverSize, coverSize);
   lv_obj_set_pos(ui.coverShell, 0, bodyTop);
@@ -13377,8 +13389,10 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_size(ui.progressRail, textW, 5);
   lv_obj_set_pos(ui.progressRail, contentX, cH - 16);
   lv_obj_set_style_bg_color(ui.progressRail, lv_color_hex(0x2A203A), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(ui.progressRail, LV_OPA_70, LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui.progressRail, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ui.progressRail, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(ui.progressRail, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(ui.progressRail, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(ui.progressRail, LV_OPA_30, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(ui.progressRail, 0, LV_PART_MAIN);
   lv_obj_set_style_radius(ui.progressRail, LV_RADIUS_CIRCLE, LV_PART_MAIN);
   lv_obj_set_style_pad_all(ui.progressRail, 0, LV_PART_MAIN);
@@ -13447,6 +13461,8 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   const char *trackArtist = "";
   const char *trackSource = "";
   const FakeNowPlayingTrack *fakeTrack = nullptr;
+  char placeholderTitle[128] = {0};
+  char placeholderArtist[128] = {0};
   if (useLive) {
     elapsedSec = g_liveNowPlaying.elapsedSec;
     trackTitle = g_liveNowPlaying.title;
@@ -13455,10 +13471,37 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   } else {
     resolveFakeNowPlayingTrack(nowMs, &elapsedSec, &trackIndex);
     fakeTrack = &kFakeNowPlayingTracks[trackIndex];
-    trackTitle = fakeTrack->title;
-    trackArtist = fakeTrack->artist;
-    trackSource = fakeTrack->source;
+    // Show companion setup instructions instead of fake track data
+    snprintf(placeholderTitle, sizeof(placeholderTitle), "Launch ScryBar Companion");
+    const String ip = WiFi.localIP().toString();
+    if (g_scrybarMdnsHost[0] && ip.length() > 1) {
+      snprintf(placeholderArtist, sizeof(placeholderArtist), "%s / %s.local", ip.c_str(), g_scrybarMdnsHost);
+    } else if (ip.length() > 1) {
+      snprintf(placeholderArtist, sizeof(placeholderArtist), "%s:8080", ip.c_str());
+    } else {
+      snprintf(placeholderArtist, sizeof(placeholderArtist), "Waiting for WiFi...");
+    }
+    trackTitle = placeholderTitle;
+    trackArtist = placeholderArtist;
+    trackSource = "Companion";
   }
+
+  // Interpolate elapsed time forward when playing (smooth ticking between POSTs)
+  if (useLive && g_liveNowPlaying.isPlaying && g_liveNowPlaying.receivedAtMs > 0) {
+    uint32_t sinceReceived = nowMs - g_liveNowPlaying.receivedAtMs;
+    elapsedSec = g_liveNowPlaying.elapsedSec + (uint16_t)(sinceReceived / 1000U);
+    if (g_liveNowPlaying.durationSec > 0 && elapsedSec > g_liveNowPlaying.durationSec)
+      elapsedSec = g_liveNowPlaying.durationSec;
+  }
+  // Anti-jitter: never let displayed elapsed jump backward within the same track.
+  // Reset on track change (different contentToken).
+  const uint32_t currentToken = useLive ? g_liveNowPlaying.contentToken : 0U;
+  if (currentToken != 0 && currentToken == ui.lastLiveToken) {
+    if (elapsedSec < ui.lastDisplayedElapsed && (ui.lastDisplayedElapsed - elapsedSec) < 5) {
+      elapsedSec = ui.lastDisplayedElapsed;
+    }
+  }
+  ui.lastDisplayedElapsed = elapsedSec;
 
   const FakeNowPlayingTrack &coverTrack = fakeTrack ? *fakeTrack : kFakeNowPlayingTracks[0];
   const uint16_t durationRaw = useLive ? g_liveNowPlaying.durationSec : coverTrack.durationSec;
@@ -13468,7 +13511,7 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   const bool bgIsDark = bgLuma < 116u;
   const uint32_t headerBg = bgIsDark ? lvglLightenRgb(bgSurface, 10) : lvglDarkenRgb(bgSurface, 10);
   const uint32_t primaryText = lvglResolvedOnColorText(bgSurface);
-  const uint32_t railBg = bgIsDark ? lvglLightenRgb(bgSurface, 22) : lvglDarkenRgb(bgSurface, 18);
+  const uint32_t railBg = bgIsDark ? lvglLightenRgb(bgSurface, 50) : lvglDarkenRgb(bgSurface, 40);
   const uint32_t buttonBg = bgIsDark ? lvglLightenRgb(bgSurface, 74) : lvglDarkenRgb(bgSurface, 62);
   const uint32_t buttonBorder = bgIsDark ? lvglDarkenRgb(buttonBg, 16) : lvglLightenRgb(buttonBg, 16);
   const uint32_t buttonText = bgIsDark ? 0x000000 : 0xFFFFFF;
@@ -13511,6 +13554,7 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
     lv_obj_set_style_text_color(ui.track, lv_color_hex(primaryText), 0);
     lv_obj_set_style_text_color(ui.artist, lv_color_hex(primaryText), 0);
     lv_obj_set_style_bg_color(ui.progressRail, lv_color_hex(railBg), LV_PART_MAIN);
+    lv_obj_set_style_border_color(ui.progressRail, lv_color_hex(bgIsDark ? lvglDarkenRgb(railBg, 20) : lvglLightenRgb(railBg, 20)), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.progressFill, lv_color_hex(primaryText), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.controlPrev, lv_color_hex(buttonBg), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.controlPause, lv_color_hex(buttonBg), LV_PART_MAIN);
@@ -13533,10 +13577,18 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
     lv_label_set_text(ui.coverBottom, coverTrack.coverBottom);
     lv_label_set_text(ui.title, headerTitle);
     lv_label_set_text(ui.status, displaySync ? "IN SYNC" : "OUT OF SYNC");
+    lv_obj_set_style_text_color(ui.headerTime, lv_color_hex(primaryText), 0);
     lv_obj_add_flag(ui.coverStripe, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(ui.coverOrb, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(ui.coverTop, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(ui.coverBottom, LV_OBJ_FLAG_HIDDEN);
+    if (durationRaw > 0) {
+      lv_obj_clear_flag(ui.progressRail, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(ui.progressFill, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(ui.progressRail, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(ui.progressFill, LV_OBJ_FLAG_HIDDEN);
+    }
   }
 
   lv_obj_set_style_text_font(ui.track, lvglNowPlayingTitleFont(), 0);
@@ -13557,9 +13609,19 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   const lv_coord_t artistY = (desiredArtistY <= maxArtistY) ? desiredArtistY : maxArtistY;
   lv_obj_set_y(ui.artist, artistY);
 
+  // Show total duration only in header — progress bar handles position visually
+  if (durationRaw > 0) {
+    char timeBuf[24];
+    snprintf(timeBuf, sizeof(timeBuf), "%u:%02u",
+             (unsigned)(durationRaw / 60), (unsigned)(durationRaw % 60));
+    lv_label_set_text(ui.headerTime, timeBuf);
+  } else {
+    lv_label_set_text(ui.headerTime, "");
+  }
+
   const lv_coord_t railW = lv_obj_get_width(ui.progressRail);
   lv_coord_t fillW = (lv_coord_t)((railW * (int32_t)elapsedSec) / durationSec);
-  if (fillW < 8) fillW = 8;
+  if (fillW < 2) fillW = 2;
   if (fillW > railW) fillW = railW;
   lv_obj_set_width(ui.progressFill, fillW);
 }

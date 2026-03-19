@@ -570,6 +570,83 @@ final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
 /// by using the MRNowPlayingRequest Objective-C class through the JXA bridge.
 final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
 
+    // Cached artwork transcoding — only re-download when artworkID changes
+    private var cachedArtworkID: String?
+    private var cachedArtworkResult: (width: Int, height: Int, rgb565Base64: String)?
+
+    private func resolveArtworkRGB565(
+        artworkURL: String?,
+        artworkID: String?,
+        title: String,
+        artist: String
+    ) -> (Int?, Int?, String?) {
+        // Return cached result if artwork hasn't changed
+        let effectiveID = artworkID ?? artworkURL ?? "\(title)|\(artist)"
+        if effectiveID == cachedArtworkID, let cached = cachedArtworkResult {
+            return (cached.width, cached.height, cached.rgb565Base64)
+        }
+
+        // Try to download from artworkURL first
+        if let data = downloadImageSync(from: artworkURL) {
+            if let result = ArtworkTranscoder.encodeRGB565Base64(from: data) {
+                cachedArtworkID = effectiveID
+                cachedArtworkResult = result
+                NSLog("[ScryBar] SystemProvider: artwork transcoded %dx%d from URL", result.width, result.height)
+                return (result.width, result.height, result.rgb565Base64)
+            }
+        }
+
+        // Fallback: iTunes Search API
+        let query = "\(artist) \(title)".trimmingCharacters(in: .whitespaces)
+        if !query.isEmpty,
+           let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let data = downloadImageSync(from: iTunesArtworkURL(query: encoded)) {
+            if let result = ArtworkTranscoder.encodeRGB565Base64(from: data) {
+                cachedArtworkID = effectiveID
+                cachedArtworkResult = result
+                NSLog("[ScryBar] SystemProvider: artwork transcoded %dx%d from iTunes", result.width, result.height)
+                return (result.width, result.height, result.rgb565Base64)
+            }
+        }
+
+        cachedArtworkID = effectiveID
+        cachedArtworkResult = nil
+        return (nil, nil, nil)
+    }
+
+    private func downloadImageSync(from urlString: String?) -> Data? {
+        guard let urlString, let url = URL(string: urlString),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else { return nil }
+        let sem = DispatchSemaphore(value: 0)
+        var result: Data?
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            result = data
+            sem.signal()
+        }.resume()
+        _ = sem.wait(timeout: .now() + 5)
+        return result
+    }
+
+    private func iTunesArtworkURL(query: String) -> String? {
+        guard let searchURL = URL(string: "https://itunes.apple.com/search?term=\(query)&media=music&limit=1") else {
+            return nil
+        }
+        let sem = DispatchSemaphore(value: 0)
+        var artURL: String?
+        URLSession.shared.dataTask(with: searchURL) { data, _, _ in
+            defer { sem.signal() }
+            guard let data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let results = json["results"] as? [[String: Any]],
+                  let first = results.first,
+                  let url100 = first["artworkUrl100"] as? String else { return }
+            artURL = url100.replacingOccurrences(of: "100x100", with: "600x600")
+        }.resume()
+        _ = sem.wait(timeout: .now() + 5)
+        return artURL
+    }
+
     // JXA script that loads MediaRemote.framework and reads now-playing via
     // MRNowPlayingRequest — an Obj-C class that osascript can access without
     // the entitlement that blocks the C function API on macOS 15.4+.
@@ -647,8 +724,6 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             source = "System"
         }
 
-        NSLog("[ScryBar] SystemProvider: title=%@ artist=%@ source=%@", title, artist, source)
-
         // artworkIdentifier may be a direct URL, a template with {w}/{h}/{f} placeholders,
         // or an opaque hash (TIDAL). Resolve to a concrete URL when possible.
         let artworkID = info["kMRMediaRemoteNowPlayingInfoArtworkIdentifier"] as? String
@@ -666,6 +741,15 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             return id
         }()
 
+        // Transcode artwork to RGB565 for the device display.
+        // Cache by artworkID to avoid re-downloading every poll cycle.
+        let (artWidth, artHeight, artRGB565) = resolveArtworkRGB565(
+            artworkURL: artworkURL,
+            artworkID: artworkID,
+            title: title,
+            artist: artist
+        )
+
         return NowPlayingPayload(
             title: title,
             artist: artist,
@@ -678,9 +762,9 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             inSync: true,
             artworkURL: artworkURL,
             artworkID: artworkID,
-            artworkWidth: nil,
-            artworkHeight: nil,
-            artworkRGB565B64: nil,
+            artworkWidth: artWidth,
+            artworkHeight: artHeight,
+            artworkRGB565B64: artRGB565,
             updatedAt: Date()
         )
     }

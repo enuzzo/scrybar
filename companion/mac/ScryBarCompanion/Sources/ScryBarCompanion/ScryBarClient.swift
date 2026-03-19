@@ -9,8 +9,8 @@ actor ScryBarClient {
         }
 
         let endpointKey = "\(endpoint.host):\(endpoint.port)"
-        let shouldIncludeArtworkData = shouldIncludeArtworkData(for: endpointKey, payload: payload)
-        let wirePayload = payload.networkPayload(includeArtworkData: shouldIncludeArtworkData)
+        let includeArtwork = shouldIncludeArtworkData(for: endpointKey, payload: payload)
+        let wirePayload = payload.networkPayload(includeArtworkData: includeArtwork)
 
         var request = URLRequest(url: baseURL.appending(path: "api/now-playing"))
         request.httpMethod = "POST"
@@ -27,13 +27,12 @@ actor ScryBarClient {
             throw URLError(.badServerResponse)
         }
 
-        if let artworkID = payload.artworkID, !artworkID.isEmpty {
+        if includeArtwork, let artworkID = payload.artworkID, !artworkID.isEmpty {
             lastSentArtworkIDByEndpoint[endpointKey] = artworkID
-        } else {
-            lastSentArtworkIDByEndpoint.removeValue(forKey: endpointKey)
         }
     }
 
+    /// Send artwork only when the artworkID changes (new track)
     private func shouldIncludeArtworkData(for endpointKey: String, payload: NowPlayingPayload) -> Bool {
         guard let artworkID = payload.artworkID,
               !artworkID.isEmpty,
