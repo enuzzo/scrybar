@@ -811,6 +811,7 @@ private final class MediaRemoteBridge {
         var info: [String: Any]
         var client: [String: Any]
         var playbackState: Int
+        var lastChangedAt: Date
     }
 
     private let queue = DispatchQueue(label: "ScryBar.MediaRemote")
@@ -818,6 +819,14 @@ private final class MediaRemoteBridge {
     private let getNowPlayingInfoFn: GetNowPlayingInfoFn?
     private let getPlaybackStateFn: GetPlaybackStateFn?
     private let getClientFn: GetClientFn?
+
+    // Notification-driven cache: updated when the framework pushes changes
+    private var cachedInfo: [String: Any] = [:]
+    private var cachedPlaybackState: Int = 0
+    private var cachedClient: [String: Any] = [:]
+    private var lastInfoChangeDate: Date = .distantPast
+    private var notificationObservers: [NSObjectProtocol] = []
+    private var didReceiveFirstNotification = false
 
     init() {
         let frameworkPath = "/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote"
@@ -837,17 +846,22 @@ private final class MediaRemoteBridge {
         getPlaybackStateFn = MediaRemoteBridge.resolve("MRMediaRemoteGetNowPlayingApplicationPlaybackState", from: frameworkHandle)
         getClientFn = MediaRemoteBridge.resolve("MRMediaRemoteGetNowPlayingClient", from: frameworkHandle)
 
-        // Register for now-playing notifications so the framework keeps its
-        // internal state fresh. Without this, MRMediaRemoteGetNowPlayingInfo
-        // returns stale/cached data and track changes are never reflected.
+        // Register for now-playing notifications — the framework will push
+        // info/state/client changes instead of us polling with semaphores.
         if let registerFn: RegisterNotificationsFn = MediaRemoteBridge.resolve(
             "MRMediaRemoteRegisterForNowPlayingNotifications", from: frameworkHandle
         ) {
             registerFn(queue)
         }
+
+        observeNotifications()
+        fetchInitialState()
     }
 
     deinit {
+        for observer in notificationObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
         if let frameworkHandle {
             if let unregisterFn: UnregisterNotificationsFn = MediaRemoteBridge.resolve(
                 "MRMediaRemoteUnregisterForNowPlayingNotifications", from: frameworkHandle
@@ -858,47 +872,82 @@ private final class MediaRemoteBridge {
         }
     }
 
-    func snapshot(timeout: TimeInterval = 0.35) -> Snapshot? {
-        guard let getNowPlayingInfoFn else { return nil }
+    func snapshot() -> Snapshot? {
+        guard !cachedInfo.isEmpty else { return nil }
+        return Snapshot(
+            info: cachedInfo,
+            client: cachedClient,
+            playbackState: cachedPlaybackState,
+            lastChangedAt: lastInfoChangeDate
+        )
+    }
 
-        let waitDeadline = DispatchTime.now() + timeout
-        var info: [String: Any] = [:]
-        var playbackState = 0
-        var client: [String: Any] = [:]
+    // MARK: - Notification Observers
 
-        let infoSemaphore = DispatchSemaphore(value: 0)
-        getNowPlayingInfoFn(queue) { dictionary in
-            if let dictionary = dictionary as? [String: Any] {
-                info = dictionary
-            }
-            infoSemaphore.signal()
-        }
-        guard infoSemaphore.wait(timeout: waitDeadline) == .success else { return nil }
+    private func observeNotifications() {
+        let nc = NotificationCenter.default
 
-        if let getPlaybackStateFn {
-            let stateSemaphore = DispatchSemaphore(value: 0)
-            getPlaybackStateFn(queue) { state in
-                playbackState = state
-                stateSemaphore.signal()
-            }
-            _ = stateSemaphore.wait(timeout: waitDeadline)
+        let infoChanged = nc.addObserver(
+            forName: NSNotification.Name("kMRMediaRemoteNowPlayingInfoDidChangeNotification"),
+            object: nil, queue: nil
+        ) { [weak self] _ in
+            self?.refetchInfo()
         }
 
-        if let getClientFn {
-            let clientSemaphore = DispatchSemaphore(value: 0)
-            getClientFn(queue) { object in
-                if let dictionary = object as? [String: Any] {
-                    client = dictionary
-                } else if let dictionary = object as? NSDictionary as? [String: Any] {
-                    client = dictionary
-                }
-                clientSemaphore.signal()
-            }
-            _ = clientSemaphore.wait(timeout: waitDeadline)
+        let appChanged = nc.addObserver(
+            forName: NSNotification.Name("kMRMediaRemoteNowPlayingApplicationDidChangeNotification"),
+            object: nil, queue: nil
+        ) { [weak self] _ in
+            self?.refetchInfo()
+            self?.refetchClient()
         }
 
-        if info.isEmpty { return nil }
-        return Snapshot(info: info, client: client, playbackState: playbackState)
+        let stateChanged = nc.addObserver(
+            forName: NSNotification.Name("kMRMediaRemoteNowPlayingApplicationPlaybackStateDidChangeNotification"),
+            object: nil, queue: nil
+        ) { [weak self] _ in
+            self?.refetchPlaybackState()
+        }
+
+        notificationObservers = [infoChanged, appChanged, stateChanged]
+    }
+
+    // MARK: - Fetches (async, non-blocking)
+
+    private func fetchInitialState() {
+        refetchInfo()
+        refetchPlaybackState()
+        refetchClient()
+    }
+
+    private func refetchInfo() {
+        guard let getNowPlayingInfoFn else { return }
+        getNowPlayingInfoFn(queue) { [weak self] dictionary in
+            guard let self else { return }
+            if let dict = dictionary as? [String: Any], !dict.isEmpty {
+                self.cachedInfo = dict
+                self.lastInfoChangeDate = Date()
+                self.didReceiveFirstNotification = true
+            }
+        }
+    }
+
+    private func refetchPlaybackState() {
+        guard let getPlaybackStateFn else { return }
+        getPlaybackStateFn(queue) { [weak self] state in
+            self?.cachedPlaybackState = state
+        }
+    }
+
+    private func refetchClient() {
+        guard let getClientFn else { return }
+        getClientFn(queue) { [weak self] object in
+            if let dict = object as? [String: Any] {
+                self?.cachedClient = dict
+            } else if let dict = object as? NSDictionary as? [String: Any] {
+                self?.cachedClient = dict
+            }
+        }
     }
 
     private static func resolve<T>(_ symbol: String, from handle: UnsafeMutableRawPointer?) -> T? {
