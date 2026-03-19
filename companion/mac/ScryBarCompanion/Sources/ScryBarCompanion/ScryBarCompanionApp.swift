@@ -8,8 +8,9 @@ struct ScryBarCompanionApp: App {
         WindowGroup("ScryBar Companion") {
             ContentView()
                 .environmentObject(model)
-                .frame(minWidth: 940, minHeight: 700)
+                .preferredColorScheme(.dark)
+                .frame(minWidth: 1120, minHeight: 780)
         }
-        .defaultSize(width: 980, height: 760)
+        .defaultSize(width: 1240, height: 860)
     }
 }

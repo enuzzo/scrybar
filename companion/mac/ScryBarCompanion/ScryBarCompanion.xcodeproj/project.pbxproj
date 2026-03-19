@@ -1,0 +1,348 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		06F32E47268A0EC3E08D735A /* CompanionTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */; };
+		095EE31AE5D86F1A533F6AE7 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E22A120EAA9F0E38CDE52E /* Providers.swift */; };
+		0CAE1B3466770014615DFE19 /* ConnectionSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F4AD72F7F93DD097033F955 /* ConnectionSidebarView.swift */; };
+		153681E18B8A702FBDCA3DBA /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B39588B77F90F5443B7C566 /* AppModel.swift */; };
+		42D1EE1D704C39C465470D4A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56D9B1F1233189FF6871DAF0 /* ContentView.swift */; };
+		661EF4ED3C28FC96B302735D /* ScryBarDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */; };
+		6E06C59B8791912253F554F5 /* NowPlayingDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54319E9E61B9FB5FA9D616D7 /* NowPlayingDashboardView.swift */; };
+		C4A8CD9C086EB31EB4423EA7 /* ScryBarClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */; };
+		C8D821386881FE043880AEF0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD873F0A8B6D5871731A68D /* Models.swift */; };
+		EA4615C1C064F288A261B81F /* ScryBarCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarCompanionApp.swift; sourceTree = "<group>"; };
+		2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarDiscovery.swift; sourceTree = "<group>"; };
+		54319E9E61B9FB5FA9D616D7 /* NowPlayingDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingDashboardView.swift; sourceTree = "<group>"; };
+		56D9B1F1233189FF6871DAF0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		5B39588B77F90F5443B7C566 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionTheme.swift; sourceTree = "<group>"; };
+		696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarClient.swift; sourceTree = "<group>"; };
+		701ED3BD5F30348EBC049C90 /* ScryBarCompanion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScryBarCompanion.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7F4AD72F7F93DD097033F955 /* ConnectionSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSidebarView.swift; sourceTree = "<group>"; };
+		9FD873F0A8B6D5871731A68D /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		C8E22A120EAA9F0E38CDE52E /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		032CC49FC1AF3254B710A182 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				491D2FC8D46617D8B7FB38FE /* ScryBarCompanion */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		2A0A1A0D87433C321C440A22 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				701ED3BD5F30348EBC049C90 /* ScryBarCompanion.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		491D2FC8D46617D8B7FB38FE /* ScryBarCompanion */ = {
+			isa = PBXGroup;
+			children = (
+				5B39588B77F90F5443B7C566 /* AppModel.swift */,
+				682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */,
+				7F4AD72F7F93DD097033F955 /* ConnectionSidebarView.swift */,
+				56D9B1F1233189FF6871DAF0 /* ContentView.swift */,
+				9FD873F0A8B6D5871731A68D /* Models.swift */,
+				54319E9E61B9FB5FA9D616D7 /* NowPlayingDashboardView.swift */,
+				C8E22A120EAA9F0E38CDE52E /* Providers.swift */,
+				696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */,
+				1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */,
+				2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */,
+			);
+			path = ScryBarCompanion;
+			sourceTree = "<group>";
+		};
+		F1BFEFBF1D1B795F3C4B52F2 = {
+			isa = PBXGroup;
+			children = (
+				032CC49FC1AF3254B710A182 /* Sources */,
+				2A0A1A0D87433C321C440A22 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F90A512350CF290E914CAE43 /* ScryBarCompanion */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 62A5763069B97D20A741FE5C /* Build configuration list for PBXNativeTarget "ScryBarCompanion" */;
+			buildPhases = (
+				A93DC1C434E5189BE600C51A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ScryBarCompanion;
+			packageProductDependencies = (
+			);
+			productName = ScryBarCompanion;
+			productReference = 701ED3BD5F30348EBC049C90 /* ScryBarCompanion.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C606CE73034640A2DC1599F8 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					F90A512350CF290E914CAE43 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = AB272D4B45CC6A8C3B47F2B6 /* Build configuration list for PBXProject "ScryBarCompanion" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = F1BFEFBF1D1B795F3C4B52F2;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 2A0A1A0D87433C321C440A22 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F90A512350CF290E914CAE43 /* ScryBarCompanion */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A93DC1C434E5189BE600C51A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				153681E18B8A702FBDCA3DBA /* AppModel.swift in Sources */,
+				06F32E47268A0EC3E08D735A /* CompanionTheme.swift in Sources */,
+				0CAE1B3466770014615DFE19 /* ConnectionSidebarView.swift in Sources */,
+				42D1EE1D704C39C465470D4A /* ContentView.swift in Sources */,
+				C8D821386881FE043880AEF0 /* Models.swift in Sources */,
+				6E06C59B8791912253F554F5 /* NowPlayingDashboardView.swift in Sources */,
+				095EE31AE5D86F1A533F6AE7 /* Providers.swift in Sources */,
+				C4A8CD9C086EB31EB4423EA7 /* ScryBarClient.swift in Sources */,
+				EA4615C1C064F288A261B81F /* ScryBarCompanionApp.swift in Sources */,
+				661EF4ED3C28FC96B302735D /* ScryBarDiscovery.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		387CB7F6DFD43E315B7C06BB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 2;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "ScryBar Companion";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.netmilk.ScryBarCompanion;
+				PRODUCT_NAME = ScryBarCompanion;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		3BCDFB88D6AEA2AB3F42EE3D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 2;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "ScryBar Companion";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.netmilk.ScryBarCompanion;
+				PRODUCT_NAME = ScryBarCompanion;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		556DB10528D7292FAEEA7AC8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		C7263822C81C449F2DF811A4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		62A5763069B97D20A741FE5C /* Build configuration list for PBXNativeTarget "ScryBarCompanion" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				556DB10528D7292FAEEA7AC8 /* Debug */,
+				C7263822C81C449F2DF811A4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AB272D4B45CC6A8C3B47F2B6 /* Build configuration list for PBXProject "ScryBarCompanion" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				387CB7F6DFD43E315B7C06BB /* Debug */,
+				3BCDFB88D6AEA2AB3F42EE3D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C606CE73034640A2DC1599F8 /* Project object */;
+}

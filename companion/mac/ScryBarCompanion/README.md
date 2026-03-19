@@ -17,7 +17,15 @@ macOS companion app in Swift for feeding `Now Playing` metadata to ScryBar.
 
 ```bash
 cd companion/mac/ScryBarCompanion
-open Package.swift
+open ScryBarCompanion.xcodeproj
+```
+
+The repo also keeps the XcodeGen spec in `project.yml`, so if the project file ever
+needs regeneration:
+
+```bash
+cd companion/mac/ScryBarCompanion
+xcodegen generate
 ```
 
 Or build from Terminal:

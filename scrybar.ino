@@ -48,6 +48,12 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
+#if __has_include(<mbedtls/base64.h>)
+#include <mbedtls/base64.h>
+#define DB_HAS_MBEDTLS_BASE64 1
+#else
+#define DB_HAS_MBEDTLS_BASE64 0
+#endif
 #define DB_HAS_MDNS 1
 #include <Preferences.h>
 #include <FFat.h>
@@ -962,6 +968,16 @@ struct LiveNowPlayingState {
   char source[48] = {0};
   char appName[48] = {0};
   char artworkUrl[220] = {0};
+  char artworkId[96] = {0};
+};
+struct LiveNowPlayingArtwork {
+  bool valid = false;
+  uint16_t width = 0;
+  uint16_t height = 0;
+  size_t dataSize = 0;
+  uint8_t *data = nullptr;
+  uint32_t bgColor = 0x101418;
+  char artworkId[96] = {0};
 };
 struct FakeNowPlayingTrack {
   const char *title;
@@ -983,6 +999,7 @@ struct FakeNowPlayingTrack {
 };
 static NowPlayingUi g_nowPlayingUi;
 static LiveNowPlayingState g_liveNowPlaying = {};
+static LiveNowPlayingArtwork g_liveNowPlayingArtwork = {};
 static uint32_t g_liveNowPlayingTokenSeq = 0;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
@@ -1000,6 +1017,17 @@ static const lv_img_dsc_t kNowPlayingRealCover150 = {
     },
     .data_size = sizeof(assets_img_test_cover_test_150_rgb565),
     .data = assets_img_test_cover_test_150_rgb565,
+};
+static lv_img_dsc_t g_nowPlayingLiveCoverImage = {
+    .header = {
+        .cf = LV_IMG_CF_TRUE_COLOR,
+        .always_zero = 0,
+        .reserved = 0,
+        .w = 150,
+        .h = 150,
+    },
+    .data_size = 0,
+    .data = nullptr,
 };
 static constexpr FakeNowPlayingTrack kFakeNowPlayingTracks[] = {
     {
@@ -6324,8 +6352,12 @@ static bool applyNowPlayingPayloadJson(const String &body, String &err) {
   String source;
   String appName;
   String artworkUrl;
+  String artworkId;
+  String artworkRgb565B64;
   float durationSecF = 0.0f;
   float elapsedSecF = 0.0f;
+  float artworkWidthF = 0.0f;
+  float artworkHeightF = 0.0f;
   bool isPlaying = true;
   bool inSync = true;
 
@@ -6337,16 +6369,60 @@ static bool applyNowPlayingPayloadJson(const String &body, String &err) {
   (void)extractJsonStringFieldLoose(body, "\"album\"", album);
   (void)extractJsonStringFieldLoose(body, "\"source\"", source);
   (void)extractJsonStringFieldLoose(body, "\"appName\"", appName);
-  (void)extractJsonStringFieldLoose(body, "\"artworkURL\"", artworkUrl);
+  const bool hasArtworkUrl = extractJsonStringFieldLoose(body, "\"artworkURL\"", artworkUrl);
+  bool hasArtworkId = extractJsonStringFieldLoose(body, "\"artworkID\"", artworkId);
+  const bool hasArtworkBase64 = extractJsonStringFieldLoose(body, "\"artworkRGB565B64\"", artworkRgb565B64);
   (void)extractJsonBoolFieldLoose(body, "\"isPlaying\"", isPlaying);
   (void)extractJsonBoolFieldLoose(body, "\"inSync\"", inSync);
   (void)extractJsonNumberField(body, "\"durationSec\"", durationSecF);
   (void)extractJsonNumberField(body, "\"elapsedSec\"", elapsedSecF);
+  (void)extractJsonNumberField(body, "\"artworkWidth\"", artworkWidthF);
+  (void)extractJsonNumberField(body, "\"artworkHeight\"", artworkHeightF);
+
+  if (!hasArtworkId && hasArtworkUrl && artworkUrl.length() > 0) {
+    artworkId = artworkUrl;
+    hasArtworkId = true;
+  }
 
   if (durationSecF < 0.0f) durationSecF = 0.0f;
   if (elapsedSecF < 0.0f) elapsedSecF = 0.0f;
   if (durationSecF > 65535.0f) durationSecF = 65535.0f;
   if (elapsedSecF > 65535.0f) elapsedSecF = 65535.0f;
+
+  uint8_t *decodedArtwork = nullptr;
+  size_t decodedArtworkSize = 0u;
+  const uint16_t artworkWidth = (artworkWidthF > 0.0f) ? (uint16_t)lroundf(artworkWidthF) : 0u;
+  const uint16_t artworkHeight = (artworkHeightF > 0.0f) ? (uint16_t)lroundf(artworkHeightF) : 0u;
+  const bool currentArtworkMatches = hasArtworkId && (strcmp(g_liveNowPlaying.artworkId, artworkId.c_str()) == 0);
+  bool installArtwork = false;
+  bool keepArtwork = false;
+  bool clearArtwork = false;
+
+  auto releaseDecodedArtwork = [&]() {
+    if (decodedArtwork) {
+      free(decodedArtwork);
+      decodedArtwork = nullptr;
+      decodedArtworkSize = 0u;
+    }
+  };
+
+  if (hasArtworkBase64) {
+    if (!hasArtworkId || artworkId.length() == 0) {
+      err = "Artwork payload missing artworkID";
+      return false;
+    }
+    if (!decodeNowPlayingArtworkBase64(artworkRgb565B64, artworkWidth, artworkHeight,
+                                       &decodedArtwork, decodedArtworkSize, err)) {
+      return false;
+    }
+    installArtwork = true;
+  } else if (hasArtworkId && currentArtworkMatches && g_liveNowPlayingArtwork.valid) {
+    keepArtwork = true;
+  } else if (!hasArtworkUrl) {
+    clearArtwork = true;
+  } else if (hasArtworkId && !currentArtworkMatches) {
+    clearArtwork = true;
+  }
 
   LiveNowPlayingState next = {};
   next.valid = true;
@@ -6362,6 +6438,9 @@ static bool applyNowPlayingPayloadJson(const String &body, String &err) {
   copyStringSafe(next.source, sizeof(next.source), source.c_str());
   copyStringSafe(next.appName, sizeof(next.appName), appName.c_str());
   copyStringSafe(next.artworkUrl, sizeof(next.artworkUrl), artworkUrl.c_str());
+  if (installArtwork || keepArtwork) {
+    copyStringSafe(next.artworkId, sizeof(next.artworkId), artworkId.c_str());
+  }
 
   const bool contentChanged =
       !g_liveNowPlaying.valid ||
@@ -6371,6 +6450,7 @@ static bool applyNowPlayingPayloadJson(const String &body, String &err) {
       strcmp(g_liveNowPlaying.source, next.source) != 0 ||
       strcmp(g_liveNowPlaying.appName, next.appName) != 0 ||
       strcmp(g_liveNowPlaying.artworkUrl, next.artworkUrl) != 0 ||
+      strcmp(g_liveNowPlaying.artworkId, next.artworkId) != 0 ||
       g_liveNowPlaying.durationSec != next.durationSec ||
       g_liveNowPlaying.isPlaying != next.isPlaying;
   if (contentChanged) {
@@ -6381,6 +6461,13 @@ static bool applyNowPlayingPayloadJson(const String &body, String &err) {
     next.contentToken = g_liveNowPlaying.contentToken;
   }
 
+  if (installArtwork) {
+    installLiveNowPlayingArtwork(decodedArtwork, decodedArtworkSize, artworkWidth, artworkHeight, artworkId.c_str());
+    decodedArtwork = nullptr;
+    decodedArtworkSize = 0u;
+  } else if (clearArtwork) {
+    clearLiveNowPlayingArtwork();
+  }
   g_liveNowPlaying = next;
 #if TEST_NTP
   g_uiNeedsRedraw = true;
@@ -6391,6 +6478,7 @@ static bool applyNowPlayingPayloadJson(const String &body, String &err) {
                 liveNowPlayingSourceLabel(),
                 (unsigned)g_liveNowPlaying.elapsedSec,
                 (unsigned)g_liveNowPlaying.durationSec);
+  releaseDecodedArtwork();
   return true;
 }
 
@@ -6444,6 +6532,17 @@ static void handleWebNowPlayingGetApi() {
       out += F(",\"artworkURL\":\"");
       appendJsonEscaped(out, g_liveNowPlaying.artworkUrl);
       out += '"';
+    }
+    if (g_liveNowPlaying.artworkId[0]) {
+      out += F(",\"artworkID\":\"");
+      appendJsonEscaped(out, g_liveNowPlaying.artworkId);
+      out += '"';
+    }
+    if (g_liveNowPlayingArtwork.valid) {
+      out += F(",\"artworkWidth\":");
+      out += (unsigned)g_liveNowPlayingArtwork.width;
+      out += F(",\"artworkHeight\":");
+      out += (unsigned)g_liveNowPlayingArtwork.height;
     }
   }
   out += F("}}");
@@ -8448,15 +8547,8 @@ static uint32_t lvglRgb565ToRgb888(uint16_t rgb565) {
   return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 }
 
-static uint32_t lvglNowPlayingCoverBackgroundColor() {
-  static bool cached = false;
-  static uint32_t cachedColor = 0x101418;
-  if (cached) return cachedColor;
-
-  const uint8_t *data = assets_img_test_cover_test_150_rgb565;
-  const size_t dataSize = sizeof(assets_img_test_cover_test_150_rgb565);
-  const int16_t width = 150;
-  const int16_t height = 150;
+static uint32_t lvglWeightedAverageColorFromRgb565(const uint8_t *data, size_t dataSize, int16_t width, int16_t height) {
+  if (!data || dataSize < 2u || width <= 0 || height <= 0) return 0x101418;
   uint64_t sumR = 0;
   uint64_t sumG = 0;
   uint64_t sumB = 0;
@@ -8484,7 +8576,7 @@ static uint32_t lvglNowPlayingCoverBackgroundColor() {
     totalWeight += weight;
   }
 
-  if (totalWeight == 0) return cachedColor;
+  if (totalWeight == 0) return 0x101418;
 
   uint32_t avgColor = (((uint32_t)(sumR / totalWeight)) << 16) |
                       (((uint32_t)(sumG / totalWeight)) << 8) |
@@ -8492,10 +8584,123 @@ static uint32_t lvglNowPlayingCoverBackgroundColor() {
   const uint16_t luma = lvglColorLuma(avgColor);
   if (luma < 14u) avgColor = lvglLightenRgb(avgColor, 6);
   if (luma > 242u) avgColor = lvglDarkenRgb(avgColor, 8);
+  return avgColor;
+}
 
-  cachedColor = avgColor;
+static uint32_t lvglNowPlayingStaticCoverBackgroundColor() {
+  static bool cached = false;
+  static uint32_t cachedColor = 0x101418;
+  if (cached) return cachedColor;
+
+  cachedColor = lvglWeightedAverageColorFromRgb565(
+      assets_img_test_cover_test_150_rgb565,
+      sizeof(assets_img_test_cover_test_150_rgb565),
+      150,
+      150);
   cached = true;
   return cachedColor;
+}
+
+static uint32_t lvglNowPlayingCoverBackgroundColor(bool useLiveArtwork) {
+  if (useLiveArtwork && g_liveNowPlayingArtwork.valid) {
+    return g_liveNowPlayingArtwork.bgColor;
+  }
+  return lvglNowPlayingStaticCoverBackgroundColor();
+}
+
+static const lv_img_dsc_t* lvglNowPlayingCoverImageDsc(bool useLiveArtwork) {
+  if (useLiveArtwork && g_liveNowPlayingArtwork.valid &&
+      g_nowPlayingLiveCoverImage.data && g_nowPlayingLiveCoverImage.data_size > 0u) {
+    return &g_nowPlayingLiveCoverImage;
+  }
+  return &kNowPlayingRealCover150;
+}
+
+static void clearLiveNowPlayingArtwork() {
+  if (g_liveNowPlayingArtwork.data) {
+    free(g_liveNowPlayingArtwork.data);
+  }
+  g_liveNowPlayingArtwork = {};
+  g_nowPlayingLiveCoverImage.data_size = 0;
+  g_nowPlayingLiveCoverImage.data = nullptr;
+  g_nowPlayingLiveCoverImage.header.w = 150;
+  g_nowPlayingLiveCoverImage.header.h = 150;
+}
+
+static void installLiveNowPlayingArtwork(uint8_t *data, size_t dataSize,
+                                         uint16_t width, uint16_t height,
+                                         const char *artworkId) {
+  clearLiveNowPlayingArtwork();
+  if (!data || dataSize == 0u || width == 0u || height == 0u) return;
+
+  g_liveNowPlayingArtwork.valid = true;
+  g_liveNowPlayingArtwork.width = width;
+  g_liveNowPlayingArtwork.height = height;
+  g_liveNowPlayingArtwork.dataSize = dataSize;
+  g_liveNowPlayingArtwork.data = data;
+  g_liveNowPlayingArtwork.bgColor = lvglWeightedAverageColorFromRgb565(data, dataSize, (int16_t)width, (int16_t)height);
+  copyStringSafe(g_liveNowPlayingArtwork.artworkId, sizeof(g_liveNowPlayingArtwork.artworkId), artworkId ? artworkId : "");
+
+  g_nowPlayingLiveCoverImage.header.w = width;
+  g_nowPlayingLiveCoverImage.header.h = height;
+  g_nowPlayingLiveCoverImage.data_size = dataSize;
+  g_nowPlayingLiveCoverImage.data = data;
+}
+
+static bool decodeNowPlayingArtworkBase64(const String &artworkBase64,
+                                          uint16_t width,
+                                          uint16_t height,
+                                          uint8_t **outData,
+                                          size_t &outDataSize,
+                                          String &err) {
+  if (!outData) {
+    err = "Artwork output buffer missing";
+    return false;
+  }
+  *outData = nullptr;
+  outDataSize = 0u;
+
+#if !DB_HAS_MBEDTLS_BASE64
+  (void)artworkBase64;
+  (void)width;
+  (void)height;
+  err = "Firmware base64 decoder unavailable";
+  return false;
+#else
+  if (artworkBase64.length() == 0) {
+    err = "Empty artwork payload";
+    return false;
+  }
+  if (width == 0u || height == 0u || width > 150u || height > 150u) {
+    err = "Unsupported artwork dimensions";
+    return false;
+  }
+
+  const size_t expectedSize = (size_t)width * (size_t)height * 2u;
+  uint8_t *decoded = (uint8_t *)heap_caps_malloc(expectedSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!decoded) decoded = (uint8_t *)malloc(expectedSize);
+  if (!decoded) {
+    err = "Artwork allocation failed";
+    return false;
+  }
+
+  size_t actualSize = 0u;
+  const int rc = mbedtls_base64_decode(
+      decoded,
+      expectedSize,
+      &actualSize,
+      (const unsigned char *)artworkBase64.c_str(),
+      artworkBase64.length());
+  if (rc != 0 || actualSize != expectedSize) {
+    free(decoded);
+    err = "Artwork decode failed";
+    return false;
+  }
+
+  *outData = decoded;
+  outDataSize = actualSize;
+  return true;
+#endif
 }
 
 static uint32_t lvglResolvedNowPlayingVividBg(uint32_t c0, uint32_t c1, uint32_t c2, uint32_t c3, uint32_t c4) {
@@ -13234,6 +13439,7 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   if (!ui.card) return;
   const uint32_t nowMs = millis();
   const bool useLive = liveNowPlayingAvailable();
+  const bool useLiveArtwork = useLive && g_liveNowPlayingArtwork.valid;
   const bool displaySync = useLive ? liveNowPlayingDisplayInSync(nowMs) : true;
   uint16_t elapsedSec = 0;
   uint8_t trackIndex = 0;
@@ -13257,7 +13463,7 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   const FakeNowPlayingTrack &coverTrack = fakeTrack ? *fakeTrack : kFakeNowPlayingTracks[0];
   const uint16_t durationRaw = useLive ? g_liveNowPlaying.durationSec : coverTrack.durationSec;
   const uint16_t durationSec = durationRaw ? durationRaw : 1U;
-  const uint32_t bgSurface = lvglNowPlayingCoverBackgroundColor();
+  const uint32_t bgSurface = lvglNowPlayingCoverBackgroundColor(useLiveArtwork);
   const uint16_t bgLuma = lvglColorLuma(bgSurface);
   const bool bgIsDark = bgLuma < 116u;
   const uint32_t headerBg = bgIsDark ? lvglLightenRgb(bgSurface, 10) : lvglDarkenRgb(bgSurface, 10);
@@ -13266,6 +13472,8 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   const uint32_t buttonBg = bgIsDark ? lvglLightenRgb(bgSurface, 74) : lvglDarkenRgb(bgSurface, 62);
   const uint32_t buttonBorder = bgIsDark ? lvglDarkenRgb(buttonBg, 16) : lvglLightenRgb(buttonBg, 16);
   const uint32_t buttonText = bgIsDark ? 0x000000 : 0xFFFFFF;
+  const uint32_t coverBgA = useLiveArtwork ? bgSurface : coverTrack.coverBgA;
+  const uint32_t coverBgB = useLiveArtwork ? bgSurface : coverTrack.coverBgB;
   char headerTitle[64];
   char wrappedTitle[192];
   snprintf(headerTitle, sizeof(headerTitle), "Now Playing / %s",
@@ -13290,8 +13498,8 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
     lv_obj_set_style_bg_grad_color(ui.header, lv_color_hex(headerBg), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.headerFill, lv_color_hex(primaryText), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.statusDot, lv_color_hex(displaySync ? 0x7CFF9D : 0xFFC857), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(ui.cover, lv_color_hex(coverTrack.coverBgA), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(ui.cover, lv_color_hex(coverTrack.coverBgB), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.cover, lv_color_hex(coverBgA), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(ui.cover, lv_color_hex(coverBgB), LV_PART_MAIN);
     lv_obj_set_style_bg_grad_dir(ui.cover, LV_GRAD_DIR_VER, LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.coverStripe, lv_color_hex(coverTrack.coverStripe), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.coverOrb, lv_color_hex(coverTrack.coverOrb), LV_PART_MAIN);
@@ -13319,6 +13527,8 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
     lv_obj_set_style_text_color(ui.controlPrevText, lv_color_hex(buttonText), 0);
     lv_obj_set_style_text_color(ui.controlPauseText, lv_color_hex(buttonText), 0);
     lv_obj_set_style_text_color(ui.controlNextText, lv_color_hex(buttonText), 0);
+    lv_img_set_src(ui.coverImage, lvglNowPlayingCoverImageDsc(useLiveArtwork));
+    lv_obj_center(ui.coverImage);
     lv_label_set_text(ui.coverTop, coverTrack.coverTop);
     lv_label_set_text(ui.coverBottom, coverTrack.coverBottom);
     lv_label_set_text(ui.title, headerTitle);

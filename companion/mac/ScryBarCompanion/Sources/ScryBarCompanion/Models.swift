@@ -48,6 +48,10 @@ struct NowPlayingPayload: Codable {
     var isPlaying: Bool
     var inSync: Bool
     var artworkURL: String?
+    var artworkID: String?
+    var artworkWidth: Int?
+    var artworkHeight: Int?
+    var artworkRGB565B64: String?
     var updatedAt: Date
 
     static func placeholder(source: String) -> Self {
@@ -62,6 +66,10 @@ struct NowPlayingPayload: Codable {
             isPlaying: false,
             inSync: false,
             artworkURL: nil,
+            artworkID: nil,
+            artworkWidth: nil,
+            artworkHeight: nil,
+            artworkRGB565B64: nil,
             updatedAt: .now
         )
     }
@@ -77,12 +85,84 @@ struct NowPlayingPayload: Codable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(self),
+        guard let data = try? encoder.encode(previewPayload),
               let string = String(data: data, encoding: .utf8) else {
             return "{}"
         }
         return string
     }
+
+    var artworkSummary: String {
+        guard let artworkID, !artworkID.isEmpty else { return "none" }
+        let dims: String
+        if let artworkWidth, let artworkHeight {
+            dims = "\(artworkWidth)x\(artworkHeight)"
+        } else {
+            dims = "unknown size"
+        }
+        if let artworkRGB565B64, !artworkRGB565B64.isEmpty {
+            return "\(artworkID) (\(dims), \(artworkRGB565B64.count) b64 chars)"
+        }
+        return "\(artworkID) (\(dims), metadata only)"
+    }
+
+    func networkPayload(includeArtworkData: Bool) -> NowPlayingWirePayload {
+        .init(
+            title: title,
+            artist: artist,
+            album: album,
+            source: source,
+            appName: appName,
+            durationSec: durationSec,
+            elapsedSec: elapsedSec,
+            isPlaying: isPlaying,
+            inSync: inSync,
+            artworkURL: artworkURL,
+            artworkID: artworkID,
+            artworkWidth: artworkWidth,
+            artworkHeight: artworkHeight,
+            artworkRGB565B64: includeArtworkData ? artworkRGB565B64 : nil,
+            updatedAt: updatedAt
+        )
+    }
+
+    private var previewPayload: NowPlayingWirePayload {
+        .init(
+            title: title,
+            artist: artist,
+            album: album,
+            source: source,
+            appName: appName,
+            durationSec: durationSec,
+            elapsedSec: elapsedSec,
+            isPlaying: isPlaying,
+            inSync: inSync,
+            artworkURL: artworkURL,
+            artworkID: artworkID,
+            artworkWidth: artworkWidth,
+            artworkHeight: artworkHeight,
+            artworkRGB565B64: artworkRGB565B64.map { "<\($0.count) base64 chars>" },
+            updatedAt: updatedAt
+        )
+    }
+}
+
+struct NowPlayingWirePayload: Codable {
+    var title: String
+    var artist: String
+    var album: String
+    var source: String
+    var appName: String
+    var durationSec: Double
+    var elapsedSec: Double
+    var isPlaying: Bool
+    var inSync: Bool
+    var artworkURL: String?
+    var artworkID: String?
+    var artworkWidth: Int?
+    var artworkHeight: Int?
+    var artworkRGB565B64: String?
+    var updatedAt: Date
 }
 
 struct MockTrack {

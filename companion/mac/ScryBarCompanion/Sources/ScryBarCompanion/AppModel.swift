@@ -15,7 +15,10 @@ final class AppModel: ObservableObject {
 
     private let discovery = ScryBarDiscovery()
     private let client = ScryBarClient()
-    private let systemProvider = SystemNowPlayingProvider()
+    private let systemProvider: any NowPlayingProviding = FallbackNowPlayingProvider([
+        SystemNowPlayingProvider(),
+        TidalNowPlayingProvider(),
+    ])
     private let musicProvider = MusicNowPlayingProvider()
     private let mockProvider = MockNowPlayingProvider()
     private var pollTask: Task<Void, Never>?
