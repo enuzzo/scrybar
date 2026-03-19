@@ -567,6 +567,14 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     func snapshot() -> NowPlayingPayload? {
         guard let snapshot = bridge.snapshot() else { return nil }
 
+        // If no MediaRemote notification has arrived in 15 seconds, the data
+        // is likely stale (e.g. TIDAL never pushes updates). Return nil so
+        // the fallback chain can try TidalNowPlayingProvider instead.
+        let stalenessThreshold: TimeInterval = 15
+        if Date().timeIntervalSince(snapshot.lastChangedAt) > stalenessThreshold {
+            return nil
+        }
+
         let info = snapshot.info
         guard let title = mediaRemoteString(info[MediaRemoteBridge.titleKey]), !title.isEmpty else {
             return nil
