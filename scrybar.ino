@@ -89,6 +89,8 @@ LV_FONT_DECLARE(scry_font_delius_unicase_28);
 LV_FONT_DECLARE(scry_font_delius_unicase_32);
 LV_FONT_DECLARE(scry_font_montserrat_semibold_22);
 LV_FONT_DECLARE(scry_font_montserrat_semibold_23);
+LV_FONT_DECLARE(scry_font_montserrat_semibold_25);
+LV_FONT_DECLARE(scry_font_montserrat_medium_23);
 #if __has_include("assets/weather_icons_min/generated/weather_icons_lvgl_min.h")
 #include "assets/weather_icons_min/generated/weather_icons_lvgl_min.h"
 #define DB_HAS_LVGL_WEATHER_MIN_IMAGES 1
@@ -929,12 +931,6 @@ struct NowPlayingUi {
   lv_obj_t *statusDot = nullptr;
   lv_obj_t *status = nullptr;
   lv_obj_t *headerTime = nullptr;
-  lv_obj_t *controlPrev = nullptr;
-  lv_obj_t *controlPrevText = nullptr;
-  lv_obj_t *controlPause = nullptr;
-  lv_obj_t *controlPauseText = nullptr;
-  lv_obj_t *controlNext = nullptr;
-  lv_obj_t *controlNextText = nullptr;
   lv_obj_t *coverShell = nullptr;
   lv_obj_t *cover = nullptr;
   lv_obj_t *coverImage = nullptr;
@@ -11611,7 +11607,7 @@ static const lv_font_t* lvglFontBig() {
 
 static const lv_font_t* lvglNowPlayingTitleFont() {
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-  return &scry_font_montserrat_semibold_23;
+  return &scry_font_montserrat_semibold_25;
 #elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
   return &lv_font_montserrat_22;
 #elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
@@ -11635,7 +11631,7 @@ static const lv_font_t* lvglNowPlayingBodyFont() {
 
 static const lv_font_t* lvglNowPlayingArtistFont() {
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-  return &scry_font_montserrat_semibold_22;
+  return &scry_font_montserrat_medium_23;
 #elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
   return &lv_font_montserrat_22;
 #elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
@@ -11931,9 +11927,6 @@ static void lvglApplyThemeFonts() {
   if (g_nowPlayingUi.source) lv_obj_set_style_text_font(g_nowPlayingUi.source, lvglFontTiny(), 0);
   if (g_nowPlayingUi.progressElapsed) lv_obj_set_style_text_font(g_nowPlayingUi.progressElapsed, lvglFontTiny(), 0);
   if (g_nowPlayingUi.progressRemaining) lv_obj_set_style_text_font(g_nowPlayingUi.progressRemaining, lvglFontTiny(), 0);
-  if (g_nowPlayingUi.controlPrevText) lv_obj_set_style_text_font(g_nowPlayingUi.controlPrevText, lvglNowPlayingArtistFont(), 0);
-  if (g_nowPlayingUi.controlPauseText) lv_obj_set_style_text_font(g_nowPlayingUi.controlPauseText, lvglNowPlayingArtistFont(), 0);
-  if (g_nowPlayingUi.controlNextText) lv_obj_set_style_text_font(g_nowPlayingUi.controlNextText, lvglNowPlayingArtistFont(), 0);
 
   {
     FeedDeckUi *feedDecks[] = {&g_auxDeck, &g_wikiDeck};
@@ -13206,9 +13199,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   const int16_t coverSize = cH - bodyTop;
   const int16_t contentX = coverSize + coverGapRight;
   const int16_t contentW = cW - contentX - rightPad;
-  const int16_t controlsW = 34;
-  const int16_t controlsGap = 10;
-  const int16_t textW = contentW - controlsW - controlsGap;
+  const int16_t textW = contentW;
 
   ui.card = lv_obj_create(root);
   lv_obj_set_size(ui.card, cW, cH);
@@ -13419,42 +13410,8 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_add_flag(ui.progressFill, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(ui.progressFill, LV_OBJ_FLAG_SCROLLABLE);
 
-  const int16_t controlX = contentX + textW + controlsGap;
-  const int16_t controlY0 = bodyTop + 6;
-  const int16_t controlSize = controlsW;
-  const int16_t controlGapY = 8;
-  lv_obj_t *controls[] = {nullptr, nullptr, nullptr};
-  lv_obj_t *controlText[] = {nullptr, nullptr, nullptr};
-  const char *controlGlyphs[] = {LV_SYMBOL_PREV, LV_SYMBOL_PAUSE, LV_SYMBOL_NEXT};
-
-  for (uint8_t i = 0; i < 3; ++i) {
-    controls[i] = lv_obj_create(ui.card);
-    lv_obj_set_size(controls[i], controlSize, controlSize);
-    lv_obj_set_pos(controls[i], controlX, controlY0 + (int16_t)(i * (controlSize + controlGapY)));
-    lv_obj_set_style_bg_color(controls[i], lv_color_hex(0x1E2030), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(controls[i], LV_OPA_70, LV_PART_MAIN);
-    lv_obj_set_style_border_width(controls[i], 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(controls[i], lv_color_hex(0x000000), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(controls[i], LV_OPA_10, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(controls[i], 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(controls[i], 8, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(controls[i], 0, LV_PART_MAIN);
-    lv_obj_clear_flag(controls[i], LV_OBJ_FLAG_SCROLLABLE);
-
-    controlText[i] = lv_label_create(controls[i]);
-    lv_obj_set_style_text_font(controlText[i], lvglFontMeta(), 0);
-    lv_obj_set_style_text_color(controlText[i], lv_color_hex(0xFFFFFF), 0);
-    lv_obj_center(controlText[i]);
-    lv_label_set_text(controlText[i], controlGlyphs[i]);
-    lvglForceLabelVisible(controlText[i]);
-  }
-
-  ui.controlPrev = controls[0];
-  ui.controlPause = controls[1];
-  ui.controlNext = controls[2];
-  ui.controlPrevText = controlText[0];
-  ui.controlPauseText = controlText[1];
-  ui.controlNextText = controlText[2];
+  // Control buttons (prev/pause/next) removed — decorative only, no event
+  // handlers, and their touch area interfered with swipe navigation.
 }
 
 static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
@@ -13513,9 +13470,6 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   const uint32_t headerBg = bgIsDark ? lvglLightenRgb(bgSurface, 10) : lvglDarkenRgb(bgSurface, 10);
   const uint32_t primaryText = lvglResolvedOnColorText(bgSurface);
   const uint32_t railBg = bgIsDark ? lvglLightenRgb(bgSurface, 50) : lvglDarkenRgb(bgSurface, 40);
-  const uint32_t buttonBg = bgIsDark ? lvglLightenRgb(bgSurface, 74) : lvglDarkenRgb(bgSurface, 62);
-  const uint32_t buttonBorder = bgIsDark ? lvglDarkenRgb(buttonBg, 16) : lvglLightenRgb(buttonBg, 16);
-  const uint32_t buttonText = bgIsDark ? 0x000000 : 0xFFFFFF;
   const uint32_t coverBgA = useLiveArtwork ? bgSurface : coverTrack.coverBgA;
   const uint32_t coverBgB = useLiveArtwork ? bgSurface : coverTrack.coverBgB;
   char headerTitle[64];
@@ -13557,21 +13511,6 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
     lv_obj_set_style_bg_color(ui.progressRail, lv_color_hex(railBg), LV_PART_MAIN);
     lv_obj_set_style_border_color(ui.progressRail, lv_color_hex(bgIsDark ? lvglDarkenRgb(railBg, 20) : lvglLightenRgb(railBg, 20)), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.progressFill, lv_color_hex(primaryText), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(ui.controlPrev, lv_color_hex(buttonBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(ui.controlPause, lv_color_hex(buttonBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(ui.controlNext, lv_color_hex(buttonBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(ui.controlPrev, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(ui.controlPause, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(ui.controlNext, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_color(ui.controlPrev, lv_color_hex(buttonBorder), LV_PART_MAIN);
-    lv_obj_set_style_border_color(ui.controlPause, lv_color_hex(buttonBorder), LV_PART_MAIN);
-    lv_obj_set_style_border_color(ui.controlNext, lv_color_hex(buttonBorder), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(ui.controlPrev, LV_OPA_30, LV_PART_MAIN);
-    lv_obj_set_style_border_opa(ui.controlPause, LV_OPA_30, LV_PART_MAIN);
-    lv_obj_set_style_border_opa(ui.controlNext, LV_OPA_30, LV_PART_MAIN);
-    lv_obj_set_style_text_color(ui.controlPrevText, lv_color_hex(buttonText), 0);
-    lv_obj_set_style_text_color(ui.controlPauseText, lv_color_hex(buttonText), 0);
-    lv_obj_set_style_text_color(ui.controlNextText, lv_color_hex(buttonText), 0);
     lv_img_set_src(ui.coverImage, lvglNowPlayingCoverImageDsc(useLiveArtwork));
     lv_obj_center(ui.coverImage);
     lv_label_set_text(ui.coverTop, coverTrack.coverTop);
