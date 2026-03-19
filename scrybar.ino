@@ -3962,82 +3962,124 @@ static String buildWebConfigPage(const char *statusMsg) {
   const bool doomViewOn = doomFeatureAvailable && ((g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) != 0);
 
   String html;
-  html.reserve(32000);
+  html.reserve(22000);
   html += F("<!doctype html><html lang='en'><head><meta charset='utf-8'>");
   html += F("<meta name='viewport' content='width=device-width,initial-scale=1'>");
   html += F("<title>ScryBar Control Surface</title>");
   html += F("<link rel='preconnect' href='https://fonts.googleapis.com'>");
   html += F("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>");
   // Load remote CSS asynchronously so UI stays paintable even if CDN/fonts are slow or blocked.
-  html += F("<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap' media='print' onload=\"this.media='all'\">");
-  html += F("<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css' media='print' onload=\"this.media='all'\">");
-  html += F("<noscript><link href='https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap' rel='stylesheet'><link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css'></noscript>");
+  html += F("<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Chakra+Petch:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap' media='print' onload=\"this.media='all'\">");
+  html += F("<noscript><link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Chakra+Petch:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap' rel='stylesheet'></noscript>");
   html += F("<style>");
   // Tron-grid animated background; tuned to stay visible on mobile while keeping form readability.
   appendWebThemeCssVars(html, webTheme);
-  html += F("*{box-sizing:border-box}html,body{margin:0}body{font-family:var(--font-main);background:var(--bg-deepest);color:var(--txt);overflow-x:hidden}");
-  html += F(".fx-grid{position:fixed;inset:0;z-index:0;overflow:hidden;perspective:600px;pointer-events:none}");
-  html += F(".fx-grid__plane{position:absolute;bottom:-8vh;left:-35%;width:170%;height:62vh;transform:rotateX(62deg);transform-origin:center bottom;background-image:linear-gradient(rgba(117,81,255,0.20) 1px,transparent 1px),linear-gradient(90deg,rgba(57,184,255,0.18) 1px,transparent 1px);background-size:36px 36px;opacity:.95;animation:gridScroll 5s linear infinite;will-change:background-position}");
-  html += F(".fx-grid__glow{position:absolute;bottom:0;left:0;right:0;height:62%;background:linear-gradient(to top,rgba(117,81,255,0.18) 0%,rgba(57,184,255,0.08) 45%,transparent 100%);animation:gridGlowPulse 6s ease-in-out infinite}");
-  html += F(".fx-grid__horizon{position:absolute;bottom:60%;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 0%,rgba(117,81,255,0.40) 20%,rgba(57,184,255,0.34) 50%,rgba(117,81,255,0.40) 80%,transparent 100%);box-shadow:0 0 22px rgba(117,81,255,0.24),0 0 70px rgba(57,184,255,0.10)}");
-  html += F(".fx-grid__scanline{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(57,184,255,0.32),transparent);box-shadow:0 0 16px rgba(57,184,255,0.18);animation:scanMove 4s ease-in-out infinite;will-change:transform}");
-  html += F(".fx-grid__vline{position:absolute;top:0;bottom:0;width:1px;opacity:0;animation:vlinePulse 5s ease-in-out infinite}");
-  html += F(".fx-grid__vline:nth-child(5){left:20%;background:linear-gradient(to bottom,transparent,rgba(117,81,255,0.20),transparent);animation-delay:0s}");
-  html += F(".fx-grid__vline:nth-child(6){left:50%;background:linear-gradient(to bottom,transparent,rgba(57,184,255,0.18),transparent);animation-delay:-1.8s}");
-  html += F(".fx-grid__vline:nth-child(7){left:80%;background:linear-gradient(to bottom,transparent,rgba(117,81,255,0.20),transparent);animation-delay:-3.5s}");
-  html += F(".fx-grid__vignette{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(7,13,45,0.54) 100%)}");
-  html += F("@keyframes gridScroll{0%{background-position:0 0}100%{background-position:0 36px}}@keyframes gridGlowPulse{0%,100%{opacity:0.78}50%{opacity:1}}@keyframes scanMove{0%,100%{transform:translateY(100vh);opacity:0}5%{opacity:1}95%{opacity:1}99%{transform:translateY(0);opacity:0}}@keyframes vlinePulse{0%,100%{opacity:0}50%{opacity:1}}@keyframes savePulse{0%,100%{box-shadow:0 0 14px rgba(117,81,255,.32),0 0 0 0 rgba(57,184,255,0)}55%{box-shadow:0 0 28px rgba(117,81,255,.70),0 0 18px rgba(57,184,255,.38),0 0 0 4px rgba(57,184,255,.12)}}");
-  html += F(".wrap{position:relative;z-index:1;max-width:1140px;margin:0 auto;padding:18px 14px 26px}.hero{background:transparent;border:0;border-radius:0;padding:0;margin-bottom:14px;backdrop-filter:none;-webkit-backdrop-filter:none}");
-  html += F(".hero-top-card{border:1px solid rgba(117,81,255,.34);border-radius:14px;padding:12px;background:rgba(11,20,55,.30);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}.hero-left{min-width:290px;flex:1 1 560px}.logo{height:62px;display:block;object-fit:contain;filter:brightness(1.08)}");
-  html += F(".hero-copy{margin-top:10px;border:1px solid rgba(57,184,255,.22);border-radius:14px;padding:12px;background:rgba(9,16,44,.36)}.lede{margin:0;color:#c5d2f4;font-size:13px;line-height:1.46;max-width:none}.hero-right{display:grid;gap:8px;justify-items:end}");
-  html += F(".release-box{display:grid;grid-template-columns:auto auto;gap:4px 12px;padding:8px 10px;border-radius:10px;border:1px solid rgba(117,81,255,.42);background:rgba(7,13,38,.72);font:600 11px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace}");
-  html += F(".release-box .k{color:#79d8ff;text-transform:uppercase;letter-spacing:.08em}.release-box .v{color:#e9f0ff;letter-spacing:.01em}");
-  html += F(".pill{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(57,184,255,.15);color:#9ed8ff;font-size:11px;font-weight:700}.pill i{margin-right:6px;color:#7de2ff}");
-  html += F(".panel{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border:0;border-radius:0;padding:0;box-shadow:none}");
-  html += F(".msg{margin:0 0 12px;padding:10px 12px;border-radius:10px;border:1px solid rgba(1,181,116,.45);background:var(--okbg);color:#c9fce9;font-weight:600}");
-  html += F(".msg.fixed-top{position:fixed;top:10px;left:50%;transform:translateX(-50%);width:min(94vw,980px);margin:0;padding:11px 14px;z-index:99999;backdrop-filter:blur(6px);box-shadow:0 10px 22px rgba(0,0,0,.35)}");
-  html += F(".sec{margin-top:14px;padding:14px;border:1px solid rgba(117,81,255,.26);border-radius:14px;background:rgba(11,20,55,.48);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}.sec h2{margin:0 0 10px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9fb2e4}.sec h2 i{color:#39B8FF}.sec h2 .pill{margin-left:auto}");
-  html += F(".grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid rgba(117,81,255,.34);border-radius:12px;padding:12px 12px 10px;background:rgba(11,20,55,.43);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 0 0 1px rgba(57,184,255,.18) inset}");
-  html += F(".key{font-size:11px;color:var(--txt3);font-weight:700;margin:0 0 4px;letter-spacing:.04em}");
-  html += F("input{width:100%;padding:11px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(17,28,68,.76);color:var(--txt);outline:none;font:500 14px 'Montserrat',sans-serif;margin:0 0 9px}");
-  html += F("input:focus{border-color:var(--acc2);box-shadow:0 0 0 2px rgba(57,184,255,.18)}");
-  html += F("select{width:100%;padding:11px 12px;border-radius:var(--radius);border:1px solid rgba(255,255,255,.16);background:rgba(17,28,68,.76);color:var(--txt);outline:none;font:500 14px 'Montserrat',sans-serif;margin:0 0 9px;cursor:pointer}select:focus{border-color:var(--acc2);box-shadow:0 0 0 2px var(--border)}");
-  html += F(".badge-soon{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:rgba(117,81,255,.22);color:#b8a8ff;font-size:10px;font-weight:700;vertical-align:middle;letter-spacing:.04em}");
-  html += F(".hint{margin:4px 0 14px;color:var(--txt2);font-size:12px}.geo-status{margin:2px 0 8px;color:#9bb3ee;font-size:12px;min-height:16px}.secret-input-wrap{display:flex;gap:8px;align-items:stretch;margin:0 0 9px}.secret-input-wrap input{margin:0}.secret-toggle{min-width:44px;padding:0 12px}.secret-toggle i{margin:0}#wifi_new_password{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace!important;text-transform:none!important;letter-spacing:.02em}");
-  html += F(".btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:11px;padding:11px 15px;font:700 13px 'Montserrat',sans-serif;cursor:pointer;transition:all .18s ease}");
-  html += F(".btn.primary{background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;box-shadow:0 0 14px rgba(117,81,255,.32);animation:savePulse 2.6s ease-in-out infinite}.btn.ghost{background:#1A2558;color:#d9e4ff;border:1px solid rgba(255,255,255,.14)}.btn:hover{transform:translateY(-1px)}");
-  html += F(".btn.sm{padding:8px 11px;border-radius:9px;font-size:12px}.btn.warn{background:rgba(117,81,255,.18);color:#decfff;border:1px solid rgba(117,81,255,.5)}");
-  html += F(".btn.danger{background:rgba(238,93,80,.18);color:#ffccc7;border:1px solid rgba(238,93,80,.5)}");
-  html += F(".rss-composer{display:grid;grid-template-columns:1fr 1.9fr .55fr auto auto;gap:10px;align-items:end;margin-top:4px}");
-  html += F(".rss-list{display:grid;gap:8px;margin-top:10px}.rss-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid rgba(57,184,255,.28);border-left:3px solid rgba(117,81,255,.78);border-radius:12px;padding:10px;background:rgba(9,16,44,.76)}");
-  html += F(".rss-title{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#e7eeff;margin:0 0 2px}.rss-title i{color:#39B8FF;font-size:12px}.rss-meta{font-size:12px;color:#98acd8;margin:0;word-break:break-all}.rss-chip{display:inline-block;margin-left:7px;padding:2px 7px;border-radius:999px;background:rgba(57,184,255,.17);color:#9fd9ff;font-size:11px;font-weight:700}");
-  html += F(".rss-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rss-status{margin:6px 0 2px;color:#9bb3ee;font-size:12px;min-height:16px}.rss-empty{padding:12px;border:1px dashed rgba(255,255,255,.2);border-radius:12px;color:#8ea2cf;font-size:12px;background:rgba(10,18,50,.35)}.hidden{display:none}");
-  html += F(".view-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}.view-card{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border:1px solid rgba(57,184,255,.24);border-radius:12px;background:rgba(9,16,44,.62)}.view-card input{width:18px;height:18px;margin:2px 0 0;accent-color:#39B8FF;flex:0 0 auto}.view-copy{display:grid;gap:3px;min-width:0}.view-copy strong{font-size:13px;color:#eef4ff}.view-copy small{color:#93a6d5;line-height:1.35}.view-card.fixed{border-style:dashed}.view-card.disabled{opacity:.55}");
-  html += F(".api-note{margin-top:12px;padding:8px 10px;border-radius:10px;background:rgba(57,184,255,.10);border:1px solid rgba(57,184,255,.28)}.setup-quick{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin-top:10px}.setup-qr{width:138px;height:138px;border:1px solid rgba(255,255,255,.2);background:#fff;padding:6px;border-radius:8px;display:block}.setup-url{font:600 13px var(--font-mono);word-break:break-all}");
-  html += F(".site-footer{margin-top:18px;padding:12px 2px 4px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#8fa4d2;line-height:1.5}.site-footer strong{color:#dbe7ff}.site-footer a{color:#9fd9ff;text-decoration:none}.site-footer a:hover{color:#c7ebff;text-decoration:underline}");
-  html += F("small{color:var(--txt2)}code{color:#d2ddff}@media(prefers-reduced-motion:reduce){.fx-grid *{animation-duration:0.01ms !important;transition-duration:0.01ms !important}}@media(max-width:980px){.grid2,.rss-composer{grid-template-columns:1fr}.fx-grid__plane{height:68vh;bottom:-4vh;background-size:32px 32px;opacity:1}.fx-grid__glow{height:66%;background:linear-gradient(to top,rgba(117,81,255,0.24) 0%,rgba(57,184,255,0.11) 45%,transparent 100%)}.fx-grid__horizon{bottom:58%}.hero-top{flex-wrap:nowrap;align-items:center}.hero-left{min-width:0;flex:1 1 auto}.logo{height:54px}.hero-right{justify-items:end;flex:0 0 auto}.release-box{width:auto}.hero-copy{padding:10px}}@media(max-width:420px){.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}}@media(max-width:480px){.btns{flex-direction:column}.btn.primary{width:100%;justify-content:center}}");
-  html += F(".fx-grid__plane{background-image:linear-gradient(var(--grid-line-a) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line-b) 1px,transparent 1px)}.fx-grid__glow{background:linear-gradient(to top,var(--grid-glow-a) 0%,var(--grid-glow-b) 45%,transparent 100%)}.fx-grid__horizon{background:linear-gradient(90deg,transparent 0%,var(--grid-horizon-a) 20%,var(--grid-horizon-b) 50%,var(--grid-horizon-a) 80%,transparent 100%)}.fx-grid__scanline{background:linear-gradient(90deg,transparent,var(--scanline),transparent)}.fx-grid__vline:nth-child(5){background:linear-gradient(to bottom,transparent,var(--vline-a),transparent)}.fx-grid__vline:nth-child(6){background:linear-gradient(to bottom,transparent,var(--vline-b),transparent)}.fx-grid__vline:nth-child(7){background:linear-gradient(to bottom,transparent,var(--vline-a),transparent)}.hero-top-card{border-color:var(--hero-border)}.hero-copy{border-color:var(--hero-copy-border);background:var(--hero-copy-bg)}.release-box{border-color:var(--release-border);background:var(--release-bg);font-family:var(--font-mono)}.release-box .k{color:var(--release-key)}.release-box .v{color:var(--release-value)}.sec{border-color:var(--border);background:var(--sec-bg)}.btn{font-family:var(--font-main)}.btn.ghost{background:var(--btn-ghost-bg);color:var(--btn-ghost-text)}input,select{font-family:var(--font-main)}");
-  html += F("body[data-theme='minimal-brutalist-mono'] .fx-grid{display:none}body[data-theme='minimal-brutalist-mono'] .hero-top-card,body[data-theme='minimal-brutalist-mono'] .hero-copy,body[data-theme='minimal-brutalist-mono'] .sec,body[data-theme='minimal-brutalist-mono'] .card,body[data-theme='minimal-brutalist-mono'] .rss-row,body[data-theme='minimal-brutalist-mono'] .rss-empty,body[data-theme='minimal-brutalist-mono'] .api-note,body[data-theme='minimal-brutalist-mono'] .msg{background:var(--bg-surface)!important;border-color:var(--line)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important}body[data-theme='minimal-brutalist-mono'] .sec h2,body[data-theme='minimal-brutalist-mono'] .rss-title{color:var(--txt)!important}body[data-theme='minimal-brutalist-mono'] .sec h2 i,body[data-theme='minimal-brutalist-mono'] .rss-title i,body[data-theme='minimal-brutalist-mono'] .site-footer a{color:var(--acc2)!important}body[data-theme='minimal-brutalist-mono'] .lede,body[data-theme='minimal-brutalist-mono'] .rss-meta,body[data-theme='minimal-brutalist-mono'] .hint,body[data-theme='minimal-brutalist-mono'] .geo-status,body[data-theme='minimal-brutalist-mono'] .site-footer{color:var(--txt2)!important}body[data-theme='minimal-brutalist-mono'] input,body[data-theme='minimal-brutalist-mono'] select{background:var(--bg-surface)!important;border-color:var(--line)!important;color:var(--txt)!important;box-shadow:none!important}body[data-theme='minimal-brutalist-mono'] .btn{border:1px solid var(--line)!important;box-shadow:none!important}body[data-theme='minimal-brutalist-mono'] .btn.primary{background:var(--acc2)!important;color:#FFFFFF!important;animation:none!important}body[data-theme='minimal-brutalist-mono'] .btn.ghost,body[data-theme='minimal-brutalist-mono'] .btn.warn,body[data-theme='minimal-brutalist-mono'] .btn.danger{background:var(--bg-surface)!important;color:var(--txt)!important}body[data-theme='minimal-brutalist-mono'] .pill,body[data-theme='minimal-brutalist-mono'] .rss-chip,body[data-theme='minimal-brutalist-mono'] .badge-soon{background:var(--line-soft)!important;color:var(--txt2)!important;border:1px solid var(--line)!important}body[data-theme='minimal-brutalist-mono'] .rss-row{border-left-color:var(--acc2)!important}body[data-theme='minimal-brutalist-mono'] *,body[data-theme='minimal-brutalist-mono'] *::before,body[data-theme='minimal-brutalist-mono'] *::after{border-radius:0!important}");
+  // ── Vibemilk DS subset: bridge + reset + components ──
+  html += F("*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}");
+  // Bridge: map firmware tokens → vibemilk standard names
+  html += F(":root{--font-family:var(--font-main);--text-primary:var(--txt);--text-secondary:var(--txt2);--text-tertiary:var(--txt3);--accent-primary:var(--acc1);--accent-secondary:var(--acc2);--bg-input:var(--bg-deep);--bg-elevated:var(--bg-surface);--stroke:var(--line);--stroke-soft:var(--line-soft);--shadow-sm:0 2px 8px rgba(0,0,0,.25);--shadow-md:0 4px 16px rgba(0,0,0,.3);--r-sm:8px;--r-md:12px;--r-lg:14px;--focus-ring:0 0 0 3px rgba(57,184,255,.18)}");
+  // Base
+  html += F("body{font-family:var(--font-family);font-size:14px;font-weight:400;line-height:1.5;color:var(--text-secondary);background:var(--bg-deepest);-webkit-font-smoothing:antialiased}");
+  html += F("a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(57,184,255,.24);color:var(--text-primary)}");
+  // Layout
+  html += F(".vm-wrap{max-width:780px;margin:0 auto;padding:20px 16px 32px}");
+  // Card
+  html += F(".vm-card{background:var(--bg-surface);border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:12px}");
+  html += F(".vm-card__hd{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-primary)}");
+  html += F(".vm-card__hd .vm-badge{margin-left:auto;text-transform:none;letter-spacing:0}");
+  html += F(".vm-card--inner{background:0;border:0;border-radius:0;padding:10px 0 0}");
+  // Buttons
+  html += F(".vm-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:var(--font-family);font-weight:600;border:0;cursor:pointer;transition:all .15s ease;white-space:nowrap;font-size:13px;height:40px;padding:0 18px;border-radius:var(--r-sm)}");
+  html += F(".vm-btn--sm{height:34px;padding:0 12px;font-size:12px;border-radius:6px}");
+  html += F(".vm-btn--primary{background:var(--accent-primary);color:#fff}.vm-btn--primary:hover{filter:brightness(1.15);box-shadow:var(--shadow-sm)}");
+  html += F(".vm-btn--secondary{background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--stroke)}.vm-btn--secondary:hover{color:var(--text-primary);border-color:var(--accent-secondary)}");
+  html += F(".vm-btn--danger{background:rgba(238,93,80,.12);color:#f26a5e;border:1px solid rgba(238,93,80,.3)}.vm-btn--danger:hover{background:rgba(238,93,80,.22)}");
+  html += F(".vm-btn--warn{background:rgba(117,81,255,.12);color:#b8a8ff;border:1px solid rgba(117,81,255,.35)}.vm-btn--warn:hover{background:rgba(117,81,255,.22)}");
+  html += F(".vm-btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}");
+  // Forms
+  html += F(".vm-input,.vm-select{width:100%;height:44px;padding:0 16px;font-family:var(--font-family);font-size:14px;font-weight:500;color:var(--text-primary);background:var(--bg-input);border:1px solid var(--stroke);border-radius:var(--r-sm);outline:none;transition:border-color .15s ease;margin:0 0 4px}");
+  html += F(".vm-input:focus,.vm-select:focus{border-color:var(--accent-secondary);box-shadow:var(--focus-ring)}");
+  html += F(".vm-input::placeholder{color:var(--text-tertiary)}");
+  html += F(".vm-select{cursor:pointer;appearance:none;padding-right:40px;background-image:linear-gradient(45deg,transparent 50%,var(--text-tertiary) 50%),linear-gradient(135deg,var(--text-tertiary) 50%,transparent 50%);background-repeat:no-repeat;background-size:6px 6px,6px 6px;background-position:calc(100% - 18px) 52%,calc(100% - 13px) 52%}");
+  html += F(".vm-label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin:0 0 6px}");
+  html += F(".vm-help{font-size:12px;color:var(--text-tertiary);line-height:1.45;margin:6px 0 0}");
+  // Badge
+  html += F(".vm-badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 10px;border-radius:999px;font-size:11px;font-weight:600}");
+  html += F(".vm-badge--brand{background:rgba(117,81,255,.14);color:var(--accent-primary)}.vm-badge--info{background:rgba(57,184,255,.14);color:var(--accent-secondary)}");
+  html += F(".pill{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(57,184,255,.12);color:var(--accent-secondary);font-size:11px;font-weight:700}");
+  // Alert
+  html += F(".vm-alert{padding:12px 16px;border-radius:var(--r-md);border-left:4px solid #01B574;background:var(--okbg);color:#c9fce9;font-weight:600;font-size:13px}");
+  html += F(".vm-toast-fixed{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(94vw,680px);z-index:9999;box-shadow:var(--shadow-md)}");
+  html += F(".msg{margin:0 0 12px;padding:10px 12px;border-radius:var(--r-md);border:1px solid rgba(1,181,116,.45);background:var(--okbg);color:#c9fce9;font-weight:600}");
+  html += F(".panel{background:transparent;border:0;padding:0}");
+  // Hero (keeps existing class names, restyled with tokens)
+  html += F(".hero{background:0;border:0;border-radius:0;padding:0;margin-bottom:14px}");
+  html += F(".hero-top-card{border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:14px;background:var(--bg-surface)}");
+  html += F(".hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}.hero-left{min-width:290px;flex:1 1 560px}");
+  html += F(".logo{height:56px;display:block;object-fit:contain}.hero-right{display:grid;gap:8px;justify-items:end}");
+  html += F(".release-box{display:inline-flex;gap:14px;padding:0;border:0;background:0;font:600 11px var(--font-mono)}");
+  html += F(".release-box .k{color:var(--accent-secondary);text-transform:uppercase;letter-spacing:.08em}.release-box .v{color:var(--text-primary);letter-spacing:.01em}");
+  html += F(".hero-copy{margin-top:10px;border:0;border-radius:0;padding:0;background:0}");
+  html += F(".lede{margin:0;color:var(--text-secondary);font-size:13px;line-height:1.46}");
+  // Grid
+  html += F(".vm-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}");
+  // Views
+  html += F(".vm-views{display:grid;gap:0}");
+  html += F(".vm-view{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border:0;border-bottom:1px solid var(--stroke-soft);border-radius:0;background:0}");
+  html += F(".vm-view input[type=checkbox]{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent-secondary);flex:0 0 auto}");
+  html += F(".vm-view__copy{display:grid;gap:3px}.vm-view__copy strong{font-size:13px;color:var(--text-primary)}.vm-view__copy small{color:var(--text-tertiary);line-height:1.35;font-size:12px}");
+  html += F(".vm-view--fixed{border-bottom-style:dashed}.vm-view--off{opacity:.55}.vm-view:last-child{border-bottom:0}");
+  // WiFi
+  html += F(".vm-secret{display:flex;gap:8px;align-items:stretch;margin:0 0 4px}.vm-secret .vm-input{margin:0}");
+  html += F(".vm-setup-grid{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin-top:10px}");
+  html += F(".vm-setup-qr{width:138px;height:138px;border:1px solid var(--stroke);background:#fff;padding:6px;border-radius:var(--r-sm);display:block}");
+  html += F(".vm-setup-url{font:600 13px var(--font-mono);word-break:break-all;color:var(--text-primary)}");
+  // RSS
+  html += F(".vm-rss-composer{display:grid;grid-template-columns:1fr 1.9fr .55fr auto auto;gap:10px;align-items:end;margin-top:4px}");
+  html += F(".vm-rss-list{display:grid;gap:8px;margin-top:10px}");
+  html += F(".rss-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:0;border-left:3px solid var(--accent-primary);border-radius:0;padding:10px 0 10px 12px;background:0;border-bottom:1px solid var(--stroke-soft)}.rss-row:last-child{border-bottom:0}");
+  html += F(".rss-title{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:var(--text-primary);margin:0 0 2px}");
+  html += F(".rss-meta{font-size:12px;color:var(--text-tertiary);margin:0;word-break:break-all}");
+  html += F(".rss-chip{display:inline-block;margin-left:7px;padding:2px 8px;border-radius:999px;background:rgba(57,184,255,.14);color:var(--accent-secondary);font-size:11px;font-weight:600}");
+  html += F(".rss-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}");
+  html += F(".rss-status{margin:6px 0 2px;color:var(--text-tertiary);font-size:12px;min-height:16px}");
+  html += F(".rss-empty{padding:12px;border:1px dashed var(--stroke);border-radius:var(--r-md);color:var(--text-tertiary);font-size:12px;background:rgba(255,255,255,.02)}");
+  html += F(".hidden{display:none}");
+  // System info
+  html += F(".vm-kv{font-size:13px;line-height:1.7}.vm-kv small{color:var(--text-tertiary)}.vm-kv code{color:var(--text-primary);font-family:var(--font-mono);font-size:12px}");
+  // Footer
+  html += F(".vm-footer{margin-top:20px;padding:14px 0 4px;border-top:1px solid var(--stroke-soft);font-size:12px;color:var(--text-tertiary);line-height:1.5}.vm-footer strong{color:var(--text-secondary)}.vm-footer a{color:var(--accent-secondary)}");
+  // Actions
+  html += F(".vm-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;margin-bottom:40px}");
+  // API note
+  html += F(".vm-api-note{margin-top:12px;padding:6px 0;border-radius:0;background:0;border:0;font-size:12px;color:var(--text-tertiary)}.vm-api-note code{color:var(--text-secondary)}");
+  // Password field mono
+  html += F("#wifi_new_password{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:.02em}");
+  // Geo status
+  html += F(".geo-status{margin:2px 0 8px;color:var(--text-tertiary);font-size:12px;min-height:16px}");
+  // Responsive
+  html += F("@media(max-width:768px){.vm-grid{grid-template-columns:1fr}.vm-rss-composer{grid-template-columns:1fr}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions{flex-direction:column}.vm-actions .vm-btn{width:100%;justify-content:center}.logo{height:48px}}");
+  html += F("small{color:var(--text-tertiary)}code{color:var(--text-secondary)}");
   html += F("</style></head><body data-theme='");
   appendHtmlEscaped(html, themeDef.id);
-  html += F("'><div class='fx-grid'><div class='fx-grid__plane'></div><div class='fx-grid__glow'></div><div class='fx-grid__horizon'></div><div class='fx-grid__scanline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vline'></div><div class='fx-grid__vignette'></div></div><main class='wrap'>");
+  html += F("'><main class='vm-wrap'>");
   html += F("<section class='hero'><div class='hero-top-card'><div class='hero-top'><div class='hero-left'><img class='logo' alt='Netmilk Studio' src='");
   appendHtmlEscaped(html, runtimeLogoUrl());
-  html += F("'></div><div class='hero-right'><div class='release-box'><span class='k'><i class='fa-regular fa-calendar'></i> last release</span><span class='v'>");
+  html += F("'></div><div class='hero-right'><div class='release-box'><span><span class='k'>release</span> <span class='v'>");
   appendHtmlEscaped(html, FW_RELEASE_DATE);
-  html += F("</span><span class='k'><i class='fa-solid fa-code-branch'></i> version</span><span class='v'>");
+  html += F("</span></span><span><span class='k'>version</span> <span class='v'>");
   appendHtmlEscaped(html, FW_BUILD_TAG);
-  html += F("</span></div></div></div><div class='hero-copy'><p class='lede'>✨ <b>ScryBar</b> is a mass of sensors, pixels, and unresolved ambition, pretending to be furniture.<br>Time, weather, news, and a talking oracle. Everything you could faster check on your phone, but won't.<br>Overengineered with pride by <b>enuzzo</b>, stealing billable hours at <b>Netmilk Studio</b>. Reflashed at 2 AM with no regrets.<br><em>Your desk knows things now.</em></p></div></section>");
+  html += F("</span></span></div></div></div><div class='hero-copy'><p class='lede'>✨ <b>ScryBar</b> is a mass of sensors, pixels, and unresolved ambition, pretending to be furniture.<br>Time, weather, news, and a talking oracle. Everything you could faster check on your phone, but won't.<br>Overengineered with pride by <b>enuzzo</b>, stealing billable hours at <b>Netmilk Studio</b>. Reflashed at 2 AM with no regrets.<br><em>Your desk knows things now.</em></p></div></section>");
   html += F("<section class='panel'>");
   if (statusMsg && statusMsg[0]) {
-    html += F("<p class='msg fixed-top'>");
+    html += F("<p class='vm-alert vm-toast-fixed'>");
     appendHtmlEscaped(html, statusMsg);
     html += F("</p>");
   }
   html += F("<form id='cfg_form' method='post' action='/config'>");
   // Visual theme section
   {
-    html += F("<div class='sec'><h2><i class='fa-solid fa-palette'></i>Visual Theme</h2><div class='key'>THEME</div><select name='ui_theme'>");
+    html += F("<div class='vm-card'><h2>&#x1F3A8; Visual Theme</h2><div class='vm-label'>THEME</div><select class='vm-select' name='ui_theme'>");
     for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
       html += F("<option value='");
       html += kUiThemes[i].id;
@@ -4047,30 +4089,30 @@ static String buildWebConfigPage(const char *statusMsg) {
       html += kUiThemes[i].label;
       html += F("</option>");
     }
-    html += F("</select><p class='hint'><i class='fa-solid fa-bolt'></i> One selector drives both interfaces: this web control surface and the ESP32 display UI. Switching theme applies instantly and persists in NVS.</p></div>");
+    html += F("</select><p class='vm-help'>One selector drives both interfaces: this web control surface and the ESP32 display UI. Switching theme applies instantly and persists in NVS.</p></div>");
   }
   {
-    html += F("<div class='sec'><h2><i class='fa-solid fa-table-cells-large'></i>Views</h2><div class='card'><div class='view-grid'>");
-    html += F("<label class='view-card'><input id='view_info_cb' type='checkbox'");
+    html += F("<div class='vm-card'><h2>Views</h2><div class='vm-card--inner'><div class='vm-views'>");
+    html += F("<label class='vm-view'><input id='view_info_cb' type='checkbox'");
     if (infoViewOn) html += F(" checked");
-    html += F("><span class='view-copy'><strong>Info</strong><small>Word clock and ambient status page.</small></span></label>");
-    html += F("<label class='view-card fixed'><input type='checkbox' checked disabled><span class='view-copy'><strong>Home</strong><small>Always on. Safe fallback when other pages are disabled.</small></span></label>");
-    html += F("<label class='view-card'><input id='view_aux_cb' type='checkbox'");
+    html += F("><span class='vm-view__copy'><strong>Info</strong><small>Word clock and ambient status page.</small></span></label>");
+    html += F("<label class='vm-view vm-view--fixed'><input type='checkbox' checked disabled><span class='vm-view__copy'><strong>Home</strong><small>Always on. Safe fallback when other pages are disabled.</small></span></label>");
+    html += F("<label class='vm-view'><input id='view_aux_cb' type='checkbox'");
     if (auxViewOn) html += F(" checked");
-    html += F("><span class='view-copy'><strong>RSS / AUX</strong><small>News feed deck, QR and refresh actions.</small></span></label>");
-    html += F("<label class='view-card'><input id='view_wiki_cb' type='checkbox'");
+    html += F("><span class='vm-view__copy'><strong>RSS / AUX</strong><small>News feed deck, QR and refresh actions.</small></span></label>");
+    html += F("<label class='vm-view'><input id='view_wiki_cb' type='checkbox'");
     if (wikiViewOn) html += F(" checked");
-    html += F("><span class='view-copy'><strong>Wikipedia</strong><small>Featured, On This Day and random article cards.</small></span></label>");
+    html += F("><span class='vm-view__copy'><strong>Wikipedia</strong><small>Featured, On This Day and random article cards.</small></span></label>");
     html += F("<label class='view-card");
     if (!doomFeatureAvailable) html += F(" disabled");
     html += F("'><input id='view_doom_cb' type='checkbox'");
     if (doomViewOn) html += F(" checked");
     if (!doomFeatureAvailable) html += F(" disabled");
-    html += F("><span class='view-copy'><strong>DOOM</strong><small>");
+    html += F("><span class='vm-view__copy'><strong>DOOM</strong><small>");
     if (doomFeatureAvailable) html += F("Swipe-reachable game page with gyro + touch controls.");
     else html += F("Not available in this firmware build.");
     html += F("</small></span></label>");
-    html += F("</div><p class='hint'><i class='fa-solid fa-hand-pointer'></i> Swipe navigation only includes enabled pages.</p><div id='view_hidden_inputs' class='hidden'></div></div></div>");
+    html += F("</div><p class='vm-help'>Swipe navigation only includes enabled pages.</p><div id='view_hidden_inputs' class='hidden'></div></div></div>");
   }
 #if TEST_WIFI
   // Wi-Fi preferred network section
@@ -4079,7 +4121,7 @@ static String buildWebConfigPage(const char *statusMsg) {
     const String activeSsid = wifiOk ? WiFi.SSID() : String("");
     char setupUrl[96] = "";
     wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
-    html += F("<div class='sec'><h2><i class='fa-solid fa-wifi'></i>Wi-Fi Known Networks</h2><div class='key'>PREFERRED SSID</div><select name='wifi_pref_ssid'>");
+    html += F("<div class='vm-card'><h2>Wi-Fi Known Networks</h2><div class='vm-label'>PREFERRED SSID</div><select class='vm-select' name='wifi_pref_ssid'>");
     html += F("<option value=''");
     if (!g_wifiPreferredSsid[0]) html += F(" selected");
     html += F(">Auto (smart rotation)</option>");
@@ -4096,7 +4138,7 @@ static String buildWebConfigPage(const char *statusMsg) {
       if (wifiOk && activeSsid.equals(ssid)) html += F(" (connected)");
       html += F("</option>");
     }
-    html += F("</select><div class='key'>WIFI DIRECT MODE</div><select name='wifi_setup_mode'>");
+    html += F("</select><div class='vm-label'>WIFI DIRECT MODE</div><select class='vm-select' name='wifi_setup_mode'>");
     html += F("<option value='off'");
     if (wifiSetupModeIsOff()) html += F(" selected");
     html += F(">Off</option>");
@@ -4107,19 +4149,19 @@ static String buildWebConfigPage(const char *statusMsg) {
     if (wifiSetupModeIsOn()) html += F(" selected");
     html += F(">Always on</option>");
     html += F("</select>");
-    html += F("<p class='hint'><i class='fa-solid fa-circle-info'></i> Auto mode cycles known SSIDs first, then starts setup AP if disconnected too long. ScryBar supports <b>2.4 GHz only</b> (5 GHz is ignored).</p>");
-  html += F("<div class='card'><div class='key'>PROVISION NEW NETWORK (2.4 GHZ)</div><div class='grid2'><div><button id='wifi_scan_btn' class='btn ghost sm' type='button'><i class='fa-solid fa-tower-cell'></i> Scan networks</button><p id='wifi_scan_status' class='rss-status'></p><div class='key'>SCAN RESULTS</div><select id='wifi_scan_results'><option value=''>Press scan first...</option></select></div><div><div class='key'>SSID</div><input id='wifi_new_ssid' name='wifi_new_ssid' maxlength='32' placeholder='MyPhone Hotspot'><div class='key'>PASSWORD</div><div class='secret-input-wrap'><input id='wifi_new_password' name='wifi_new_password' maxlength='64' type='password' placeholder='Leave empty if open network'><button id='wifi_pwd_toggle' class='btn ghost sm secret-toggle' type='button' aria-label='Show password' title='Show password'><i class='fa-solid fa-eye'></i></button></div></div></div>");
+    html += F("<p class='vm-help'>Auto mode cycles known SSIDs first, then starts setup AP if disconnected too long. ScryBar supports <b>2.4 GHz only</b> (5 GHz is ignored).</p>");
+  html += F("<div class='vm-card--inner'><div class='vm-label'>PROVISION NEW NETWORK (2.4 GHZ)</div><div class='vm-grid'><div><button id='wifi_scan_btn' class='vm-btn vm-btn--sm vm-btn--secondary' type='button'>Scan networks</button><p id='wifi_scan_status' class='rss-status'></p><div class='vm-label'>SCAN RESULTS</div><select class='vm-select' id='wifi_scan_results'><option value=''>Press scan first...</option></select></div><div><div class='vm-label'>SSID</div><input class='vm-input' id='wifi_new_ssid' name='wifi_new_ssid' maxlength='32' placeholder='MyPhone Hotspot'><div class='vm-label'>PASSWORD</div><div class='vm-secret'><input class='vm-input' id='wifi_new_password' name='wifi_new_password' maxlength='64' type='password' placeholder='Leave empty if open network'><button id='wifi_pwd_toggle' class='vm-btn vm-btn--sm vm-btn--secondary' type='button' aria-label='Show password' title='Show password'>Show</button></div></div></div>");
     if (g_wifiSetupApActive) {
-      html += F("<p class='hint'><i class='fa-solid fa-satellite-dish'></i> Setup AP active: <code>");
+      html += F("<p class='vm-help'>Setup AP active: <code>");
       appendHtmlEscaped(html, g_wifiSetupApSsid);
       html += F("</code> @ <code>");
       html += WiFi.softAPIP().toString();
       html += F("</code></p>");
-      html += F("<div class='setup-quick'><img class='setup-qr' src='/api/wifi/setup-qr.svg' alt='Setup QR'><div><div class='key'>SETUP URL</div><div class='setup-url'>");
+      html += F("<div class='vm-setup-grid'><img class='vm-setup-qr' src='/api/wifi/setup-qr.svg' alt='Setup QR'><div><div class='vm-label'>SETUP URL</div><div class='vm-setup-url'>");
       appendHtmlEscaped(html, setupUrl);
-      html += F("</div><p class='hint'><i class='fa-solid fa-mobile-screen-button'></i> Scan this QR or open the URL manually to access setup instantly. Captive portal probes are redirected to this page.</p></div></div>");
+      html += F("</div><p class='vm-help'>Scan this QR or open the URL manually to access setup instantly. Captive portal probes are redirected to this page.</p></div></div>");
     }
-    html += F("<p class='hint'><i class='fa-solid fa-floppy-disk'></i> Save Config to store SSID/password in NVS (persistent across reboot/reflash; cleared only by NVS erase).</p></div>");
+    html += F("<p class='vm-help'>Save Config to store SSID/password in NVS (persistent across reboot/reflash; cleared only by NVS erase).</p></div>");
   }
 #endif
   // System Language section
@@ -4143,7 +4185,7 @@ static String buildWebConfigPage(const char *statusMsg) {
       {"de",  "Deutsch"},
       {"pt",  "Portugu\xC3\xAA" "s"},
     };
-    html += F("<div class='sec'><h2><i class='fa-solid fa-language'></i>System Language</h2><div class='key'>LANGUAGE</div><select name='wc_lang'>");
+    html += F("<div class='vm-card'><h2>&#x1F310; System Language</h2><div class='vm-label'>LANGUAGE</div><select class='vm-select' name='wc_lang'>");
     html += F("<optgroup label='Creative &amp; Constructed'>");
     for (unsigned i = 0; i < sizeof(kLangsFun)/sizeof(kLangsFun[0]); ++i) {
       html += F("<option value='");
@@ -4164,7 +4206,7 @@ static String buildWebConfigPage(const char *statusMsg) {
       html += kLangsStd[i].label;
       html += F("</option>");
     }
-    html += F("</optgroup></select><p class='hint'><i class='fa-solid fa-circle-info'></i> Controls the language of the entire display UI: word clock, weather labels, RSS status and touch hints. Saved to NVS, persists across reboots.</p></div>");
+    html += F("</optgroup></select><p class='vm-help'>Controls the language of the entire display UI: word clock, weather labels, RSS status and touch hints. Saved to NVS, persists across reboots.</p></div>");
   }
   {
     struct { const char *code; const char *label; } kWikiLangs[] = {
@@ -4173,8 +4215,8 @@ static String buildWebConfigPage(const char *statusMsg) {
       {"es", "Espa\xC3\xB1" "ol"}, {"pt", "Portugu\xC3\xAA" "s"},
       {"la", "Latina"}, {"eo", "Esperanto"},
     };
-    html += F("<div class='sec'><h2><i class='fa-solid fa-book-open'></i>Wikipedia Language</h2>"
-              "<div class='key'>WIKI LANGUAGE</div><select name='wiki_lang'>");
+    html += F("<div class='vm-card'><h2>&#x1F4D6; Wikipedia Language</h2>"
+              "<div class='vm-label'>WIKI LANGUAGE</div><select class='vm-select' name='wiki_lang'>");
     for (unsigned i = 0; i < sizeof(kWikiLangs)/sizeof(kWikiLangs[0]); ++i) {
       html += F("<option value='");
       html += kWikiLangs[i].code;
@@ -4184,28 +4226,28 @@ static String buildWebConfigPage(const char *statusMsg) {
       html += kWikiLangs[i].label;
       html += F("</option>");
     }
-    html += F("</select><p class='hint'><i class='fa-solid fa-circle-info'></i> "
+    html += F("</select><p class='vm-help'>"
               "Language for Wikipedia feeds (Featured, On This Day, Random). Independent from the system language.</p></div>");
   }
-  html += F("<div class='sec'><h2><i class='fa-solid fa-location-dot'></i>Weather & Location</h2><div class='grid2'><div><div class='key'>PLACE SEARCH</div><input id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='key'>CITY LABEL</div><input id='weather_city' name='weather_city' maxlength='31' value='");
+  html += F("<div class='vm-card'><h2>Weather & Location</h2><div class='vm-grid'><div><div class='vm-label'>PLACE SEARCH</div><input class='vm-input' id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='vm-label'>CITY LABEL</div><input class='vm-input' id='weather_city' name='weather_city' maxlength='31' value='");
   appendHtmlEscaped(html, runtimeWeatherCityLabel());
-  html += F("'></div><div class='grid2'><div><div class='key'>LATITUDE</div><input id='weather_lat' name='weather_lat' value='");
+  html += F("'></div><div class='vm-grid'><div><div class='vm-label'>LATITUDE</div><input class='vm-input' id='weather_lat' name='weather_lat' value='");
   appendHtmlEscaped(html, latBuf);
-  html += F("'></div><div><div class='key'>LONGITUDE</div><input id='weather_lon' name='weather_lon' value='");
+  html += F("'></div><div><div class='vm-label'>LONGITUDE</div><input class='vm-input' id='weather_lon' name='weather_lon' value='");
   appendHtmlEscaped(html, lonBuf);
   html += F("'></div></div></div></div>");
-  html += F("<div class='sec'><h2><i class='fa-solid fa-square-rss'></i>RSS Feed Builder <span id='rss_count_pill' class='pill'><i class='fa-solid fa-rss'></i> RSS feeds ");
+  html += F("<div class='vm-card'><h2>&#x1F4E1; RSS Feed Builder <span id='rss_count_pill' class='vm-badge vm-badge--info'>RSS feeds ");
   html += configuredFeeds;
-  html += F("/5</span></h2><p class='hint'>One composer for name, URL and max posts. Press + to add to the list (max 5 feeds).</p>");
-  html += F("<div class='card'><div class='rss-composer'><div><div class='key'>FRIENDLY NAME</div><input id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='key'>FEED URL</div><input id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='key'>MAX POSTS</div><input id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='btn primary' type='button'><i class='fa-solid fa-circle-plus'></i>Add</button><button id='rss_reset' class='btn ghost' type='button'><i class='fa-solid fa-broom'></i>Reset</button></div><p id='rss_status' class='rss-status'></p></div>");
-  html += F("<div id='rss_list' class='rss-list'></div><p id='rss_empty' class='rss-empty'>No feeds configured.</p><div id='rss_hidden_inputs' class='hidden'></div></div>");
-  html += F("<div class='btns'><button class='btn primary' type='submit'><i class='fa-solid fa-floppy-disk'></i>Save Config</button><button class='btn ghost' type='submit' formaction='/reload' formmethod='post'><i class='fa-solid fa-rotate-right'></i>Force Weather + RSS + Wiki Reload</button></div></form>");
+  html += F("/5</span></h2><p class='vm-help'>One composer for name, URL and max posts. Press + to add to the list (max 5 feeds).</p>");
+  html += F("<div class='vm-card--inner'><div class='vm-rss-composer'><div><div class='vm-label'>FRIENDLY NAME</div><input class='vm-input' id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='vm-label'>FEED URL</div><input class='vm-input' id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='vm-label'>MAX POSTS</div><input class='vm-input' id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='vm-btn vm-btn--primary' type='button'>+ Add</button><button id='rss_reset' class='vm-btn vm-btn--secondary' type='button'>Reset</button></div><p id='rss_status' class='rss-status'></p></div>");
+  html += F("<div id='rss_list' class='vm-rss-list'></div><p id='rss_empty' class='rss-empty'>No feeds configured.</p><div id='rss_hidden_inputs' class='hidden'></div></div>");
+  html += F("<div class='vm-actions'><button class='vm-btn vm-btn--primary' type='submit'>Save Config</button><button class='vm-btn vm-btn--secondary' type='submit' formaction='/reload' formmethod='post'>Force Reload</button></div></form>");
   // System Info section — built at request time from live globals
   {
     char siBuf[48];
-    html += F("<div class='sec'><h2><i class='fa-solid fa-microchip'></i>System Info</h2><div class='grid2'>");
+    html += F("<div class='vm-card'><h2>&#x2699; System Info</h2><div class='vm-grid'>");
     // Network card
-    html += F("<div class='card'><div class='key'>NETWORK</div>");
+    html += F("<div><div class='vm-label'>NETWORK</div>");
 #if TEST_WIFI
     {
       const bool wOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
@@ -4248,7 +4290,7 @@ static String buildWebConfigPage(const char *statusMsg) {
 #endif
     html += F("</div>");
     // Firmware / runtime card
-    html += F("<div class='card'><div class='key'>FIRMWARE &amp; RUNTIME</div>");
+    html += F("<div><div class='vm-label'>FIRMWARE &amp; RUNTIME</div>");
     html += F("<small>fw: </small><code>"); appendHtmlEscaped(html, FW_BUILD_TAG); html += F("</code><br>");
     html += F("<small>date: </small><code>"); appendHtmlEscaped(html, FW_RELEASE_DATE); html += F("</code><br>");
     html += F("<small>lang: </small><code>"); appendHtmlEscaped(html, g_wordClockLang); html += F("</code><br>");
@@ -4272,8 +4314,8 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += F("</div>");
     html += F("</div></div>");
   }
-  html += F("<p class='api-note'><small><i class='fa-solid fa-terminal'></i> API ready: <code>GET /api/config</code>, <code>POST /api/config</code>, <code>GET /api/wifi/scan</code>, <code>GET /api/wifi/setup-qr.svg</code>.</small></p>");
-  html += F("<footer class='site-footer'><strong>A project by Netmilk Studio sagl</strong> | Copyright 2026<br>Open Source under the <a href='https://opensource.org/license/mit' target='_blank' rel='noopener noreferrer'>MIT License</a> | Feel free to steal, fork, remix, and ship. \xF0\x9F\x96\x96</footer>");
+  html += F("<p class='vm-api-note'><small>API ready: <code>GET /api/config</code>, <code>POST /api/config</code>, <code>GET /api/wifi/scan</code>, <code>GET /api/wifi/setup-qr.svg</code>.</small></p>");
+  html += F("<footer class='vm-footer'><strong>A project by Netmilk Studio sagl</strong> | Copyright 2026<br>Open Source under the <a href='https://opensource.org/license/mit' target='_blank' rel='noopener noreferrer'>MIT License</a> | Feel free to steal, fork, remix, and ship. \xF0\x9F\x96\x96</footer>");
   html += F("<script>(function(){");
   html += F("(function(){const t=document.querySelector('.msg.fixed-top');if(t){setTimeout(function(){t.style.transition='opacity .6s';t.style.opacity='0';setTimeout(function(){t.style.display='none';},650);},4200);}})();");
   html += F("const q=document.getElementById('geo_query');const dl=document.getElementById('geo_hits');const st=document.getElementById('geo_status');const city=document.getElementById('weather_city');const lat=document.getElementById('weather_lat');const lon=document.getElementById('weather_lon');");
@@ -4284,7 +4326,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("const wifiScanBtn=document.getElementById('wifi_scan_btn');const wifiScanResults=document.getElementById('wifi_scan_results');const wifiScanStatus=document.getElementById('wifi_scan_status');const wifiNewSsid=document.getElementById('wifi_new_ssid');const wifiNewPassword=document.getElementById('wifi_new_password');const wifiPwdToggle=document.getElementById('wifi_pwd_toggle');");
   html += F("function setWifiStatus(msg){if(wifiScanStatus)wifiScanStatus.textContent=msg||'';}function escHtml(s){return (s||'').replace(/[&<>]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;'})[c];});}");
   html += F("async function scanWifiNow(){if(!wifiScanResults)return;const ctl=(window.AbortController?new AbortController():null);let tm=0;try{setWifiStatus('Scanning 2.4 GHz networks...');wifiScanResults.innerHTML=\"<option value=''>Scanning...</option>\";if(ctl){tm=window.setTimeout(function(){ctl.abort();},9000);}const res=await fetch('/api/wifi/scan',{cache:'no-store',signal:ctl?ctl.signal:undefined});if(tm)window.clearTimeout(tm);if(!res.ok)throw new Error('http '+res.status);const data=await res.json();const rows=(data&&data.networks)?data.networks:[];wifiScanResults.innerHTML=\"\";if(!rows.length){wifiScanResults.innerHTML=\"<option value=''>No 2.4 GHz network found</option>\";setWifiStatus((data&&data.message==='scan_timeout')?'Scan timed out, retry in a few seconds.':'No 2.4 GHz networks found.');return;}rows.forEach(function(n){const opt=document.createElement('option');const lock=n.secure?'SEC':'OPEN';opt.value=n.ssid||'';opt.dataset.secure=n.secure?'1':'0';opt.dataset.channel=String(n.channel||0);opt.innerHTML=escHtml((n.ssid||'(hidden)')+'  '+lock+'  ch'+(n.channel||'?')+'  '+(n.rssi||0)+'dBm');wifiScanResults.appendChild(opt);});setWifiStatus('Scan complete. Pick an SSID and press Save Config.');if(rows[0]&&rows[0].ssid&&wifiNewSsid&&!wifiNewSsid.value){wifiNewSsid.value=rows[0].ssid;}}catch(e){if(tm)window.clearTimeout(tm);wifiScanResults.innerHTML=\"<option value=''>Scan failed</option>\";setWifiStatus((e&&e.name==='AbortError')?'Scan timeout. Retry.':'Scan unavailable right now.');}}");
-  html += F("function syncWifiPwdToggle(){if(!wifiPwdToggle||!wifiNewPassword)return;const visible=wifiNewPassword.type==='text';wifiPwdToggle.innerHTML=visible?\"<i class='fa-solid fa-eye-slash'></i>\":\"<i class='fa-solid fa-eye'></i>\";wifiPwdToggle.title=visible?'Hide password':'Show password';wifiPwdToggle.setAttribute('aria-label',wifiPwdToggle.title);}if(wifiPwdToggle&&wifiNewPassword){wifiPwdToggle.addEventListener('click',function(){wifiNewPassword.type=(wifiNewPassword.type==='password')?'text':'password';syncWifiPwdToggle();});syncWifiPwdToggle();}if(wifiScanBtn)wifiScanBtn.addEventListener('click',function(){scanWifiNow();});if(wifiScanResults)wifiScanResults.addEventListener('change',function(){const v=wifiScanResults.value||'';if(wifiNewSsid&&v)wifiNewSsid.value=v;const sel=wifiScanResults.options[wifiScanResults.selectedIndex];if(wifiNewPassword&&sel&&sel.dataset.secure==='0'){wifiNewPassword.value='';wifiNewPassword.placeholder='Open network (no password)';}else if(wifiNewPassword){wifiNewPassword.placeholder='Password (WPA/WPA2)';}});");
+  html += F("function syncWifiPwdToggle(){if(!wifiPwdToggle||!wifiNewPassword)return;const visible=wifiNewPassword.type==='text';wifiPwdToggle.textContent=visible?'Hide':'Show';wifiPwdToggle.title=visible?'Hide password':'Show password';wifiPwdToggle.setAttribute('aria-label',wifiPwdToggle.title);}if(wifiPwdToggle&&wifiNewPassword){wifiPwdToggle.addEventListener('click',function(){wifiNewPassword.type=(wifiNewPassword.type==='password')?'text':'password';syncWifiPwdToggle();});syncWifiPwdToggle();}if(wifiScanBtn)wifiScanBtn.addEventListener('click',function(){scanWifiNow();});if(wifiScanResults)wifiScanResults.addEventListener('change',function(){const v=wifiScanResults.value||'';if(wifiNewSsid&&v)wifiNewSsid.value=v;const sel=wifiScanResults.options[wifiScanResults.selectedIndex];if(wifiNewPassword&&sel&&sel.dataset.secure==='0'){wifiNewPassword.value='';wifiNewPassword.placeholder='Open network (no password)';}else if(wifiNewPassword){wifiNewPassword.placeholder='Password (WPA/WPA2)';}});");
   html += F("const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');const viewHidden=document.getElementById('view_hidden_inputs');");
   html += F("const maxSlots=5;const minPosts=1;const maxPosts=8;let editIndex=-1;");
   html += F("const initialFeeds=[");
@@ -4303,8 +4345,8 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("let feeds=initialFeeds.filter(f=>f&&f.url&&/^https?:\\/\\//i.test(f.url));");
   html += F("function clampPosts(n){n=parseInt(n,10);if(isNaN(n))n=maxPosts;if(n<minPosts)n=minPosts;if(n>maxPosts)n=maxPosts;return n;}function startsHttp(v){return /^https?:\\/\\//i.test((v||'').trim());}");
   html += F("function defName(i){return 'Feed '+(i+1);}function setRssStatus(m){if(rssStatus)rssStatus.textContent=m||'';}");
-  html += F("function clearComposer(){editIndex=-1;rssName.value='';rssUrl.value='';rssMax.value='8';rssAdd.innerHTML=\"<i class='fa-solid fa-circle-plus'></i>Add\";setRssStatus('');}");
-  html += F("function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML=\"<i class='fa-solid fa-rss'></i> RSS feeds \"+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.innerHTML=\"<i class='fa-solid fa-signal'></i>\";t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='btn sm warn';bEdit.innerHTML=\"<i class='fa-solid fa-pen-to-square'></i>Edit\";bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.innerHTML=\"<i class='fa-solid fa-floppy-disk'></i>Update\";setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='btn sm danger';bDel.innerHTML=\"<i class='fa-solid fa-trash-can'></i>Delete\";bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}");
+  html += F("function clearComposer(){editIndex=-1;rssName.value='';rssUrl.value='';rssMax.value='8';rssAdd.innerHTML=\"+ Add\";setRssStatus('');}");
+  html += F("function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML=\"RSS feeds \"+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.textContent='';t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='vm-btn vm-btn--sm vm-btn--warn';bEdit.textContent='Edit';bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.textContent='Update';setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='vm-btn vm-btn--sm vm-btn--danger';bDel.textContent='Delete';bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}");
   html += F("function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}");
   html += F("function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}");
   html += F("function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_doom','view_doom_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}");

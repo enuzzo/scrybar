@@ -288,6 +288,14 @@ Entry format:
 
 ---
 
+## 2026-03-20 - r197/r198: Web UI Vibemilk DS Migration + Layout Flattening
+
+- Context: The web config UI had grown to ~35KB of inline HTML with 5 CSS keyframe animations, 8 FX grid divs, backdrop-filter blur, Font Awesome CDN dependency (~40 icon refs), and 3 responsive breakpoints. Heavy for an ESP32 serving over WiFi, and non-functional offline in AP setup mode (Font Awesome CDN unreachable).
+- Decision: (1) Replace all custom CSS with a Vibemilk DS v3 subset (~3KB minified) using `vm-*` classes. (2) Add a CSS bridge layer mapping firmware tokens (`--txt`, `--acc1`, etc.) to vibemilk standard names (`--text-primary`, `--accent-primary`). (3) Remove all animations, FX grid, backdrop-filter. (4) Replace Font Awesome icons with HTML entity emoji (`&#x1F3A8;` etc.) or plain text. (5) Flatten layout: one visible `vm-card` per section, no inner bordered containers. View items use `border-bottom` separators. RSS rows use left accent bar. System Info is plain grid. (6) Google Fonts loaded async with system fallback for offline AP mode.
+- Impact/Tradeoffs: ~35KB → ~20KB output. Zero CDN dependencies for functionality. All 5 themes render correctly. All 8 config sections and JS logic preserved. Mobile and desktop layouts work from single 768px breakpoint. Raw UTF-8 emoji in `F()` strings were double-encoded through the Arduino toolchain — fixed by using HTML numeric entities exclusively.
+
+---
+
 ## 2026-03-08 - r159: Full LVGL Widget Tree for WIKI Page (Wiki Deck)
 
 - Context: After r158 promoted WIKI to an independent page with its own `g_lvglWikiRoot`, the page showed only a static "WIKI" placeholder label. All RSS/Wiki content rendering was still routed through the shared AUX deck widgets (`g_lvglAux*`), making touch buttons and QR modal non-functional on WIKI.

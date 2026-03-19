@@ -459,9 +459,34 @@ Discard touch frames where:
   - QR can open immediately with canonical long URL
   - short URL replacement happens opportunistically when ready (non-blocking UX)
 
-## Web UI Responsiveness
+## Web UI — Architecture & Rules
 
-- Web control page keeps critical style inline and loads external font/icon CSS asynchronously.
+**Design system:** Vibemilk DS v3 subset (Netmilk Studio's token-driven CSS). All CSS uses `vm-*` prefixed classes. No external CSS framework, no Font Awesome, no animations.
+
+**CSS bridge pattern:** Firmware injects simple tokens (`--txt`, `--acc1`, `--bg-deep`, etc.) via `appendWebThemeCssVars()` from `UiThemeWebTokens`. A `:root{}` block aliases them to vibemilk standard names (`--text-primary`, `--accent-primary`, `--bg-input`, etc.). Component classes (`vm-card`, `vm-btn`, `vm-input`, `vm-select`, `vm-label`, `vm-badge`) reference only bridged names.
+
+**Layout rules (r198+):**
+- **One visible container per section.** Each config section is a single `vm-card`. Internal groupings (`vm-card--inner`) are transparent — zero border, zero background, padding-top only as spacer.
+- **No box-in-box nesting.** View items use `border-bottom` separators, not individual bordered cards. RSS rows use left accent bar + bottom separator. System Info columns are plain `<div>` inside `vm-grid`, not inner cards.
+- **Flat hero.** Release metadata is inline-flex (no bordered box). Lede text flows directly in the card (no inner bordered panel).
+- Single responsive breakpoint at 768px.
+- `vm-actions` (Save/Reload buttons) have 40px bottom margin to visually separate from System Info.
+
+**Emoji in HTML:** Always use HTML numeric entities (`&#x1F3A8;`, `&#x1F310;`, etc.) — never raw UTF-8 emoji in `F()` strings. Raw multi-byte emoji risk double-encoding through the Arduino toolchain, producing mojibake/tofu on mobile browsers.
+
+**Font loading:** Google Fonts (Montserrat + Space Mono) loaded async with system-font fallback stack. Page must be fully functional offline (AP mode) with only system fonts.
+
+**Zero CDN dependencies** for functionality. Google Fonts is the only external resource and is loaded with `display=swap` for graceful degradation.
+
+**Key functions:**
+- `appendWebThemeCssVars(String&, const UiThemeWebTokens&)` — injects CSS custom properties from theme struct (~line 3882)
+- `buildWebConfigPage()` — generates complete inline HTML page (~line 3944, ~420 lines)
+- `runtimeLogoUrl()` — returns user-configured or default logo URL for hero
+
+**Output budget:** ~20KB target (was ~35KB pre-vibemilk). No keyframe animations, no backdrop-filter, no FX grid divs.
+
+**Responsiveness:**
+- Web control page keeps critical style inline and loads external font CSS asynchronously.
 - During long network I/O (RSS/WIKI fetch/download), firmware periodically pumps the web server loop to reduce UI stalls.
 - RSS HTTP timeout baseline is intentionally short (`RSS_HTTP_TIMEOUT_MS=3000`) for quicker recovery on bad links.
 
@@ -513,6 +538,10 @@ For deterministic theme captures:
 - Degree symbol in LVGL labels must be UTF-8 `"\xC2\xB0"`.
 - Prefer non-variable font sources for deterministic LVGL conversion.
 - If Wiki hero image appears missing on first draw, stay on WIKI briefly: visible-item progressive preload now fills summary/thumb/icon without requiring page changes.
+- **Web UI emoji:** Never put raw multi-byte emoji (🎨🌐📖 etc.) in Arduino `F()` strings — they get double-encoded through the toolchain (each UTF-8 byte re-encoded as UTF-8, producing 8 bytes of mojibake). Use HTML numeric entities instead: `&#x1F3A8;` for 🎨, `&#x1F310;` for 🌐, etc.
+- **Web UI box nesting:** Never wrap form content in bordered inner containers. One `vm-card` per section is the visual boundary — everything inside must be transparent layout. See "Web UI — Architecture & Rules" for the full pattern.
+- **MediaRemote artist field:** macOS MediaRemote only exposes the primary artist, not collaborators. "Rihanna, Kanye West, Paul McCartney" shows as just "Rihanna". This is a system-level limitation, not a companion bug.
+- **Now Playing LVGL labels:** Use `LV_LABEL_LONG_DOT` for single-line truncation (artist). Title uses `LV_LABEL_LONG_WRAP` with max 2 lines + manual clipping. LVGL 8 has no native multi-line ellipsis.
 
 ## Toolchain Setup (macOS — reference install)
 

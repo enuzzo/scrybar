@@ -1,0 +1,237 @@
+<!doctype html><html lang='en'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>ScryBar Control Surface — Preview</title>
+<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap'>
+<style>
+:root{--font-main:'Montserrat',sans-serif;--font-mono:'Space Mono',monospace;--bg-deepest:#070D2D;--bg-deep:#0B1437;--bg-surface:#111C44;--line:rgba(255,255,255,.11);--line-soft:rgba(255,255,255,.07);--txt:#FFFFFF;--txt2:#A3AED0;--txt3:#707EAE;--acc1:#7551FF;--acc2:#39B8FF;--okbg:rgba(1,181,116,.14);--sec-bg:rgba(11,20,55,0.72);--border:rgba(57,184,255,0.18);--hero-border:rgba(117,81,255,.34);--hero-copy-border:rgba(57,184,255,.22);--hero-copy-bg:rgba(9,16,44,.36);--release-border:rgba(117,81,255,.42);--release-bg:rgba(7,13,38,.72);--release-key:#79d8ff;--release-value:#e9f0ff;--btn-ghost-bg:#1A2558;--btn-ghost-text:#d9e4ff;--radius:10px;--gap:1.5rem}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--font-family:var(--font-main);--text-primary:var(--txt);--text-secondary:var(--txt2);--text-tertiary:var(--txt3);--accent-primary:var(--acc1);--accent-secondary:var(--acc2);--bg-input:var(--bg-deep);--bg-elevated:var(--bg-surface);--stroke:var(--line);--stroke-soft:var(--line-soft);--shadow-sm:0 2px 8px rgba(0,0,0,.25);--shadow-md:0 4px 16px rgba(0,0,0,.3);--r-sm:8px;--r-md:12px;--r-lg:14px;--focus-ring:0 0 0 3px rgba(57,184,255,.18)}
+body{font-family:var(--font-family);font-size:14px;font-weight:400;line-height:1.5;color:var(--text-secondary);background:var(--bg-deepest);-webkit-font-smoothing:antialiased}
+a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(57,184,255,.24);color:var(--text-primary)}
+.vm-wrap{max-width:780px;margin:0 auto;padding:20px 16px 32px}
+.vm-card{background:var(--bg-surface);border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:12px}
+.vm-card__hd{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-primary)}
+.vm-card__hd .vm-badge{margin-left:auto;text-transform:none;letter-spacing:0}
+.vm-card--inner{background:0;border:0;border-radius:0;padding:10px 0 0}
+.vm-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:var(--font-family);font-weight:600;border:0;cursor:pointer;transition:all .15s ease;white-space:nowrap;font-size:13px;height:40px;padding:0 18px;border-radius:var(--r-sm)}
+.vm-btn--sm{height:34px;padding:0 12px;font-size:12px;border-radius:6px}
+.vm-btn--primary{background:var(--accent-primary);color:#fff}.vm-btn--primary:hover{filter:brightness(1.15);box-shadow:var(--shadow-sm)}
+.vm-btn--secondary{background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--stroke)}.vm-btn--secondary:hover{color:var(--text-primary);border-color:var(--accent-secondary)}
+.vm-btn--danger{background:rgba(238,93,80,.12);color:#f26a5e;border:1px solid rgba(238,93,80,.3)}.vm-btn--danger:hover{background:rgba(238,93,80,.22)}
+.vm-btn--warn{background:rgba(117,81,255,.12);color:#b8a8ff;border:1px solid rgba(117,81,255,.35)}.vm-btn--warn:hover{background:rgba(117,81,255,.22)}
+.vm-btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+.vm-input,.vm-select{width:100%;height:44px;padding:0 16px;font-family:var(--font-family);font-size:14px;font-weight:500;color:var(--text-primary);background:var(--bg-input);border:1px solid var(--stroke);border-radius:var(--r-sm);outline:none;transition:border-color .15s ease;margin:0 0 4px}
+.vm-input:focus,.vm-select:focus{border-color:var(--accent-secondary);box-shadow:var(--focus-ring)}
+.vm-input::placeholder{color:var(--text-tertiary)}
+.vm-select{cursor:pointer;appearance:none;padding-right:40px;background-image:linear-gradient(45deg,transparent 50%,var(--text-tertiary) 50%),linear-gradient(135deg,var(--text-tertiary) 50%,transparent 50%);background-repeat:no-repeat;background-size:6px 6px,6px 6px;background-position:calc(100% - 18px) 52%,calc(100% - 13px) 52%}
+.vm-label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin:0 0 6px}
+.vm-help{font-size:12px;color:var(--text-tertiary);line-height:1.45;margin:6px 0 0}
+.vm-badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 10px;border-radius:999px;font-size:11px;font-weight:600}
+.vm-badge--brand{background:rgba(117,81,255,.14);color:var(--accent-primary)}.vm-badge--info{background:rgba(57,184,255,.14);color:var(--accent-secondary)}
+.pill{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(57,184,255,.12);color:var(--accent-secondary);font-size:11px;font-weight:700}
+.vm-alert{padding:12px 16px;border-radius:var(--r-md);border-left:4px solid #01B574;background:var(--okbg);color:#c9fce9;font-weight:600;font-size:13px}
+.vm-toast-fixed{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(94vw,680px);z-index:9999;box-shadow:var(--shadow-md)}
+.msg{margin:0 0 12px;padding:10px 12px;border-radius:var(--r-md);border:1px solid rgba(1,181,116,.45);background:var(--okbg);color:#c9fce9;font-weight:600}
+.panel{background:transparent;border:0;padding:0}
+.hero{background:0;border:0;border-radius:0;padding:0;margin-bottom:14px}
+.hero-top-card{border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:14px;background:var(--bg-surface)}
+.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}.hero-left{min-width:290px;flex:1 1 560px}
+.logo{height:56px;display:block;object-fit:contain}.hero-right{display:grid;gap:8px;justify-items:end}
+.release-box{display:inline-flex;gap:14px;padding:0;border:0;background:0;font:600 11px var(--font-mono)}
+.release-box .k{color:var(--accent-secondary);text-transform:uppercase;letter-spacing:.08em}.release-box .v{color:var(--text-primary);letter-spacing:.01em}
+.hero-copy{margin-top:10px;border:0;border-radius:0;padding:0;background:0}
+.lede{margin:0;color:var(--text-secondary);font-size:13px;line-height:1.46}
+.vm-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.vm-views{display:grid;gap:0}
+.vm-view{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border:0;border-bottom:1px solid var(--stroke-soft);border-radius:0;background:0}
+.vm-view input[type=checkbox]{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent-secondary);flex:0 0 auto}
+.vm-view__copy{display:grid;gap:3px}.vm-view__copy strong{font-size:13px;color:var(--text-primary)}.vm-view__copy small{color:var(--text-tertiary);line-height:1.35;font-size:12px}
+.vm-view--fixed{border-bottom-style:dashed}.vm-view--off{opacity:.55}
+.vm-view:last-child{border-bottom:0}
+.vm-secret{display:flex;gap:8px;align-items:stretch;margin:0 0 4px}.vm-secret .vm-input{margin:0}
+.vm-rss-composer{display:grid;grid-template-columns:1fr 1.9fr .55fr auto auto;gap:10px;align-items:end;margin-top:4px}
+.vm-rss-list{display:grid;gap:8px;margin-top:10px}
+.rss-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:0;border-left:3px solid var(--accent-primary);border-radius:0;padding:10px 0 10px 12px;background:0;border-bottom:1px solid var(--stroke-soft)}.rss-row:last-child{border-bottom:0}
+.rss-title{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:var(--text-primary);margin:0 0 2px}
+.rss-meta{font-size:12px;color:var(--text-tertiary);margin:0;word-break:break-all}
+.rss-chip{display:inline-block;margin-left:7px;padding:2px 8px;border-radius:999px;background:rgba(57,184,255,.14);color:var(--accent-secondary);font-size:11px;font-weight:600}
+.rss-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.rss-status{margin:6px 0 2px;color:var(--text-tertiary);font-size:12px;min-height:16px}
+.rss-empty{padding:12px;border:1px dashed var(--stroke);border-radius:var(--r-md);color:var(--text-tertiary);font-size:12px;background:rgba(255,255,255,.02)}
+.hidden{display:none}
+.vm-kv{font-size:13px;line-height:1.7}.vm-kv small{color:var(--text-tertiary)}.vm-kv code{color:var(--text-primary);font-family:var(--font-mono);font-size:12px}
+.vm-footer{margin-top:20px;padding:14px 0 4px;border-top:1px solid var(--stroke-soft);font-size:12px;color:var(--text-tertiary);line-height:1.5}.vm-footer strong{color:var(--text-secondary)}.vm-footer a{color:var(--accent-secondary)}
+.vm-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;margin-bottom:40px}
+.vm-api-note{margin-top:12px;padding:6px 0;border-radius:0;background:0;border:0;font-size:12px;color:var(--text-tertiary)}.vm-api-note code{color:var(--text-secondary)}
+.geo-status{margin:2px 0 8px;color:var(--text-tertiary);font-size:12px;min-height:16px}
+@media(max-width:768px){.vm-grid{grid-template-columns:1fr}.vm-rss-composer{grid-template-columns:1fr}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions{flex-direction:column}.vm-actions .vm-btn{width:100%;justify-content:center}.logo{height:48px}}
+small{color:var(--text-tertiary)}code{color:var(--text-secondary)}
+</style></head>
+<body><main class='vm-wrap'>
+
+<!-- HERO -->
+<section class='hero'><div class='hero-top-card'><div class='hero-top'>
+<div class='hero-left'><div style="height:56px;display:flex;align-items:center;font-size:24px;font-weight:800;color:var(--text-primary)">ScryBar</div></div>
+<div class='hero-right'><div class='release-box'>
+<span><span class='k'>release</span> <span class='v'>2026-03-19</span></span>
+<span><span class='k'>version</span> <span class='v'>DB-M0-r197</span></span>
+</div></div>
+</div>
+<div class='hero-copy'><p class='lede'>ScryBar is a mass of sensors, pixels, and unresolved ambition, pretending to be furniture. Time, weather, news, and a talking oracle. Everything you could faster check on your phone, but won't. Overengineered with pride by <b>enuzzo</b>, stealing billable hours at <b>Netmilk Studio</b>.</p></div>
+</div></section>
+
+<!-- FORM -->
+<section class='panel'>
+<form id='cfg_form' method='post' action='/config'>
+
+<!-- THEME -->
+<div class='vm-card'><h2 class='vm-card__hd'>🎨 Visual Theme</h2>
+<div class='vm-label'>THEME</div>
+<select class='vm-select' name='ui_theme'>
+<option selected>ScryBar Default</option>
+<option>Cyberpunk 2077</option>
+<option>Toxic Candy</option>
+<option>Tokyo Transit</option>
+<option>Minimal Brutalist Mono</option>
+</select>
+<p class='vm-help'>One selector drives both interfaces: this web control surface and the ESP32 display UI.</p>
+</div>
+
+<!-- VIEWS -->
+<div class='vm-card'><h2 class='vm-card__hd'>Views</h2>
+<div class='vm-card--inner'><div class='vm-views'>
+<label class='vm-view'><input type='checkbox' checked><span class='vm-view__copy'><strong>Info</strong><small>Word clock and ambient status page.</small></span></label>
+<label class='vm-view vm-view--fixed'><input type='checkbox' checked disabled><span class='vm-view__copy'><strong>Home</strong><small>Always on. Safe fallback.</small></span></label>
+<label class='vm-view'><input type='checkbox' checked><span class='vm-view__copy'><strong>RSS / AUX</strong><small>News feed deck, QR and refresh.</small></span></label>
+<label class='vm-view'><input type='checkbox' checked><span class='vm-view__copy'><strong>Wikipedia</strong><small>Featured, On This Day and random.</small></span></label>
+<label class='vm-view'><input type='checkbox' checked><span class='vm-view__copy'><strong>DOOM</strong><small>Swipe-reachable game page.</small></span></label>
+</div>
+<p class='vm-help'>Swipe navigation only includes enabled pages.</p>
+</div></div>
+
+<!-- WIFI -->
+<div class='vm-card'><h2 class='vm-card__hd'>Wi-Fi Known Networks</h2>
+<div class='vm-label'>PREFERRED SSID</div>
+<select class='vm-select'><option selected>Auto (smart rotation)</option><option>HomeWiFi (connected)</option></select>
+<div class='vm-label'>WIFI DIRECT MODE</div>
+<select class='vm-select'><option>Off</option><option selected>Auto fallback</option><option>Always on</option></select>
+<p class='vm-help'>Auto mode cycles known SSIDs first, then starts setup AP if disconnected too long. ScryBar supports <b>2.4 GHz only</b>.</p>
+<div class='vm-card--inner'>
+<div class='vm-label'>PROVISION NEW NETWORK (2.4 GHZ)</div>
+<div class='vm-grid'><div>
+<button class='vm-btn vm-btn--sm vm-btn--secondary' type='button'>Scan networks</button>
+<p class='rss-status'></p>
+<div class='vm-label'>SCAN RESULTS</div>
+<select class='vm-select'><option>Press scan first...</option></select>
+</div><div>
+<div class='vm-label'>SSID</div>
+<input class='vm-input' placeholder='MyPhone Hotspot'>
+<div class='vm-label'>PASSWORD</div>
+<div class='vm-secret'><input class='vm-input' type='password' placeholder='Leave empty if open network'><button class='vm-btn vm-btn--sm vm-btn--secondary' type='button'>Show</button></div>
+</div></div>
+<p class='vm-help'>Save Config to store SSID/password in NVS.</p>
+</div>
+</div>
+
+<!-- LANGUAGE -->
+<div class='vm-card'><h2 class='vm-card__hd'>🌐 System Language</h2>
+<div class='vm-label'>LANGUAGE</div>
+<select class='vm-select'>
+<optgroup label='Modern Languages'><option>English</option><option selected>Italiano</option><option>Français</option><option>Deutsch</option><option>Español</option><option>Português</option></optgroup>
+<optgroup label='Classical & Constructed'><option>Latina</option><option>Esperanto</option><option>Klingon</option></optgroup>
+<optgroup label='Creative & Fun'><option>1337 5P34K</option><option>Shakespearean</option><option>Valley Girl</option><option>Bellazio</option></optgroup>
+</select>
+<p class='vm-help'>Controls the language of the entire display UI: word clock, weather labels, RSS status and touch hints.</p>
+</div>
+
+<!-- WIKI LANG -->
+<div class='vm-card'><h2 class='vm-card__hd'>📖 Wikipedia Language</h2>
+<div class='vm-label'>WIKI LANGUAGE</div>
+<select class='vm-select'><option selected>English</option><option>Italiano</option><option>Français</option></select>
+<p class='vm-help'>Language for Wikipedia feeds. Independent from the system language.</p>
+</div>
+
+<!-- WEATHER -->
+<div class='vm-card'><h2 class='vm-card__hd'>Weather &amp; Location</h2>
+<div class='vm-grid'><div>
+<div class='vm-label'>PLACE SEARCH</div>
+<input class='vm-input' type='search' placeholder='Search city or place'>
+<p class='geo-status'></p>
+<div class='vm-label'>CITY LABEL</div>
+<input class='vm-input' value='Lugano'>
+</div><div>
+<div class='vm-grid'><div>
+<div class='vm-label'>LATITUDE</div>
+<input class='vm-input' value='46.0037'>
+</div><div>
+<div class='vm-label'>LONGITUDE</div>
+<input class='vm-input' value='8.9511'>
+</div></div>
+</div></div>
+</div>
+
+<!-- RSS -->
+<div class='vm-card'><h2 class='vm-card__hd'>📡 RSS Feed Builder <span class='vm-badge vm-badge--info'>RSS feeds 2/5</span></h2>
+<p class='vm-help'>One composer for name, URL and max posts. Press + to add (max 5 feeds).</p>
+<div class='vm-card--inner'>
+<div class='vm-rss-composer'>
+<div><div class='vm-label'>FRIENDLY NAME</div><input class='vm-input' placeholder='Nintendo'></div>
+<div><div class='vm-label'>FEED URL</div><input class='vm-input' type='url' placeholder='https://example.com/feed.xml'></div>
+<div><div class='vm-label'>MAX POSTS</div><input class='vm-input' type='number' value='8'></div>
+<button class='vm-btn vm-btn--primary' type='button'>+ Add</button>
+<button class='vm-btn vm-btn--secondary' type='button'>Reset</button>
+</div></div>
+<div class='vm-rss-list'>
+<div class='rss-row'><div>
+<p class='rss-title'>Nintendo<span class='rss-chip'>max 5</span></p>
+<p class='rss-meta'>https://www.nintendo.com/us/whatsnew/feed/</p>
+</div><div class='rss-actions'>
+<button class='vm-btn vm-btn--sm vm-btn--warn' type='button'>Edit</button>
+<button class='vm-btn vm-btn--sm vm-btn--danger' type='button'>Delete</button>
+</div></div>
+<div class='rss-row'><div>
+<p class='rss-title'>Ars Technica<span class='rss-chip'>max 8</span></p>
+<p class='rss-meta'>https://feeds.arstechnica.com/arstechnica/index</p>
+</div><div class='rss-actions'>
+<button class='vm-btn vm-btn--sm vm-btn--warn' type='button'>Edit</button>
+<button class='vm-btn vm-btn--sm vm-btn--danger' type='button'>Delete</button>
+</div></div>
+</div>
+</div>
+
+<!-- BUTTONS -->
+<div class='vm-actions'>
+<button class='vm-btn vm-btn--primary' type='submit'>Save Config</button>
+<button class='vm-btn vm-btn--secondary' type='submit'>Force Reload</button>
+</div>
+</form>
+
+<!-- SYSTEM INFO -->
+<div class='vm-card'><h2 class='vm-card__hd'>⚙ System Info</h2>
+<div class='vm-grid'>
+<div>
+<div class='vm-label'>NETWORK</div>
+<div class='vm-kv'>
+<small>ip: </small><code>192.168.1.42</code><br>
+<small>ssid: </small><code>HomeWiFi</code><br>
+<small>rssi: </small><code>-52 dBm</code><br>
+<small>mac: </small><code>1C:DB:D4:48:FC:24</code><br>
+<small>dns: </small><code>8.8.8.8 / 8.8.4.4</code>
+</div></div>
+<div>
+<div class='vm-label'>FIRMWARE &amp; RUNTIME</div>
+<div class='vm-kv'>
+<small>fw: </small><code>DB-M0-r197</code><br>
+<small>date: </small><code>2026-03-19</code><br>
+<small>lang: </small><code>it</code><br>
+<small>theme: </small><code>ScryBar Default</code><br>
+<small>uptime: </small><code>3842s</code><br>
+<small>free heap: </small><code>142 KB</code>
+</div></div>
+</div></div>
+
+<p class='vm-api-note'><small>$ API ready: <code>GET /api/config</code>, <code>POST /api/config</code>, <code>GET /api/wifi/scan</code>.</small></p>
+
+<footer class='vm-footer'><strong>A project by Netmilk Studio sagl</strong> | Copyright 2026<br>Open Source under the <a href='#'>MIT License</a> | Feel free to steal, fork, remix, and ship.</footer>
+
+</section></main></body></html>
