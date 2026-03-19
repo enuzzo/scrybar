@@ -64,8 +64,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showContextMenu() {
         let menu = NSMenu()
-        menu.addItem(withTitle: "Send Now", action: #selector(contextSendNow), keyEquivalent: "")
-        menu.addItem(.separator())
         menu.addItem(withTitle: "Settings…", action: #selector(contextOpenSettings), keyEquivalent: ",")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit ScryBar Companion", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -91,13 +89,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Popover
 
     private func setupPopover() {
-        popover.contentSize = NSSize(width: 320, height: 280)
+        popover.contentSize = NSSize(width: 300, height: 140)
         popover.behavior = .transient
-        popover.animates = true
+        popover.animates = false
         let hostingController = NSHostingController(
             rootView: PopoverContentView()
                 .environmentObject(model)
         )
+        // Force layout now so first open is instant
+        hostingController.view.layoutSubtreeIfNeeded()
         popover.contentViewController = hostingController
     }
 

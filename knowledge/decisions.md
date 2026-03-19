@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-03-19 - Switch from MediaRemote C API to JXA/osascript Bridge for Now Playing
+
+- Context: macOS 15.4 introduced entitlement verification in `mediaremoted` that blocks unsigned apps from using `MRMediaRemoteGetNowPlayingInfo` and related C function APIs. The companion's `MediaRemoteBridge` (dlopen + semaphore approach) stopped receiving data entirely — callbacks returned `Operation not permitted` (error code 3). Notification registration was silently accepted but never fired. Multiple workarounds attempted (separate queues, notification-based caching) all failed because the block is at the framework/daemon level.
+- Decision: Replace the direct C function bridge with a JXA (JavaScript for Automation) script executed via `/usr/bin/osascript`. The system binary has full MediaRemote entitlements. The script accesses `MRNowPlayingRequest` (Obj-C class) through the JXA bridge, returning JSON with title, artist, album, duration, elapsed, playback state, client bundle ID, and artwork identifier. Artwork resolution uses a three-tier strategy: direct URL (Apple Music), template expansion (Podcasts `{w}x{h}bb.{f}`), or iTunes Search API fallback (TIDAL and others). Process runs in `Task.detached` to avoid blocking the main thread.
+- Impact/Tradeoffs: Works reliably across TIDAL, Apple Music, Podcasts, and any other MediaRemote-registered source. ~50-100ms per osascript invocation (acceptable at 1s polling). Binary artwork data (`kMRMediaRemoteNowPlayingInfoArtworkData`) is NOT extractable via JXA (blob type not bridged), so artwork must come from URLs or API fallback. Future macOS updates could change JXA bridge behavior, but Apple can't revoke entitlements from `/usr/bin/osascript` without breaking the entire automation ecosystem.
+
+---
+
 ## 2026-03-18 - Local macOS Companion Uses `MediaRemote.framework` as Primary Now Playing Source
 
 - Context: The product needs a practical, universal `Now Playing` feed for a local GitHub-distributed macOS companion, not an App Store-safe media app. Public Apple media APIs are oriented around publishing metadata for the current app, while the Mac already exposes a system-wide Now Playing feed internally.

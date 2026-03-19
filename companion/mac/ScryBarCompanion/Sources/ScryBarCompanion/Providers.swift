@@ -588,7 +588,11 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
       for (var i = 0; i < keys.count; i++) {
         var k = keys.objectAtIndex(i).js;
         var v = dict.valueForKey(keys.objectAtIndex(i));
-        try { info[k] = v.js; } catch(e) { try { info[k] = v.toString(); } catch(e2) {} }
+        if (k === "kMRMediaRemoteNowPlayingInfoArtworkData") {
+          try { info[k] = v.base64EncodedStringWithOptions(0).js; } catch(e) {}
+        } else {
+          try { info[k] = v.js; } catch(e) { try { info[k] = v.toString(); } catch(e2) {} }
+        }
       }
       return JSON.stringify({ isPlaying: Req.localIsPlaying, client: ci, info: info });
     }
@@ -645,6 +649,23 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
 
         NSLog("[ScryBar] SystemProvider: title=%@ artist=%@ source=%@", title, artist, source)
 
+        // artworkIdentifier may be a direct URL, a template with {w}/{h}/{f} placeholders,
+        // or an opaque hash (TIDAL). Resolve to a concrete URL when possible.
+        let artworkID = info["kMRMediaRemoteNowPlayingInfoArtworkIdentifier"] as? String
+        let artworkURL: String? = {
+            guard var id = artworkID else { return nil }
+            // Expand Apple template placeholders: {w}x{h}bb.{f}
+            if id.contains("{w}") || id.contains("{h}") || id.contains("{f}") {
+                id = id.replacingOccurrences(of: "{w}", with: "600")
+                id = id.replacingOccurrences(of: "{h}", with: "600")
+                id = id.replacingOccurrences(of: "{f}", with: "jpg")
+            }
+            guard let url = URL(string: id),
+                  let scheme = url.scheme?.lowercased(),
+                  scheme == "http" || scheme == "https" else { return nil }
+            return id
+        }()
+
         return NowPlayingPayload(
             title: title,
             artist: artist,
@@ -655,8 +676,8 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             elapsedSec: elapsedSec,
             isPlaying: isPlaying || playbackRate > 0.001,
             inSync: true,
-            artworkURL: nil,
-            artworkID: info["kMRMediaRemoteNowPlayingInfoArtworkIdentifier"] as? String,
+            artworkURL: artworkURL,
+            artworkID: artworkID,
             artworkWidth: nil,
             artworkHeight: nil,
             artworkRGB565B64: nil,

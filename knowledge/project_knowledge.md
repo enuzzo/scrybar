@@ -105,24 +105,50 @@ Current production direction:
 
 - Firmware advertises `_scrybar._tcp` and accepts `GET/POST /api/now-playing`.
 - Firmware `Now Playing` UI is tuned on real hardware and already consumes live payloads from the companion.
-- Companion default provider is the macOS system now-playing feed via private `MediaRemote.framework`.
-- Fallback providers can stay source-specific (`Music.app`, future adapters) but should not be the primary architecture anymore.
-
-Validated `MediaRemote` bridge surface:
-
-- `MRMediaRemoteGetNowPlayingInfo`
-- `MRMediaRemoteGetNowPlayingApplicationPlaybackState`
-- `MRMediaRemoteGetNowPlayingClient`
-- `MRMediaRemoteRegisterForNowPlayingNotifications`
-- `MRMediaRemoteUnregisterForNowPlayingNotifications`
-- `MRMediaRemoteSendCommand`
-
-Observed behavior rules:
-
-- Track metadata can be present even when client/app labeling is missing.
-- Artwork bytes and MIME type can be read directly from the system feed.
-- Provider code should use a background queue for callback-based `MediaRemote` fetches.
+- Companion default provider is the macOS system now-playing feed via JXA/osascript (see below).
+- Fallback providers: `TidalNowPlayingProvider` (TIDAL local cache parsing), `MusicNowPlayingProvider` (Music.app AppleScript).
 - Firmware sync badge is freshness-based: keep content visible, but flip sync state when payload refresh stops.
+
+### macOS 15.4+ MediaRemote Entitlement Restriction
+
+**Critical:** macOS 15.4 blocks unsigned apps from using `MediaRemote.framework` C function APIs (`MRMediaRemoteGetNowPlayingInfo`, etc.). Calls return `Operation not permitted` (error code 3). The notification registration API (`MRMediaRemoteRegisterForNowPlayingNotifications`) is silently accepted but notifications never fire.
+
+**Solution:** Use JXA (JavaScript for Automation) via `/usr/bin/osascript`, which is an entitled system binary. The JXA script accesses `MRNowPlayingRequest` (Objective-C class) through the JXA bridge:
+
+```javascript
+var Req = $.NSClassFromString("MRNowPlayingRequest");
+var dict = Req.localNowPlayingItem.nowPlayingInfo;  // all metadata
+var isPlaying = Req.localIsPlaying;                  // playback state
+var client = Req.localNowPlayingPlayerPath.client;   // bundle ID
+```
+
+Key classes: `MRNowPlayingRequest` (static), `MRContentItem` (returned by `.localNowPlayingItem`).
+
+### Artwork Resolution by Source
+
+`kMRMediaRemoteNowPlayingInfoArtworkIdentifier` format varies by player app:
+
+| Source | Format | Action |
+|--------|--------|--------|
+| Apple Music | Direct HTTPS URL | Use as-is |
+| Apple Podcasts | Template URL (`{w}x{h}bb.{f}`) | Expand to `600x600bb.jpg` |
+| TIDAL | Opaque hex hash | Fallback to iTunes Search API |
+| Others | Unknown | Fallback to iTunes Search API |
+
+iTunes Search API fallback: `https://itunes.apple.com/search?term=ARTIST+TITLE&media=music&limit=1` → `artworkUrl100` → replace `100x100` with `600x600`.
+
+`kMRMediaRemoteNowPlayingInfoArtworkData` exists in the dictionary but is NOT extractable via JXA (binary blob type not bridged properly — `base64EncodedStringWithOptions` fails).
+
+### Companion Build Commands
+
+```bash
+cd companion/mac/ScryBarCompanion
+xcodegen generate
+swift build
+# or open ScryBarCompanion.xcodeproj in Xcode → Cmd+R
+```
+
+Bump `CURRENT_PROJECT_VERSION` in `project.yml` for every release.
 
 Wi-Fi preference behavior:
 
