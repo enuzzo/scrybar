@@ -31,95 +31,91 @@ struct SettingsView: View {
 
             Divider().overlay(CompanionTheme.divider)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Provider
-                    settingRow("Provider") {
-                        Picker("", selection: $model.providerKind) {
-                            ForEach(ProviderKind.allCases) { kind in
-                                Text(kind.rawValue).tag(kind)
+            VStack(alignment: .leading, spacing: 14) {
+                // Provider
+                settingRow("Provider") {
+                    Picker("", selection: $model.providerKind) {
+                        ForEach(ProviderKind.allCases) { kind in
+                            Text(kind.rawValue).tag(kind)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                }
+
+                // Target
+                settingRow("Target") {
+                    if model.discoveredEndpoints.isEmpty {
+                        Text("No device found")
+                            .font(.system(size: 12))
+                            .foregroundStyle(CompanionTheme.textTertiary)
+                    } else {
+                        Picker("", selection: $model.selectedDiscoveredEndpointID) {
+                            ForEach(model.discoveredEndpoints) { endpoint in
+                                Text(endpoint.name)
+                                    .tag(Optional(endpoint.id))
                             }
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
                     }
+                }
 
-                    // Target
-                    settingRow("Target") {
-                        if model.discoveredEndpoints.isEmpty {
-                            Text("No device found")
+                if let endpoint = model.selectedEndpoint {
+                    Text("\(endpoint.host):\(endpoint.port)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(CompanionTheme.textTertiary)
+                        .padding(.top, -6)
+                }
+
+                Divider().overlay(CompanionTheme.divider)
+
+                // Manual target
+                DisclosureGroup("Manual Target") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        settingRow("Host") {
+                            TextField("Hostname or IP", text: $model.manualHost)
+                                .textFieldStyle(.roundedBorder)
                                 .font(.system(size: 12))
-                                .foregroundStyle(CompanionTheme.textTertiary)
-                        } else {
-                            Picker("", selection: $model.selectedDiscoveredEndpointID) {
-                                ForEach(model.discoveredEndpoints) { endpoint in
-                                    Text(endpoint.name)
-                                        .tag(Optional(endpoint.id))
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
                         }
-                    }
-
-                    if let endpoint = model.selectedEndpoint {
-                        Text("\(endpoint.host):\(endpoint.port)")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(CompanionTheme.textTertiary)
-                            .padding(.top, -8)
-                    }
-
-                    Divider().overlay(CompanionTheme.divider)
-
-                    // Manual target
-                    DisclosureGroup("Manual Target") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            settingRow("Host") {
-                                TextField("Hostname or IP", text: $model.manualHost)
-                                    .textFieldStyle(.roundedBorder)
-                                    .font(.system(size: 12))
-                            }
-                            settingRow("Port") {
-                                TextField("8080", text: $model.manualPort)
-                                    .textFieldStyle(.roundedBorder)
-                                    .font(.system(size: 12))
-                            }
-                            Button("Save") {
-                                model.saveManualTarget()
-                            }
-                            .buttonStyle(CompanionSecondaryButtonStyle())
-                            .controlSize(.small)
+                        settingRow("Port") {
+                            TextField("8080", text: $model.manualPort)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(size: 12))
                         }
-                        .padding(.top, 4)
-                    }
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(CompanionTheme.textSecondary)
-
-                    Divider().overlay(CompanionTheme.divider)
-
-                    // Auto-send
-                    settingRow("Auto-send") {
-                        Toggle("", isOn: Binding(
-                            get: { model.autoSendEnabled },
-                            set: { model.setAutoSend($0) }
-                        ))
-                        .labelsHidden()
-                        .toggleStyle(.switch)
+                        Button("Save") {
+                            model.saveManualTarget()
+                        }
+                        .buttonStyle(CompanionSecondaryButtonStyle())
                         .controlSize(.small)
                     }
-
-                    Spacer(minLength: 8)
-
-                    // Version badge
-                    Text(versionString)
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(CompanionTheme.textDisabled)
+                    .padding(.top, 4)
                 }
-                .padding(.top, 12)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(CompanionTheme.textSecondary)
+
+                Divider().overlay(CompanionTheme.divider)
+
+                // Auto-send
+                settingRow("Auto-send") {
+                    Toggle("", isOn: Binding(
+                        get: { model.autoSendEnabled },
+                        set: { model.setAutoSend($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+
+                // Version badge
+                Text(versionString)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(CompanionTheme.textDisabled)
             }
+            .padding(.top, 10)
         }
-        .padding(16)
-        .frame(width: 320)
+        .padding(14)
+        .frame(width: 300)
         .background(CompanionTheme.windowBackground)
         .preferredColorScheme(.dark)
     }
