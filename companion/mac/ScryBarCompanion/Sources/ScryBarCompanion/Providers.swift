@@ -565,10 +565,6 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     private var cachedArtwork: EncodedArtwork?
 
     func snapshot() -> NowPlayingPayload? {
-        // Trigger an async refresh so the next poll gets fresh data.
-        // The current call returns whatever was cached from the last refresh.
-        bridge.requestRefresh()
-
         guard let snapshot = bridge.snapshot() else { return nil }
 
         let info = snapshot.info
@@ -823,13 +819,6 @@ private final class MediaRemoteBridge: @unchecked Sendable {
     private let getPlaybackStateFn: GetPlaybackStateFn?
     private let getClientFn: GetClientFn?
 
-    // Async-refreshed cache: snapshot() returns latest cached data,
-    // requestRefresh() triggers a non-blocking background query.
-    // This avoids semaphores while keeping data fresh.
-    private var cachedInfo: [String: Any] = [:]
-    private var cachedPlaybackState: Int = 0
-    private var cachedClient: [String: Any] = [:]
-
     init() {
         let frameworkPath = "/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote"
         frameworkHandle = dlopen(frameworkPath, RTLD_NOW)
@@ -853,9 +842,6 @@ private final class MediaRemoteBridge: @unchecked Sendable {
         ) {
             registerFn(queue)
         }
-
-        // Seed the cache with initial data
-        refetchAll()
     }
 
     deinit {
@@ -869,48 +855,45 @@ private final class MediaRemoteBridge: @unchecked Sendable {
         }
     }
 
-    /// Returns the latest cached snapshot. Non-blocking.
-    func snapshot() -> Snapshot? {
-        guard !cachedInfo.isEmpty else { return nil }
-        return Snapshot(
-            info: cachedInfo,
-            client: cachedClient,
-            playbackState: cachedPlaybackState
-        )
-    }
+    /// Synchronous query to MediaRemote. Blocks the calling thread (up to
+    /// timeout) but returns guaranteed-fresh data. Safe because callers
+    /// run this on a background thread via Task.detached.
+    func snapshot(timeout: TimeInterval = 0.5) -> Snapshot? {
+        guard let getNowPlayingInfoFn else { return nil }
 
-    /// Fires an async query to MediaRemote. The result lands in the cache
-    /// and will be returned by the next snapshot() call. Non-blocking.
-    func requestRefresh() {
-        refetchAll()
-    }
+        let deadline = DispatchTime.now() + timeout
+        var info: [String: Any] = [:]
+        var playbackState = 0
+        var client: [String: Any] = [:]
 
-    // MARK: - Async fetches (all non-blocking, callback-based)
-
-    private func refetchAll() {
-        guard let getNowPlayingInfoFn else { return }
-        getNowPlayingInfoFn(queue) { [weak self] dictionary in
-            guard let self else { return }
-            if let dict = dictionary as? [String: Any], !dict.isEmpty {
-                self.cachedInfo = dict
-            }
+        let infoSem = DispatchSemaphore(value: 0)
+        getNowPlayingInfoFn(queue) { dict in
+            if let d = dict as? [String: Any] { info = d }
+            infoSem.signal()
         }
+        guard infoSem.wait(timeout: deadline) == .success else { return nil }
 
         if let getPlaybackStateFn {
-            getPlaybackStateFn(queue) { [weak self] state in
-                self?.cachedPlaybackState = state
+            let stateSem = DispatchSemaphore(value: 0)
+            getPlaybackStateFn(queue) { state in
+                playbackState = state
+                stateSem.signal()
             }
+            _ = stateSem.wait(timeout: deadline)
         }
 
         if let getClientFn {
-            getClientFn(queue) { [weak self] object in
-                if let dict = object as? [String: Any] {
-                    self?.cachedClient = dict
-                } else if let dict = object as? NSDictionary as? [String: Any] {
-                    self?.cachedClient = dict
-                }
+            let clientSem = DispatchSemaphore(value: 0)
+            getClientFn(queue) { obj in
+                if let d = obj as? [String: Any] { client = d }
+                else if let d = obj as? NSDictionary as? [String: Any] { client = d }
+                clientSem.signal()
             }
+            _ = clientSem.wait(timeout: deadline)
         }
+
+        if info.isEmpty { return nil }
+        return Snapshot(info: info, client: client, playbackState: playbackState)
     }
 
     private static func resolve<T>(_ symbol: String, from handle: UnsafeMutableRawPointer?) -> T? {
