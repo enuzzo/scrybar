@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScryBar Firmware Flasher</title>
+  <script
+    type="module"
+    src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"
+  ></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1.5rem;
+    }
+
+    .container {
+      max-width: 720px;
+      width: 100%;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: #888;
+      font-size: 0.9rem;
+      margin-bottom: 2.5rem;
+      line-height: 1.5;
+    }
+
+    .cards {
+      display: flex;
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .card {
+      flex: 1;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 1.5rem;
+      background: #111;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .card .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.15rem 0.5rem;
+      border-radius: 3px;
+      margin-bottom: 0.75rem;
+      width: fit-content;
+    }
+
+    .card-full .tag {
+      background: #1a3a2a;
+      color: #4ade80;
+    }
+
+    .card-lite .tag {
+      background: #1a2a3a;
+      color: #60a5fa;
+    }
+
+    .card p {
+      font-size: 0.85rem;
+      color: #999;
+      line-height: 1.5;
+      margin-bottom: 1.25rem;
+      flex-grow: 1;
+    }
+
+    esp-web-install-button {
+      display: block;
+    }
+
+    esp-web-install-button button,
+    esp-web-install-button [slot="activate"] {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: 1px solid #333;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .card-full esp-web-install-button button {
+      background: #166534;
+      color: #e0e0e0;
+      border-color: #22803d;
+    }
+    .card-full esp-web-install-button button:hover {
+      background: #1a7a3e;
+      border-color: #2ea04e;
+    }
+
+    .card-lite esp-web-install-button button {
+      background: #1e3a5f;
+      color: #e0e0e0;
+      border-color: #2a5080;
+    }
+    .card-lite esp-web-install-button button:hover {
+      background: #254a75;
+      border-color: #3568a0;
+    }
+
+    .post-flash {
+      border-top: 1px solid #1a1a1a;
+      padding-top: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .post-flash h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .post-flash ol {
+      padding-left: 1.5rem;
+      font-size: 0.85rem;
+      color: #999;
+      line-height: 1.8;
+    }
+
+    .post-flash code {
+      background: #1a1a1a;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.8rem;
+      color: #ccc;
+    }
+
+    footer {
+      border-top: 1px solid #1a1a1a;
+      padding-top: 1.5rem;
+      font-size: 0.75rem;
+      color: #555;
+      line-height: 1.6;
+    }
+
+    footer a {
+      color: #888;
+      text-decoration: none;
+    }
+    footer a:hover {
+      color: #bbb;
+    }
+
+    @media (max-width: 560px) {
+      .cards { flex-direction: column; }
+      h1 { font-size: 1.4rem; }
+      body { padding: 2rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ScryBar Firmware Flasher</h1>
+    <p class="subtitle">
+      Flash ScryBar firmware directly from your browser via USB.
+      No tools to install. Pick a variant, plug in, click flash.
+    </p>
+
+    <div class="cards">
+      <div class="card card-full">
+        <h2>Full</h2>
+        <span class="tag">recommended</span>
+        <p>
+          Everything included: word clock, weather, RSS reader,
+          Wikipedia deck, and DOOM.
+        </p>
+        <esp-web-install-button manifest="manifest-full.json">
+          <button slot="activate">Install Full</button>
+        </esp-web-install-button>
+      </div>
+
+      <div class="card card-lite">
+        <h2>Lite</h2>
+        <span class="tag">smaller</span>
+        <p>
+          Word clock, weather, RSS reader, Wikipedia deck.
+          No DOOM &mdash; smaller flash footprint.
+        </p>
+        <esp-web-install-button manifest="manifest-lite.json">
+          <button slot="activate">Install Lite</button>
+        </esp-web-install-button>
+      </div>
+    </div>
+
+    <section class="post-flash">
+      <h2>After flashing</h2>
+      <ol>
+        <li>Device boots and starts a WiFi access point
+            (<code>ScryBar-Setup-XXXX</code>)</li>
+        <li>Connect to it from your phone or laptop</li>
+        <li>Open <code>http://192.168.4.1:8080</code> to configure
+            WiFi, theme, language, weather location, and more</li>
+      </ol>
+    </section>
+
+    <footer>
+      <p>
+        Requires a Chromium-based browser (Chrome, Edge, Opera) with
+        <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API">Web Serial</a>
+        support. Safari and Firefox are not supported.
+      </p>
+      <p>
+        <a href="https://github.com/enuzzo/scrybar">ScryBar on GitHub</a>
+      </p>
+    </footer>
+  </div>
+</body>
+</html>
