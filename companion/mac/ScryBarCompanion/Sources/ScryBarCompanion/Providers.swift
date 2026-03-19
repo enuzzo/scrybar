@@ -228,6 +228,30 @@ final class TidalNowPlayingProvider: NowPlayingProviding {
         }
     }
 
+    /// Chromium Simple Cache files use `hash_0` / `hash_s` naming (no dot extension).
+    /// Match by filename suffix instead of pathExtension.
+    private func candidateCacheDataFiles(suffixes: Set<String> = ["_0", "_s"]) -> [URL] {
+        guard let enumerator = fileManager.enumerator(
+            at: cacheDataURL,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+        ) else {
+            return []
+        }
+
+        return enumerator.compactMap { item in
+            guard let url = item as? URL else { return nil }
+            let name = url.lastPathComponent
+            guard suffixes.contains(where: { name.hasSuffix($0) }) else { return nil }
+            return url
+        }
+        .sorted { lhs, rhs in
+            let lhsDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let rhsDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return lhsDate > rhsDate
+        }
+    }
+
     private func playerStates(in fileURL: URL) -> [TidalPlayerState] {
         guard let string = lossyString(from: fileURL) else { return [] }
 
@@ -307,7 +331,7 @@ final class TidalNowPlayingProvider: NowPlayingProviding {
     }
 
     private func queuePlaybackCandidates(maxFiles: Int = 80, maxAgeMs: Int64 = 7_200_000) -> [TidalPlaybackCandidate] {
-        let files = Array(candidateFiles(in: cacheDataURL, extensions: ["0", "s"]).prefix(maxFiles))
+        let files = Array(candidateCacheDataFiles().prefix(maxFiles))
         var queueStateMap: [String: TidalQueueState] = [:]
         var queuePageList: [TidalQueuePage] = []
 
@@ -382,7 +406,7 @@ final class TidalNowPlayingProvider: NowPlayingProviding {
     }
 
     private func cachedTrackMetadata(for mediaID: String) -> TidalTrackMetadata? {
-        let files = candidateFiles(in: cacheDataURL, extensions: ["0", "s"])
+        let files = candidateCacheDataFiles()
         for file in files {
             guard let string = lossyString(from: file) else { continue }
             guard string.contains("\"id\":\(mediaID),") || string.contains("/track/\(mediaID)") || string.contains("/v1/tracks/\(mediaID)") else {

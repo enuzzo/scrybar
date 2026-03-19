@@ -9,26 +9,26 @@
 /* Begin PBXBuildFile section */
 		06F32E47268A0EC3E08D735A /* CompanionTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */; };
 		095EE31AE5D86F1A533F6AE7 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E22A120EAA9F0E38CDE52E /* Providers.swift */; };
-		0CAE1B3466770014615DFE19 /* ConnectionSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F4AD72F7F93DD097033F955 /* ConnectionSidebarView.swift */; };
 		153681E18B8A702FBDCA3DBA /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B39588B77F90F5443B7C566 /* AppModel.swift */; };
-		42D1EE1D704C39C465470D4A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56D9B1F1233189FF6871DAF0 /* ContentView.swift */; };
+		3AF38F9540ADEDB98E4E5013 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8457A3E5152784A5FAE2409D /* PopoverView.swift */; };
 		661EF4ED3C28FC96B302735D /* ScryBarDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */; };
-		6E06C59B8791912253F554F5 /* NowPlayingDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54319E9E61B9FB5FA9D616D7 /* NowPlayingDashboardView.swift */; };
+		C4606DA61C5D5D5F6284D891 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75DD8079B5ADB50FEE32FF69 /* AppDelegate.swift */; };
 		C4A8CD9C086EB31EB4423EA7 /* ScryBarClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */; };
 		C8D821386881FE043880AEF0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD873F0A8B6D5871731A68D /* Models.swift */; };
+		D2C4F19151AA9B1825BDD110 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5953F94113F0DC311E0FB3BC /* SettingsView.swift */; };
 		EA4615C1C064F288A261B81F /* ScryBarCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarCompanionApp.swift; sourceTree = "<group>"; };
 		2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarDiscovery.swift; sourceTree = "<group>"; };
-		54319E9E61B9FB5FA9D616D7 /* NowPlayingDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingDashboardView.swift; sourceTree = "<group>"; };
-		56D9B1F1233189FF6871DAF0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		5953F94113F0DC311E0FB3BC /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5B39588B77F90F5443B7C566 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionTheme.swift; sourceTree = "<group>"; };
 		696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarClient.swift; sourceTree = "<group>"; };
 		701ED3BD5F30348EBC049C90 /* ScryBarCompanion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScryBarCompanion.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		7F4AD72F7F93DD097033F955 /* ConnectionSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSidebarView.swift; sourceTree = "<group>"; };
+		75DD8079B5ADB50FEE32FF69 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		8457A3E5152784A5FAE2409D /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		9FD873F0A8B6D5871731A68D /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		C8E22A120EAA9F0E38CDE52E /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -53,16 +53,16 @@
 		491D2FC8D46617D8B7FB38FE /* ScryBarCompanion */ = {
 			isa = PBXGroup;
 			children = (
+				75DD8079B5ADB50FEE32FF69 /* AppDelegate.swift */,
 				5B39588B77F90F5443B7C566 /* AppModel.swift */,
 				682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */,
-				7F4AD72F7F93DD097033F955 /* ConnectionSidebarView.swift */,
-				56D9B1F1233189FF6871DAF0 /* ContentView.swift */,
 				9FD873F0A8B6D5871731A68D /* Models.swift */,
-				54319E9E61B9FB5FA9D616D7 /* NowPlayingDashboardView.swift */,
+				8457A3E5152784A5FAE2409D /* PopoverView.swift */,
 				C8E22A120EAA9F0E38CDE52E /* Providers.swift */,
 				696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */,
 				1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */,
 				2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */,
+				5953F94113F0DC311E0FB3BC /* SettingsView.swift */,
 			);
 			path = ScryBarCompanion;
 			sourceTree = "<group>";
@@ -134,16 +134,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C4606DA61C5D5D5F6284D891 /* AppDelegate.swift in Sources */,
 				153681E18B8A702FBDCA3DBA /* AppModel.swift in Sources */,
 				06F32E47268A0EC3E08D735A /* CompanionTheme.swift in Sources */,
-				0CAE1B3466770014615DFE19 /* ConnectionSidebarView.swift in Sources */,
-				42D1EE1D704C39C465470D4A /* ContentView.swift in Sources */,
 				C8D821386881FE043880AEF0 /* Models.swift in Sources */,
-				6E06C59B8791912253F554F5 /* NowPlayingDashboardView.swift in Sources */,
+				3AF38F9540ADEDB98E4E5013 /* PopoverView.swift in Sources */,
 				095EE31AE5D86F1A533F6AE7 /* Providers.swift in Sources */,
 				C4A8CD9C086EB31EB4423EA7 /* ScryBarClient.swift in Sources */,
 				EA4615C1C064F288A261B81F /* ScryBarCompanionApp.swift in Sources */,
 				661EF4ED3C28FC96B302735D /* ScryBarDiscovery.swift in Sources */,
+				D2C4F19151AA9B1825BDD110 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -185,7 +185,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -207,12 +207,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "ScryBar Companion";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.2.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -260,7 +261,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -276,12 +277,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "ScryBar Companion";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.2.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netmilk.ScryBarCompanion;
