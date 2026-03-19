@@ -13337,8 +13337,8 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_style_text_color(ui.track, lv_color_hex(0xFFFFFF), 0);
   lv_obj_set_style_text_line_space(ui.track, 0, 0);
   lv_label_set_long_mode(ui.track, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(ui.track, textW, 48);
-  lv_obj_set_pos(ui.track, contentX, bodyTop + 13);
+  lv_obj_set_size(ui.track, textW, 60);
+  lv_obj_set_pos(ui.track, contentX, bodyTop + 10);
   lv_label_set_text(ui.track, "");
   lvglForceLabelVisible(ui.track);
 
@@ -13346,8 +13346,8 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_style_text_font(ui.artist, lvglNowPlayingArtistFont(), 0);
   lv_obj_set_style_text_color(ui.artist, lv_color_hex(0xFFF3F8), 0);
   lv_obj_set_style_text_line_space(ui.artist, 0, 0);
-  lv_label_set_long_mode(ui.artist, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(ui.artist, textW, LV_SIZE_CONTENT);
+  lv_label_set_long_mode(ui.artist, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(ui.artist, textW, 28);
   lv_obj_set_pos(ui.artist, contentX, cH - 44);
   lv_label_set_text(ui.artist, "");
   lvglForceLabelVisible(ui.artist);
