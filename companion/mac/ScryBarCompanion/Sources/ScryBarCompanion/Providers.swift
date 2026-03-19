@@ -804,6 +804,8 @@ private final class MediaRemoteBridge {
     private typealias GetNowPlayingInfoFn = @convention(c) (DispatchQueue, @escaping @convention(block) (CFDictionary?) -> Void) -> Void
     private typealias GetPlaybackStateFn = @convention(c) (DispatchQueue, @escaping @convention(block) (Int) -> Void) -> Void
     private typealias GetClientFn = @convention(c) (DispatchQueue, @escaping @convention(block) (AnyObject?) -> Void) -> Void
+    private typealias RegisterNotificationsFn = @convention(c) (DispatchQueue) -> Void
+    private typealias UnregisterNotificationsFn = @convention(c) (DispatchQueue) -> Void
 
     struct Snapshot {
         var info: [String: Any]
@@ -834,10 +836,24 @@ private final class MediaRemoteBridge {
         getNowPlayingInfoFn = MediaRemoteBridge.resolve("MRMediaRemoteGetNowPlayingInfo", from: frameworkHandle)
         getPlaybackStateFn = MediaRemoteBridge.resolve("MRMediaRemoteGetNowPlayingApplicationPlaybackState", from: frameworkHandle)
         getClientFn = MediaRemoteBridge.resolve("MRMediaRemoteGetNowPlayingClient", from: frameworkHandle)
+
+        // Register for now-playing notifications so the framework keeps its
+        // internal state fresh. Without this, MRMediaRemoteGetNowPlayingInfo
+        // returns stale/cached data and track changes are never reflected.
+        if let registerFn: RegisterNotificationsFn = MediaRemoteBridge.resolve(
+            "MRMediaRemoteRegisterForNowPlayingNotifications", from: frameworkHandle
+        ) {
+            registerFn(queue)
+        }
     }
 
     deinit {
         if let frameworkHandle {
+            if let unregisterFn: UnregisterNotificationsFn = MediaRemoteBridge.resolve(
+                "MRMediaRemoteUnregisterForNowPlayingNotifications", from: frameworkHandle
+            ) {
+                unregisterFn(queue)
+            }
             dlclose(frameworkHandle)
         }
     }
