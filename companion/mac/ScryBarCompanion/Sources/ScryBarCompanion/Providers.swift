@@ -565,9 +565,16 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     private var cachedArtwork: EncodedArtwork?
 
     func snapshot() -> NowPlayingPayload? {
-        guard let snapshot = bridge.snapshot() else { return nil }
+        guard let snapshot = bridge.snapshot() else {
+            NSLog("[ScryBar] SystemProvider: bridge returned nil")
+            return nil
+        }
 
         let info = snapshot.info
+        let debugTitle = (info[MediaRemoteBridge.titleKey] as? String) ?? "(nil)"
+        let debugArtist = (info[MediaRemoteBridge.artistKey] as? String) ?? "(nil)"
+        NSLog("[ScryBar] SystemProvider: title=%@ artist=%@", debugTitle, debugArtist)
+
         guard let title = mediaRemoteString(info[MediaRemoteBridge.titleKey]), !title.isEmpty else {
             return nil
         }
@@ -813,7 +820,10 @@ private final class MediaRemoteBridge: @unchecked Sendable {
         var playbackState: Int
     }
 
-    private let queue = DispatchQueue(label: "ScryBar.MediaRemote")
+    // Separate queues: one for query callbacks, one for notification registration.
+    // Using the same queue for both caused getNowPlayingInfo callbacks to never fire.
+    private let queryQueue = DispatchQueue(label: "ScryBar.MediaRemote.query")
+    private let notifyQueue = DispatchQueue(label: "ScryBar.MediaRemote.notify")
     private let frameworkHandle: UnsafeMutableRawPointer?
     private let getNowPlayingInfoFn: GetNowPlayingInfoFn?
     private let getPlaybackStateFn: GetPlaybackStateFn?
@@ -837,10 +847,12 @@ private final class MediaRemoteBridge: @unchecked Sendable {
         getPlaybackStateFn = MediaRemoteBridge.resolve("MRMediaRemoteGetNowPlayingApplicationPlaybackState", from: frameworkHandle)
         getClientFn = MediaRemoteBridge.resolve("MRMediaRemoteGetNowPlayingClient", from: frameworkHandle)
 
+        // Register on a separate queue so notification processing
+        // doesn't block the query callback queue
         if let registerFn: RegisterNotificationsFn = MediaRemoteBridge.resolve(
             "MRMediaRemoteRegisterForNowPlayingNotifications", from: frameworkHandle
         ) {
-            registerFn(queue)
+            registerFn(notifyQueue)
         }
     }
 
@@ -849,7 +861,7 @@ private final class MediaRemoteBridge: @unchecked Sendable {
             if let unregisterFn: UnregisterNotificationsFn = MediaRemoteBridge.resolve(
                 "MRMediaRemoteUnregisterForNowPlayingNotifications", from: frameworkHandle
             ) {
-                unregisterFn(queue)
+                unregisterFn(notifyQueue)
             }
             dlclose(frameworkHandle)
         }
@@ -867,15 +879,18 @@ private final class MediaRemoteBridge: @unchecked Sendable {
         var client: [String: Any] = [:]
 
         let infoSem = DispatchSemaphore(value: 0)
-        getNowPlayingInfoFn(queue) { dict in
+        getNowPlayingInfoFn(queryQueue) { dict in
             if let d = dict as? [String: Any] { info = d }
             infoSem.signal()
         }
-        guard infoSem.wait(timeout: deadline) == .success else { return nil }
+        guard infoSem.wait(timeout: deadline) == .success else {
+            NSLog("[ScryBar] MediaRemote info query TIMED OUT")
+            return nil
+        }
 
         if let getPlaybackStateFn {
             let stateSem = DispatchSemaphore(value: 0)
-            getPlaybackStateFn(queue) { state in
+            getPlaybackStateFn(queryQueue) { state in
                 playbackState = state
                 stateSem.signal()
             }
@@ -884,7 +899,7 @@ private final class MediaRemoteBridge: @unchecked Sendable {
 
         if let getClientFn {
             let clientSem = DispatchSemaphore(value: 0)
-            getClientFn(queue) { obj in
+            getClientFn(queryQueue) { obj in
                 if let d = obj as? [String: Any] { client = d }
                 else if let d = obj as? NSDictionary as? [String: Any] { client = d }
                 clientSem.signal()
