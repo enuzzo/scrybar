@@ -3,11 +3,14 @@ import Dispatch
 import Foundation
 import Darwin
 
-protocol NowPlayingProviding {
+protocol NowPlayingProviding: Sendable {
     func snapshot() -> NowPlayingPayload?
 }
 
-final class FallbackNowPlayingProvider: NowPlayingProviding {
+// Providers use internal mutable caches but are only called sequentially
+// from a single polling task, so @unchecked Sendable is safe here.
+
+final class FallbackNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     private let providers: [any NowPlayingProviding]
 
     init(_ providers: [any NowPlayingProviding]) {
@@ -24,7 +27,7 @@ final class FallbackNowPlayingProvider: NowPlayingProviding {
     }
 }
 
-final class MockNowPlayingProvider: NowPlayingProviding {
+final class MockNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     private var index = 0
 
     func next() {
@@ -53,7 +56,7 @@ final class MockNowPlayingProvider: NowPlayingProviding {
     }
 }
 
-final class MusicNowPlayingProvider: NowPlayingProviding {
+final class MusicNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     func snapshot() -> NowPlayingPayload? {
         let script = """
         on cleanText(theValue)
@@ -110,7 +113,7 @@ final class MusicNowPlayingProvider: NowPlayingProviding {
     }
 }
 
-final class TidalNowPlayingProvider: NowPlayingProviding {
+final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     private let fileManager = FileManager.default
     private let localStorageURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/TIDAL/Local Storage/leveldb")
@@ -556,7 +559,7 @@ final class TidalNowPlayingProvider: NowPlayingProviding {
     }
 }
 
-final class SystemNowPlayingProvider: NowPlayingProviding {
+final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     private let bridge = MediaRemoteBridge()
     private var cachedArtworkCacheKey: String?
     private var cachedArtwork: EncodedArtwork?

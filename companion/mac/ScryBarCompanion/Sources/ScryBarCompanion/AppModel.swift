@@ -41,7 +41,6 @@ final class AppModel: ObservableObject {
                 self?.selectedDiscoveredEndpointID = endpoints.first?.id
             }
         }
-        refreshPayload()
         discovery.start()
         startPolling()
     }
@@ -74,26 +73,30 @@ final class AppModel: ObservableObject {
 
     func nextMockTrack() {
         mockProvider.next()
-        refreshPayload()
+        Task { await refreshPayload() }
     }
 
-    func refreshPayload() {
-        let payload: NowPlayingPayload?
-        switch providerKind {
-        case .system:
-            payload = systemProvider.snapshot()
-        case .mock:
-            payload = mockProvider.snapshot()
-        case .music:
-            payload = musicProvider.snapshot()
+    func refreshPayload() async {
+        // Snapshot providers off the main thread to avoid blocking UI
+        // (MediaRemoteBridge uses semaphores that block the calling thread)
+        let kind = providerKind
+        let provider: any NowPlayingProviding
+        switch kind {
+        case .system: provider = systemProvider
+        case .mock: provider = mockProvider
+        case .music: provider = musicProvider
         }
+
+        let payload: NowPlayingPayload? = await Task.detached(priority: .userInitiated) {
+            provider.snapshot()
+        }.value
 
         if let payload {
             currentPayload = payload
             lastSendStatus = "Payload updated at \(DateFormatter.shortTime.string(from: payload.updatedAt))"
         } else {
-            currentPayload = NowPlayingPayload.placeholder(source: providerKind.rawValue)
-            switch providerKind {
+            currentPayload = NowPlayingPayload.placeholder(source: kind.rawValue)
+            switch kind {
             case .system:
                 lastSendStatus = "No system now-playing session is currently exposed by macOS."
             case .music:
@@ -128,16 +131,40 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private var lastSendSucceeded = true
+    private var sendInFlight = false
+
     private func startPolling() {
         pollTask?.cancel()
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                self.refreshPayload()
-                if self.autoSendEnabled {
-                    self.sendNow()
+                await self.refreshPayload()
+                if self.autoSendEnabled, !self.sendInFlight {
+                    self.autoSend()
                 }
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(lastSendSucceeded ? 1 : 5))
+            }
+        }
+    }
+
+    private func autoSend() {
+        guard let endpoint = selectedEndpoint else { return }
+        let payload = currentPayload
+        sendInFlight = true
+
+        Task {
+            do {
+                try await client.send(payload, to: endpoint)
+                await MainActor.run {
+                    self.lastSendSucceeded = true
+                    self.sendInFlight = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.lastSendSucceeded = false
+                    self.sendInFlight = false
+                }
             }
         }
     }
