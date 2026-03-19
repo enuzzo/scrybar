@@ -6420,6 +6420,14 @@ static bool applyNowPlayingPayloadJson(const String &body, String &err) {
     installArtwork = true;
   } else if (hasArtworkId && currentArtworkMatches && g_liveNowPlayingArtwork.valid) {
     keepArtwork = true;
+  } else if (!hasArtworkId && g_liveNowPlayingArtwork.valid &&
+             g_liveNowPlaying.valid &&
+             strcmp(g_liveNowPlaying.title, title.c_str()) == 0 &&
+             strcmp(g_liveNowPlaying.artist, artist.c_str()) == 0) {
+    // Same track but artworkID missing in this update (e.g. pause) — keep existing artwork
+    keepArtwork = true;
+    artworkId = g_liveNowPlaying.artworkId;
+    hasArtworkId = true;
   } else if (!hasArtworkUrl) {
     clearArtwork = true;
   } else if (hasArtworkId && !currentArtworkMatches) {
@@ -13486,18 +13494,11 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
     trackSource = "Companion";
   }
 
-  // Interpolate elapsed time forward when playing (smooth ticking between POSTs)
-  if (useLive && g_liveNowPlaying.isPlaying && g_liveNowPlaying.receivedAtMs > 0) {
-    uint32_t sinceReceived = nowMs - g_liveNowPlaying.receivedAtMs;
-    elapsedSec = g_liveNowPlaying.elapsedSec + (uint16_t)(sinceReceived / 1000U);
-    if (g_liveNowPlaying.durationSec > 0 && elapsedSec > g_liveNowPlaying.durationSec)
-      elapsedSec = g_liveNowPlaying.durationSec;
-  }
+  // Elapsed interpolation is done companion-side for accuracy.
   // Anti-jitter: never let displayed elapsed jump backward within the same track.
-  // Reset on track change (different contentToken).
   const uint32_t currentToken = useLive ? g_liveNowPlaying.contentToken : 0U;
   if (currentToken != 0 && currentToken == ui.lastLiveToken) {
-    if (elapsedSec < ui.lastDisplayedElapsed && (ui.lastDisplayedElapsed - elapsedSec) < 5) {
+    if (elapsedSec < ui.lastDisplayedElapsed && (ui.lastDisplayedElapsed - elapsedSec) < 3) {
       elapsedSec = ui.lastDisplayedElapsed;
     }
   }

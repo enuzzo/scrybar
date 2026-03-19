@@ -570,6 +570,13 @@ final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
 /// by using the MRNowPlayingRequest Objective-C class through the JXA bridge.
 final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
 
+    // Pause debounce: MediaRemote's isPlaying/playbackRate can flicker.
+    // Require several consecutive "not playing" polls before treating as paused.
+    private var consecutivePausedPolls: Int = 0
+    private var stableIsPlaying: Bool = false
+    private var lastTrackKey: String = ""
+    private static let pauseDebounceCount = 3
+
     // Cached artwork transcoding — only re-download when artworkID changes
     private var cachedArtworkID: String?
     private var cachedArtworkResult: (width: Int, height: Int, rgb565Base64: String)?
@@ -650,6 +657,8 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     // JXA script that loads MediaRemote.framework and reads now-playing via
     // MRNowPlayingRequest — an Obj-C class that osascript can access without
     // the entitlement that blocks the C function API on macOS 15.4+.
+    // Computes real-time elapsed from: elapsedTime + (now - timestamp) * playbackRate,
+    // because kMRMediaRemoteNowPlayingInfoElapsedTime alone is a stale snapshot.
     private static let jxaScript = """
     function run() {
       var MR = $.NSBundle.bundleWithPath("/System/Library/PrivateFrameworks/MediaRemote.framework/");
@@ -671,7 +680,16 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
           try { info[k] = v.js; } catch(e) { try { info[k] = v.toString(); } catch(e2) {} }
         }
       }
-      return JSON.stringify({ isPlaying: Req.localIsPlaying, client: ci, info: info });
+      var rawElapsed = 0;
+      try { rawElapsed = dict.valueForKey("kMRMediaRemoteNowPlayingInfoElapsedTime").doubleValue; } catch(e) {}
+      var rate = 0;
+      try { rate = dict.valueForKey("kMRMediaRemoteNowPlayingInfoPlaybackRate").doubleValue; } catch(e) {}
+      var computedElapsed = rawElapsed;
+      var ts = dict.valueForKey("kMRMediaRemoteNowPlayingInfoTimestamp");
+      if (ts) {
+        try { computedElapsed = rawElapsed + $.NSDate.date.timeIntervalSinceDate(ts) * rate; } catch(e) {}
+      }
+      return JSON.stringify({ isPlaying: Req.localIsPlaying, client: ci, info: info, computedElapsed: computedElapsed });
     }
     """
 
@@ -710,10 +728,14 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
         let artist = info["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? ""
         let album = info["kMRMediaRemoteNowPlayingInfoAlbum"] as? String ?? ""
         let durationSec = (info["kMRMediaRemoteNowPlayingInfoDuration"] as? Double) ?? 0
-        let elapsedSec = (info["kMRMediaRemoteNowPlayingInfoElapsedTime"] as? Double) ?? 0
         let playbackRate = (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? Double) ?? 0
         let bundleIdentifier = client["bundleIdentifier"] as? String
         let appName = bundleIdentifier ?? "System"
+
+        // Real-time elapsed computed in JXA from: elapsedTime + (now - timestamp) * rate
+        var elapsedSec = (json["computedElapsed"] as? Double) ?? 0
+        if elapsedSec < 0 { elapsedSec = 0 }
+        if durationSec > 0 && elapsedSec > durationSec { elapsedSec = durationSec }
 
         let source: String
         if let bid = bundleIdentifier {
@@ -750,6 +772,24 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             artist: artist
         )
 
+        // Debounce isPlaying: MediaRemote can flicker, so require consecutive paused polls.
+        let actuallyPlaying = isPlaying || playbackRate > 0.001
+        let trackKey = "\(title)|\(artist)"
+
+        if trackKey != lastTrackKey {
+            consecutivePausedPolls = 0
+            stableIsPlaying = actuallyPlaying
+            lastTrackKey = trackKey
+        } else if actuallyPlaying {
+            consecutivePausedPolls = 0
+            stableIsPlaying = true
+        } else {
+            consecutivePausedPolls += 1
+            if consecutivePausedPolls >= Self.pauseDebounceCount {
+                stableIsPlaying = false
+            }
+        }
+
         return NowPlayingPayload(
             title: title,
             artist: artist,
@@ -758,7 +798,7 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             appName: appName,
             durationSec: durationSec,
             elapsedSec: elapsedSec,
-            isPlaying: isPlaying || playbackRate > 0.001,
+            isPlaying: stableIsPlaying,
             inSync: true,
             artworkURL: artworkURL,
             artworkID: artworkID,

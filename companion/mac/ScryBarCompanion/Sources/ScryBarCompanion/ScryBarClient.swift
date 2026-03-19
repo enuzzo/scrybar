@@ -29,6 +29,10 @@ actor ScryBarClient {
 
         if includeArtwork, let artworkID = payload.artworkID, !artworkID.isEmpty {
             lastSentArtworkIDByEndpoint[endpointKey] = artworkID
+        } else if payload.artworkID == nil || payload.artworkID?.isEmpty == true {
+            // ArtworkID disappeared (e.g. pause) — clear dedup cache so artwork
+            // is re-sent when artworkID returns on resume
+            lastSentArtworkIDByEndpoint.removeValue(forKey: endpointKey)
         }
     }
 
