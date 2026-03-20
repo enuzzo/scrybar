@@ -12,6 +12,22 @@ Entry format:
 
 ---
 
+## 2026-03-20 - Systematic Firmware Polishing Pass (M1-M10)
+
+- Context: Firmware at r199 is feature-complete and stable but has accumulated structural debt: 10 functions over 200 lines, 56 duplicated language dispatchers (1,855 lines), 249 global variables, and inconsistent memory allocation patterns. Landing page migration to Astro SSG is done; focus shifts to production-grade code quality.
+- Decision: Execute a structured 10-milestone polishing roadmap (`knowledge/firmware_polishing_roadmap.md`) targeting: function decomposition (no function >150 lines), table-driven language dispatch, global state grouping into structs, stack buffer audit, and web page builder refactoring. One milestone per session, zero regressions, device verification mandatory.
+- Impact/Tradeoffs: No new features during polishing. Every milestone must compile, upload, and pass visual verification. The codebase becomes significantly more maintainable and ready for the next feature wave. Risk is low — pure refactoring with behavioral parity checks.
+
+---
+
+## 2026-03-20 - Landing Page Migration from React SPA to Astro SSG
+
+- Context: The landing page was built with Vite + React 19, producing a ~140KB gzipped JS bundle for what is entirely static content. SEO was poor (SPA shell), Lighthouse scores suboptimal.
+- Decision: Replace with Astro 5 SSG. All React components converted to `.astro` files with vanilla JS inlined for interactivity (theme switch, language cycling, glare). Unified typography (Syne + Montserrat) across all 5 themes to prevent layout shift. CSS color transitions (~0.45s) for seamless theme switching.
+- Impact/Tradeoffs: Production output drops from ~146KB to ~10.5KB gzipped (93% reduction). Zero JS files in build output. SEO-perfect static HTML. Build time under 600ms. Tradeoff: Astro is an additional toolchain dependency, but minimal (single `astro` package, no framework plugins).
+
+---
+
 ## 2026-03-19 - Switch from MediaRemote C API to JXA/osascript Bridge for Now Playing
 
 - Context: macOS 15.4 introduced entitlement verification in `mediaremoted` that blocks unsigned apps from using `MRMediaRemoteGetNowPlayingInfo` and related C function APIs. The companion's `MediaRemoteBridge` (dlopen + semaphore approach) stopped receiving data entirely — callbacks returned `Operation not permitted` (error code 3). Notification registration was silently accepted but never fired. Multiple workarounds attempted (separate queues, notification-based caching) all failed because the block is at the framework/daemon level.
