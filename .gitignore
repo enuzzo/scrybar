@@ -26,6 +26,9 @@ assets/Vibemilk*/
 # Node modules
 **/node_modules/
 
+# Astro generated
+**/.astro/
+
 # Local assets/documents not meant for sharing
 documents/
 assets/weather_icons/

@@ -1,0 +1,43 @@
+---
+const themes = [
+  { id: 'scrybar-default', shortLabel: 'Default' },
+  { id: 'cyberpunk-2077', shortLabel: 'Cyber' },
+  { id: 'toxic-candy', shortLabel: 'Toxic' },
+  { id: 'tokyo-transit', shortLabel: 'Tokyo' },
+  { id: 'minimal-brutalist-mono', shortLabel: 'Mono' },
+];
+---
+<div class="theme-selector">
+  {themes.map((t) => (
+    <button
+      class:list={['theme-pill', { active: t.id === 'scrybar-default' }]}
+      aria-label={`Switch to ${t.shortLabel} theme`}
+      data-theme-id={t.id}
+    >
+      <span class="theme-pill__dot"></span>
+      <span class="theme-pill__label">{t.shortLabel}</span>
+    </button>
+  ))}
+</div>
+
+<script>
+  document.querySelectorAll('.theme-pill').forEach((pill) => {
+    pill.addEventListener('click', () => {
+      const id = (pill as HTMLElement).dataset.themeId!;
+      if (document.documentElement.dataset.theme === id) return;
+
+      // Apply theme — CSS transitions handle the visual crossfade
+      document.documentElement.setAttribute('data-theme', id);
+
+      // Toggle active pill
+      document.querySelectorAll('.theme-pill').forEach((p) => {
+        p.classList.toggle('active', (p as HTMLElement).dataset.themeId === id);
+      });
+
+      // Toggle active screenshot
+      document.querySelectorAll('.device-screen__img').forEach((img) => {
+        img.classList.toggle('active', (img as HTMLElement).dataset.themeId === id);
+      });
+    });
+  });
+</script>

@@ -46,9 +46,6 @@
 
 /* ========== CYBERPUNK 2077 (yellow/cyan neon on dark) ========== */
 [data-theme="cyberpunk-2077"] {
-  --font-display: 'Space Mono', 'Syne', monospace;
-  --font-body: 'Space Mono', 'Montserrat', monospace;
-
   --bg-deepest: #04060B;
   --bg-deep: #080C15;
   --bg-surface: #101822;
@@ -85,9 +82,6 @@
 
 /* ========== TOXIC CANDY (acid green / magenta on black) ========== */
 [data-theme="toxic-candy"] {
-  --font-display: 'Syne', sans-serif;
-  --font-body: 'Montserrat', sans-serif;
-
   --bg-deepest: #030303;
   --bg-deep: #080808;
   --bg-surface: #111111;
@@ -124,9 +118,6 @@
 
 /* ========== TOKYO TRANSIT (warm neutrals, signage orange) ========== */
 [data-theme="tokyo-transit"] {
-  --font-display: 'Syne', sans-serif;
-  --font-body: 'Montserrat', sans-serif;
-
   --bg-deepest: #08060A;
   --bg-deep: #100C0E;
   --bg-surface: #1A1416;
@@ -163,9 +154,6 @@
 
 /* ========== MINIMAL BRUTALIST MONO (pure black/white) ========== */
 [data-theme="minimal-brutalist-mono"] {
-  --font-display: 'Space Mono', 'Syne', monospace;
-  --font-body: 'Space Mono', 'Montserrat', monospace;
-
   --bg-deepest: #000000;
   --bg-deep: #060606;
   --bg-surface: #0E0E0E;

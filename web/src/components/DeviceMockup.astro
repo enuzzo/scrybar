@@ -1,0 +1,66 @@
+---
+import imgDefault from '../assets/screenshots/home_weather_scrybar-default.png';
+import imgCyberpunk from '../assets/screenshots/home_weather_cyberpunk-2077.png';
+import imgToxic from '../assets/screenshots/home_weather_toxic-candy.png';
+import imgTokyo from '../assets/screenshots/home_weather_tokyo-transit.png';
+import imgBrutalist from '../assets/screenshots/home_weather_minimal-brutalist-mono.png';
+
+const screenshots = [
+  { id: 'scrybar-default', src: imgDefault, label: 'Default' },
+  { id: 'cyberpunk-2077', src: imgCyberpunk, label: 'Cyberpunk' },
+  { id: 'toxic-candy', src: imgToxic, label: 'Toxic Candy' },
+  { id: 'tokyo-transit', src: imgTokyo, label: 'Tokyo Transit' },
+  { id: 'minimal-brutalist-mono', src: imgBrutalist, label: 'Brutalist' },
+];
+---
+<div class="device-stage">
+  <div class="device-anchor">
+    <div class="device" id="js-device">
+      <div class="device-bezel">
+        <div class="device-screen">
+          {screenshots.map(({ id, src, label }) => (
+            <img
+              src={src.src}
+              alt={`ScryBar ${label} theme preview`}
+              class:list={['device-screen__img', { active: id === 'scrybar-default' }]}
+              data-theme-id={id}
+              loading="eager"
+              width={src.width}
+              height={src.height}
+            />
+          ))}
+          <div class="device-glare" id="js-glare"></div>
+        </div>
+      </div>
+
+      <div class="device-edge device-edge--top"></div>
+      <div class="device-edge device-edge--bottom"></div>
+      <div class="device-edge device-edge--right"></div>
+      <div class="device-edge device-edge--left"></div>
+
+      <div class="device-usbc"></div>
+      <div class="device-led"></div>
+    </div>
+  </div>
+  <div class="device-glow"></div>
+</div>
+
+<script>
+  const device = document.getElementById('js-device');
+  const glare = document.getElementById('js-glare');
+  const stage = device?.closest('.device-stage');
+
+  if (stage && device && glare) {
+    stage.addEventListener('mousemove', (e) => {
+      const rect = device.getBoundingClientRect();
+      const offsetX = (e.clientX - rect.left) / rect.width;
+      const offsetY = (e.clientY - rect.top) / rect.height;
+      const glarePos = (offsetX * 0.75 + offsetY * 0.25) * 120 - 10;
+      glare.style.setProperty('--glare-pos', `${glarePos}%`);
+    });
+
+    stage.addEventListener('mouseleave', () => {
+      glare.style.setProperty('--glare-pos', '120%');
+    });
+  }
+</script>

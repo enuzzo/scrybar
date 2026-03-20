@@ -1,6 +1,6 @@
 # ScryBar Landing Page
 
-Dev preview of the landing page — Vite + React, pre-SSG migration.
+Static landing page — Astro SSG, zero JS runtime.
 
 ## Quick start
 
@@ -25,8 +25,9 @@ Opens on `http://localhost:5173`.
 
 | Layer | Tech |
 |-------|------|
-| Build | Vite 6 |
-| UI | React 19 |
+| Build | Astro 5 (SSG) |
+| UI | Astro components (`.astro`) |
+| Interactivity | Vanilla JS inlined (~1.5 KB) |
 | Styling | Vanilla CSS (tokens + component files) |
 | Fonts | Google Fonts async, system fallback |
 
@@ -34,34 +35,46 @@ Opens on `http://localhost:5173`.
 
 ```
 web/
-  index.html            # entry point
-  vite.config.js        # dev server config
+  astro.config.mjs      # Astro config (port 5173)
   package.json
   public/
-    manifest-full.json  # ESP Web Tools manifest (full flash)
-    manifest-lite.json  # ESP Web Tools manifest (lite flash)
+    manifest-full.json   # ESP Web Tools manifest (full flash)
+    manifest-lite.json   # ESP Web Tools manifest (lite flash)
   src/
-    main.jsx            # React mount
-    App.jsx             # root component
-    data.js             # theme screenshots, language data
+    layouts/
+      Layout.astro       # HTML shell, CSS imports, font loading
+    pages/
+      index.astro        # main page composition + scroll-reveal
     components/
-      DeviceMockup.jsx  # 3D hover + glare effect
-      ThemeSelector.jsx # theme pill buttons
-      LanguagePreview.jsx
-      Features.jsx
-      FlashSection.jsx
-      Specs.jsx
-      Footer.jsx
+      Nav.astro          # top navigation bar
+      DeviceMockup.astro # 3D hover + glare effect
+      ThemeSelector.astro # theme pill buttons
+      LanguagePreview.astro # cycling word-clock sentences
+      Features.astro     # feature grid
+      FlashSection.astro # ESP Web Tools flash buttons
+      Specs.astro        # hardware specs table
+      Footer.astro       # footer
     styles/
-      tokens.css        # design tokens (colors, fonts, spacing)
-      global.css        # base styles, animated background
-      device.css        # device mockup + glare
-      sections.css      # feature grid, flash, specs, footer
+      tokens.css         # design tokens (5 themes, colors, fonts)
+      global.css         # base styles, animated background
+      device.css         # device mockup + glare
+      sections.css       # feature grid, flash, specs, footer
+    assets/
+      screenshots/       # device display captures (640x172)
 ```
 
-## Next steps
+## Theme system
 
-Migration to static/SSG (Astro or pre-render) for:
-- Zero JS runtime — current React bundle is ~140KB gzipped for static content
-- Perfect SEO — server-rendered HTML, meta tags, structured data
-- Lighthouse 100 across the board
+Five themes, unified typography (Syne + Montserrat everywhere). Theme switch
+is instant with smooth CSS color transitions (~0.45s) — no flash, no layout
+shift. Only colors, borders, shadows, and glows crossfade.
+
+Themes: `scrybar-default`, `cyberpunk-2077`, `toxic-candy`, `tokyo-transit`,
+`minimal-brutalist-mono`.
+
+## Build output
+
+```bash
+npm run build   # → dist/ (static HTML + CSS, ~10.5 KB gzipped, no JS files)
+npm run preview # serve the built site locally
+```

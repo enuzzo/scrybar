@@ -1,0 +1,94 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/Nav.astro';
+import DeviceMockup from '../components/DeviceMockup.astro';
+import ThemeSelector from '../components/ThemeSelector.astro';
+import LanguagePreview from '../components/LanguagePreview.astro';
+import Features from '../components/Features.astro';
+import FlashSection from '../components/FlashSection.astro';
+import Specs from '../components/Specs.astro';
+import Footer from '../components/Footer.astro';
+---
+<Layout
+  title="ScryBar — Your desk knows things now."
+  description="ESP32-S3 desk companion: word clock in 13 languages, live weather, RSS feeds, Wikipedia, and DOOM. Five visual themes, swipe navigation, LAN web config. Open source under MIT."
+>
+  <div class="page-glow"></div>
+  <div class="page-noise"></div>
+
+  <div class="content">
+    <section class="hero">
+      <div class="container">
+        <Nav />
+
+        <div class="hero-content">
+          <div class="hero-badges entrance entrance--2">
+            <span class="vm-badge vm-badge--brand">ESP32-S3</span>
+            <span class="vm-badge vm-badge--info">Open Source</span>
+          </div>
+
+          <h1 class="entrance entrance--3">
+            Your desk knows<br />
+            things now.
+          </h1>
+          <p class="hero-lede entrance entrance--4">
+            A mass of sensors, pixels, and unresolved ambition,
+            pretending to be furniture. Word clock in 13 languages,
+            live weather, RSS feeds, Wikipedia, and DOOM &mdash; on a
+            3.49&quot; AMOLED touchscreen.
+          </p>
+
+          <div class="hero-ctas entrance entrance--5">
+            <a href="#flash" class="vm-btn vm-btn--primary vm-btn--lg">
+              Flash Firmware
+            </a>
+            <a href="#features" class="vm-btn vm-btn--secondary vm-btn--lg">
+              Explore Features
+            </a>
+          </div>
+        </div>
+
+        <div class="entrance entrance--6">
+          <DeviceMockup />
+        </div>
+
+        <div class="entrance entrance--7">
+          <ThemeSelector />
+        </div>
+
+        <div class="entrance entrance--8">
+          <LanguagePreview />
+        </div>
+      </div>
+    </section>
+
+    <div class="reveal">
+      <Features />
+    </div>
+
+    <div class="reveal">
+      <FlashSection />
+    </div>
+
+    <div class="reveal">
+      <Specs />
+    </div>
+
+    <Footer />
+  </div>
+</Layout>
+
+<script>
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('revealed');
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
+  );
+  document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+</script>

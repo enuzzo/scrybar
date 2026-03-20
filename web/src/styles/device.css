@@ -47,7 +47,7 @@
     0px 0px 24px rgba(0,0,0,0.11),
     0px 0px 46px rgba(0,0,0,0.13),
     0px 0px 100px rgba(0,0,0,0.18);
-  transition: box-shadow 0.4s ease;
+  transition: box-shadow 0.4s ease, background-color 0.45s ease;
 }
 
 /* Deeper shadow on hover — device is "lifted" */
@@ -175,6 +175,7 @@
 .device-edge {
   position: absolute;
   backface-visibility: hidden;
+  transition: background 0.45s ease;
 }
 
 /* Top edge — visible when rotateX > 0 */
@@ -262,6 +263,7 @@
   background: var(--accent-primary);
   box-shadow: 0 0 6px var(--accent-primary-glow);
   animation: led-pulse 3s ease-in-out infinite;
+  transition: background-color 0.45s ease, box-shadow 0.45s ease;
 }
 
 @keyframes led-pulse {
@@ -278,7 +280,7 @@
   filter: blur(40px);
   border-radius: 50%;
   opacity: 0.85;
-  transition: opacity 0.4s ease, filter 0.4s ease;
+  transition: opacity 0.4s ease, filter 0.4s ease, background 0.45s ease;
 }
 
 /* Glow intensifies on hover — device is closer */

@@ -1,0 +1,110 @@
+---
+const languages = [
+  { code: 'it',   label: 'Italiano',      flag: '\u{1F1EE}\u{1F1F9}' },
+  { code: 'en',   label: 'English',       flag: '\u{1F1EC}\u{1F1E7}' },
+  { code: 'fr',   label: 'Fran\u00E7ais', flag: '\u{1F1EB}\u{1F1F7}' },
+  { code: 'de',   label: 'Deutsch',       flag: '\u{1F1E9}\u{1F1EA}' },
+  { code: 'es',   label: 'Espa\u00F1ol',  flag: '\u{1F1EA}\u{1F1F8}' },
+  { code: 'pt',   label: 'Portugu\u00EAs', flag: '\u{1F1F5}\u{1F1F9}' },
+  { code: 'la',   label: 'Latina',        flag: '\u{1F3DB}\u{FE0F}' },
+  { code: 'eo',   label: 'Esperanto',     flag: '\u{1F30D}' },
+  { code: 'tlh',  label: 'Klingon',       flag: '\u{1F596}' },
+  { code: 'l33t', label: '1337 5P34K',    flag: '\u{1F4BB}' },
+  { code: 'sha',  label: 'Shakespearean', flag: '\u{1F3AD}' },
+  { code: 'val',  label: 'Valley Girl',   flag: '\u{1F485}' },
+  { code: 'bellazio', label: 'Bellazio',   flag: '\u{1F1EE}\u{1F1F9}' },
+];
+
+const sentences: Record<string, string> = {
+  it:   'sono le undici e ventitr\u00E9',
+  en:   "it's eleven twenty-three",
+  fr:   'il est onze heures vingt-trois',
+  de:   'es ist dreiundzwanzig nach elf',
+  es:   'son las once y veintitr\u00E9s',
+  pt:   's\u00E3o onze e vinte e tr\u00EAs',
+  la:   'hora undecima viginti tres minutae',
+  eo:   'estas la dek-unua kaj dudek tri',
+  tlh:  "DaH wa'maH wa' rep cha'maH wej tup",
+  l33t: '17z 3L3V3N 7W3N7Y-7HR33',
+  sha:  "Hark! 'Tis eleven and three-and-twenty!",
+  val:  "it's like, eleven twenty-three?",
+  bellazio: 'boh, tipo le undici e ventitr\u00E9 fra',
+};
+---
+<div
+  class="lang-preview"
+  data-languages={JSON.stringify(languages)}
+  data-sentences={JSON.stringify(sentences)}
+>
+  <div class="lang-sentence-wrap">
+    <p class="lang-sentence fade-in" id="js-lang-sentence">
+      &ldquo;{sentences.it}&rdquo;
+    </p>
+    <span class="lang-badge fade-in" id="js-lang-badge">
+      {languages[0].flag} {languages[0].label}
+    </span>
+  </div>
+
+  <div class="lang-dots">
+    {languages.map((l, i) => (
+      <button
+        class:list={['lang-dot', { active: i === 0 }]}
+        data-lang-idx={i}
+        aria-label={l.label}
+        title={l.label}
+      ></button>
+    ))}
+  </div>
+</div>
+
+<script>
+  const wrap = document.querySelector('.lang-preview') as HTMLElement;
+  const sentenceEl = document.getElementById('js-lang-sentence')!;
+  const badgeEl = document.getElementById('js-lang-badge')!;
+  const dots = document.querySelectorAll('.lang-dot');
+
+  const languages = JSON.parse(wrap.dataset.languages!);
+  const sentences: Record<string, string> = JSON.parse(wrap.dataset.sentences!);
+
+  let currentIdx = 0;
+  let intervalId: ReturnType<typeof setInterval>;
+
+  function showLang(idx: number) {
+    const lang = languages[idx];
+    sentenceEl.textContent = `\u201C${sentences[lang.code]}\u201D`;
+    badgeEl.textContent = `${lang.flag} ${lang.label}`;
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    currentIdx = idx;
+  }
+
+  function cycle() {
+    sentenceEl.classList.replace('fade-in', 'fade-out');
+    badgeEl.classList.replace('fade-in', 'fade-out');
+    setTimeout(() => {
+      showLang((currentIdx + 1) % languages.length);
+      sentenceEl.classList.replace('fade-out', 'fade-in');
+      badgeEl.classList.replace('fade-out', 'fade-in');
+    }, 300);
+  }
+
+  function startCycle() {
+    intervalId = setInterval(cycle, 3500);
+  }
+
+  dots.forEach((dot) => {
+    dot.addEventListener('click', () => {
+      clearInterval(intervalId);
+      const idx = parseInt((dot as HTMLElement).dataset.langIdx!, 10);
+      sentenceEl.classList.replace('fade-in', 'fade-out');
+      badgeEl.classList.replace('fade-in', 'fade-out');
+      setTimeout(() => {
+        showLang(idx);
+        sentenceEl.classList.replace('fade-out', 'fade-in');
+        badgeEl.classList.replace('fade-out', 'fade-in');
+        startCycle();
+      }, 300);
+    });
+  });
+
+  startCycle();
+</script>

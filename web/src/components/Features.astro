@@ -1,0 +1,35 @@
+---
+const features = [
+  { icon: '\u{1F550}', title: 'Word Clock',   desc: 'Natural language time in 13 languages. From Italian to Klingon to Shakespearean English.' },
+  { icon: '\u{1F324}', title: 'Live Weather',  desc: 'Current conditions with forecasts. Configurable location. Updates every 15 minutes.' },
+  { icon: '\u{1F4F0}', title: 'RSS Feeds',     desc: 'Up to 5 news feeds with QR codes for instant mobile reading. Build your own deck.' },
+  { icon: '\u{1F4DA}', title: 'Wikipedia',      desc: 'Featured articles, On This Day, and random discoveries. 8 languages supported.' },
+  { icon: '\u{1F47E}', title: 'DOOM',           desc: 'Yes, it runs DOOM. Tilt to move, tap to shoot. IMU-controlled. Real id Tech 1.' },
+  { icon: '\u{1F3B5}', title: 'Now Playing',    desc: "macOS companion pushes what's playing. Album art, progress bar, source detection." },
+  { icon: '\u{1F3A8}', title: '5 Themes',       desc: 'Deep navy to cyberpunk neon to pure monochrome. Theme drives both device and web UI.' },
+  { icon: '\u{1F4E1}', title: 'LAN Config',     desc: 'Full web control surface over WiFi. Theme, language, feeds, weather — no reflash needed.' },
+];
+---
+<section id="features">
+  <div class="container">
+    <span class="section-label">Capabilities</span>
+    <h2>Everything on a 3.49" bar</h2>
+    <p class="section-sub">
+      Five swipeable views. Thirteen languages. One desk companion
+      that does more than it probably should.
+    </p>
+
+    <div class="features-grid">
+      {features.map((f, i) => (
+        <div
+          class="vm-card feature-card"
+          style={`animation-delay: ${i * 60}ms`}
+        >
+          <span class="feature-icon">{f.icon}</span>
+          <h3>{f.title}</h3>
+          <p>{f.desc}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
