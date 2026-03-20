@@ -220,7 +220,12 @@ h3 {
   font-size: 14px;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 0.3s ease,
+              background 0.25s ease,
+              color 0.25s ease,
+              border-color 0.25s ease,
+              filter 0.25s ease;
   white-space: nowrap;
   text-decoration: none;
   padding: 0 28px;
@@ -228,23 +233,36 @@ h3 {
   border-radius: 10px;
 }
 
+.vm-btn:active {
+  transform: scale(0.97);
+  transition-duration: 0.08s;
+}
+
 .vm-btn--primary {
   background: var(--accent-primary);
   color: var(--bg-deepest);
 }
 .vm-btn--primary:hover {
-  filter: brightness(1.15);
-  box-shadow: var(--shadow-glow-md);
+  transform: translateY(-2px) scale(1.02);
+  filter: brightness(1.12);
+  box-shadow:
+    var(--shadow-glow-md),
+    0 4px 16px rgba(0,0,0,0.2);
 }
 
 .vm-btn--secondary {
   background: transparent;
   color: var(--text-secondary);
-  border: var(--border-subtle);
+  border: 2px solid var(--accent-primary);
 }
 .vm-btn--secondary:hover {
-  color: var(--text-primary);
-  border-color: rgba(var(--accent-primary-rgb), 0.3);
+  transform: translateY(-2px) scale(1.02);
+  color: var(--accent-primary);
+  background: rgba(var(--accent-primary-rgb), 0.1);
+  border-color: var(--accent-primary);
+  box-shadow:
+    var(--shadow-glow-sm),
+    0 4px 16px rgba(0,0,0,0.15);
 }
 
 .vm-btn--lg {
