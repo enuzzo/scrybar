@@ -310,7 +310,7 @@ Track each completed milestone here with date, r-number, and commit hash.
 ```
 | Date | r# | Commit | Milestone | Notes |
 |------|-----|--------|-----------|-------|
-| 2026-03-20 | r200 | — | M1 | initLvglUi 714→94 lines, 7 sub-functions, all <155 lines |
+| 2026-03-20 | r200 | 7b66f73 | M1 | initLvglUi 714→94 lines, 7 sub-functions, all <155 lines |
 ```
 
 ---

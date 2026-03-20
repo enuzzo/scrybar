@@ -355,6 +355,21 @@ Theme preview screenshots used in `README.md` are tracked in:
 
 This location is intentionally outside ignored `screenshots/` paths.
 
+## LVGL UI Init Architecture (M1, r200)
+
+`initLvglUi()` is a ~94-line orchestrator that delegates to focused sub-functions:
+
+- `lvglCreatePageRoot()` — reusable transparent page container helper (13 lines)
+- `initLvglInfoPanel()` — INFO page: stats header, body text, QR code (132 lines)
+- `initLvglClockPanel()` — HOME clock block: header, WiFi bars, date, word clock labels (131 lines)
+- `initLvglWeatherPanel()` — HOME weather card: structure, header, city/sun labels (119 lines)
+- `initLvglWeatherBodyWidgets()` — weather body: temp, icon, glyph, forecast bar (153 lines)
+- `initLvglScreensaverUi()` — cow screensaver: sky, stars, cow, balloon, footer (90 lines)
+- `lvglInitFeedDeck()` — AUX/WIKI feed deck widgets (234 lines, pre-existing)
+- `lvglInitNowPlayingUi()` — Now Playing UI (225 lines, pre-existing)
+
+Each sub-function locally computes its layout dimensions and theme colors from `canvasWidth()`, `canvasHeight()`, and `activeUiTheme()`, matching the self-contained pattern of `lvglInitFeedDeck()`.
+
 ## LVGL Configuration Baselines
 
 Key settings:
