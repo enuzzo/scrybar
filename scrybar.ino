@@ -13674,91 +13674,37 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   lv_obj_set_width(ui.progressFill, fillW);
 }
 
-static bool initLvglUi() {
-  if (g_lvglReady) return true;
-  if (!initDisplay()) return false;
+// ---------------------------------------------------------------------------
+// M1: Sub-functions extracted from initLvglUi() for decomposition.
+// Each sub-function creates one logical panel/section of the LVGL UI.
+// ---------------------------------------------------------------------------
 
-  lv_init();
+// Creates a transparent, non-scrollable LVGL page root container at (0,0).
+static lv_obj_t* lvglCreatePageRoot(lv_obj_t* parent, int16_t w, int16_t h) {
+  lv_obj_t* root = lv_obj_create(parent);
+  lv_obj_set_size(root, w, h);
+  lv_obj_set_pos(root, 0, 0);
+  lv_obj_set_style_radius(root, 0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(root, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(root, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(root, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(root, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(root, LV_SCROLLBAR_MODE_OFF);
+  return root;
+}
+
+// INFO page: stats panel with header, body text, and QR code.
+static void initLvglInfoPanel(lv_obj_t* scr) {
   const int16_t cW = canvasWidth();
   const int16_t cH = canvasHeight();
-  const uint32_t bufPx = (uint32_t)cW * (uint32_t)cH;
-
-  g_lvglBuf1 = (lv_color_t*)heap_caps_malloc(bufPx * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!g_lvglBuf1) g_lvglBuf1 = (lv_color_t*)malloc(bufPx * sizeof(lv_color_t));
-  if (!g_lvglBuf1) {
-    Serial.println("[LVGL][ERR] alloc draw buffer fallita");
-    return false;
-  }
-
-  lv_disp_draw_buf_init(&g_lvglDrawBuf, g_lvglBuf1, nullptr, bufPx);
-  lv_disp_drv_init(&g_lvglDispDrv);
-  g_lvglDispDrv.hor_res = cW;
-  g_lvglDispDrv.ver_res = cH;
-  g_lvglDispDrv.flush_cb = lvglDisplayFlushCb;
-  g_lvglDispDrv.draw_buf = &g_lvglDrawBuf;
-  g_lvglDispDrv.full_refresh = 0;
-  lv_disp_t *disp = lv_disp_drv_register(&g_lvglDispDrv);
-
-  lv_disp_set_theme(disp, nullptr);
   const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
-
-  lv_obj_t *scr = lv_scr_act();
-  lv_obj_set_style_bg_color(scr, lv_color_hex(theme.screenBg), LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(scr, lv_color_hex(theme.screenBg), LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(scr, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(scr, LV_SCROLLBAR_MODE_OFF);
-
-  const int16_t weatherW = (DISPLAY_WEATHER_PANEL_W > (cW / 2)) ? (cW / 3) : DISPLAY_WEATHER_PANEL_W;
-  const int16_t cardsGapX = 10;
-  const int16_t leftW = cW - weatherW - cardsGapX;
-  const int16_t outerPadX = 0;
-  const int16_t outerPadY = 0;
   const bool minimalTheme = lvglThemeIsMinimalBrutalistMono();
-  const lv_coord_t kCardRadius = minimalTheme ? 0 : 10;
   const lv_coord_t kInfoRadius = minimalTheme ? 0 : 8;
-  const lv_coord_t kButtonRadius = minimalTheme ? 0 : 4;
-  const lv_coord_t kBadgeRadius = minimalTheme ? 0 : 6;
-  const lv_coord_t kWifiBarRadius = minimalTheme ? 0 : 1;
-  const int16_t innerPad = 18;
-  const int16_t weatherHeaderH = 30;
-  const int16_t clockHeaderH = weatherHeaderH;
-  const uint32_t panelBgHex = lvglResolvedPanelBg(theme);
-  const uint32_t headerBgHex = lvglResolvedHeaderBg(theme);
-  const uint32_t weatherBgHex = lvglResolvedWeatherBg(theme);
-  const uint32_t weatherTextPrimaryHex = lvglResolvedWeatherPrimary(theme, weatherBgHex);
-  const uint32_t weatherTextSecondaryHex = lvglResolvedWeatherSecondary(theme, weatherBgHex, weatherTextPrimaryHex);
-  const uint32_t weatherForecastTextHex = lvglResolvedForecastText(theme, weatherBgHex, weatherTextPrimaryHex);
-  const uint32_t weatherGlyphOnlineHex = lvglResolvedWeatherGlyphOnline(theme, weatherBgHex, weatherTextPrimaryHex);
-  const lv_color_t kPanelBg = lv_color_hex(panelBgHex);
-  const lv_color_t kHeaderBlue = lv_color_hex(headerBgHex);
-  const int16_t weatherCardW = weatherW - (outerPadX * 2);
-  const int16_t weatherCardH = cH - (outerPadY * 2);
-  const int16_t weatherBodyH = weatherCardH - weatherHeaderH;
-  const int16_t weatherIconW = 60;
-  const int16_t weatherTextW = weatherCardW - 24;
-  const int16_t weatherTopTextW = weatherCardW - (weatherIconW + 48);
-  const int16_t clockBlockW = leftW - (outerPadX * 2);
-  const int16_t clockBlockH = cH - (outerPadY * 2);
-  const lv_color_t kWeatherCardBg = lv_color_hex(weatherBgHex);
-  const lv_color_t kWeatherTextDark = lv_color_hex(weatherTextPrimaryHex);
-  const lv_color_t kWeatherTextMid = lv_color_hex(weatherTextSecondaryHex);
-  const lv_color_t kWeatherForecastText = lv_color_hex(weatherForecastTextHex);
-  const lv_color_t kWeatherGlyphOnline = lv_color_hex(weatherGlyphOnlineHex);
   const lv_color_t kInfoBg = lv_color_hex(theme.infoBg);
   const lv_color_t kInfoHeaderBg = lv_color_hex(theme.infoHeaderBg);
 
-  g_lvglInfoRoot = lv_obj_create(scr);
-  lv_obj_set_size(g_lvglInfoRoot, cW, cH);
-  lv_obj_set_pos(g_lvglInfoRoot, 0, 0);
-  lv_obj_set_style_radius(g_lvglInfoRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglInfoRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglInfoRoot, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglInfoRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglInfoRoot, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglInfoRoot, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglInfoRoot, LV_SCROLLBAR_MODE_OFF);
+  g_lvglInfoRoot = lvglCreatePageRoot(scr, cW, cH);
 
   g_lvglInfoCard = lv_obj_create(g_lvglInfoRoot);
   lv_obj_set_size(g_lvglInfoCard, cW, cH);
@@ -13822,7 +13768,6 @@ static bool initLvglUi() {
   const int16_t infoColsY = infoHeaderH + 4;
   const int16_t infoColsH = cH - infoColsY - 4;
   const int16_t infoQrPad = 5;
-  // QR: fill the right column height, maximising the code size
   const int16_t infoQrSize = infoColsH - infoQrPad * 2;
   const int16_t infoQrAreaW = infoQrSize + infoQrPad * 2;
   const int16_t infoTextColW = cW - infoQrAreaW - 16;
@@ -13881,19 +13826,26 @@ static bool initLvglUi() {
   lv_obj_set_style_border_opa(g_lvglInfoWebQr, LV_OPA_80, LV_PART_MAIN);
   lv_qrcode_update(g_lvglInfoWebQr, "http://--:8080", strlen("http://--:8080"));
 #endif
+}
 
-  g_lvglHomeRoot = lv_obj_create(scr);
-  lv_obj_set_size(g_lvglHomeRoot, cW, cH);
-  lv_obj_set_pos(g_lvglHomeRoot, 0, 0);
-  lv_obj_set_style_radius(g_lvglHomeRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglHomeRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglHomeRoot, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglHomeRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglHomeRoot, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglHomeRoot, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglHomeRoot, LV_SCROLLBAR_MODE_OFF);
+// HOME page — clock block: header, date, WiFi bars, word clock labels, divider.
+static void initLvglClockPanel(lv_obj_t* homeRoot) {
+  const int16_t cW = canvasWidth();
+  const int16_t cH = canvasHeight();
+  const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
+  const bool minimalTheme = lvglThemeIsMinimalBrutalistMono();
+  const lv_coord_t kCardRadius = minimalTheme ? 0 : 10;
+  const lv_coord_t kWifiBarRadius = minimalTheme ? 0 : 1;
+  const int16_t weatherW = (DISPLAY_WEATHER_PANEL_W > (cW / 2)) ? (cW / 3) : DISPLAY_WEATHER_PANEL_W;
+  const int16_t leftW = cW - weatherW - 10;
+  const int16_t clockBlockW = leftW;
+  const int16_t clockBlockH = cH;
+  const int16_t clockHeaderH = 30;
+  const int16_t innerPad = 18;
+  const lv_color_t kPanelBg = lv_color_hex(lvglResolvedPanelBg(theme));
+  const lv_color_t kHeaderBlue = lv_color_hex(lvglResolvedHeaderBg(theme));
 
-  lv_obj_t *left = lv_obj_create(g_lvglHomeRoot);
+  lv_obj_t *left = lv_obj_create(homeRoot);
   lv_obj_set_size(left, leftW, cH);
   lv_obj_set_pos(left, 0, 0);
   lv_obj_set_style_radius(left, 0, LV_PART_MAIN);
@@ -13905,7 +13857,7 @@ static bool initLvglUi() {
 
   g_lvglClockBlock = lv_obj_create(left);
   lv_obj_set_size(g_lvglClockBlock, clockBlockW, clockBlockH);
-  lv_obj_set_pos(g_lvglClockBlock, outerPadX, outerPadY);
+  lv_obj_set_pos(g_lvglClockBlock, 0, 0);
   lv_obj_set_style_bg_color(g_lvglClockBlock, kPanelBg, LV_PART_MAIN);
   lv_obj_set_style_bg_grad_color(g_lvglClockBlock, kPanelBg, LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(g_lvglClockBlock, LV_GRAD_DIR_NONE, LV_PART_MAIN);
@@ -13961,76 +13913,6 @@ static bool initLvglUi() {
     lv_obj_clear_flag(g_lvglClockWiFiBars[i], LV_OBJ_FLAG_SCROLLABLE);
   }
 
-  lv_obj_t *right = lv_obj_create(g_lvglHomeRoot);
-  lv_obj_set_size(right, weatherW, cH);
-  lv_obj_set_pos(right, leftW + cardsGapX, 0);
-  lv_obj_set_style_radius(right, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(right, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(right, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(right, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(right, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(right, LV_OBJ_FLAG_SCROLLABLE);
-
-  g_lvglWeatherCard = lv_obj_create(right);
-  lv_obj_set_size(g_lvglWeatherCard, weatherCardW, weatherCardH);
-  lv_obj_set_pos(g_lvglWeatherCard, outerPadX, outerPadY);
-  lv_obj_set_style_radius(g_lvglWeatherCard, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_lvglWeatherCard, kWeatherCardBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglWeatherCard, kWeatherCardBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglWeatherCard, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglWeatherCard, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglWeatherCard, 0, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglWeatherCard, false, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglWeatherCard, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglWeatherCard, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglWeatherCard, LV_OBJ_FLAG_SCROLLABLE);
-
-  g_lvglWeatherHeader = lv_obj_create(g_lvglWeatherCard);
-  lv_obj_set_size(g_lvglWeatherHeader, weatherCardW, weatherHeaderH);
-  lv_obj_set_pos(g_lvglWeatherHeader, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglWeatherHeader, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglWeatherHeader, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglWeatherHeader, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglWeatherHeader, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglWeatherHeader, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglWeatherHeader, false, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglWeatherHeader, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglWeatherHeader, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglWeatherHeader, LV_OBJ_FLAG_SCROLLABLE);
-  g_lvglWeatherHeaderFill = lv_obj_create(g_lvglWeatherHeader);
-  lv_obj_set_size(g_lvglWeatherHeaderFill, weatherCardW, 10);
-  lv_obj_set_pos(g_lvglWeatherHeaderFill, 0, weatherHeaderH - 10);
-  lv_obj_set_style_bg_color(g_lvglWeatherHeaderFill, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglWeatherHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglWeatherHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_t *headerDivider = lv_obj_create(g_lvglWeatherCard);
-  lv_obj_set_size(headerDivider, weatherCardW - 16, 2);
-  lv_obj_set_pos(headerDivider, 8, weatherHeaderH - 1);
-  lv_obj_set_style_bg_color(headerDivider, lv_color_hex(0x90A3DE), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(headerDivider, LV_OPA_0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(headerDivider, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(headerDivider, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(headerDivider, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(headerDivider, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_flag(headerDivider, LV_OBJ_FLAG_HIDDEN);
-
-  g_lvglWeatherBody = lv_obj_create(g_lvglWeatherCard);
-  lv_obj_set_size(g_lvglWeatherBody, weatherCardW, weatherCardH - weatherHeaderH);
-  lv_obj_set_pos(g_lvglWeatherBody, 0, weatherHeaderH);
-  lv_obj_set_style_bg_opa(g_lvglWeatherBody, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglWeatherBody, false, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_left(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_right(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_top(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_bottom(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglWeatherBody, LV_OBJ_FLAG_SCROLLABLE);
-
   g_lvglClockDate = lv_label_create(g_lvglClockHeader);
   lv_obj_set_style_text_font(g_lvglClockDate, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_lvglClockDate, lv_color_hex(0xFFFFFF), 0);
@@ -14077,23 +13959,34 @@ static bool initLvglUi() {
   lv_obj_set_style_radius(g_lvglClockDivider, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_lvglClockDivider, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(g_lvglClockDivider, LV_OBJ_FLAG_HIDDEN);
+}
 
-  g_lvglCity = lv_label_create(g_lvglWeatherHeader);
-  lv_obj_set_style_text_font(g_lvglCity, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglCity, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_width(g_lvglCity, weatherCardW - 112);
-  lv_label_set_long_mode(g_lvglCity, LV_LABEL_LONG_DOT);
-  lv_obj_align(g_lvglCity, LV_ALIGN_LEFT_MID, 12, -1);
-  lv_label_set_text(g_lvglCity, "Luino");
-  lvglForceLabelVisible(g_lvglCity);
-
-  g_lvglSun = lv_label_create(g_lvglWeatherHeader);
-  lv_obj_set_style_text_font(g_lvglSun, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglSun, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_opa(g_lvglSun, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_align(g_lvglSun, LV_ALIGN_RIGHT_MID, -10, 0);
-  lv_label_set_text(g_lvglSun, "--:-- | --:--");
-  lvglForceLabelVisible(g_lvglSun);
+// HOME page — weather body: temp, icon, glyph, separator, description,
+// humidity, wind, forecast bar, forecast labels.
+static void initLvglWeatherBodyWidgets() {
+  const int16_t cW = canvasWidth();
+  const int16_t cH = canvasHeight();
+  const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
+  const bool minimalTheme = lvglThemeIsMinimalBrutalistMono();
+  const lv_coord_t kCardRadius = minimalTheme ? 0 : 10;
+  const int16_t weatherW = (DISPLAY_WEATHER_PANEL_W > (cW / 2)) ? (cW / 3) : DISPLAY_WEATHER_PANEL_W;
+  const int16_t weatherHeaderH = 30;
+  const int16_t weatherCardW = weatherW;
+  const int16_t weatherCardH = cH;
+  const int16_t weatherBodyH = weatherCardH - weatherHeaderH;
+  const int16_t weatherIconW = 60;
+  const int16_t weatherTextW = weatherCardW - 24;
+  const int16_t weatherTopTextW = weatherCardW - (weatherIconW + 48);
+  const uint32_t weatherBgHex = lvglResolvedWeatherBg(theme);
+  const uint32_t weatherTextPrimaryHex = lvglResolvedWeatherPrimary(theme, weatherBgHex);
+  const uint32_t weatherTextSecondaryHex = lvglResolvedWeatherSecondary(theme, weatherBgHex, weatherTextPrimaryHex);
+  const uint32_t weatherForecastTextHex = lvglResolvedForecastText(theme, weatherBgHex, weatherTextPrimaryHex);
+  const uint32_t weatherGlyphOnlineHex = lvglResolvedWeatherGlyphOnline(theme, weatherBgHex, weatherTextPrimaryHex);
+  const lv_color_t kWeatherCardBg = lv_color_hex(weatherBgHex);
+  const lv_color_t kWeatherTextDark = lv_color_hex(weatherTextPrimaryHex);
+  const lv_color_t kWeatherTextMid = lv_color_hex(weatherTextSecondaryHex);
+  const lv_color_t kWeatherForecastText = lv_color_hex(weatherForecastTextHex);
+  const lv_color_t kWeatherGlyphOnline = lv_color_hex(weatherGlyphOnlineHex);
 
   g_lvglTemp = lv_label_create(g_lvglWeatherBody);
   lv_obj_set_style_text_font(g_lvglTemp, lvglFontTemp(), 0);
@@ -14222,62 +14115,137 @@ static bool initLvglUi() {
   lv_obj_align(g_lvglForecastTomorrow, LV_ALIGN_TOP_LEFT, 12, 102);
   lv_label_set_text(g_lvglForecastTomorrow, "");
   lv_obj_add_flag(g_lvglForecastTomorrow, LV_OBJ_FLAG_HIDDEN);
+}
 
-  g_lvglAuxRoot = lv_obj_create(scr);
-  lv_obj_set_size(g_lvglAuxRoot, cW, cH);
-  lv_obj_set_pos(g_lvglAuxRoot, 0, 0);
-  lv_obj_set_style_radius(g_lvglAuxRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglAuxRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglAuxRoot, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglAuxRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglAuxRoot, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglAuxRoot, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglAuxRoot, LV_SCROLLBAR_MODE_OFF);
+// HOME page — weather card: header, current conditions, icon, forecast bar.
+static void initLvglWeatherPanel(lv_obj_t* homeRoot) {
+  const int16_t cW = canvasWidth();
+  const int16_t cH = canvasHeight();
+  const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
+  const bool minimalTheme = lvglThemeIsMinimalBrutalistMono();
+  const lv_coord_t kCardRadius = minimalTheme ? 0 : 10;
+  const int16_t weatherW = (DISPLAY_WEATHER_PANEL_W > (cW / 2)) ? (cW / 3) : DISPLAY_WEATHER_PANEL_W;
+  const int16_t cardsGapX = 10;
+  const int16_t leftW = cW - weatherW - cardsGapX;
+  const int16_t outerPadX = 0;
+  const int16_t outerPadY = 0;
+  const int16_t weatherHeaderH = 30;
+  const int16_t weatherCardW = weatherW - (outerPadX * 2);
+  const int16_t weatherCardH = cH - (outerPadY * 2);
+  const int16_t weatherBodyH = weatherCardH - weatherHeaderH;
+  const int16_t weatherIconW = 60;
+  const int16_t weatherTextW = weatherCardW - 24;
+  const int16_t weatherTopTextW = weatherCardW - (weatherIconW + 48);
+  const uint32_t weatherBgHex = lvglResolvedWeatherBg(theme);
+  const uint32_t weatherTextPrimaryHex = lvglResolvedWeatherPrimary(theme, weatherBgHex);
+  const uint32_t weatherTextSecondaryHex = lvglResolvedWeatherSecondary(theme, weatherBgHex, weatherTextPrimaryHex);
+  const uint32_t weatherForecastTextHex = lvglResolvedForecastText(theme, weatherBgHex, weatherTextPrimaryHex);
+  const uint32_t weatherGlyphOnlineHex = lvglResolvedWeatherGlyphOnline(theme, weatherBgHex, weatherTextPrimaryHex);
+  const lv_color_t kHeaderBlue = lv_color_hex(lvglResolvedHeaderBg(theme));
+  const lv_color_t kWeatherCardBg = lv_color_hex(weatherBgHex);
+  const lv_color_t kWeatherTextDark = lv_color_hex(weatherTextPrimaryHex);
+  const lv_color_t kWeatherTextMid = lv_color_hex(weatherTextSecondaryHex);
+  const lv_color_t kWeatherForecastText = lv_color_hex(weatherForecastTextHex);
+  const lv_color_t kWeatherGlyphOnline = lv_color_hex(weatherGlyphOnlineHex);
 
-  // Wiki page root — positioned at ordinal 3 (one screen-width to the right of AUX)
-  g_lvglWikiRoot = lv_obj_create(scr);
-  lv_obj_set_size(g_lvglWikiRoot, cW, cH);
-  lv_obj_set_pos(g_lvglWikiRoot, cW, 0);  // starts offscreen right
-  lv_obj_set_style_radius(g_lvglWikiRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglWikiRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglWikiRoot, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglWikiRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglWikiRoot, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglWikiRoot, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglWikiRoot, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_t *right = lv_obj_create(homeRoot);
+  lv_obj_set_size(right, weatherW, cH);
+  lv_obj_set_pos(right, leftW + cardsGapX, 0);
+  lv_obj_set_style_radius(right, 0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(right, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(right, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(right, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(right, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(right, LV_OBJ_FLAG_SCROLLABLE);
 
-  lvglInitFeedDeck(g_wikiDeck, g_lvglWikiRoot, true);
+  g_lvglWeatherCard = lv_obj_create(right);
+  lv_obj_set_size(g_lvglWeatherCard, weatherCardW, weatherCardH);
+  lv_obj_set_pos(g_lvglWeatherCard, outerPadX, outerPadY);
+  lv_obj_set_style_radius(g_lvglWeatherCard, kCardRadius, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_lvglWeatherCard, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_lvglWeatherCard, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_lvglWeatherCard, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglWeatherCard, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglWeatherCard, 0, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_lvglWeatherCard, false, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglWeatherCard, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_lvglWeatherCard, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglWeatherCard, LV_OBJ_FLAG_SCROLLABLE);
 
-  lvglInitFeedDeck(g_auxDeck, g_lvglAuxRoot, false);
+  g_lvglWeatherHeader = lv_obj_create(g_lvglWeatherCard);
+  lv_obj_set_size(g_lvglWeatherHeader, weatherCardW, weatherHeaderH);
+  lv_obj_set_pos(g_lvglWeatherHeader, 0, 0);
+  lv_obj_set_style_bg_color(g_lvglWeatherHeader, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_lvglWeatherHeader, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_lvglWeatherHeader, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglWeatherHeader, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglWeatherHeader, kCardRadius, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_lvglWeatherHeader, false, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglWeatherHeader, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglWeatherHeader, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglWeatherHeader, LV_OBJ_FLAG_SCROLLABLE);
+  g_lvglWeatherHeaderFill = lv_obj_create(g_lvglWeatherHeader);
+  lv_obj_set_size(g_lvglWeatherHeaderFill, weatherCardW, 10);
+  lv_obj_set_pos(g_lvglWeatherHeaderFill, 0, weatherHeaderH - 10);
+  lv_obj_set_style_bg_color(g_lvglWeatherHeaderFill, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglWeatherHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglWeatherHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_t *headerDivider = lv_obj_create(g_lvglWeatherCard);
+  lv_obj_set_size(headerDivider, weatherCardW - 16, 2);
+  lv_obj_set_pos(headerDivider, 8, weatherHeaderH - 1);
+  lv_obj_set_style_bg_color(headerDivider, lv_color_hex(0x90A3DE), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(headerDivider, LV_OPA_0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(headerDivider, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(headerDivider, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(headerDivider, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(headerDivider, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(headerDivider, LV_OBJ_FLAG_HIDDEN);
 
-  g_lvglNowPlayingRoot = lv_obj_create(scr);
-  lv_obj_set_size(g_lvglNowPlayingRoot, cW, cH);
-  lv_obj_set_pos(g_lvglNowPlayingRoot, cW, 0);  // layout managed by swipe visibility system
-  lv_obj_set_style_radius(g_lvglNowPlayingRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglNowPlayingRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglNowPlayingRoot, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglNowPlayingRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglNowPlayingRoot, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglNowPlayingRoot, LV_SCROLLBAR_MODE_OFF);
+  g_lvglWeatherBody = lv_obj_create(g_lvglWeatherCard);
+  lv_obj_set_size(g_lvglWeatherBody, weatherCardW, weatherCardH - weatherHeaderH);
+  lv_obj_set_pos(g_lvglWeatherBody, 0, weatherHeaderH);
+  lv_obj_set_style_bg_opa(g_lvglWeatherBody, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_lvglWeatherBody, 0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_lvglWeatherBody, 0, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_lvglWeatherBody, false, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_lvglWeatherBody, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_left(g_lvglWeatherBody, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_right(g_lvglWeatherBody, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_top(g_lvglWeatherBody, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_bottom(g_lvglWeatherBody, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_lvglWeatherBody, LV_OBJ_FLAG_SCROLLABLE);
 
-  lvglInitNowPlayingUi(g_nowPlayingUi, g_lvglNowPlayingRoot);
+  g_lvglCity = lv_label_create(g_lvglWeatherHeader);
+  lv_obj_set_style_text_font(g_lvglCity, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_lvglCity, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_width(g_lvglCity, weatherCardW - 112);
+  lv_label_set_long_mode(g_lvglCity, LV_LABEL_LONG_DOT);
+  lv_obj_align(g_lvglCity, LV_ALIGN_LEFT_MID, 12, -1);
+  lv_label_set_text(g_lvglCity, "Luino");
+  lvglForceLabelVisible(g_lvglCity);
 
-  g_lvglDoomRoot = lv_obj_create(scr);
-  lv_obj_set_size(g_lvglDoomRoot, cW, cH);
-  lv_obj_set_pos(g_lvglDoomRoot, 0, 0);
-  lv_obj_set_style_radius(g_lvglDoomRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglDoomRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_lvglDoomRoot, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglDoomRoot, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglDoomRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglDoomRoot, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglDoomRoot, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglDoomRoot, LV_SCROLLBAR_MODE_OFF);
-  lv_obj_add_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
+  g_lvglSun = lv_label_create(g_lvglWeatherHeader);
+  lv_obj_set_style_text_font(g_lvglSun, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_lvglSun, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_text_opa(g_lvglSun, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_align(g_lvglSun, LV_ALIGN_RIGHT_MID, -10, 0);
+  lv_label_set_text(g_lvglSun, "--:-- | --:--");
+  lvglForceLabelVisible(g_lvglSun);
 
+  initLvglWeatherBodyWidgets();
+}
+
+// Screensaver: sky, stars, cow, balloon, field, footer.
 #if SCREENSAVER_ENABLED
+static void initLvglScreensaverUi(lv_obj_t* scr) {
+  const int16_t cW = canvasWidth();
+  const int16_t cH = canvasHeight();
+  const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
   const uint32_t saverReadableText = lvglResolvedSaverReadableText(theme);
+
   g_lvglScreenSaverRoot = lv_obj_create(scr);
   lv_obj_set_size(g_lvglScreenSaverRoot, cW, cH);
   lv_obj_set_pos(g_lvglScreenSaverRoot, 0, 0);
@@ -14361,6 +14329,77 @@ static bool initLvglUi() {
   lv_label_set_text(g_lvglScreenSaverFooter, "--:--  --/--");
   lv_obj_align(g_lvglScreenSaverFooter, LV_ALIGN_BOTTOM_RIGHT, -10, -4);
   lvglForceLabelVisible(g_lvglScreenSaverFooter);
+}
+#endif
+
+// ---------------------------------------------------------------------------
+// initLvglUi — orchestrator (M1: reduced from 714 to ~75 lines)
+// ---------------------------------------------------------------------------
+static bool initLvglUi() {
+  if (g_lvglReady) return true;
+  if (!initDisplay()) return false;
+
+  lv_init();
+  const int16_t cW = canvasWidth();
+  const int16_t cH = canvasHeight();
+  const uint32_t bufPx = (uint32_t)cW * (uint32_t)cH;
+
+  g_lvglBuf1 = (lv_color_t*)heap_caps_malloc(bufPx * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!g_lvglBuf1) g_lvglBuf1 = (lv_color_t*)malloc(bufPx * sizeof(lv_color_t));
+  if (!g_lvglBuf1) {
+    Serial.println("[LVGL][ERR] alloc draw buffer fallita");
+    return false;
+  }
+
+  lv_disp_draw_buf_init(&g_lvglDrawBuf, g_lvglBuf1, nullptr, bufPx);
+  lv_disp_drv_init(&g_lvglDispDrv);
+  g_lvglDispDrv.hor_res = cW;
+  g_lvglDispDrv.ver_res = cH;
+  g_lvglDispDrv.flush_cb = lvglDisplayFlushCb;
+  g_lvglDispDrv.draw_buf = &g_lvglDrawBuf;
+  g_lvglDispDrv.full_refresh = 0;
+  lv_disp_t *disp = lv_disp_drv_register(&g_lvglDispDrv);
+
+  lv_disp_set_theme(disp, nullptr);
+  const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
+
+  lv_obj_t *scr = lv_scr_act();
+  lv_obj_set_style_bg_color(scr, lv_color_hex(theme.screenBg), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(scr, lv_color_hex(theme.screenBg), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(scr, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(scr, LV_SCROLLBAR_MODE_OFF);
+
+  // INFO page
+  initLvglInfoPanel(scr);
+
+  // HOME page (clock + weather)
+  g_lvglHomeRoot = lvglCreatePageRoot(scr, cW, cH);
+  initLvglClockPanel(g_lvglHomeRoot);
+  initLvglWeatherPanel(g_lvglHomeRoot);
+
+  // AUX (RSS) + WIKI feed decks
+  g_lvglAuxRoot = lvglCreatePageRoot(scr, cW, cH);
+  g_lvglWikiRoot = lvglCreatePageRoot(scr, cW, cH);
+  lv_obj_set_pos(g_lvglWikiRoot, cW, 0);
+  lvglInitFeedDeck(g_wikiDeck, g_lvglWikiRoot, true);
+  lvglInitFeedDeck(g_auxDeck, g_lvglAuxRoot, false);
+
+  // Now Playing
+  g_lvglNowPlayingRoot = lvglCreatePageRoot(scr, cW, cH);
+  lv_obj_set_pos(g_lvglNowPlayingRoot, cW, 0);
+  lvglInitNowPlayingUi(g_nowPlayingUi, g_lvglNowPlayingRoot);
+
+  // DOOM
+  g_lvglDoomRoot = lvglCreatePageRoot(scr, cW, cH);
+  lv_obj_set_style_bg_color(g_lvglDoomRoot, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_lvglDoomRoot, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_add_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
+
+  // Screensaver
+#if SCREENSAVER_ENABLED
+  initLvglScreensaverUi(scr);
 #endif
 
   lvglApplyPageVisibility(false);
@@ -14384,6 +14423,8 @@ static bool initLvglUi() {
                 (void*)g_lvglWind,
                 (void*)g_lvglForecastNow,
                 (void*)g_lvglForecastTomorrow);
+  const int16_t weatherW = (DISPLAY_WEATHER_PANEL_W > (cW / 2)) ? (cW / 3) : DISPLAY_WEATHER_PANEL_W;
+  const int16_t leftW = cW - weatherW - 10;
   Serial.printf("[LVGL] init ok ui=%dx%d split=%d/%d color_depth=%d color_size=%u icons=%s\n",
                 cW, cH, leftW, weatherW, LV_COLOR_DEPTH, (unsigned)sizeof(lv_color_t), DB_LVGL_WEATHER_ICON_SET);
   return true;

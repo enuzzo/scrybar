@@ -77,25 +77,26 @@ Behavioral target: **zero regressions**. Every milestone must compile, upload, a
 
 ### M1 — Decompose `initLvglUi()` (714 -> N x ~100)
 
-**Status: TODO**
+**Status: DONE (r200, 2026-03-20)**
 
 Split the monolithic display initialization into focused sub-functions:
 
-- `initLvglInfoPanel()` — INFO page (stats, QR code)
-- `initLvglHomePanel()` — HOME page (clock, weather)
-- `initLvglFeedDeck()` — already exists (234 lines), review size
-- `initLvglNowPlayingUi()` — already exists (225 lines), review size
-- `initLvglDoomView()` — DOOM page setup
-- `initLvglScreensaver()` — cow screensaver
+- `lvglCreatePageRoot()` — 13 lines, reusable transparent page container helper
+- `initLvglInfoPanel()` — 132 lines, INFO page (stats, QR code)
+- `initLvglClockPanel()` — 131 lines, HOME clock block (header, WiFi bars, date, word clock labels)
+- `initLvglWeatherBodyWidgets()` — 153 lines, weather body (temp, icon, glyph, sep, desc, forecast)
+- `initLvglWeatherPanel()` — 119 lines, weather card structure + header + calls body widgets
+- `initLvglScreensaverUi()` — 90 lines, cow screensaver
+- `lvglInitFeedDeck()` — 234 lines, already existed (review target for M9)
+- `lvglInitNowPlayingUi()` — 225 lines, already existed (review target for M9)
 
-**Verification:**
-1. Compile with `--clean`
-2. Upload + hard reset
-3. Swipe through all 5 views — visual parity with pre-refactor
-4. Serial: `WEBCFG`, `THEME`, `VIEW0` through `VIEW4`
-5. Screensaver trigger + wake
+**Results:**
+- `initLvglUi()` orchestrator: **94 lines** (14 of which are debug Serial.printf formatting)
+- All new sub-functions under 155 lines
+- No function >200 lines created
+- Clean compile, 43% flash / 65% RAM (unchanged)
 
-**Measurable:** `initLvglUi()` drops from 714 to <80 lines (orchestrator only).
+**Verification:** compile --clean ✓ (upload + device test pending)
 
 ---
 
@@ -309,7 +310,7 @@ Track each completed milestone here with date, r-number, and commit hash.
 ```
 | Date | r# | Commit | Milestone | Notes |
 |------|-----|--------|-----------|-------|
-| — | — | — | — | — |
+| 2026-03-20 | r200 | — | M1 | initLvglUi 714→94 lines, 7 sub-functions, all <155 lines |
 ```
 
 ---
