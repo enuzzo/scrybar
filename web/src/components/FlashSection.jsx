@@ -1,0 +1,82 @@
+export default function FlashSection() {
+  return (
+    <section id="flash">
+      <div className="container">
+        <span className="section-label">Install</span>
+        <h2>Flash from your browser</h2>
+        <p className="section-sub">
+          No toolchain. No drivers. Plug in USB-C, pick a variant, click flash.
+          Powered by Web Serial API.
+        </p>
+
+        <div className="flash-cards">
+          {/* Full variant */}
+          <div className="vm-card flash-card">
+            <div className="flash-card__header">
+              <h3>Full</h3>
+              <span className="vm-badge vm-badge--success">recommended</span>
+            </div>
+            <p className="flash-card__desc">
+              Everything included: word clock, weather, RSS reader,
+              Wikipedia deck, Now Playing, and DOOM.
+            </p>
+            <div className="flash-card__action">
+              <esp-web-install-button manifest="manifest-full.json">
+                <button slot="activate" className="vm-btn vm-btn--primary vm-btn--block">
+                  Install Full Firmware
+                </button>
+              </esp-web-install-button>
+            </div>
+          </div>
+
+          {/* Lite variant */}
+          <div className="vm-card flash-card">
+            <div className="flash-card__header">
+              <h3>Lite</h3>
+              <span className="vm-badge vm-badge--info">smaller</span>
+            </div>
+            <p className="flash-card__desc">
+              Word clock, weather, RSS reader, Wikipedia deck, Now Playing.
+              No DOOM &mdash; smaller flash footprint.
+            </p>
+            <div className="flash-card__action">
+              <esp-web-install-button manifest="manifest-lite.json">
+                <button slot="activate" className="vm-btn vm-btn--secondary vm-btn--block">
+                  Install Lite Firmware
+                </button>
+              </esp-web-install-button>
+            </div>
+          </div>
+        </div>
+
+        {/* Post-flash instructions */}
+        <div className="post-flash">
+          <h3>After flashing</h3>
+          <ol>
+            <li>
+              Device boots and starts a WiFi access point
+              <code>ScryBar-Setup-XXXX</code>
+            </li>
+            <li>Connect from your phone or laptop</li>
+            <li>
+              Open <code>http://192.168.4.1:8080</code> to configure
+              WiFi, theme, language, weather, and RSS feeds
+            </li>
+          </ol>
+        </div>
+
+        <p className="flash-compat">
+          Requires a Chromium-based browser (Chrome, Edge, Opera 89+) with{' '}
+          <a
+            href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Web Serial
+          </a>{' '}
+          support. Safari and Firefox are not supported.
+        </p>
+      </div>
+    </section>
+  )
+}

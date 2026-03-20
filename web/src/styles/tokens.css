@@ -1,0 +1,201 @@
+/* ============================================
+   ScryBar Landing — Vibemilk DS Token Subset
+   5 product themes mapped from firmware
+   ============================================ */
+
+/* ========== SCRYBAR DEFAULT (deep navy / purple-cyan) ========== */
+:root,
+[data-theme="scrybar-default"] {
+  --font-display: 'Syne', 'Montserrat', sans-serif;
+  --font-body: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Space Mono', 'SF Mono', 'Fira Code', monospace;
+
+  --bg-deepest: #040918;
+  --bg-deep: #070D2D;
+  --bg-surface: #0E1A3D;
+  --bg-surface-hover: #142252;
+  --bg-elevated: #182B5A;
+  --bg-card: rgba(14, 26, 61, 0.7);
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #A3AED0;
+  --text-tertiary: #707EAE;
+  --text-muted: #4A5578;
+
+  --accent-primary: #7551FF;
+  --accent-primary-rgb: 117, 81, 255;
+  --accent-primary-glow: rgba(117, 81, 255, 0.4);
+  --accent-secondary: #39B8FF;
+  --accent-secondary-rgb: 57, 184, 255;
+  --accent-secondary-glow: rgba(57, 184, 255, 0.3);
+
+  --border-subtle: 1px solid rgba(255, 255, 255, 0.07);
+  --border-accent: 1px solid rgba(117, 81, 255, 0.3);
+
+  --shadow-glow-sm: 0 0 20px rgba(117, 81, 255, 0.15);
+  --shadow-glow-md: 0 0 40px rgba(117, 81, 255, 0.22);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.35);
+
+  --device-body: #1a1d2e;
+  --device-bezel: #0d0f1a;
+  --device-screen-glow: rgba(117, 81, 255, 0.12);
+
+  --gradient-hero: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(117, 81, 255, 0.14) 0%, rgba(57, 184, 255, 0.04) 40%, transparent 70%);
+  --gradient-surface: linear-gradient(135deg, rgba(117, 81, 255, 0.04) 0%, rgba(57, 184, 255, 0.02) 100%);
+}
+
+/* ========== CYBERPUNK 2077 (yellow/cyan neon on dark) ========== */
+[data-theme="cyberpunk-2077"] {
+  --font-display: 'Space Mono', 'Syne', monospace;
+  --font-body: 'Space Mono', 'Montserrat', monospace;
+
+  --bg-deepest: #04060B;
+  --bg-deep: #080C15;
+  --bg-surface: #101822;
+  --bg-surface-hover: #172030;
+  --bg-elevated: #1A2538;
+  --bg-card: rgba(16, 24, 34, 0.8);
+
+  --text-primary: #E6FCFF;
+  --text-secondary: #8CBDC6;
+  --text-tertiary: #5A8A94;
+  --text-muted: #3A5A64;
+
+  --accent-primary: #FCEE0A;
+  --accent-primary-rgb: 252, 238, 10;
+  --accent-primary-glow: rgba(252, 238, 10, 0.3);
+  --accent-secondary: #00E8FF;
+  --accent-secondary-rgb: 0, 232, 255;
+  --accent-secondary-glow: rgba(0, 232, 255, 0.25);
+
+  --border-subtle: 1px solid rgba(252, 238, 10, 0.06);
+  --border-accent: 1px solid rgba(252, 238, 10, 0.22);
+
+  --shadow-glow-sm: 0 0 20px rgba(252, 238, 10, 0.1);
+  --shadow-glow-md: 0 0 40px rgba(252, 238, 10, 0.16);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  --device-body: #12161c;
+  --device-bezel: #08090d;
+  --device-screen-glow: rgba(252, 238, 10, 0.1);
+
+  --gradient-hero: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(252, 238, 10, 0.08) 0%, rgba(0, 232, 255, 0.04) 40%, transparent 65%);
+  --gradient-surface: linear-gradient(135deg, rgba(252, 238, 10, 0.03) 0%, rgba(0, 232, 255, 0.015) 100%);
+}
+
+/* ========== TOXIC CANDY (acid green / magenta on black) ========== */
+[data-theme="toxic-candy"] {
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'Montserrat', sans-serif;
+
+  --bg-deepest: #030303;
+  --bg-deep: #080808;
+  --bg-surface: #111111;
+  --bg-surface-hover: #1A1A1A;
+  --bg-elevated: #1E1E1E;
+  --bg-card: rgba(17, 17, 17, 0.8);
+
+  --text-primary: #EEFFEE;
+  --text-secondary: #99CC99;
+  --text-tertiary: #668866;
+  --text-muted: #3D5A3D;
+
+  --accent-primary: #39FF14;
+  --accent-primary-rgb: 57, 255, 20;
+  --accent-primary-glow: rgba(57, 255, 20, 0.3);
+  --accent-secondary: #FF00FF;
+  --accent-secondary-rgb: 255, 0, 255;
+  --accent-secondary-glow: rgba(255, 0, 255, 0.25);
+
+  --border-subtle: 1px solid rgba(57, 255, 20, 0.06);
+  --border-accent: 1px solid rgba(57, 255, 20, 0.22);
+
+  --shadow-glow-sm: 0 0 20px rgba(57, 255, 20, 0.12);
+  --shadow-glow-md: 0 0 40px rgba(57, 255, 20, 0.18);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.55);
+
+  --device-body: #141414;
+  --device-bezel: #090909;
+  --device-screen-glow: rgba(57, 255, 20, 0.1);
+
+  --gradient-hero: radial-gradient(ellipse 70% 45% at 50% 0%, rgba(57, 255, 20, 0.07) 0%, rgba(255, 0, 255, 0.04) 35%, transparent 60%);
+  --gradient-surface: linear-gradient(135deg, rgba(57, 255, 20, 0.025) 0%, rgba(255, 0, 255, 0.015) 100%);
+}
+
+/* ========== TOKYO TRANSIT (warm neutrals, signage orange) ========== */
+[data-theme="tokyo-transit"] {
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'Montserrat', sans-serif;
+
+  --bg-deepest: #08060A;
+  --bg-deep: #100C0E;
+  --bg-surface: #1A1416;
+  --bg-surface-hover: #241C1E;
+  --bg-elevated: #2C2224;
+  --bg-card: rgba(26, 20, 22, 0.8);
+
+  --text-primary: #F2E8DD;
+  --text-secondary: #BBA898;
+  --text-tertiary: #887068;
+  --text-muted: #5A4844;
+
+  --accent-primary: #E85D3A;
+  --accent-primary-rgb: 232, 93, 58;
+  --accent-primary-glow: rgba(232, 93, 58, 0.3);
+  --accent-secondary: #F0C674;
+  --accent-secondary-rgb: 240, 198, 116;
+  --accent-secondary-glow: rgba(240, 198, 116, 0.25);
+
+  --border-subtle: 1px solid rgba(242, 232, 221, 0.06);
+  --border-accent: 1px solid rgba(232, 93, 58, 0.22);
+
+  --shadow-glow-sm: 0 0 20px rgba(232, 93, 58, 0.1);
+  --shadow-glow-md: 0 0 40px rgba(232, 93, 58, 0.16);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  --device-body: #1C1614;
+  --device-bezel: #0E0A08;
+  --device-screen-glow: rgba(232, 93, 58, 0.1);
+
+  --gradient-hero: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(232, 93, 58, 0.08) 0%, rgba(240, 198, 116, 0.03) 40%, transparent 65%);
+  --gradient-surface: linear-gradient(135deg, rgba(232, 93, 58, 0.025) 0%, rgba(240, 198, 116, 0.015) 100%);
+}
+
+/* ========== MINIMAL BRUTALIST MONO (pure black/white) ========== */
+[data-theme="minimal-brutalist-mono"] {
+  --font-display: 'Space Mono', 'Syne', monospace;
+  --font-body: 'Space Mono', 'Montserrat', monospace;
+
+  --bg-deepest: #000000;
+  --bg-deep: #060606;
+  --bg-surface: #0E0E0E;
+  --bg-surface-hover: #161616;
+  --bg-elevated: #1A1A1A;
+  --bg-card: rgba(14, 14, 14, 0.85);
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #999999;
+  --text-tertiary: #666666;
+  --text-muted: #3A3A3A;
+
+  --accent-primary: #FFFFFF;
+  --accent-primary-rgb: 255, 255, 255;
+  --accent-primary-glow: rgba(255, 255, 255, 0.15);
+  --accent-secondary: #777777;
+  --accent-secondary-rgb: 119, 119, 119;
+  --accent-secondary-glow: rgba(119, 119, 119, 0.15);
+
+  --border-subtle: 1px solid rgba(255, 255, 255, 0.08);
+  --border-accent: 1px solid rgba(255, 255, 255, 0.25);
+
+  --shadow-glow-sm: 0 0 20px rgba(255, 255, 255, 0.04);
+  --shadow-glow-md: 0 0 40px rgba(255, 255, 255, 0.06);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.55);
+
+  --device-body: #181818;
+  --device-bezel: #0a0a0a;
+  --device-screen-glow: rgba(255, 255, 255, 0.05);
+
+  --gradient-hero: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(255, 255, 255, 0.025) 0%, transparent 50%);
+  --gradient-surface: linear-gradient(135deg, rgba(255, 255, 255, 0.01) 0%, transparent 100%);
+}

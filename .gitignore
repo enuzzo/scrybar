@@ -17,6 +17,15 @@ secrets.h
 # Local Claude Code state (machine-specific permissions/settings)
 .claude/
 
+# Superpowers (local agent metadata)
+.superpowers/
+
+# Design system assets (local reference only)
+assets/Vibemilk*/
+
+# Node modules
+**/node_modules/
+
 # Local assets/documents not meant for sharing
 documents/
 assets/weather_icons/

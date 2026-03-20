@@ -1,0 +1,295 @@
+/* ============================================
+   3D Device Mockup Styles
+   CSS perspective + depth edges for a bar-shaped device
+   ============================================ */
+
+.device-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  perspective: 1800px;
+  perspective-origin: 50% 42%;
+  padding: 32px 0 12px;
+}
+
+.device-anchor {
+  transform-style: preserve-3d;
+}
+
+.device {
+  position: relative;
+  width: min(580px, 88vw);
+  transform-style: preserve-3d;
+  transform: rotateY(-5deg) rotateX(2deg);
+  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  will-change: transform;
+}
+
+/* Hover lift — scale up to "raise" off the surface */
+.device-stage:hover .device {
+  transform: rotateY(-5deg) rotateX(2deg) scale(1.04);
+}
+
+/* Front bezel — the main visible face */
+.device-bezel {
+  position: relative;
+  background: var(--device-body);
+  border-radius: 14px;
+  padding: 6px;
+  transform: translateZ(10px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 -1px 0 rgba(0,0,0,0.3),
+    0px 0px 3px rgba(0,0,0,0.05),
+    0px 0px 7px rgba(0,0,0,0.07),
+    0px 0px 14px rgba(0,0,0,0.09),
+    0px 0px 24px rgba(0,0,0,0.11),
+    0px 0px 46px rgba(0,0,0,0.13),
+    0px 0px 100px rgba(0,0,0,0.18);
+  transition: box-shadow 0.4s ease;
+}
+
+/* Deeper shadow on hover — device is "lifted" */
+.device-stage:hover .device-bezel {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    inset 0 -1px 0 rgba(0,0,0,0.3),
+    0px 2px 4px rgba(0,0,0,0.06),
+    0px 4px 10px rgba(0,0,0,0.08),
+    0px 8px 20px rgba(0,0,0,0.1),
+    0px 14px 36px rgba(0,0,0,0.13),
+    0px 22px 60px rgba(0,0,0,0.16),
+    0px 32px 130px rgba(0,0,0,0.22);
+}
+
+/* The AMOLED screen area */
+.device-screen {
+  position: relative;
+  aspect-ratio: 640 / 172;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #000;
+}
+
+.device-screen__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.55s ease;
+}
+
+.device-screen__img.active {
+  opacity: 1;
+}
+
+/* Screen reflection overlay */
+.device-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    165deg,
+    rgba(255,255,255,0.04) 0%,
+    transparent 40%,
+    transparent 60%,
+    rgba(255,255,255,0.015) 100%
+  );
+  pointer-events: none;
+  border-radius: 9px;
+}
+
+/* Glass glare overlay — angled streak that follows cursor */
+.device-glare {
+  --glare-pos: 120%;
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+/* Show glare on hover */
+.device-stage:hover .device-glare {
+  opacity: 1;
+}
+
+/* Primary streak — soft diagonal band */
+.device-glare::before {
+  content: '';
+  position: absolute;
+  top: -80%;
+  left: -80%;
+  width: 360%;
+  height: 360%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 38%,
+    rgba(255,255,255,0.02) 42%,
+    rgba(255,255,255,0.06) 46%,
+    rgba(255,255,255,0.10) 49%,
+    rgba(255,255,255,0.12) 50%,
+    rgba(255,255,255,0.10) 51%,
+    rgba(255,255,255,0.06) 54%,
+    rgba(255,255,255,0.02) 58%,
+    transparent 62%,
+    transparent 100%
+  );
+  transform: rotate(-30deg) translateX(calc(var(--glare-pos) - 50%));
+  transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+  mix-blend-mode: screen;
+}
+
+/* Secondary streak — wider, even softer */
+.device-glare::after {
+  content: '';
+  position: absolute;
+  top: -80%;
+  left: -80%;
+  width: 360%;
+  height: 360%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 50%,
+    rgba(255,255,255,0.01) 54%,
+    rgba(255,255,255,0.04) 58%,
+    rgba(255,255,255,0.01) 62%,
+    transparent 66%,
+    transparent 100%
+  );
+  transform: rotate(-30deg) translateX(calc(var(--glare-pos) - 50%));
+  transition: transform 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+  mix-blend-mode: screen;
+}
+
+/* ---- 3D Depth Edges ---- */
+.device-edge {
+  position: absolute;
+  backface-visibility: hidden;
+}
+
+/* Top edge — visible when rotateX > 0 */
+.device-edge--top {
+  top: 0;
+  left: 6px;
+  right: 6px;
+  height: 20px;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--device-body) 85%, white) 0%,
+    var(--device-body) 100%
+  );
+  border-radius: 14px 14px 2px 2px;
+  transform-origin: center top;
+  transform: translateZ(10px) rotateX(90deg);
+}
+
+/* Bottom edge */
+.device-edge--bottom {
+  bottom: 0;
+  left: 6px;
+  right: 6px;
+  height: 20px;
+  background: linear-gradient(0deg,
+    color-mix(in srgb, var(--device-body) 45%, black) 0%,
+    var(--device-body) 100%
+  );
+  border-radius: 2px 2px 14px 14px;
+  transform-origin: center bottom;
+  transform: translateZ(10px) rotateX(-90deg);
+}
+
+/* Right edge — visible when rotateY < 0 */
+.device-edge--right {
+  top: 6px;
+  right: 0;
+  bottom: 6px;
+  width: 20px;
+  background: linear-gradient(270deg,
+    color-mix(in srgb, var(--device-body) 55%, black) 0%,
+    var(--device-body) 100%
+  );
+  border-radius: 0 14px 14px 0;
+  transform-origin: center right;
+  transform: translateZ(10px) rotateY(90deg);
+}
+
+/* Left edge (USB-C side) */
+.device-edge--left {
+  top: 6px;
+  left: 0;
+  bottom: 6px;
+  width: 20px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--device-body) 60%, black) 0%,
+    var(--device-body) 100%
+  );
+  border-radius: 14px 0 0 14px;
+  transform-origin: center left;
+  transform: translateZ(10px) rotateY(-90deg);
+}
+
+/* USB-C port on left edge */
+.device-usbc {
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%) translateZ(11px);
+  width: 6px;
+  height: 16px;
+  background: #1a1a1a;
+  border-radius: 0 3px 3px 0;
+  box-shadow: inset 0 0 3px rgba(0,0,0,0.6), 0 0 1px rgba(0,0,0,0.4);
+}
+
+/* LED indicator dot */
+.device-led {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%) translateZ(9px);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  box-shadow: 0 0 6px var(--accent-primary-glow);
+  animation: led-pulse 3s ease-in-out infinite;
+}
+
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ---- Glow on desk surface ---- */
+.device-glow {
+  width: 75%;
+  height: 60px;
+  margin-top: 4px;
+  background: var(--device-screen-glow);
+  filter: blur(40px);
+  border-radius: 50%;
+  opacity: 0.85;
+  transition: opacity 0.4s ease, filter 0.4s ease;
+}
+
+/* Glow intensifies on hover — device is closer */
+.device-stage:hover .device-glow {
+  opacity: 1;
+  filter: blur(34px);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 640px) {
+  .device-stage {
+    padding: 32px 0 16px;
+  }
+}

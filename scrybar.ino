@@ -50,6 +50,7 @@
 #include <ESPmDNS.h>
 #if __has_include(<mbedtls/base64.h>)
 #include <mbedtls/base64.h>
+#include <mbedtls/platform.h>
 #define DB_HAS_MBEDTLS_BASE64 1
 #else
 #define DB_HAS_MBEDTLS_BASE64 0
@@ -672,12 +673,14 @@ static constexpr uint8_t UI_VIEW_FLAG_INFO = 0x01;
 static constexpr uint8_t UI_VIEW_FLAG_AUX  = 0x02;
 static constexpr uint8_t UI_VIEW_FLAG_WIKI = 0x04;
 // 0x08 was UI_VIEW_FLAG_ANSI (archived)
-static constexpr uint8_t UI_VIEW_FLAG_DOOM = 0x10;
+static constexpr uint8_t UI_VIEW_FLAG_DOOM        = 0x10;
+static constexpr uint8_t UI_VIEW_FLAG_NOW_PLAYING  = 0x20;
 static constexpr uint8_t UI_VIEW_MASK_DEFAULT =
     UI_VIEW_FLAG_INFO |
     UI_VIEW_FLAG_AUX |
     UI_VIEW_FLAG_WIKI |
-    UI_VIEW_FLAG_DOOM;
+    UI_VIEW_FLAG_DOOM |
+    UI_VIEW_FLAG_NOW_PLAYING;
 
 struct RuntimeNetConfig {
   char weatherCity[32];
@@ -3653,7 +3656,15 @@ static void loadRuntimeNetConfigFromNvs() {
     }
   }
   if (prefs.isKey("ui_views")) {
-    g_runtimeNetConfig.enabledViewsMask = normalizeRuntimeViewMask(prefs.getUChar("ui_views", UI_VIEW_MASK_DEFAULT));
+    uint8_t stored = prefs.getUChar("ui_views", UI_VIEW_MASK_DEFAULT);
+    // Which flags were known when this value was last saved?
+    // Flags added after that save should default to ON (their bit in
+    // UI_VIEW_MASK_DEFAULT) instead of inheriting an implicit 0.
+    const uint8_t knownAtSave = prefs.isKey("ui_views_gen")
+        ? prefs.getUChar("ui_views_gen", UI_VIEW_MASK_DEFAULT)
+        : (uint8_t)(UI_VIEW_FLAG_INFO | UI_VIEW_FLAG_AUX | UI_VIEW_FLAG_WIKI | UI_VIEW_FLAG_DOOM);
+    const uint8_t newFlags = UI_VIEW_MASK_DEFAULT & ~knownAtSave;
+    g_runtimeNetConfig.enabledViewsMask = normalizeRuntimeViewMask(stored | newFlags);
     loadedAny = true;
   }
   // Wiki language (independent from system language)
@@ -3734,6 +3745,7 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n6 = prefs.putString("wc_lang", g_wordClockLang);
   const size_t n7 = prefs.putString("ui_theme", g_runtimeNetConfig.uiTheme);
   const size_t nViewMask = prefs.putUChar("ui_views", normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask));
+  prefs.putUChar("ui_views_gen", UI_VIEW_MASK_DEFAULT);  // track known flags for future migrations
   const size_t nWikiLang = prefs.putString("wiki_lang", g_wikiLang);
   const size_t n8 = prefs.putString("wifi_pref", g_wifiPreferredSsid);
   const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSetupMode);
@@ -3953,6 +3965,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   const bool infoViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) != 0;
   const bool auxViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) != 0;
   const bool wikiViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) != 0;
+  const bool nowPlayingViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) != 0;
   const bool doomFeatureAvailable =
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
       true;
@@ -4103,6 +4116,9 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += F("<label class='vm-view'><input id='view_wiki_cb' type='checkbox'");
     if (wikiViewOn) html += F(" checked");
     html += F("><span class='vm-view__copy'><strong>Wikipedia</strong><small>Featured, On This Day and random article cards.</small></span></label>");
+    html += F("<label class='vm-view'><input id='view_now_playing_cb' type='checkbox'");
+    if (nowPlayingViewOn) html += F(" checked");
+    html += F("><span class='vm-view__copy'><strong>Now Playing</strong><small>Live track info from macOS companion app.</small></span></label>");
     html += F("<label class='view-card");
     if (!doomFeatureAvailable) html += F(" disabled");
     html += F("'><input id='view_doom_cb' type='checkbox'");
@@ -4349,7 +4365,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML=\"RSS feeds \"+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.textContent='';t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='vm-btn vm-btn--sm vm-btn--warn';bEdit.textContent='Edit';bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.textContent='Update';setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='vm-btn vm-btn--sm vm-btn--danger';bDel.textContent='Delete';bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}");
   html += F("function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}");
   html += F("function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}");
-  html += F("function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_doom','view_doom_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}");
+  html += F("function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_doom','view_doom_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}");
   html += F("if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();");
   html += F("})();</script>");
   html += F("</section></main></body></html>");
@@ -4435,6 +4451,8 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) ? F("true") : F("false");
   out += F(",\"wiki\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) ? F("true") : F("false");
+  out += F(",\"now_playing\":");
+  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) ? F("true") : F("false");
   out += F(",\"doom\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? F("true") : F("false");
   out += F("},\"themes\":[");
@@ -4607,10 +4625,11 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   bool viewsInput = false;
   struct ViewArgDef { const char *key; uint8_t bit; };
   static const ViewArgDef kViewArgs[] = {
-      {"view_info", UI_VIEW_FLAG_INFO},
-      {"view_aux", UI_VIEW_FLAG_AUX},
-      {"view_wiki", UI_VIEW_FLAG_WIKI},
-      {"view_doom", UI_VIEW_FLAG_DOOM},
+      {"view_info",        UI_VIEW_FLAG_INFO},
+      {"view_aux",         UI_VIEW_FLAG_AUX},
+      {"view_wiki",        UI_VIEW_FLAG_WIKI},
+      {"view_now_playing", UI_VIEW_FLAG_NOW_PLAYING},
+      {"view_doom",        UI_VIEW_FLAG_DOOM},
   };
   for (const ViewArgDef &viewArg : kViewArgs) {
     if (!g_webConfigServer.hasArg(viewArg.key)) continue;
@@ -6723,12 +6742,41 @@ static void rssShortCacheRetainCurrentFeedLinks(const RssItem *items, uint8_t co
   }
 }
 
+// ---------- PSRAM-based TLS allocator ----------
+// ESP32 Arduino 3.x compiles mbedtls with CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC,
+// forcing all TLS buffers into internal DRAM (~52KB free).  The 16KB+16KB
+// default I/O buffers + handshake temporaries exceed what's available,
+// causing "SSL - Memory allocation failed".
+//
+// Fix: redirect mbedtls allocations to PSRAM (7.8MB free) for the duration
+// of each HTTPS request, then restore the default internal allocator.
+static void *psramCalloc(size_t n, size_t size) {
+  void *p = heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!p) p = calloc(n, size);  // fallback to internal if PSRAM somehow fails
+  return p;
+}
+static void psramFree(void *ptr) { free(ptr); }
+
+// Replicate the default ESP internal allocator (same as esp_mbedtls_mem_calloc)
+// to avoid C/C++ linkage issues with the pre-compiled ESP-IDF symbol.
+static void *internalCalloc(size_t n, size_t size) {
+  return heap_caps_calloc(n, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
+static void internalFree(void *ptr) { free(ptr); }
+
+// RAII guard: redirect mbedtls to PSRAM on construction, restore on destruction.
+struct ScopedPsramTls {
+  ScopedPsramTls()  { mbedtls_platform_set_calloc_free(psramCalloc,    psramFree); }
+  ~ScopedPsramTls() { mbedtls_platform_set_calloc_free(internalCalloc, internalFree); }
+};
+
 static bool rssShortenViaJsonApi(const char *endpoint,
                                  const char *longUrl,
                                  String &shortUrl,
                                  int &httpCode,
                                  bool allowAuthHeader) {
   if (!endpoint || !endpoint[0] || !longUrl || !longUrl[0]) return false;
+  ScopedPsramTls psramTls;  // redirect mbedtls allocations to PSRAM
   HTTPClient http;
   http.setConnectTimeout(RSS_SHORTENER_CONNECT_TIMEOUT_MS);
   http.setTimeout(RSS_SHORTENER_HTTP_TIMEOUT_MS);
@@ -6740,6 +6788,7 @@ static bool rssShortenViaJsonApi(const char *endpoint,
   WiFiClientSecure tls;
   if (isHttps) {
     tls.setInsecure();
+
     tls.setTimeout((RSS_SHORTENER_HTTP_TIMEOUT_MS + 999U) / 1000U);
     beginOk = http.begin(tls, endpoint);
   } else {
@@ -6852,8 +6901,10 @@ static bool rssTryShortenUrlForState(RssState &state, uint8_t idx, const char *l
       Serial.printf("[RSS][NET] tcp api.spoo.me:443 ok=%d\n", tcpApi ? 1 : 0);
       if (tcpApi) tcp.stop();
 
+      ScopedPsramTls psramTls;
       WiFiClientSecure tls;
       tls.setInsecure();
+
       bool tlsSpoo = tls.connect("spoo.me", 443);
       Serial.printf("[RSS][NET] tls spoo.me:443 ok=%d\n", tlsSpoo ? 1 : 0);
       if (tlsSpoo) tls.stop();
@@ -6991,6 +7042,7 @@ static bool buildHttpDowngradeUrl(const char *srcUrl, char *out, size_t outLen) 
 static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSummary) {
   outSummary = "";
   if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
+  ScopedPsramTls psramTls;  // redirect mbedtls allocations to PSRAM
 
   String wikiHost, wikiTitlePath;
   if (!rssExtractWikipediaArticleRef(articleUrl, wikiHost, wikiTitlePath)) return false;
@@ -7011,6 +7063,7 @@ static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSumm
     WiFiClientSecure tls;
     if (strncmp(requestUrl, "https://", 8) == 0) {
       tls.setInsecure();
+  
       tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
       beginOk = http.begin(tls, requestUrl);
     } else {
@@ -7180,6 +7233,7 @@ static uint32_t rssSiteColorHexFromHost(const char *host) {
 static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint8_t cap, int *httpCodeOut) {
   if (httpCodeOut) *httpCodeOut = -1;
   if (!feedUrl || !feedUrl[0] || !outItems || cap == 0) return 0;
+  ScopedPsramTls psramTls;  // redirect mbedtls allocations to PSRAM
   char httpFallback[RSS_FEED_URL_LEN];
   const char *requestUrl = feedUrl;
   bool triedHttpFallback = false;
@@ -7195,6 +7249,7 @@ static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint
     WiFiClientSecure tls;
     if (strncmp(requestUrl, "https://", 8) == 0) {
       tls.setInsecure();
+  
       tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
       beginOk = http.begin(tls, requestUrl);
     } else {
@@ -7435,6 +7490,7 @@ static bool extractJsonStringField(const String &json, const char *key, String &
 
 // Fetch a random Wikipedia article via REST API. Returns true if item populated.
 static bool fetchWikiRandomArticle(RssItem &item) {
+  ScopedPsramTls psramTls;  // redirect mbedtls allocations to PSRAM
   char url[128];
   snprintf(url, sizeof(url),
            "https://%s.wikipedia.org/api/rest_v1/page/random/summary",
@@ -7455,6 +7511,7 @@ static bool fetchWikiRandomArticle(RssItem &item) {
     WiFiClientSecure tls;
     if (strncmp(requestUrl, "https://", 8) == 0) {
       tls.setInsecure();
+  
       tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
       beginOk = http.begin(tls, requestUrl);
     } else {
@@ -7857,9 +7914,11 @@ static void runRssShortenerDiag() {
   Serial.printf("[RSSDIAG] tcp api.spoo.me:443 ok=%d\n", tcpApi ? 1 : 0);
   if (tcpApi) tcp.stop();
 
+  ScopedPsramTls psramTls;  // redirect mbedtls allocations to PSRAM for all TLS diag
   {
     WiFiClientSecure tls;
     tls.setInsecure();
+
     tls.setHandshakeTimeout((RSS_SHORTENER_HTTP_TIMEOUT_MS + 999U) / 1000U);
     const bool ok = tls.connect("spoo.me", 443);
     printTlsDiagResult("spoo.me:443", tls, ok);
@@ -7868,6 +7927,7 @@ static void runRssShortenerDiag() {
   {
     WiFiClientSecure tls;
     tls.setInsecure();
+
     tls.setHandshakeTimeout((RSS_SHORTENER_HTTP_TIMEOUT_MS + 999U) / 1000U);
     const bool ok = tls.connect("api.spoo.me", 443);
     printTlsDiagResult("api.spoo.me:443", tls, ok);
@@ -7876,6 +7936,7 @@ static void runRssShortenerDiag() {
   {
     WiFiClientSecure tls;
     tls.setInsecure();
+
     tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
     const bool ok = tls.connect("rss.nytimes.com", 443);
     printTlsDiagResult("rss.nytimes.com:443", tls, ok);
@@ -7884,6 +7945,7 @@ static void runRssShortenerDiag() {
   {
     WiFiClientSecure tls;
     tls.setInsecure();
+
     tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
     const bool ok = tls.connect("it.wikipedia.org", 443);
     printTlsDiagResult("it.wikipedia.org:443", tls, ok);
@@ -8259,8 +8321,8 @@ static uint8_t uiViewFlagForPage(UiPageMode mode) {
     case UI_PAGE_INFO: return UI_VIEW_FLAG_INFO;
     case UI_PAGE_AUX:  return UI_VIEW_FLAG_AUX;
     case UI_PAGE_WIKI: return UI_VIEW_FLAG_WIKI;
-    case UI_PAGE_DOOM: return UI_VIEW_FLAG_DOOM;
-    case UI_PAGE_NOW_PLAYING:
+    case UI_PAGE_DOOM:        return UI_VIEW_FLAG_DOOM;
+    case UI_PAGE_NOW_PLAYING: return UI_VIEW_FLAG_NOW_PLAYING;
     case UI_PAGE_HOME:
     default:
       return 0;
@@ -8269,7 +8331,6 @@ static uint8_t uiViewFlagForPage(UiPageMode mode) {
 
 static bool uiPageEnabledNoEnsure(UiPageMode mode) {
   if (mode == UI_PAGE_HOME) return true;
-  if (mode == UI_PAGE_NOW_PLAYING) return true;  // Prototype tab is always visible for layout iteration.
   if (mode == UI_PAGE_DOOM) {
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
     return (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) != 0;
@@ -12444,6 +12505,19 @@ static void lvglSetObjXAnim(void *obj, int32_t x) {
   lv_obj_set_x((lv_obj_t *)obj, (lv_coord_t)x);
 }
 
+// Helper: compute dynamic X offset for a page in the carousel.
+// Returns the screen-widths offset relative to the current page, or hides
+// the root object and returns a sentinel when the page is disabled.
+static int32_t lvglCarouselPageX(UiPageMode mode, int8_t curOrd, int16_t w, lv_obj_t *root) {
+  const int8_t ord = uiPageOrdinal(mode);
+  if (ord < 0) {
+    // Disabled page — park far off-screen and hide.
+    if (root) lv_obj_add_flag(root, LV_OBJ_FLAG_HIDDEN);
+    return (int32_t)w * 10;  // sentinel, never rendered
+  }
+  return (int32_t)(ord - curOrd) * w;
+}
+
 static bool lvglApplyPageDrag(int16_t dragDx) {
   if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot || !g_lvglNowPlayingRoot) return false;
   if (g_uiPageMode == UI_PAGE_DOOM) return false;
@@ -12467,17 +12541,19 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   g_lvglPageAnimUntilMs = 0;
   g_lvglPageDragActive = true;
 
-  lv_obj_clear_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_HIDDEN);
-
-  lv_obj_set_pos(g_lvglInfoRoot, (lv_coord_t)(((0 - cur) * w) + dx), 0);
-  lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)(((1 - cur) * w) + dx), 0);
-  lv_obj_set_pos(g_lvglAuxRoot, (lv_coord_t)(((2 - cur) * w) + dx), 0);
-  lv_obj_set_pos(g_lvglWikiRoot, (lv_coord_t)(((3 - cur) * w) + dx), 0);
-  lv_obj_set_pos(g_lvglNowPlayingRoot, (lv_coord_t)(((4 - cur) * w) + dx), 0);
+  struct { UiPageMode mode; lv_obj_t *root; } pages[] = {
+    {UI_PAGE_INFO,        g_lvglInfoRoot},
+    {UI_PAGE_HOME,        g_lvglHomeRoot},
+    {UI_PAGE_AUX,         g_lvglAuxRoot},
+    {UI_PAGE_WIKI,        g_lvglWikiRoot},
+    {UI_PAGE_NOW_PLAYING, g_lvglNowPlayingRoot},
+  };
+  for (auto &p : pages) {
+    const int32_t tx = lvglCarouselPageX(p.mode, cur, w, p.root);
+    if (tx >= (int32_t)w * 10) continue;  // disabled, already hidden by helper
+    lv_obj_clear_flag(p.root, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(p.root, (lv_coord_t)(tx + dx), 0);
+  }
   return true;
 }
 
@@ -12516,59 +12592,49 @@ static void lvglApplyPageVisibility(bool animate) {
   const int16_t w = canvasWidth();
   const int8_t cur = uiPageOrdinal(g_uiPageMode);
   if (cur < 0) return;
-  const int32_t infoTargetX = (0 - cur) * w;
-  const int32_t homeTargetX = (1 - cur) * w;
-  const int32_t auxTargetX  = (2 - cur) * w;
-  const int32_t wikiTargetX = (3 - cur) * w;
-  const int32_t nowTargetX  = (4 - cur) * w;
   const uint32_t now = millis();
 
-  lv_obj_clear_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_HIDDEN);
+  // Build dynamic target positions using live ordinals (skip disabled pages).
+  struct PageSlot { lv_obj_t *root; UiPageMode mode; int32_t targetX; };
+  PageSlot slots[] = {
+    {g_lvglInfoRoot,       UI_PAGE_INFO,        0},
+    {g_lvglHomeRoot,       UI_PAGE_HOME,        0},
+    {g_lvglAuxRoot,        UI_PAGE_AUX,         0},
+    {g_lvglWikiRoot,       UI_PAGE_WIKI,        0},
+    {g_lvglNowPlayingRoot, UI_PAGE_NOW_PLAYING, 0},
+  };
+  constexpr size_t kSlotCount = sizeof(slots) / sizeof(slots[0]);
+  for (size_t i = 0; i < kSlotCount; ++i) {
+    slots[i].targetX = lvglCarouselPageX(slots[i].mode, cur, w, slots[i].root);
+  }
 
   if (!animate) {
     if (g_lvglPageDragActive) return;
     if (now < g_lvglPageAnimUntilMs) return;
     // Only update positions if they actually changed — avoids constant LVGL invalidation.
-    const bool infoOk = (lv_obj_get_x(g_lvglInfoRoot) == (lv_coord_t)infoTargetX);
-    const bool homeOk = (lv_obj_get_x(g_lvglHomeRoot) == (lv_coord_t)homeTargetX);
-    const bool auxOk  = (lv_obj_get_x(g_lvglAuxRoot)  == (lv_coord_t)auxTargetX);
-    const bool wikiOk = (lv_obj_get_x(g_lvglWikiRoot) == (lv_coord_t)wikiTargetX);
-    const bool nowOk  = (lv_obj_get_x(g_lvglNowPlayingRoot) == (lv_coord_t)nowTargetX);
-    if (infoOk && homeOk && auxOk && wikiOk && nowOk) return;
-    lv_anim_del(g_lvglInfoRoot, lvglSetObjXAnim);
-    lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
-    lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
-    lv_anim_del(g_lvglWikiRoot, lvglSetObjXAnim);
-    lv_anim_del(g_lvglNowPlayingRoot, lvglSetObjXAnim);
-    if (!infoOk) lv_obj_set_pos(g_lvglInfoRoot, (lv_coord_t)infoTargetX, 0);
-    if (!homeOk) lv_obj_set_pos(g_lvglHomeRoot, (lv_coord_t)homeTargetX, 0);
-    if (!auxOk)  lv_obj_set_pos(g_lvglAuxRoot,  (lv_coord_t)auxTargetX, 0);
-    if (!wikiOk) lv_obj_set_pos(g_lvglWikiRoot, (lv_coord_t)wikiTargetX, 0);
-    if (!nowOk)  lv_obj_set_pos(g_lvglNowPlayingRoot, (lv_coord_t)nowTargetX, 0);
-    if (abs(infoTargetX) >= w) lv_obj_add_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
-    if (abs(homeTargetX) >= w) lv_obj_add_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
-    if (abs(auxTargetX)  >= w) lv_obj_add_flag(g_lvglAuxRoot,  LV_OBJ_FLAG_HIDDEN);
-    if (abs(wikiTargetX) >= w) lv_obj_add_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
-    if (abs(nowTargetX)  >= w) lv_obj_add_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_HIDDEN);
+    bool allOk = true;
+    for (size_t i = 0; i < kSlotCount; ++i) {
+      if (slots[i].targetX >= (int32_t)w * 10) continue;  // disabled, already hidden
+      if (lv_obj_get_x(slots[i].root) != (lv_coord_t)slots[i].targetX) { allOk = false; break; }
+    }
+    if (allOk) return;
+    for (size_t i = 0; i < kSlotCount; ++i) lv_anim_del(slots[i].root, lvglSetObjXAnim);
+    for (size_t i = 0; i < kSlotCount; ++i) {
+      if (slots[i].targetX >= (int32_t)w * 10) continue;
+      lv_obj_clear_flag(slots[i].root, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_set_pos(slots[i].root, (lv_coord_t)slots[i].targetX, 0);
+      if (abs(slots[i].targetX) >= w) lv_obj_add_flag(slots[i].root, LV_OBJ_FLAG_HIDDEN);
+    }
     g_lvglPageDragActive = false;
     return;
   }
 
   constexpr uint16_t kSlideMs = 250;
-  const int32_t infoFromX = lv_obj_get_x(g_lvglInfoRoot);
-  const int32_t homeFromX = lv_obj_get_x(g_lvglHomeRoot);
-  const int32_t auxFromX  = lv_obj_get_x(g_lvglAuxRoot);
-  const int32_t wikiFromX = lv_obj_get_x(g_lvglWikiRoot);
-  const int32_t nowFromX  = lv_obj_get_x(g_lvglNowPlayingRoot);
-  lvglStartSlideAnim(g_lvglInfoRoot, infoFromX, infoTargetX, kSlideMs);
-  lvglStartSlideAnim(g_lvglHomeRoot, homeFromX, homeTargetX, kSlideMs);
-  lvglStartSlideAnim(g_lvglAuxRoot,  auxFromX,  auxTargetX,  kSlideMs);
-  lvglStartSlideAnim(g_lvglWikiRoot, wikiFromX, wikiTargetX, kSlideMs);
-  lvglStartSlideAnim(g_lvglNowPlayingRoot, nowFromX, nowTargetX, kSlideMs);
+  for (size_t i = 0; i < kSlotCount; ++i) {
+    if (slots[i].targetX >= (int32_t)w * 10) continue;  // disabled
+    lv_obj_clear_flag(slots[i].root, LV_OBJ_FLAG_HIDDEN);
+    lvglStartSlideAnim(slots[i].root, lv_obj_get_x(slots[i].root), slots[i].targetX, kSlideMs);
+  }
   g_lvglPageDragActive = false;
   g_lvglPageAnimUntilMs = now + kSlideMs + 30;
 }
@@ -15105,10 +15171,11 @@ static void handleSerialCommand(const char *line) {
     if (runtimeLogoUrl()[0]) Serial.printf("[WEB] logo='%s'\n", runtimeLogoUrl());
     else Serial.println("[WEB] logo=''");
     Serial.printf("[WEB] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
-    Serial.printf("[WEB] views info=%d home=1 aux=%d wiki=%d doom=%d\n",
+    Serial.printf("[WEB] views info=%d home=1 aux=%d wiki=%d np=%d doom=%d\n",
                   (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) ? 1 : 0,
                   (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) ? 1 : 0,
                   (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) ? 1 : 0,
+                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) ? 1 : 0,
                   (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? 1 : 0);
     Serial.printf("[WEB] lang='%s'\n", g_wordClockLang);
     Serial.printf("[WEB] wifi_setup_mode='%s' setup_ap=%d runtime_known=%u\n",
