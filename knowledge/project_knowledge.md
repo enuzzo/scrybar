@@ -370,6 +370,21 @@ This location is intentionally outside ignored `screenshots/` paths.
 
 Each sub-function locally computes its layout dimensions and theme colors from `canvasWidth()`, `canvasHeight()`, and `activeUiTheme()`, matching the self-contained pattern of `lvglInitFeedDeck()`.
 
+## Language Dispatch Architecture (M2, r201)
+
+Table-driven dispatch via `LangVtable` in `src/lang_types.h`:
+
+- `kLangTable[13]` in `scrybar.ino` — one entry per language, maps code to:
+  - `wordClock` function pointer (per-language compose logic)
+  - `weatherShort` → `WeatherShortLabels` struct (8 category strings)
+  - `weatherUi` → `const char*[WMO_UI_COUNT]` array (24 detailed WMO labels)
+  - `formatDate` function pointer (per-language date formatting)
+  - `uiStrings` → `UiStrings*` (from `src/ui_strings.h`)
+- `findLangVtable()` — single lookup by `g_wordClockLang`, returns Italian default
+- Dispatcher wrappers (`weatherCodeShort()`, `weatherCodeUiLabel()`, `composeWordClockSentenceActive()`, `activeUiStrings()`, `formatDateActive()`) are 1-2 line pass-throughs
+
+**To add a new language:** 1 `kLangTable` entry + 4 functions (wordClock, weatherShort data, weatherUi data, formatDate) + 1 UiStrings in `ui_strings.h` + add code to `kAllowedLangs[]`. Zero dispatcher changes needed.
+
 ## LVGL Configuration Baselines
 
 Key settings:

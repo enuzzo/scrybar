@@ -102,35 +102,29 @@ Split the monolithic display initialization into focused sub-functions:
 
 ### M2 — Table-driven language dispatchers (1,855 -> ~400)
 
-**Status: TODO**
+**Status: DONE (r201, 2026-03-20)**
 
-Replace 56 per-language functions + 4 dispatchers with:
+Replaced 26 weather functions + 5 dispatcher functions with data tables + `LangVtable`:
 
-```c
-struct LangVtable {
-  const char* code;
-  String (*wordClock)(int h, int m);
-  const char* (*weatherShort)(int code);
-  const char* (*weatherUiLabel)(int code);
-  String (*formatDate)(int y, int m, int d, int dow);
-  const UiStrings* uiStrings;
-};
+- `WeatherShortLabels` struct — 8 fields (clear/cloudy/overcast/fog/rain/snow/storm/na), 13 instances (1 line each)
+- `WmoUiIdx` enum — 24 WMO code indices, shared `wmoCodeToUiIdx()` lookup
+- 13 `kWeatherUi*[WMO_UI_COUNT]` arrays — per-language detailed WMO labels (5 lines each)
+- `LangVtable` struct — code + 4 function pointers + data pointers, defined in `src/lang_types.h`
+- `kLangTable[13]` — single lookup table mapping language codes to all dispatch targets
+- `findLangVtable()` — single lookup function replacing all 5 dispatcher strcmp chains
+- 5 slim dispatcher wrappers (1-2 lines each): `weatherCodeShort()`, `weatherCodeUiLabel()`, `composeWordClockSentenceActive()`, `activeUiStrings()`, `formatDateActive()`
 
-static const LangVtable kLangTable[] = {
-  { "it", composeWordClockSentenceIt, weatherCodeShortIt, ... },
-  ...
-};
-```
+**Results:**
+- `scrybar.ino`: **15441 lines** (was 15803, -362 lines)
+- New `src/lang_types.h`: 40 lines (struct/enum definitions)
+- Net savings: **322 lines** removed
+- All 26 weather per-language functions eliminated (replaced by data tables)
+- All 5 dispatcher functions reduced to 1-2 line wrappers
+- 13 word clock + 13 formatDate functions kept as-is (unique logic per language)
+- Adding a new language = 1 `kLangTable` entry + 4 functions (zero dispatcher changes)
+- Clean compile, 43% flash / 65% RAM (unchanged)
 
-Dispatch becomes a single loop/lookup instead of 13x `strcmp`.
-
-**Verification:**
-1. Compile + upload
-2. Switch language via web UI for each of the 13 languages
-3. Verify: clock sentence, weather label, date format, UI strings
-4. Serial: `WEBCFG` shows correct `wc_lang`
-
-**Measurable:** ~1,400 lines removed. Adding a new language = 1 struct entry + 4 functions (no dispatcher changes).
+**Verification:** compile ✓ | upload ✓ | all 13 languages via serial LANG sweep ✓ | word clock ✓ | weather ✓ | NVS persist ✓
 
 ---
 
@@ -311,6 +305,7 @@ Track each completed milestone here with date, r-number, and commit hash.
 | Date | r# | Commit | Milestone | Notes |
 |------|-----|--------|-----------|-------|
 | 2026-03-20 | r200 | 7b66f73 | M1 | initLvglUi 714→94 lines, 7 sub-functions, all <155 lines |
+| 2026-03-20 | r201 | pending | M2 | LangVtable dispatch, 26 weather funcs→data tables, -322 net lines |
 ```
 
 ---

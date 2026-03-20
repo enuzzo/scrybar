@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <string.h>
 #include "src/ui_strings.h"
+#include "src/lang_types.h"
 #include "src/sketch_fwd.h"
 #include "esp_system.h"
 #include "esp_sleep.h"
@@ -5341,583 +5342,259 @@ static const char* weatherCodeLabelIt(int code) {
   return "N/D";
 }
 
-static const char* weatherCodeShortIt(int code) {
-  if (code == 0 || code == 1) return "Sereno";
-  if (code == 2) return "Nuvoloso";
-  if (code == 3) return "Coperto";
-  if (code == 45 || code == 48) return "Nebbia";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Pioggia";
-  if (code >= 71 && code <= 77) return "Neve";
-  if (code >= 95) return "Temporale";
-  return "N/D";
+// ---------------------------------------------------------------------------
+// Weather label data tables — table-driven language dispatch (M2)
+// ---------------------------------------------------------------------------
+
+static const char* weatherCodeShortFromLabels(int code, const WeatherShortLabels* l) {
+  if (code == 0 || code == 1) return l->clear;
+  if (code == 2) return l->cloudy;
+  if (code == 3) return l->overcast;
+  if (code == 45 || code == 48) return l->fog;
+  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return l->rain;
+  if (code >= 71 && code <= 77) return l->snow;
+  if (code >= 95) return l->storm;
+  return l->na;
 }
 
-static const char* weatherCodeUiLabelIt(int code) {
-  if (code == 0) return "Sereno";
-  if (code == 1) return "Sole prevalente";
-  if (code == 2) return "Parz. nuvoloso";
-  if (code == 3) return "Coperto";
-  if (code == 45) return "Nebbia";
-  if (code == 48) return "Nebbia gelata";
-  if (code == 51) return "Pioviggine";
-  if (code == 53) return "Pioviggia mod.";
-  if (code == 55) return "Pioviggia forte";
-  if (code == 56 || code == 57) return "Pioviggia gel.";
-  if (code == 61) return "Pioggia debole";
-  if (code == 63) return "Pioggia mod.";
-  if (code == 65) return "Pioggia forte";
-  if (code == 66 || code == 67) return "Pioggia gelata";
-  if (code == 71) return "Neve debole";
-  if (code == 73) return "Neve moderata";
-  if (code == 75) return "Neve forte";
-  if (code == 77) return "Granuli neve";
-  if (code == 80) return "Rovesci deboli";
-  if (code == 81) return "Rovesci mod.";
-  if (code == 82) return "Rovesci forti";
-  if (code == 85 || code == 86) return "Rovesci neve";
-  if (code == 95) return "Temporale";
-  if (code == 96 || code == 99) return "Temp. grandine";
-  return "N/D";
-}
+static const WeatherShortLabels kWeatherShortIt       = {"Sereno",    "Nuvoloso",  "Coperto",   "Nebbia",     "Pioggia",  "Neve",     "Temporale",   "N/D"};
+static const WeatherShortLabels kWeatherShortEn       = {"Clear",     "Cloudy",    "Overcast",  "Fog",        "Rain",     "Snow",     "Storm",       "N/A"};
+static const WeatherShortLabels kWeatherShortFr       = {"Clair",     "Nuageux",   "Couvert",   "Brouillard", "Pluie",    "Neige",    "Orage",       "N/D"};
+static const WeatherShortLabels kWeatherShortDe       = {"Klar",      "Bewoelkt",  "Bedeckt",   "Nebel",      "Regen",    "Schnee",   "Gewitter",    "N/V"};
+static const WeatherShortLabels kWeatherShortEs       = {"Despejado", "Nublado",   "Cubierto",  "Niebla",     "Lluvia",   "Nieve",    "Tormenta",    "N/D"};
+static const WeatherShortLabels kWeatherShortPt       = {"Limpo",     "Nublado",   "Encoberto", "Nevoeiro",   "Chuva",    "Neve",     "Temporal",    "N/D"};
+static const WeatherShortLabels kWeatherShortLa       = {"Serenum",   "Nubilum",   "Opertum",   "Nebula",     "Imber",    "Nix",      "Procella",    "N/D"};
+static const WeatherShortLabels kWeatherShortEo       = {"Klara",     "Nuba",      "Kovrita",   "Nebulo",     "Pluvo",    "Nego",     "Fulmotondro", "N/D"};
+static const WeatherShortLabels kWeatherShortTlh      = {"muD QaQ",   "muD Hurgh", "muD Hurgh", "muD Duj",    "SIS",      "chuch",    "muD QeH",     "Duj"};
+static const WeatherShortLabels kWeatherShortL33t     = {"CL34R",     "CL0UDY",    "0VCST",     "F09",        "R41N",     "5N0W",     "570RM",       "N/4"};
+static const WeatherShortLabels kWeatherShortSha      = {"Faire",     "Cloudie",   "Overcast",  "Mist",       "Raineth",  "Snoweth",  "Tempest",     "N/A"};
+static const WeatherShortLabels kWeatherShortVal      = {"Sunny!",    "Cloudy",    "Ugh Gray",  "Like Fog",   "Ugh Rain", "OMG Snow", "Storm!",      "N/A"};
+static const WeatherShortLabels kWeatherShortBellazio = {"Sereno",    "Nuvoloso",  "Coperto",   "Nebbia",     "Pioggia",  "Neve",     "Temporale",   "N/D"};
 
 // ---------------------------------------------------------------------------
-// English weather labels
+// Detailed WMO UI labels — indexed by WmoUiIdx
 // ---------------------------------------------------------------------------
-static const char* weatherCodeShortEn(int code) {
-  if (code == 0 || code == 1) return "Clear";
-  if (code == 2) return "Cloudy";
-  if (code == 3) return "Overcast";
-  if (code == 45 || code == 48) return "Fog";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Rain";
-  if (code >= 71 && code <= 77) return "Snow";
-  if (code >= 95) return "Storm";
-  return "N/A";
+
+static int8_t wmoCodeToUiIdx(int code) {
+  switch (code) {
+    case 0:           return WMO_CLEAR;
+    case 1:           return WMO_MAINLY_CLEAR;
+    case 2:           return WMO_PARTLY_CLOUDY;
+    case 3:           return WMO_OVERCAST;
+    case 45:          return WMO_FOG;
+    case 48:          return WMO_ICY_FOG;
+    case 51:          return WMO_DRIZZLE_L;
+    case 53:          return WMO_DRIZZLE_M;
+    case 55:          return WMO_DRIZZLE_H;
+    case 56: case 57: return WMO_FREEZE_DRIZZLE;
+    case 61:          return WMO_RAIN_L;
+    case 63:          return WMO_RAIN_M;
+    case 65:          return WMO_RAIN_H;
+    case 66: case 67: return WMO_FREEZE_RAIN;
+    case 71:          return WMO_SNOW_L;
+    case 73:          return WMO_SNOW_M;
+    case 75:          return WMO_SNOW_H;
+    case 77:          return WMO_SNOW_GRAINS;
+    case 80:          return WMO_SHOWER_L;
+    case 81:          return WMO_SHOWER_M;
+    case 82:          return WMO_SHOWER_H;
+    case 85: case 86: return WMO_SNOW_SHOWER;
+    case 95:          return WMO_THUNDER;
+    case 96: case 99: return WMO_HAIL;
+    default:          return -1;
+  }
 }
 
-static const char* weatherCodeUiLabelEn(int code) {
-  if (code == 0) return "Clear";
-  if (code == 1) return "Mainly clear";
-  if (code == 2) return "Partly cloudy";
-  if (code == 3) return "Overcast";
-  if (code == 45) return "Fog";
-  if (code == 48) return "Icy fog";
-  if (code == 51) return "Light drizzle";
-  if (code == 53) return "Mod. drizzle";
-  if (code == 55) return "Heavy drizzle";
-  if (code == 56 || code == 57) return "Freezing drizzle";
-  if (code == 61) return "Light rain";
-  if (code == 63) return "Moderate rain";
-  if (code == 65) return "Heavy rain";
-  if (code == 66 || code == 67) return "Freezing rain";
-  if (code == 71) return "Light snow";
-  if (code == 73) return "Moderate snow";
-  if (code == 75) return "Heavy snow";
-  if (code == 77) return "Snow grains";
-  if (code == 80) return "Light showers";
-  if (code == 81) return "Mod. showers";
-  if (code == 82) return "Heavy showers";
-  if (code == 85 || code == 86) return "Snow showers";
-  if (code == 95) return "Thunderstorm";
-  if (code == 96 || code == 99) return "Storm w/ hail";
-  return "N/A";
+static const char* weatherCodeUiLabelFromTable(int code, const char* const labels[], const char* na) {
+  int8_t idx = wmoCodeToUiIdx(code);
+  return (idx >= 0) ? labels[idx] : na;
 }
 
-// ---------------------------------------------------------------------------
-// French weather labels
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortFr(int code) {
-  if (code == 0 || code == 1) return "Clair";
-  if (code == 2) return "Nuageux";
-  if (code == 3) return "Couvert";
-  if (code == 45 || code == 48) return "Brouillard";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Pluie";
-  if (code >= 71 && code <= 77) return "Neige";
-  if (code >= 95) return "Orage";
-  return "N/D";
-}
-
-static const char* weatherCodeUiLabelFr(int code) {
-  if (code == 0) return "Clair";
-  if (code == 1) return "Principalement clair";
-  if (code == 2) return "Part. nuageux";
-  if (code == 3) return "Couvert";
-  if (code == 45) return "Brouillard";
-  if (code == 48) return "Brouillard glac.";
-  if (code == 51) return "Bruine legere";
-  if (code == 53) return "Bruine mod.";
-  if (code == 55) return "Bruine forte";
-  if (code == 56 || code == 57) return "Bruine verglac.";
-  if (code == 61) return "Pluie faible";
-  if (code == 63) return "Pluie mod.";
-  if (code == 65) return "Pluie forte";
-  if (code == 66 || code == 67) return "Pluie verglac.";
-  if (code == 71) return "Neige faible";
-  if (code == 73) return "Neige mod.";
-  if (code == 75) return "Neige forte";
-  if (code == 77) return "Grains de neige";
-  if (code == 80) return "Averses faibles";
-  if (code == 81) return "Averses mod.";
-  if (code == 82) return "Averses fortes";
-  if (code == 85 || code == 86) return "Averses de neige";
-  if (code == 95) return "Orage";
-  if (code == 96 || code == 99) return "Orage avec grele";
-  return "N/D";
-}
-
-// ---------------------------------------------------------------------------
-// German weather labels
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortDe(int code) {
-  if (code == 0 || code == 1) return "Klar";
-  if (code == 2) return "Bewoelkt";
-  if (code == 3) return "Bedeckt";
-  if (code == 45 || code == 48) return "Nebel";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Regen";
-  if (code >= 71 && code <= 77) return "Schnee";
-  if (code >= 95) return "Gewitter";
-  return "N/V";
-}
-
-static const char* weatherCodeUiLabelDe(int code) {
-  if (code == 0) return "Klar";
-  if (code == 1) return "Ueberwiegend klar";
-  if (code == 2) return "Teils bewoelkt";
-  if (code == 3) return "Bedeckt";
-  if (code == 45) return "Nebel";
-  if (code == 48) return "Eisnebel";
-  if (code == 51) return "Leichter Nieseln";
-  if (code == 53) return "Maess. Nieseln";
-  if (code == 55) return "Starkes Nieseln";
-  if (code == 56 || code == 57) return "Gefrierender Niesel";
-  if (code == 61) return "Leichter Regen";
-  if (code == 63) return "Maess. Regen";
-  if (code == 65) return "Starker Regen";
-  if (code == 66 || code == 67) return "Gefrierender Regen";
-  if (code == 71) return "Leichter Schnee";
-  if (code == 73) return "Maess. Schnee";
-  if (code == 75) return "Starker Schnee";
-  if (code == 77) return "Schneekristalle";
-  if (code == 80) return "Leichte Schauer";
-  if (code == 81) return "Maess. Schauer";
-  if (code == 82) return "Starke Schauer";
-  if (code == 85 || code == 86) return "Schneeschauer";
-  if (code == 95) return "Gewitter";
-  if (code == 96 || code == 99) return "Gewitter m. Hagel";
-  return "N/V";
-}
-
-// ---------------------------------------------------------------------------
-// Spanish weather labels
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortEs(int code) {
-  if (code == 0 || code == 1) return "Despejado";
-  if (code == 2) return "Nublado";
-  if (code == 3) return "Cubierto";
-  if (code == 45 || code == 48) return "Niebla";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Lluvia";
-  if (code >= 71 && code <= 77) return "Nieve";
-  if (code >= 95) return "Tormenta";
-  return "N/D";
-}
-
-static const char* weatherCodeUiLabelEs(int code) {
-  if (code == 0) return "Despejado";
-  if (code == 1) return "Mainly despejado";
-  if (code == 2) return "Parc. nublado";
-  if (code == 3) return "Cubierto";
-  if (code == 45) return "Niebla";
-  if (code == 48) return "Niebla helada";
-  if (code == 51) return "Llovizna leve";
-  if (code == 53) return "Llovizna mod.";
-  if (code == 55) return "Llovizna fuerte";
-  if (code == 56 || code == 57) return "Llovizna helada";
-  if (code == 61) return "Lluvia leve";
-  if (code == 63) return "Lluvia mod.";
-  if (code == 65) return "Lluvia fuerte";
-  if (code == 66 || code == 67) return "Lluvia helada";
-  if (code == 71) return "Nieve leve";
-  if (code == 73) return "Nieve mod.";
-  if (code == 75) return "Nieve fuerte";
-  if (code == 77) return "Granulos nieve";
-  if (code == 80) return "Chubascos leves";
-  if (code == 81) return "Chubascos mod.";
-  if (code == 82) return "Chubascos fuertes";
-  if (code == 85 || code == 86) return "Chubascos nieve";
-  if (code == 95) return "Tormenta";
-  if (code == 96 || code == 99) return "Torm. con granizo";
-  return "N/D";
-}
+// Per-language WMO UI label arrays (order matches WmoUiIdx)
+static const char* const kWeatherUiIt[WMO_UI_COUNT] = {
+  "Sereno","Sole prevalente","Parz. nuvoloso","Coperto",
+  "Nebbia","Nebbia gelata",
+  "Pioviggine","Pioviggia mod.","Pioviggia forte","Pioviggia gel.",
+  "Pioggia debole","Pioggia mod.","Pioggia forte","Pioggia gelata",
+  "Neve debole","Neve moderata","Neve forte","Granuli neve",
+  "Rovesci deboli","Rovesci mod.","Rovesci forti","Rovesci neve",
+  "Temporale","Temp. grandine"
+};
+static const char* const kWeatherUiEn[WMO_UI_COUNT] = {
+  "Clear","Mainly clear","Partly cloudy","Overcast",
+  "Fog","Icy fog",
+  "Light drizzle","Mod. drizzle","Heavy drizzle","Freezing drizzle",
+  "Light rain","Moderate rain","Heavy rain","Freezing rain",
+  "Light snow","Moderate snow","Heavy snow","Snow grains",
+  "Light showers","Mod. showers","Heavy showers","Snow showers",
+  "Thunderstorm","Storm w/ hail"
+};
+static const char* const kWeatherUiFr[WMO_UI_COUNT] = {
+  "Clair","Principalement clair","Part. nuageux","Couvert",
+  "Brouillard","Brouillard glac.",
+  "Bruine legere","Bruine mod.","Bruine forte","Bruine verglac.",
+  "Pluie faible","Pluie mod.","Pluie forte","Pluie verglac.",
+  "Neige faible","Neige mod.","Neige forte","Grains de neige",
+  "Averses faibles","Averses mod.","Averses fortes","Averses de neige",
+  "Orage","Orage avec grele"
+};
+static const char* const kWeatherUiDe[WMO_UI_COUNT] = {
+  "Klar","Ueberwiegend klar","Teils bewoelkt","Bedeckt",
+  "Nebel","Eisnebel",
+  "Leichter Nieseln","Maess. Nieseln","Starkes Nieseln","Gefrierender Niesel",
+  "Leichter Regen","Maess. Regen","Starker Regen","Gefrierender Regen",
+  "Leichter Schnee","Maess. Schnee","Starker Schnee","Schneekristalle",
+  "Leichte Schauer","Maess. Schauer","Starke Schauer","Schneeschauer",
+  "Gewitter","Gewitter m. Hagel"
+};
+static const char* const kWeatherUiEs[WMO_UI_COUNT] = {
+  "Despejado","Mainly despejado","Parc. nublado","Cubierto",
+  "Niebla","Niebla helada",
+  "Llovizna leve","Llovizna mod.","Llovizna fuerte","Llovizna helada",
+  "Lluvia leve","Lluvia mod.","Lluvia fuerte","Lluvia helada",
+  "Nieve leve","Nieve mod.","Nieve fuerte","Granulos nieve",
+  "Chubascos leves","Chubascos mod.","Chubascos fuertes","Chubascos nieve",
+  "Tormenta","Torm. con granizo"
+};
+static const char* const kWeatherUiPt[WMO_UI_COUNT] = {
+  "Limpo","Principalmente limpo","Parc. nublado","Encoberto",
+  "Nevoeiro","Nevoeiro gelado",
+  "Chuvisco fraco","Chuvisco mod.","Chuvisco forte","Chuvisco gelado",
+  "Chuva fraca","Chuva mod.","Chuva forte","Chuva gelada",
+  "Neve fraca","Neve mod.","Neve forte","Graos de neve",
+  "Aguaceiros fracos","Aguaceiros mod.","Aguaceiros fortes","Aguaceiros neve",
+  "Temporal","Temp. com granizo"
+};
+static const char* const kWeatherUiLa[WMO_UI_COUNT] = {
+  "Serenum","Fere serenum","Part. nubilum","Opertum",
+  "Nebula","Nebula glacialis",
+  "Pluvia levis","Pluvia mod.","Pluvia magna","Pluvia glacialis",
+  "Imber levis","Imber mod.","Imber magnus","Imber glacialis",
+  "Nix levis","Nix mod.","Nix magna","Grana nivis",
+  "Imbres leves","Imbres mod.","Imbres magni","Imbres nivis",
+  "Procella","Proc. cum grandine"
+};
+static const char* const kWeatherUiEo[WMO_UI_COUNT] = {
+  "Klara","Cefe klara","Part. nuba","Kovrita",
+  "Nebulo","Glacia nebulo",
+  "Malpeza drizzle","Mod. drizzle","Peza drizzle","Glacia drizzle",
+  "Malpeza pluvo","Mod. pluvo","Peza pluvo","Glacia pluvo",
+  "Malpeza nego","Mod. nego","Peza nego","Negaj grenoj",
+  "Malpezaj soversoj","Mod. soversoj","Pezaj soversoj","Negaj soversoj",
+  "Fulmotondro","Fulmont. kun hajlo"
+};
+static const char* const kWeatherUiTlh[WMO_UI_COUNT] = {
+  "muD QaQ","muD QaQ law'","muD Hurgh","muD Hurgh HoS",
+  "muD Duj","muD chuch Duj",
+  "SIS mach","SIS mod.","SIS HoS","SIS chuch",
+  "bIQ mach","bIQ mod.","bIQ HoS","bIQ chuch",
+  "chuch mach","chuch mod.","chuch HoS","chuch Hap",
+  "SIS mach bIQ","SIS mod. bIQ","SIS HoS bIQ","SIS chuch bIQ",
+  "muD QeH","muD QeH begh"
+};
+static const char* const kWeatherUiL33t[WMO_UI_COUNT] = {
+  "CL34R 5KY","M41NLY CL34R","P4R7LY CL0UDY","0V3RC457",
+  "F09","1CY F09",
+  "L1GH7 DR1ZZL3","M0D DR1ZZL3","H34VY DR1ZZL3","FR33Z1N9 DR1ZZ",
+  "L1GH7 R41N","M0D R41N","H34VY R41N","FR33Z1N9 R41N",
+  "L1GH7 5N0W","M0D 5N0W","H34VY 5N0W","5N0W 9R41N5",
+  "L1GH7 5H0W3R","M0D 5H0W3R","H34VY 5H0W3R","5N0W 5H0W3R",
+  "7HuND3R570RM","570RM+H41L"
+};
+static const char* const kWeatherUiSha[WMO_UI_COUNT] = {
+  "Faire skies","Mainly faire","Partly cloudie","Overcast",
+  "Mist","Icy mist",
+  "Light drizzle","Mod. drizzle","Heavy drizzle","Freezing driz.",
+  "Light rain","Moderate rain","Heavy rain","Freezing rain",
+  "Light snoweth","Mod. snoweth","Heavy snoweth","Snow grains",
+  "Light showers","Mod. showers","Heavy showers","Snow showers",
+  "Thunderstorm","Storm+hail"
+};
+static const char* const kWeatherUiVal[WMO_UI_COUNT] = {
+  "Totally Sunny","Like Sunny","Kinda Cloudy","So Overcast",
+  "Like Foggy","Icy Fog Ew",
+  "Light Drizzle","Some Drizzle","Heavy Drizzle","Freezing Rain",
+  "Light Rain","Moderate Rain","Heavy Rain","Freezing Rain",
+  "Light Snow","Like Snow","Heavy Snow!","Snow Grains",
+  "Light Shower","Mod. Shower","Heavy Shower","Snow Shower",
+  "Thunderstorm","Storm+Hail"
+};
+static const char* const kWeatherUiBellazio[WMO_UI_COUNT] = {
+  "Sereno pieno","Sole, tipo","Un po' nuv.","Tutto coperto",
+  "Nebbia ugh","Nebbia gelata",
+  "Pioggerella","Piovigg. mid","Pioggia forte","Pioggia ghiac.",
+  "Pioggia lieve","Pioggia boh","Pioggia forte","Pioggia gel.",
+  "Neve lowkey","Neve mod.","Neve fr fr","Granuli neve",
+  "Rovesci lievi","Rovesci mid","Rovesci forti","Rovesci neve",
+  "Temporale!","Temp.+grandine"
+};
 
 // ---------------------------------------------------------------------------
-// Portuguese weather labels
+// LangVtable — table-driven language dispatch (M2)
 // ---------------------------------------------------------------------------
-static const char* weatherCodeShortPt(int code) {
-  if (code == 0 || code == 1) return "Limpo";
-  if (code == 2) return "Nublado";
-  if (code == 3) return "Encoberto";
-  if (code == 45 || code == 48) return "Nevoeiro";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Chuva";
-  if (code >= 71 && code <= 77) return "Neve";
-  if (code >= 95) return "Temporal";
-  return "N/D";
+
+// Forward declarations for per-language word clock and date functions
+// (defined later in the file; function pointers resolved at link time)
+static void composeWordClockSentenceIt(const tm&, char*, size_t);
+static void composeWordClockSentenceTlh(const tm&, char*, size_t);
+static void composeWordClockSentenceEn(const tm&, char*, size_t);
+static void composeWordClockSentenceFr(const tm&, char*, size_t);
+static void composeWordClockSentenceDe(const tm&, char*, size_t);
+static void composeWordClockSentenceEs(const tm&, char*, size_t);
+static void composeWordClockSentencePt(const tm&, char*, size_t);
+static void composeWordClockSentenceLa(const tm&, char*, size_t);
+static void composeWordClockSentenceEo(const tm&, char*, size_t);
+static void composeWordClockSentenceL33t(const tm&, char*, size_t);
+static void composeWordClockSentenceSha(const tm&, char*, size_t);
+static void composeWordClockSentenceVal(const tm&, char*, size_t);
+static void composeWordClockSentenceBellazio(const tm&, char*, size_t);
+static void formatDateIt(const tm&, char*, size_t);
+static void formatDateEn(const tm&, char*, size_t);
+static void formatDateFr(const tm&, char*, size_t);
+static void formatDateDe(const tm&, char*, size_t);
+static void formatDateEs(const tm&, char*, size_t);
+static void formatDatePt(const tm&, char*, size_t);
+static void formatDateLa(const tm&, char*, size_t);
+static void formatDateEo(const tm&, char*, size_t);
+static void formatDateTlh(const tm&, char*, size_t);
+static void formatDateL33t(const tm&, char*, size_t);
+static void formatDateSha(const tm&, char*, size_t);
+static void formatDateVal(const tm&, char*, size_t);
+static void formatDateBellazio(const tm&, char*, size_t);
+
+static const LangVtable kLangTable[] = {
+  {"it",       composeWordClockSentenceIt,       &kWeatherShortIt,       kWeatherUiIt,       "N/D", formatDateIt,       &kUiLang_it},
+  {"en",       composeWordClockSentenceEn,       &kWeatherShortEn,       kWeatherUiEn,       "N/A", formatDateEn,       &kUiLang_en},
+  {"fr",       composeWordClockSentenceFr,       &kWeatherShortFr,       kWeatherUiFr,       "N/D", formatDateFr,       &kUiLang_fr},
+  {"de",       composeWordClockSentenceDe,       &kWeatherShortDe,       kWeatherUiDe,       "N/V", formatDateDe,       &kUiLang_de},
+  {"es",       composeWordClockSentenceEs,       &kWeatherShortEs,       kWeatherUiEs,       "N/D", formatDateEs,       &kUiLang_es},
+  {"pt",       composeWordClockSentencePt,       &kWeatherShortPt,       kWeatherUiPt,       "N/D", formatDatePt,       &kUiLang_pt},
+  {"la",       composeWordClockSentenceLa,       &kWeatherShortLa,       kWeatherUiLa,       "N/D", formatDateLa,       &kUiLang_la},
+  {"eo",       composeWordClockSentenceEo,       &kWeatherShortEo,       kWeatherUiEo,       "N/D", formatDateEo,       &kUiLang_eo},
+  {"tlh",      composeWordClockSentenceTlh,      &kWeatherShortTlh,      kWeatherUiTlh,      "Duj", formatDateTlh,      &kUiLang_tlh},
+  {"l33t",     composeWordClockSentenceL33t,     &kWeatherShortL33t,     kWeatherUiL33t,     "N/4", formatDateL33t,     &kUiLang_l33t},
+  {"sha",      composeWordClockSentenceSha,      &kWeatherShortSha,      kWeatherUiSha,      "N/A", formatDateSha,      &kUiLang_sha},
+  {"val",      composeWordClockSentenceVal,      &kWeatherShortVal,      kWeatherUiVal,      "N/A", formatDateVal,      &kUiLang_val},
+  {"bellazio", composeWordClockSentenceBellazio, &kWeatherShortBellazio, kWeatherUiBellazio, "N/D", formatDateBellazio, &kUiLang_bellazio},
+};
+static constexpr size_t kLangCount = sizeof(kLangTable) / sizeof(kLangTable[0]);
+
+static const LangVtable* findLangVtable() {
+  for (size_t i = 0; i < kLangCount; ++i) {
+    if (strcmp(g_wordClockLang, kLangTable[i].code) == 0) return &kLangTable[i];
+  }
+  return &kLangTable[0]; // default = Italian
 }
 
-static const char* weatherCodeUiLabelPt(int code) {
-  if (code == 0) return "Limpo";
-  if (code == 1) return "Principalmente limpo";
-  if (code == 2) return "Parc. nublado";
-  if (code == 3) return "Encoberto";
-  if (code == 45) return "Nevoeiro";
-  if (code == 48) return "Nevoeiro gelado";
-  if (code == 51) return "Chuvisco fraco";
-  if (code == 53) return "Chuvisco mod.";
-  if (code == 55) return "Chuvisco forte";
-  if (code == 56 || code == 57) return "Chuvisco gelado";
-  if (code == 61) return "Chuva fraca";
-  if (code == 63) return "Chuva mod.";
-  if (code == 65) return "Chuva forte";
-  if (code == 66 || code == 67) return "Chuva gelada";
-  if (code == 71) return "Neve fraca";
-  if (code == 73) return "Neve mod.";
-  if (code == 75) return "Neve forte";
-  if (code == 77) return "Graos de neve";
-  if (code == 80) return "Aguaceiros fracos";
-  if (code == 81) return "Aguaceiros mod.";
-  if (code == 82) return "Aguaceiros fortes";
-  if (code == 85 || code == 86) return "Aguaceiros neve";
-  if (code == 95) return "Temporal";
-  if (code == 96 || code == 99) return "Temp. com granizo";
-  return "N/D";
-}
-
-// ---------------------------------------------------------------------------
-// Latin weather labels
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortLa(int code) {
-  if (code == 0 || code == 1) return "Serenum";
-  if (code == 2) return "Nubilum";
-  if (code == 3) return "Opertum";
-  if (code == 45 || code == 48) return "Nebula";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Imber";
-  if (code >= 71 && code <= 77) return "Nix";
-  if (code >= 95) return "Procella";
-  return "N/D";
-}
-
-static const char* weatherCodeUiLabelLa(int code) {
-  if (code == 0) return "Serenum";
-  if (code == 1) return "Fere serenum";
-  if (code == 2) return "Part. nubilum";
-  if (code == 3) return "Opertum";
-  if (code == 45) return "Nebula";
-  if (code == 48) return "Nebula glacialis";
-  if (code == 51) return "Pluvia levis";
-  if (code == 53) return "Pluvia mod.";
-  if (code == 55) return "Pluvia magna";
-  if (code == 56 || code == 57) return "Pluvia glacialis";
-  if (code == 61) return "Imber levis";
-  if (code == 63) return "Imber mod.";
-  if (code == 65) return "Imber magnus";
-  if (code == 66 || code == 67) return "Imber glacialis";
-  if (code == 71) return "Nix levis";
-  if (code == 73) return "Nix mod.";
-  if (code == 75) return "Nix magna";
-  if (code == 77) return "Grana nivis";
-  if (code == 80) return "Imbres leves";
-  if (code == 81) return "Imbres mod.";
-  if (code == 82) return "Imbres magni";
-  if (code == 85 || code == 86) return "Imbres nivis";
-  if (code == 95) return "Procella";
-  if (code == 96 || code == 99) return "Proc. cum grandine";
-  return "N/D";
-}
-
-// ---------------------------------------------------------------------------
-// Esperanto weather labels
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortEo(int code) {
-  if (code == 0 || code == 1) return "Klara";
-  if (code == 2) return "Nuba";
-  if (code == 3) return "Kovrita";
-  if (code == 45 || code == 48) return "Nebulo";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Pluvo";
-  if (code >= 71 && code <= 77) return "Nego";
-  if (code >= 95) return "Fulmotondro";
-  return "N/D";
-}
-
-static const char* weatherCodeUiLabelEo(int code) {
-  if (code == 0) return "Klara";
-  if (code == 1) return "Cefe klara";
-  if (code == 2) return "Part. nuba";
-  if (code == 3) return "Kovrita";
-  if (code == 45) return "Nebulo";
-  if (code == 48) return "Glacia nebulo";
-  if (code == 51) return "Malpeza drizzle";
-  if (code == 53) return "Mod. drizzle";
-  if (code == 55) return "Peza drizzle";
-  if (code == 56 || code == 57) return "Glacia drizzle";
-  if (code == 61) return "Malpeza pluvo";
-  if (code == 63) return "Mod. pluvo";
-  if (code == 65) return "Peza pluvo";
-  if (code == 66 || code == 67) return "Glacia pluvo";
-  if (code == 71) return "Malpeza nego";
-  if (code == 73) return "Mod. nego";
-  if (code == 75) return "Peza nego";
-  if (code == 77) return "Negaj grenoj";
-  if (code == 80) return "Malpezaj soversoj";
-  if (code == 81) return "Mod. soversoj";
-  if (code == 82) return "Pezaj soversoj";
-  if (code == 85 || code == 86) return "Negaj soversoj";
-  if (code == 95) return "Fulmotondro";
-  if (code == 96 || code == 99) return "Fulmont. kun hajlo";
-  return "N/D";
-}
-
-// ---------------------------------------------------------------------------
-// Klingon weather labels
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortTlh(int code) {
-  if (code == 0 || code == 1) return "muD QaQ";
-  if (code == 2 || code == 3) return "muD Hurgh";
-  if (code == 45 || code == 48) return "muD Duj";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "SIS";
-  if (code >= 71 && code <= 77) return "chuch";
-  if (code >= 95) return "muD QeH";
-  return "Duj";
-}
-
-static const char* weatherCodeUiLabelTlh(int code) {
-  if (code == 0) return "muD QaQ";
-  if (code == 1) return "muD QaQ law'";
-  if (code == 2) return "muD Hurgh";
-  if (code == 3) return "muD Hurgh HoS";
-  if (code == 45) return "muD Duj";
-  if (code == 48) return "muD chuch Duj";
-  if (code == 51) return "SIS mach";
-  if (code == 53) return "SIS mod.";
-  if (code == 55) return "SIS HoS";
-  if (code == 56 || code == 57) return "SIS chuch";
-  if (code == 61) return "bIQ mach";
-  if (code == 63) return "bIQ mod.";
-  if (code == 65) return "bIQ HoS";
-  if (code == 66 || code == 67) return "bIQ chuch";
-  if (code == 71) return "chuch mach";
-  if (code == 73) return "chuch mod.";
-  if (code == 75) return "chuch HoS";
-  if (code == 77) return "chuch Hap";
-  if (code == 80) return "SIS mach bIQ";
-  if (code == 81) return "SIS mod. bIQ";
-  if (code == 82) return "SIS HoS bIQ";
-  if (code == 85 || code == 86) return "SIS chuch bIQ";
-  if (code == 95) return "muD QeH";
-  if (code == 96 || code == 99) return "muD QeH begh";
-  return "Duj";
-}
-
-// ---------------------------------------------------------------------------
-// 1337 Speak weather labels
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortL33t(int code) {
-  if (code == 0 || code == 1) return "CL34R";
-  if (code == 2) return "CL0UDY";
-  if (code == 3) return "0VCST";
-  if (code == 45 || code == 48) return "F09";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "R41N";
-  if (code >= 71 && code <= 77) return "5N0W";
-  if (code >= 95) return "570RM";
-  return "N/4";
-}
-
-static const char* weatherCodeUiLabelL33t(int code) {
-  if (code == 0) return "CL34R 5KY";
-  if (code == 1) return "M41NLY CL34R";
-  if (code == 2) return "P4R7LY CL0UDY";
-  if (code == 3) return "0V3RC457";
-  if (code == 45) return "F09";
-  if (code == 48) return "1CY F09";
-  if (code == 51) return "L1GH7 DR1ZZL3";
-  if (code == 53) return "M0D DR1ZZL3";
-  if (code == 55) return "H34VY DR1ZZL3";
-  if (code == 56 || code == 57) return "FR33Z1N9 DR1ZZ";
-  if (code == 61) return "L1GH7 R41N";
-  if (code == 63) return "M0D R41N";
-  if (code == 65) return "H34VY R41N";
-  if (code == 66 || code == 67) return "FR33Z1N9 R41N";
-  if (code == 71) return "L1GH7 5N0W";
-  if (code == 73) return "M0D 5N0W";
-  if (code == 75) return "H34VY 5N0W";
-  if (code == 77) return "5N0W 9R41N5";
-  if (code == 80) return "L1GH7 5H0W3R";
-  if (code == 81) return "M0D 5H0W3R";
-  if (code == 82) return "H34VY 5H0W3R";
-  if (code == 85 || code == 86) return "5N0W 5H0W3R";
-  if (code == 95) return "7HuND3R570RM";
-  if (code == 96 || code == 99) return "570RM+H41L";
-  return "N/4";
-}
-
-// ---------------------------------------------------------------------------
-// Shakespearean English weather labels
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortSha(int code) {
-  if (code == 0 || code == 1) return "Faire";
-  if (code == 2) return "Cloudie";
-  if (code == 3) return "Overcast";
-  if (code == 45 || code == 48) return "Mist";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Raineth";
-  if (code >= 71 && code <= 77) return "Snoweth";
-  if (code >= 95) return "Tempest";
-  return "N/A";
-}
-
-static const char* weatherCodeUiLabelSha(int code) {
-  if (code == 0) return "Faire skies";
-  if (code == 1) return "Mainly faire";
-  if (code == 2) return "Partly cloudie";
-  if (code == 3) return "Overcast";
-  if (code == 45) return "Mist";
-  if (code == 48) return "Icy mist";
-  if (code == 51) return "Light drizzle";
-  if (code == 53) return "Mod. drizzle";
-  if (code == 55) return "Heavy drizzle";
-  if (code == 56 || code == 57) return "Freezing driz.";
-  if (code == 61) return "Light rain";
-  if (code == 63) return "Moderate rain";
-  if (code == 65) return "Heavy rain";
-  if (code == 66 || code == 67) return "Freezing rain";
-  if (code == 71) return "Light snoweth";
-  if (code == 73) return "Mod. snoweth";
-  if (code == 75) return "Heavy snoweth";
-  if (code == 77) return "Snow grains";
-  if (code == 80) return "Light showers";
-  if (code == 81) return "Mod. showers";
-  if (code == 82) return "Heavy showers";
-  if (code == 85 || code == 86) return "Snow showers";
-  if (code == 95) return "Thunderstorm";
-  if (code == 96 || code == 99) return "Storm+hail";
-  return "N/A";
-}
-
-// ---------------------------------------------------------------------------
-// Valley Girl weather labels
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortVal(int code) {
-  if (code == 0 || code == 1) return "Sunny!";
-  if (code == 2) return "Cloudy";
-  if (code == 3) return "Ugh Gray";
-  if (code == 45 || code == 48) return "Like Fog";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Ugh Rain";
-  if (code >= 71 && code <= 77) return "OMG Snow";
-  if (code >= 95) return "Storm!";
-  return "N/A";
-}
-
-static const char* weatherCodeUiLabelVal(int code) {
-  if (code == 0) return "Totally Sunny";
-  if (code == 1) return "Like Sunny";
-  if (code == 2) return "Kinda Cloudy";
-  if (code == 3) return "So Overcast";
-  if (code == 45) return "Like Foggy";
-  if (code == 48) return "Icy Fog Ew";
-  if (code == 51) return "Light Drizzle";
-  if (code == 53) return "Some Drizzle";
-  if (code == 55) return "Heavy Drizzle";
-  if (code == 56 || code == 57) return "Freezing Rain";
-  if (code == 61) return "Light Rain";
-  if (code == 63) return "Moderate Rain";
-  if (code == 65) return "Heavy Rain";
-  if (code == 66 || code == 67) return "Freezing Rain";
-  if (code == 71) return "Light Snow";
-  if (code == 73) return "Like Snow";
-  if (code == 75) return "Heavy Snow!";
-  if (code == 77) return "Snow Grains";
-  if (code == 80) return "Light Shower";
-  if (code == 81) return "Mod. Shower";
-  if (code == 82) return "Heavy Shower";
-  if (code == 85 || code == 86) return "Snow Shower";
-  if (code == 95) return "Thunderstorm";
-  if (code == 96 || code == 99) return "Storm+Hail";
-  return "N/A";
-}
-
-// ---------------------------------------------------------------------------
-// Italian Bellazio weather labels
-// ---------------------------------------------------------------------------
-static const char* weatherCodeShortBellazio(int code) {
-  if (code == 0 || code == 1) return "Sereno";
-  if (code == 2) return "Nuvoloso";
-  if (code == 3) return "Coperto";
-  if (code == 45 || code == 48) return "Nebbia";
-  if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Pioggia";
-  if (code >= 71 && code <= 77) return "Neve";
-  if (code >= 95) return "Temporale";
-  return "N/D";
-}
-
-static const char* weatherCodeUiLabelBellazio(int code) {
-  if (code == 0) return "Sereno pieno";
-  if (code == 1) return "Sole, tipo";
-  if (code == 2) return "Un po' nuv.";
-  if (code == 3) return "Tutto coperto";
-  if (code == 45) return "Nebbia ugh";
-  if (code == 48) return "Nebbia gelata";
-  if (code == 51) return "Pioggerella";
-  if (code == 53) return "Piovigg. mid";
-  if (code == 55) return "Pioggia forte";
-  if (code == 56 || code == 57) return "Pioggia ghiac.";
-  if (code == 61) return "Pioggia lieve";
-  if (code == 63) return "Pioggia boh";
-  if (code == 65) return "Pioggia forte";
-  if (code == 66 || code == 67) return "Pioggia gel.";
-  if (code == 71) return "Neve lowkey";
-  if (code == 73) return "Neve mod.";
-  if (code == 75) return "Neve fr fr";
-  if (code == 77) return "Granuli neve";
-  if (code == 80) return "Rovesci lievi";
-  if (code == 81) return "Rovesci mid";
-  if (code == 82) return "Rovesci forti";
-  if (code == 85 || code == 86) return "Rovesci neve";
-  if (code == 95) return "Temporale!";
-  if (code == 96 || code == 99) return "Temp.+grandine";
-  return "N/D";
-}
-
-// ---------------------------------------------------------------------------
-// Language dispatchers
-// ---------------------------------------------------------------------------
+// Slim dispatcher wrappers — same API as before, now backed by vtable lookup
 static const char* weatherCodeUiLabel(int code) {
-  if (strcmp(g_wordClockLang, "en")   == 0) return weatherCodeUiLabelEn  (code);
-  if (strcmp(g_wordClockLang, "fr")   == 0) return weatherCodeUiLabelFr  (code);
-  if (strcmp(g_wordClockLang, "de")   == 0) return weatherCodeUiLabelDe  (code);
-  if (strcmp(g_wordClockLang, "es")   == 0) return weatherCodeUiLabelEs  (code);
-  if (strcmp(g_wordClockLang, "pt")   == 0) return weatherCodeUiLabelPt  (code);
-  if (strcmp(g_wordClockLang, "la")   == 0) return weatherCodeUiLabelLa  (code);
-  if (strcmp(g_wordClockLang, "eo")   == 0) return weatherCodeUiLabelEo  (code);
-
-  if (strcmp(g_wordClockLang, "tlh")  == 0) return weatherCodeUiLabelTlh (code);
-  if (strcmp(g_wordClockLang, "l33t") == 0) return weatherCodeUiLabelL33t(code);
-  if (strcmp(g_wordClockLang, "sha")  == 0) return weatherCodeUiLabelSha (code);
-  if (strcmp(g_wordClockLang, "val")  == 0) return weatherCodeUiLabelVal (code);
-  if (strcmp(g_wordClockLang, "bellazio") == 0) return weatherCodeUiLabelBellazio(code);
-  return weatherCodeUiLabelIt(code);
+  const LangVtable* v = findLangVtable();
+  return weatherCodeUiLabelFromTable(code, v->weatherUi, v->weatherUiNa);
 }
 
 static const char* weatherCodeShort(int code) {
-  if (strcmp(g_wordClockLang, "en")   == 0) return weatherCodeShortEn  (code);
-  if (strcmp(g_wordClockLang, "fr")   == 0) return weatherCodeShortFr  (code);
-  if (strcmp(g_wordClockLang, "de")   == 0) return weatherCodeShortDe  (code);
-  if (strcmp(g_wordClockLang, "es")   == 0) return weatherCodeShortEs  (code);
-  if (strcmp(g_wordClockLang, "pt")   == 0) return weatherCodeShortPt  (code);
-  if (strcmp(g_wordClockLang, "la")   == 0) return weatherCodeShortLa  (code);
-  if (strcmp(g_wordClockLang, "eo")   == 0) return weatherCodeShortEo  (code);
-
-  if (strcmp(g_wordClockLang, "tlh")  == 0) return weatherCodeShortTlh (code);
-  if (strcmp(g_wordClockLang, "l33t") == 0) return weatherCodeShortL33t(code);
-  if (strcmp(g_wordClockLang, "sha")  == 0) return weatherCodeShortSha (code);
-  if (strcmp(g_wordClockLang, "val")  == 0) return weatherCodeShortVal (code);
-  if (strcmp(g_wordClockLang, "bellazio") == 0) return weatherCodeShortBellazio(code);
-  return weatherCodeShortIt(code);
+  const LangVtable* v = findLangVtable();
+  return weatherCodeShortFromLabels(code, v->weatherShort);
 }
 
 static void appendAsciiFoldedCodepoint(String &out, uint32_t cp) {
@@ -11345,40 +11022,14 @@ static void composeWordClockSentenceBellazio(const tm &timeinfo, char *out, size
   snprintf(out, outLen, "%s %s%s%s", lead, timePhrase, closerSep, closer->text);
 }
 
-// --- Language dispatcher ---
+// --- Language dispatch — vtable wrappers (M2) ---
 
 static void composeWordClockSentenceActive(const tm &timeinfo, char *out, size_t outLen) {
-  if      (strcmp(g_wordClockLang, "tlh")  == 0) composeWordClockSentenceTlh (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "en")   == 0) composeWordClockSentenceEn  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "fr")   == 0) composeWordClockSentenceFr  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "de")   == 0) composeWordClockSentenceDe  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "es")   == 0) composeWordClockSentenceEs  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "pt")   == 0) composeWordClockSentencePt  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "la")   == 0) composeWordClockSentenceLa  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "eo")   == 0) composeWordClockSentenceEo  (timeinfo, out, outLen);
-
-  else if (strcmp(g_wordClockLang, "l33t") == 0) composeWordClockSentenceL33t(timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "sha")  == 0) composeWordClockSentenceSha (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "val")  == 0) composeWordClockSentenceVal (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "bellazio") == 0) composeWordClockSentenceBellazio(timeinfo, out, outLen);
-  else                                            composeWordClockSentenceIt  (timeinfo, out, outLen);
+  findLangVtable()->wordClock(timeinfo, out, outLen);
 }
 
 static const UiStrings* activeUiStrings() {
-  if (strcmp(g_wordClockLang, "en")   == 0) return &kUiLang_en;
-  if (strcmp(g_wordClockLang, "fr")   == 0) return &kUiLang_fr;
-  if (strcmp(g_wordClockLang, "de")   == 0) return &kUiLang_de;
-  if (strcmp(g_wordClockLang, "es")   == 0) return &kUiLang_es;
-  if (strcmp(g_wordClockLang, "pt")   == 0) return &kUiLang_pt;
-  if (strcmp(g_wordClockLang, "la")   == 0) return &kUiLang_la;
-  if (strcmp(g_wordClockLang, "eo")   == 0) return &kUiLang_eo;
-
-  if (strcmp(g_wordClockLang, "tlh")  == 0) return &kUiLang_tlh;
-  if (strcmp(g_wordClockLang, "l33t") == 0) return &kUiLang_l33t;
-  if (strcmp(g_wordClockLang, "sha")  == 0) return &kUiLang_sha;
-  if (strcmp(g_wordClockLang, "val")  == 0) return &kUiLang_val;
-  if (strcmp(g_wordClockLang, "bellazio") == 0) return &kUiLang_bellazio;
-  return &kUiLang_it;
+  return findLangVtable()->uiStrings;
 }
 
 static void drawWordClockInRect(int16_t ox, int16_t oy, int16_t ow, int16_t oh, const tm &timeinfo) {
@@ -12770,20 +12421,7 @@ static void formatDateBellazio(const tm &timeinfo, char *out, size_t outLen) {
 }
 
 static void formatDateActive(const tm &timeinfo, char *out, size_t outLen) {
-  if      (strcmp(g_wordClockLang, "en")   == 0) formatDateEn  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "fr")   == 0) formatDateFr  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "de")   == 0) formatDateDe  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "es")   == 0) formatDateEs  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "pt")   == 0) formatDatePt  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "la")   == 0) formatDateLa  (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "eo")   == 0) formatDateEo  (timeinfo, out, outLen);
-
-  else if (strcmp(g_wordClockLang, "tlh")  == 0) formatDateTlh (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "l33t") == 0) formatDateL33t(timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "sha")  == 0) formatDateSha (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "val")  == 0) formatDateVal (timeinfo, out, outLen);
-  else if (strcmp(g_wordClockLang, "bellazio") == 0) formatDateBellazio(timeinfo, out, outLen);
-  else                                            formatDateIt  (timeinfo, out, outLen);
+  findLangVtable()->formatDate(timeinfo, out, outLen);
 }
 
 static void formatCityLabelCore(const char *src, char *out, size_t outLen, size_t maxCodepoints, bool withEllipsis) {
