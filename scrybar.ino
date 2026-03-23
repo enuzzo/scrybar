@@ -144,43 +144,6 @@ LV_FONT_DECLARE(scry_font_montserrat_medium_23);
 #include "secrets.h"
 #endif
 
-#ifndef RSS_SHORTENER_TOKEN
-#if defined(SPOO_ME_API_KEY)
-#define RSS_SHORTENER_TOKEN SPOO_ME_API_KEY
-#elif defined(SPOOME_API_KEY)
-#define RSS_SHORTENER_TOKEN SPOOME_API_KEY
-#else
-#define RSS_SHORTENER_TOKEN ""
-#endif
-#endif
-#ifndef RSS_SHORTENER_ENDPOINT
-#define RSS_SHORTENER_ENDPOINT "https://spoo.me/api/v1/shorten"
-#endif
-#ifndef RSS_SHORTENER_ENDPOINT_ALT
-#define RSS_SHORTENER_ENDPOINT_ALT "https://spoo.me/shorten"
-#endif
-#ifndef RSS_SHORTENER_ENDPOINT_HTTP
-#define RSS_SHORTENER_ENDPOINT_HTTP "http://spoo.me/api/v1/shorten"
-#endif
-#ifndef RSS_SHORTENER_ENDPOINT_HTTP_ALT
-#define RSS_SHORTENER_ENDPOINT_HTTP_ALT "http://api.spoo.me/v1/shorten"
-#endif
-#ifndef RSS_SHORTENER_CONNECT_TIMEOUT_MS
-#define RSS_SHORTENER_CONNECT_TIMEOUT_MS 12000
-#endif
-#ifndef RSS_SHORTENER_HTTP_TIMEOUT_MS
-#define RSS_SHORTENER_HTTP_TIMEOUT_MS 12000
-#endif
-#ifndef RSS_SHORTENER_ALLOW_HTTP_FALLBACK
-#define RSS_SHORTENER_ALLOW_HTTP_FALLBACK 1
-#endif
-#ifndef RSS_SHORTENER_CACHE_SIZE
-#define RSS_SHORTENER_CACHE_SIZE 24
-#endif
-#if RSS_SHORTENER_CACHE_SIZE < 4
-#undef RSS_SHORTENER_CACHE_SIZE
-#define RSS_SHORTENER_CACHE_SIZE 4
-#endif
 #ifndef RSS_FAVICON_CACHE_SIZE
 #define RSS_FAVICON_CACHE_SIZE 12
 #endif
@@ -258,7 +221,6 @@ static bool g_wifiEventRegistered = false;
 static bool g_wifiEverConnected = false;
 static uint32_t g_wifiLastConnectMs = 0;
 static uint32_t g_wifiLastDisconnectMs = 0;
-static bool g_shortenerDnsDiagDone = false;
 static const char *g_wifiStaticSsids[WIFI_STATIC_CREDENTIALS_MAX] = {nullptr};
 static const char *g_wifiStaticPasswords[WIFI_STATIC_CREDENTIALS_MAX] = {nullptr};
 static size_t g_wifiStaticCredCount = 0;
@@ -787,12 +749,9 @@ struct RssItem {
   char link[280];
   char pubDate[32];
   char summary[420];
-  char shortLink[96];
   uint8_t feedSlot = 0xFF;
   bool wikiMetaReady = false;
   bool wikiMetaTried = false;
-  bool shortReady = false;
-  bool shortTried = false;
 };
 struct RssState {
   bool valid = false;
@@ -803,19 +762,11 @@ struct RssState {
   uint32_t lastFetchMs = 0;
   uint32_t lastAttemptMs = 0;
   uint32_t lastRotateMs = 0;
-  uint32_t lastShortenAttemptMs = 0;
   int lastHttpCode = 0;
 };
 static RssState g_rss = {};
 static RssState g_wiki = {};
 static RssItem *g_rssParseBuf = nullptr;
-struct RssShortCacheEntry {
-  char longUrl[280];
-  char shortUrl[96];
-  uint32_t updatedMs = 0;
-  bool valid = false;
-};
-static RssShortCacheEntry g_rssShortCache[RSS_SHORTENER_CACHE_SIZE];
 static uint32_t g_wikiMetaPreloadLastMs = 0;
 static uint32_t g_wikiVisiblePreloadLastMs = 0;
 #endif
@@ -4764,7 +4715,7 @@ static void applyConfigSideEffects(const ConfigDiffResult &diff, bool langChange
   if (wikiLangChanged) {
     g_wiki.valid = false; g_wiki.itemCount = 0; g_wiki.currentIndex = 0;
     g_wiki.lastFetchMs = 0; g_wiki.lastAttemptMs = 0; g_wiki.lastRotateMs = 0;
-    g_wiki.lastShortenAttemptMs = 0; g_wiki.lastHttpCode = 0;
+    g_wiki.lastHttpCode = 0;
     strncpy(g_wiki.fetchedAt, "--/-- --:--", sizeof(g_wiki.fetchedAt) - 1);
     g_wiki.fetchedAt[sizeof(g_wiki.fetchedAt) - 1] = '\0';
   }
@@ -6304,101 +6255,6 @@ static void handleWebNowPlayingPostApi() {
 }
 #endif
 
-static bool parseShortenerResponse(String resp, String &shortUrl) {
-  if (!extractJsonStringFieldLoose(resp, "\"short_url\"", shortUrl) &&
-      !extractJsonStringFieldLoose(resp, "\"shortUrl\"", shortUrl) &&
-      !extractJsonStringFieldLoose(resp, "\"shortened_url\"", shortUrl) &&
-      !extractJsonStringFieldLoose(resp, "\"url\"", shortUrl)) {
-    resp.trim();
-    if (resp.startsWith("http")) shortUrl = resp;
-  }
-  shortUrl.trim();
-  return shortUrl.startsWith("http");
-}
-
-static bool urlStartsWith(const char *url, const char *prefix) {
-  if (!url || !prefix) return false;
-  const size_t n = strlen(prefix);
-  return strncmp(url, prefix, n) == 0;
-}
-
-static void logShortenerHttpError(const char *endpoint, int httpCode) {
-  String err = HTTPClient::errorToString(httpCode);
-  err.trim();
-  Serial.printf("[RSS][HTTP] endpoint=%s code=%d err=%s\n",
-                endpoint ? endpoint : "-",
-                httpCode,
-                err.length() ? err.c_str() : "-");
-}
-
-static bool rssShortCacheLookup(const char *longUrl, char *outShort, size_t outLen) {
-  if (!longUrl || !longUrl[0] || !outShort || outLen == 0) return false;
-  outShort[0] = '\0';
-  for (size_t i = 0; i < RSS_SHORTENER_CACHE_SIZE; ++i) {
-    const RssShortCacheEntry &e = g_rssShortCache[i];
-    if (!e.valid || !e.longUrl[0] || !e.shortUrl[0]) continue;
-    if (strcmp(e.longUrl, longUrl) != 0) continue;
-    strncpy(outShort, e.shortUrl, outLen - 1);
-    outShort[outLen - 1] = '\0';
-    return outShort[0] != '\0';
-  }
-  return false;
-}
-
-static void rssShortCacheStore(const char *longUrl, const char *shortUrl) {
-  if (!longUrl || !longUrl[0] || !shortUrl || !shortUrl[0]) return;
-  const uint32_t now = millis();
-  int freeIdx = -1;
-  int oldestIdx = 0;
-  uint32_t oldestAge = 0;
-  for (size_t i = 0; i < RSS_SHORTENER_CACHE_SIZE; ++i) {
-    RssShortCacheEntry &e = g_rssShortCache[i];
-    if (e.valid && strcmp(e.longUrl, longUrl) == 0) {
-      strncpy(e.shortUrl, shortUrl, sizeof(e.shortUrl) - 1);
-      e.shortUrl[sizeof(e.shortUrl) - 1] = '\0';
-      e.updatedMs = now;
-      return;
-    }
-    if (!e.valid && freeIdx < 0) freeIdx = (int)i;
-    if (e.valid) {
-      const uint32_t age = now - e.updatedMs;
-      if ((int)i == 0 || age > oldestAge) {
-        oldestAge = age;
-        oldestIdx = (int)i;
-      }
-    }
-  }
-  const int slot = (freeIdx >= 0) ? freeIdx : oldestIdx;
-  RssShortCacheEntry &dst = g_rssShortCache[slot];
-  strncpy(dst.longUrl, longUrl, sizeof(dst.longUrl) - 1);
-  dst.longUrl[sizeof(dst.longUrl) - 1] = '\0';
-  strncpy(dst.shortUrl, shortUrl, sizeof(dst.shortUrl) - 1);
-  dst.shortUrl[sizeof(dst.shortUrl) - 1] = '\0';
-  dst.updatedMs = now;
-  dst.valid = true;
-}
-
-static void rssShortCacheRetainCurrentFeedLinks(const RssItem *items, uint8_t count) {
-  for (size_t i = 0; i < RSS_SHORTENER_CACHE_SIZE; ++i) {
-    RssShortCacheEntry &e = g_rssShortCache[i];
-    if (!e.valid || !e.longUrl[0]) continue;
-    bool keep = false;
-    for (uint8_t k = 0; k < count; ++k) {
-      if (!items[k].link[0]) continue;
-      if (strcmp(items[k].link, e.longUrl) == 0) {
-        keep = true;
-        break;
-      }
-    }
-    if (!keep) {
-      e.valid = false;
-      e.longUrl[0] = '\0';
-      e.shortUrl[0] = '\0';
-      e.updatedMs = 0;
-    }
-  }
-}
-
 // ---------- PSRAM-based TLS allocator ----------
 // ESP32 Arduino 3.x compiles mbedtls with CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC,
 // forcing all TLS buffers into internal DRAM (~52KB free).  The 16KB+16KB
@@ -6426,182 +6282,6 @@ struct ScopedPsramTls {
   ScopedPsramTls()  { mbedtls_platform_set_calloc_free(psramCalloc,    psramFree); }
   ~ScopedPsramTls() { mbedtls_platform_set_calloc_free(internalCalloc, internalFree); }
 };
-
-static bool rssShortenViaJsonApi(const char *endpoint,
-                                 const char *longUrl,
-                                 String &shortUrl,
-                                 int &httpCode,
-                                 bool allowAuthHeader) {
-  if (!endpoint || !endpoint[0] || !longUrl || !longUrl[0]) return false;
-  ScopedPsramTls psramTls;  // redirect mbedtls allocations to PSRAM
-  HTTPClient http;
-  http.setConnectTimeout(RSS_SHORTENER_CONNECT_TIMEOUT_MS);
-  http.setTimeout(RSS_SHORTENER_HTTP_TIMEOUT_MS);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.useHTTP10(true);
-
-  bool beginOk = false;
-  const bool isHttps = urlStartsWith(endpoint, "https://");
-  WiFiClientSecure tls;
-  if (isHttps) {
-    tls.setInsecure();
-
-    tls.setTimeout((RSS_SHORTENER_HTTP_TIMEOUT_MS + 999U) / 1000U);
-    beginOk = http.begin(tls, endpoint);
-  } else {
-    beginOk = http.begin(endpoint);
-  }
-  if (!beginOk) {
-    httpCode = -1;
-    Serial.printf("[RSS][HTTP] begin failed endpoint=%s\n", endpoint);
-    return false;
-  }
-
-  http.addHeader("Accept", "application/json");
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("User-Agent", "ScryBar/esp32");
-  http.addHeader("Connection", "close");
-  if (allowAuthHeader && strlen(RSS_SHORTENER_TOKEN) > 0) {
-    String auth = String("Bearer ") + RSS_SHORTENER_TOKEN;
-    http.addHeader("Authorization", auth);
-  }
-  const String body = String("{\"long_url\":\"") + jsonEscape(String(longUrl)) + "\"}";
-  httpCode = http.POST((uint8_t *)body.c_str(), body.length());
-  String resp;
-  if (httpCode > 0) {
-    resp = http.getString();
-  } else {
-    logShortenerHttpError(endpoint, httpCode);
-  }
-  http.end();
-  if (httpCode != HTTP_CODE_OK && httpCode != HTTP_CODE_CREATED) return false;
-  const bool parsed = parseShortenerResponse(resp, shortUrl);
-  if (!parsed) {
-    String preview = resp;
-    preview.replace("\n", " ");
-    preview.replace("\r", " ");
-    if (preview.length() > 160) preview = preview.substring(0, 160) + "...";
-    Serial.printf("[RSS][HTTP] parse fail endpoint=%s body=%s\n", endpoint, preview.c_str());
-  }
-  return parsed;
-}
-
-static bool rssTryShortenUrlForState(RssState &state, uint8_t idx, const char *logPrefix) {
-  if (idx >= state.itemCount) return false;
-  RssItem &it = state.items[idx];
-  if (!it.link[0]) return false;
-  if (it.shortReady && it.shortLink[0]) return true;
-  char cachedShort[sizeof(it.shortLink)] = {0};
-  if (rssShortCacheLookup(it.link, cachedShort, sizeof(cachedShort))) {
-    strncpy(it.shortLink, cachedShort, sizeof(it.shortLink) - 1);
-    it.shortLink[sizeof(it.shortLink) - 1] = '\0';
-    it.shortReady = true;
-    it.shortTried = true;
-    return true;
-  }
-  const uint32_t now = millis();
-  if (it.shortTried && (now - state.lastShortenAttemptMs) < RSS_SHORTENER_RETRY_MS) return false;
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
-
-  int codeApi = 0;
-  int codeAlt = 0;
-  int codeApiHost = 0;
-  int codeApiHostAlt = 0;
-  String shortUrl;
-  const char *usedEndpoint = nullptr;
-  bool ok = rssShortenViaJsonApi(RSS_SHORTENER_ENDPOINT, it.link, shortUrl, codeApi, true);
-  if (ok) usedEndpoint = RSS_SHORTENER_ENDPOINT;
-  if (!ok) {
-    ok = rssShortenViaJsonApi(RSS_SHORTENER_ENDPOINT_ALT, it.link, shortUrl, codeAlt, true);
-    if (ok) usedEndpoint = RSS_SHORTENER_ENDPOINT_ALT;
-  }
-  if (!ok) {
-    ok = rssShortenViaJsonApi("https://api.spoo.me/v1/shorten", it.link, shortUrl, codeApiHost, true);
-    if (ok) usedEndpoint = "https://api.spoo.me/v1/shorten";
-  }
-  if (!ok) {
-    ok = rssShortenViaJsonApi("https://api.spoo.me/shorten", it.link, shortUrl, codeApiHostAlt, true);
-    if (ok) usedEndpoint = "https://api.spoo.me/shorten";
-  }
-#if RSS_SHORTENER_ALLOW_HTTP_FALLBACK
-  int codeHttp = 0;
-  int codeHttpAlt = 0;
-  if (!ok) {
-    // HTTP fallback keeps Spoo API path but avoids HTTPS handshake blockers on some APs/firmware.
-    // For safety, do not send bearer token over plain HTTP.
-    ok = rssShortenViaJsonApi(RSS_SHORTENER_ENDPOINT_HTTP, it.link, shortUrl, codeHttp, false);
-    if (ok) usedEndpoint = RSS_SHORTENER_ENDPOINT_HTTP;
-  }
-  if (!ok) {
-    ok = rssShortenViaJsonApi(RSS_SHORTENER_ENDPOINT_HTTP_ALT, it.link, shortUrl, codeHttpAlt, false);
-    if (ok) usedEndpoint = RSS_SHORTENER_ENDPOINT_HTTP_ALT;
-  }
-#endif
-  it.shortTried = true;
-  state.lastShortenAttemptMs = now;
-  if (!ok) {
-    if (!g_shortenerDnsDiagDone && codeApi == -1 && codeAlt == -1 && codeApiHost == -1 && codeApiHostAlt == -1) {
-      g_shortenerDnsDiagDone = true;
-      IPAddress ipSpoo, ipApi, ipAnsa;
-      bool okSpoo = WiFi.hostByName("spoo.me", ipSpoo);
-      Serial.printf("[RSS][DNS] spoo.me ok=%d ip=%s\n", okSpoo ? 1 : 0, okSpoo ? ipSpoo.toString().c_str() : "-");
-      bool okApi = WiFi.hostByName("api.spoo.me", ipApi);
-      Serial.printf("[RSS][DNS] api.spoo.me ok=%d ip=%s\n", okApi ? 1 : 0, okApi ? ipApi.toString().c_str() : "-");
-      bool okAnsa = WiFi.hostByName("www.ansa.it", ipAnsa);
-      Serial.printf("[RSS][DNS] www.ansa.it ok=%d ip=%s\n", okAnsa ? 1 : 0, okAnsa ? ipAnsa.toString().c_str() : "-");
-
-      WiFiClient tcp;
-      bool tcpSpoo = okSpoo ? tcp.connect(ipSpoo, 443) : false;
-      Serial.printf("[RSS][NET] tcp spoo.me:443 ok=%d\n", tcpSpoo ? 1 : 0);
-      if (tcpSpoo) tcp.stop();
-      bool tcpApi = okApi ? tcp.connect(ipApi, 443) : false;
-      Serial.printf("[RSS][NET] tcp api.spoo.me:443 ok=%d\n", tcpApi ? 1 : 0);
-      if (tcpApi) tcp.stop();
-
-      ScopedPsramTls psramTls;
-      WiFiClientSecure tls;
-      tls.setInsecure();
-
-      bool tlsSpoo = tls.connect("spoo.me", 443);
-      Serial.printf("[RSS][NET] tls spoo.me:443 ok=%d\n", tlsSpoo ? 1 : 0);
-      if (tlsSpoo) tls.stop();
-      bool tlsApi = tls.connect("api.spoo.me", 443);
-      Serial.printf("[RSS][NET] tls api.spoo.me:443 ok=%d\n", tlsApi ? 1 : 0);
-      if (tlsApi) tls.stop();
-    }
-    Serial.printf("[%s] short fail idx=%u api=%d alt=%d apiHost=%d apiHostAlt=%d http=%d httpAlt=%d\n",
-                  logPrefix ? logPrefix : "RSS",
-                  (unsigned)(idx + 1), codeApi, codeAlt, codeApiHost, codeApiHostAlt,
-#if RSS_SHORTENER_ALLOW_HTTP_FALLBACK
-                  codeHttp, codeHttpAlt);
-#else
-                  0, 0);
-#endif
-    return false;
-  }
-
-  strncpy(it.shortLink, shortUrl.c_str(), sizeof(it.shortLink) - 1);
-  it.shortLink[sizeof(it.shortLink) - 1] = '\0';
-  it.shortReady = true;
-  rssShortCacheStore(it.link, it.shortLink);
-#if TEST_NTP
-  g_uiNeedsRedraw = true;
-#endif
-  Serial.printf("[%s] short %u -> %s via %s\n",
-                logPrefix ? logPrefix : "RSS",
-                (unsigned)(idx + 1),
-                it.shortLink,
-                usedEndpoint ? usedEndpoint : "endpoint-unknown");
-  return true;
-}
-
-static bool rssTryShortenUrl(uint8_t idx) {
-  return rssTryShortenUrlForState(g_rss, idx, "RSS");
-}
-
-static bool wikiTryShortenUrl(uint8_t idx) {
-  return rssTryShortenUrlForState(g_wiki, idx, "WIKI");
-}
 
 static void buildRssWhenLabel(const char *pubDate, char *out, size_t outLen) {
   if (!out || outLen == 0) return;
@@ -7074,27 +6754,16 @@ static bool updateRssFromFeed(bool force) {
   g_rss.itemCount = count;
   for (uint8_t i = 0; i < count; ++i) {
     g_rss.items[i] = parseBuf[i];
-    char cachedShort[sizeof(g_rss.items[i].shortLink)] = {0};
-    if (g_rss.items[i].link[0] && rssShortCacheLookup(g_rss.items[i].link, cachedShort, sizeof(cachedShort))) {
-      strncpy(g_rss.items[i].shortLink, cachedShort, sizeof(g_rss.items[i].shortLink) - 1);
-      g_rss.items[i].shortLink[sizeof(g_rss.items[i].shortLink) - 1] = '\0';
-      g_rss.items[i].shortReady = true;
-      g_rss.items[i].shortTried = true;
-    }
   }
-  rssShortCacheRetainCurrentFeedLinks(g_rss.items, count);
   if (count < RSS_MAX_ITEMS) {
     for (uint8_t i = count; i < RSS_MAX_ITEMS; ++i) {
       g_rss.items[i].title[0] = '\0';
       g_rss.items[i].link[0] = '\0';
       g_rss.items[i].pubDate[0] = '\0';
       g_rss.items[i].summary[0] = '\0';
-      g_rss.items[i].shortLink[0] = '\0';
       g_rss.items[i].feedSlot = 0xFF;
       g_rss.items[i].wikiMetaReady = false;
       g_rss.items[i].wikiMetaTried = false;
-      g_rss.items[i].shortReady = false;
-      g_rss.items[i].shortTried = false;
     }
   }
   g_rss.currentIndex = 0;
@@ -7233,13 +6902,6 @@ static bool fetchWikiRandomArticle(RssItem &item) {
   item.feedSlot = 2;
   item.pubDate[0] = '\0';
 
-  // Store thumbnail URL in shortLink for later fetch
-  if (thumbUrl.length() > 0) {
-    copyStringSafe(item.shortLink, sizeof(item.shortLink), thumbUrl.c_str());
-    item.shortReady = false;
-    item.shortTried = false;
-  }
-
   return true;
 }
 
@@ -7354,13 +7016,6 @@ static bool updateWikiFromFeed(bool force) {
   g_wiki.itemCount = count;
   for (uint8_t i = 0; i < count; ++i) {
     g_wiki.items[i] = parseBuf[i];
-    char cachedShort[sizeof(g_wiki.items[i].shortLink)] = {0};
-    if (g_wiki.items[i].link[0] && rssShortCacheLookup(g_wiki.items[i].link, cachedShort, sizeof(cachedShort))) {
-      strncpy(g_wiki.items[i].shortLink, cachedShort, sizeof(g_wiki.items[i].shortLink) - 1);
-      g_wiki.items[i].shortLink[sizeof(g_wiki.items[i].shortLink) - 1] = '\0';
-      g_wiki.items[i].shortReady = true;
-      g_wiki.items[i].shortTried = true;
-    }
   }
   if (count < RSS_MAX_ITEMS) {
     for (uint8_t i = count; i < RSS_MAX_ITEMS; ++i) {
@@ -7368,12 +7023,9 @@ static bool updateWikiFromFeed(bool force) {
       g_wiki.items[i].link[0] = '\0';
       g_wiki.items[i].pubDate[0] = '\0';
       g_wiki.items[i].summary[0] = '\0';
-      g_wiki.items[i].shortLink[0] = '\0';
       g_wiki.items[i].feedSlot = 0xFF;
       g_wiki.items[i].wikiMetaReady = false;
       g_wiki.items[i].wikiMetaTried = false;
-      g_wiki.items[i].shortReady = false;
-      g_wiki.items[i].shortTried = false;
     }
   }
   g_wiki.currentIndex = 0;
@@ -7555,41 +7207,11 @@ static void runRssShortenerDiag() {
                 WiFi.dnsIP(0).toString().c_str(),
                 WiFi.dnsIP(1).toString().c_str());
 #endif
-  IPAddress ipSpoo, ipApi, ipAnsa;
-  const bool okSpoo = WiFi.hostByName("spoo.me", ipSpoo);
-  const bool okApi = WiFi.hostByName("api.spoo.me", ipApi);
+  IPAddress ipAnsa;
   const bool okAnsa = WiFi.hostByName("www.ansa.it", ipAnsa);
-  Serial.printf("[RSSDIAG] dns spoo.me ok=%d ip=%s\n", okSpoo ? 1 : 0, okSpoo ? ipSpoo.toString().c_str() : "-");
-  Serial.printf("[RSSDIAG] dns api.spoo.me ok=%d ip=%s\n", okApi ? 1 : 0, okApi ? ipApi.toString().c_str() : "-");
   Serial.printf("[RSSDIAG] dns www.ansa.it ok=%d ip=%s\n", okAnsa ? 1 : 0, okAnsa ? ipAnsa.toString().c_str() : "-");
 
-  WiFiClient tcp;
-  const bool tcpSpoo = okSpoo ? tcp.connect(ipSpoo, 443) : false;
-  Serial.printf("[RSSDIAG] tcp spoo.me:443 ok=%d\n", tcpSpoo ? 1 : 0);
-  if (tcpSpoo) tcp.stop();
-  const bool tcpApi = okApi ? tcp.connect(ipApi, 443) : false;
-  Serial.printf("[RSSDIAG] tcp api.spoo.me:443 ok=%d\n", tcpApi ? 1 : 0);
-  if (tcpApi) tcp.stop();
-
   ScopedPsramTls psramTls;  // redirect mbedtls allocations to PSRAM for all TLS diag
-  {
-    WiFiClientSecure tls;
-    tls.setInsecure();
-
-    tls.setHandshakeTimeout((RSS_SHORTENER_HTTP_TIMEOUT_MS + 999U) / 1000U);
-    const bool ok = tls.connect("spoo.me", 443);
-    printTlsDiagResult("spoo.me:443", tls, ok);
-    if (ok) tls.stop();
-  }
-  {
-    WiFiClientSecure tls;
-    tls.setInsecure();
-
-    tls.setHandshakeTimeout((RSS_SHORTENER_HTTP_TIMEOUT_MS + 999U) / 1000U);
-    const bool ok = tls.connect("api.spoo.me", 443);
-    printTlsDiagResult("api.spoo.me:443", tls, ok);
-    if (ok) tls.stop();
-  }
   {
     WiFiClientSecure tls;
     tls.setInsecure();
@@ -7607,46 +7229,6 @@ static void runRssShortenerDiag() {
     const bool ok = tls.connect("it.wikipedia.org", 443);
     printTlsDiagResult("it.wikipedia.org:443", tls, ok);
     if (ok) tls.stop();
-  }
-
-  {
-    String shortUrl;
-    int codeHttps = 0;
-    const bool okHttps = rssShortenViaJsonApi(
-      RSS_SHORTENER_ENDPOINT,
-      "https://www.ansa.it",
-      shortUrl,
-      codeHttps,
-      true
-    );
-    Serial.printf("[RSSDIAG] shorten https endpoint=%s code=%d ok=%d short=%s\n",
-                  RSS_SHORTENER_ENDPOINT,
-                  codeHttps,
-                  okHttps ? 1 : 0,
-                  okHttps ? shortUrl.c_str() : "-");
-  }
-
-  HTTPClient http;
-  http.setConnectTimeout(RSS_SHORTENER_CONNECT_TIMEOUT_MS);
-  http.setTimeout(RSS_SHORTENER_HTTP_TIMEOUT_MS);
-  if (http.begin("http://spoo.me/api/v1/shorten")) {
-    http.addHeader("Accept", "application/json");
-    http.addHeader("Content-Type", "application/json");
-    const String body = "{\"long_url\":\"https://www.ansa.it\"}";
-    const int code = http.POST((uint8_t *)body.c_str(), body.length());
-    Serial.printf("[RSSDIAG] http spoo.me/api/v1/shorten code=%d\n", code);
-    if (code > 0) {
-      String resp = http.getString();
-      resp.replace("\n", " ");
-      resp.replace("\r", " ");
-      if (resp.length() > 140) resp = resp.substring(0, 140) + "...";
-      Serial.printf("[RSSDIAG] http body=%s\n", resp.c_str());
-    } else {
-      logShortenerHttpError("http://spoo.me/api/v1/shorten", code);
-    }
-    http.end();
-  } else {
-    Serial.println("[RSSDIAG] http begin failed for spoo.me/api/v1/shorten");
   }
   Serial.println("[RSSDIAG] end");
 }
@@ -12057,9 +11639,6 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
         if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
           RssItem &item = content.items[showIndex];
           if (item.link[0]) url = item.link;
-          // Use cached short URL if available; never call shortener inline
-          // (it blocks the render loop with up to 6 HTTP requests).
-          if (item.shortReady && item.shortLink[0]) url = item.shortLink;
           qrIndex = showIndex;
         }
         if (qrReady) {
@@ -12074,7 +11653,7 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
           }
           lv_obj_clear_flag(d.qr, LV_OBJ_FLAG_HIDDEN);
           if (d.qrHint) {
-            lv_label_set_text(d.qrHint, activeUiStrings()->touchToCloseAnywhere);
+            lv_label_set_text(d.qrHint, "Tap anywhere\nto close");
             lv_obj_clear_flag(d.qrHint, LV_OBJ_FLAG_HIDDEN);
           }
           if (d.status) lv_label_set_text(d.status, status);
@@ -12896,7 +12475,7 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   lv_obj_set_style_text_color(d.qrHint, lv_color_hex(theme.auxQrHint), 0);
   lv_obj_set_size(d.qrHint, hintW, LV_SIZE_CONTENT);
   lv_label_set_long_mode(d.qrHint, LV_LABEL_LONG_WRAP);
-  lv_label_set_text(d.qrHint, activeUiStrings()->touchToClose);
+  lv_label_set_text(d.qrHint, "Tap anywhere\nto close");
   lv_obj_add_flag(d.qrHint, LV_OBJ_FLAG_FLOATING);  // bypass parent layout
   lv_obj_set_pos(d.qrHint, hintX, (qrOverlayH / 2) - 28);
   lv_obj_add_flag(d.qrHint, LV_OBJ_FLAG_HIDDEN);

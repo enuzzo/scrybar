@@ -11,5 +11,3 @@
 #define WIFI_PASSWORD_4 ""
 #define WIFI_SSID_5 ""
 #define WIFI_PASSWORD_5 ""
-#define SPOO_ME_API_KEY ""
-#define RSS_SHORTENER_TOKEN ""

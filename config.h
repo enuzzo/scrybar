@@ -24,7 +24,7 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r210"
+#define FW_BUILD_TAG "r211"
 #define FW_RELEASE_DATE "2026-03-23"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
@@ -137,10 +137,6 @@ struct TouchReleaseInfo {
 #define RSS_RETRY_MS 120000UL
 #define RSS_HTTP_TIMEOUT_MS 3000
 #define RSS_ROTATE_MS 15000UL
-#define RSS_SHORTENER_RETRY_MS 900000UL
-// In-memory cache of long->short URL pairs to avoid repeated API calls.
-#define RSS_SHORTENER_CACHE_SIZE 16
-// (Photo/thumbnail/favicon caches removed — r158 simplification.)
 
 // --- Word Clock ---
 #define WORD_CLOCK_LANG_DEFAULT "it"   // "it" | "tlh" | future codes
