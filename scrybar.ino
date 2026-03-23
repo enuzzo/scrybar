@@ -8191,6 +8191,7 @@ static void lvglSetDeckQrModalOpen(FeedDeckUi &d, bool open) {
   if (open) {
     d.lastItemShown = -1;
     d.lastQrPayload[0] = '\0';
+    markUserInteraction(millis());   // prevent screensaver while QR is visible
   }
   g_uiNeedsRedraw = true;
   if (d.qrOverlay) {
@@ -12052,10 +12053,8 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
         if (showIndex >= 0 && showIndex < (int16_t)content.itemCount) {
           RssItem &item = content.items[showIndex];
           if (item.link[0]) url = item.link;
-          if (!item.shortReady) {
-            if (isWiki) (void)wikiTryShortenUrl((uint8_t)showIndex);
-            else        (void)rssTryShortenUrl((uint8_t)showIndex);
-          }
+          // Use cached short URL if available; never call shortener inline
+          // (it blocks the render loop with up to 6 HTTP requests).
           if (item.shortReady && item.shortLink[0]) url = item.shortLink;
           qrIndex = showIndex;
         }
@@ -12804,6 +12803,10 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   lv_label_set_text(d.sourceBadgeText, isWiki ? "W" : "WEB");
   lv_obj_center(d.sourceBadgeText);
   lvglForceLabelVisible(d.sourceBadgeText);
+  // Hide the source badge on Wiki view — it's redundant (always "W")
+  if (isWiki) {
+    lv_obj_add_flag(d.sourceBadge, LV_OBJ_FLAG_HIDDEN);
+  }
 
   d.sourceSite = lv_label_create(d.card);
   lv_obj_set_style_text_font(d.sourceSite, lvglFontMeta(), 0);
@@ -12840,6 +12843,7 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   lvglForceLabelVisible(d.meta);
 
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
+  // ── QR overlay: full-height QR left, hint text right ──
   const int16_t qrOverlayH = cardH;
   d.qrOverlay = lv_obj_create(d.card);
   lv_obj_set_size(d.qrOverlay, cardW, qrOverlayH);
@@ -12853,27 +12857,29 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   lv_obj_clear_flag(d.qrOverlay, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(d.qrOverlay, LV_OBJ_FLAG_HIDDEN);
 
-  int16_t qrSize = qrOverlayH - 4;
-  if (qrSize > (cardW - 4)) qrSize = cardW - 4;
+  // QR code: full viewport height, no margins, positioned at left edge
+  int16_t qrSize = qrOverlayH;
+  if (qrSize > cardW) qrSize = cardW;
   if (qrSize < 90) qrSize = 90;
   const lv_color_t qrDark  = lv_color_hex(theme.auxQrDark);
   const lv_color_t qrLight = lv_color_hex(theme.auxQrLight);
   const char *qrFallback = isWiki ? "https://en.wikipedia.org" : "https://ansa.it";
   d.qr = lv_qrcode_create(d.qrOverlay, qrSize, qrDark, qrLight);
-  lv_obj_center(d.qr);
+  lv_obj_align(d.qr, LV_ALIGN_LEFT_MID, 0, 0);
   lv_obj_set_style_bg_color(d.qr, qrLight, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(d.qr, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(d.qr, 1, LV_PART_MAIN);
-  lv_obj_set_style_border_color(d.qr, lv_color_hex(theme.auxQrHint), LV_PART_MAIN);
-  lv_obj_set_style_border_opa(d.qr, LV_OPA_70, LV_PART_MAIN);
+  lv_obj_set_style_border_width(d.qr, 0, LV_PART_MAIN);
   lv_qrcode_update(d.qr, qrFallback, strlen(qrFallback));
   lv_obj_clear_flag(d.qr, LV_OBJ_FLAG_SCROLLABLE);
 
+  // Hint label: to the right of the QR, vertically centered
   d.qrHint = lv_label_create(d.qrOverlay);
   lv_obj_set_style_text_font(d.qrHint, lvglFontTiny(), 0);
   lv_obj_set_style_text_color(d.qrHint, lv_color_hex(theme.auxQrHint), 0);
+  lv_obj_set_width(d.qrHint, cardW - qrSize - 16);
+  lv_label_set_long_mode(d.qrHint, LV_LABEL_LONG_WRAP);
   lv_label_set_text(d.qrHint, activeUiStrings()->touchToClose);
-  lv_obj_align(d.qrHint, LV_ALIGN_BOTTOM_MID, 0, -8);
+  lv_obj_align(d.qrHint, LV_ALIGN_LEFT_MID, qrSize + 12, 0);
   lv_obj_add_flag(d.qrHint, LV_OBJ_FLAG_HIDDEN);
 #endif
 }
