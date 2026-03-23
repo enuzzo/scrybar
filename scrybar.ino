@@ -11643,7 +11643,7 @@ static void lvglApplyThemeFonts() {
       if (d->sourceSite)      lv_obj_set_style_text_font(d->sourceSite,      lvglFontMeta(),    0);
       if (d->news)            lv_obj_set_style_text_font(d->news,            lvglFontRssNews(), 0);
       if (d->meta)            lv_obj_set_style_text_font(d->meta,            lvglFontSmall(),   0);
-      if (d->qrHint)          lv_obj_set_style_text_font(d->qrHint,          &lv_font_montserrat_16, 0);
+      if (d->qrHint)          lv_obj_set_style_text_font(d->qrHint,          lvglNowPlayingArtistFont(), 0);
     }
   }
 
@@ -12892,13 +12892,13 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   const int16_t hintX = qrSize + 16;
   const int16_t hintW = cardW - hintX - 12;
   d.qrHint = lv_label_create(d.qrOverlay);
-  lv_obj_set_style_text_font(d.qrHint, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_font(d.qrHint, lvglNowPlayingArtistFont(), 0);  // 23px medium, same as Now Playing
   lv_obj_set_style_text_color(d.qrHint, lv_color_hex(theme.auxQrHint), 0);
   lv_obj_set_size(d.qrHint, hintW, LV_SIZE_CONTENT);
   lv_label_set_long_mode(d.qrHint, LV_LABEL_LONG_WRAP);
   lv_label_set_text(d.qrHint, activeUiStrings()->touchToClose);
   lv_obj_add_flag(d.qrHint, LV_OBJ_FLAG_FLOATING);  // bypass parent layout
-  lv_obj_set_pos(d.qrHint, hintX, (qrOverlayH / 2) - 20);
+  lv_obj_set_pos(d.qrHint, hintX, (qrOverlayH / 2) - 28);
   lv_obj_add_flag(d.qrHint, LV_OBJ_FLAG_HIDDEN);
 #endif
 }
