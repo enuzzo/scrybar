@@ -9745,293 +9745,91 @@ static bool isAnyTouchPresentRaw() {
   return true;
 }
 
-static void handleTouchSwipeInput() {
-  int16_t x = 0, y = 0;
-  const bool touched = readTouchLogicalPoint(x, y);
-  const uint32_t now = millis();
+// ── M6: Release handlers for touch gestures ──
+// (TouchReleaseInfo is defined in config.h for Arduino auto-prototype visibility.
+//  auxBtnDown is uint8_t there; cast to TouchAuxButton in handlers.)
 
-#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
-  if (touched) {
-    markUserInteraction(now);
-    if (g_lvglScreenSaverActive) {
-      lvglSetScreenSaverActive(false);
-      g_touchDown = false;
-      g_touchPageDragging = false;
-      g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
-      g_touchAwaitRelease = true;
-      g_touchReleaseStartMs = 0;
-      return;
-    }
-  }
-#endif
+// ── M6: Release handler — feed deck buttons (QR/SKIP/NXT) ──
 
-  // After a page commit, wait for a full release before accepting a new gesture.
-  if (g_touchAwaitRelease) {
-    if (touched) {
-      g_touchReleaseStartMs = 0;
-      return;
-    }
-    if (g_touchReleaseStartMs == 0) {
-      g_touchReleaseStartMs = now;
-      return;
-    }
-    if ((now - g_touchReleaseStartMs) < 70) return;
-    g_touchAwaitRelease = false;
-    g_touchReleaseStartMs = 0;
-    return;
-  }
-
-  if (touched) {
-    g_touchMissCount = 0;  // reset miss counter on any detection
-    if (!g_touchDown) {
-      g_touchDown = true;
-      g_touchStartX = x;
-      g_touchStartY = y;
-      g_touchStartMs = now;
-      g_touchPageDragging = false;
-      g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
-      if (uiPageIsFeedDeck(g_uiPageMode)) {
-        if (lvglFeedQrButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_QR;
-        else if (lvglFeedRefreshButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_REFRESH;
-        else if (lvglFeedNextFeedButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_NEXT;
+static void handleFeedDeckButtonRelease(const TouchReleaseInfo &r) {
+  Serial.printf("[TOUCH] btn-up kind=%u tap=%d dx=%d dy=%d dur=%lums\n",
+                (unsigned)(TouchAuxButton)r.auxBtnDown, r.isBtnTap ? 1 : 0, r.dx, r.dy, (unsigned long)r.durMs);
+  if (r.isBtnTap && uiPageIsFeedDeck(g_uiPageMode)) {
+    RssState &content = (g_uiPageMode == UI_PAGE_WIKI) ? g_wiki : g_rss;
+    const char *tag = (g_uiPageMode == UI_PAGE_WIKI) ? "wiki" : "rss";
+    if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_QR) {
+      if (lvglFeedQrModalIsOpen()) {
+        lvglSetFeedQrModalOpen(false);
+        Serial.println("[TOUCH] qr-close");
+      } else {
+        lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_wikiDeck.status : g_auxDeck.status;
+        if (feedStatus) { lv_label_set_text(feedStatus, "QR..."); lvglForceLabelVisible(feedStatus); }
+        lvglSetFeedQrModalOpen(true);
+        Serial.println("[TOUCH] qr-open");
       }
-      if (g_touchAuxBtnDown == TOUCH_AUX_BTN_QR) {
-        lvglSetFeedQrButtonPressed(true);
-        Serial.printf("[TOUCH] btn-down QR x=%d y=%d\n", x, y);
-      } else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) {
-        lvglSetFeedRefreshButtonPressed(true);
-        Serial.printf("[TOUCH] btn-down SKIP x=%d y=%d\n", x, y);
-      } else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) {
-        lvglSetFeedNextFeedButtonPressed(true);
-        Serial.printf("[TOUCH] btn-down NXT x=%d y=%d\n", x, y);
-      }
-#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
-      if (g_uiPageMode == UI_PAGE_DOOM) {
-        g_doomTouchZone = doomTouchZoneFromX(x);
-        g_doomFrameDirty = true;
-        Serial.printf("[DOOM][TOUCH] down zone=%s x=%d y=%d\n",
-                      doomTouchZoneName(g_doomTouchZone), x, y);
-      }
-#endif
-    }
-    g_touchLastX = x;
-    g_touchLastY = y;
-#if TEST_DISPLAY
-    if (g_uiPageMode == UI_PAGE_DOOM) {
-      return;
-    }
-#endif
-#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-    if (g_lvglReady) {
-      if (g_touchAuxBtnDown != TOUCH_AUX_BTN_NONE) {
-        return;
-      }
-      const int16_t liveDx = g_touchLastX - g_touchStartX;
-      const int16_t liveDy = g_touchLastY - g_touchStartY;
-      constexpr int16_t kDragStartPx = 5;
-      if (g_touchPageDragging) {
-        lvglApplyPageDrag(liveDx);
-        return;
-      }
-      if (abs(liveDx) >= kDragStartPx && abs(liveDx) >= abs(liveDy)) {
-        g_touchPageDragging = true;
-        lvglApplyPageDrag(liveDx);
-        return;
-      }
-    }
-#endif
-    return;
-  }
-
-  // AXS15231B touch controller has a finite scan rate (~60Hz). The read command
-  // clears the buffer, so rapid polling can see "no touch" between scans even
-  // while the finger is still on the screen. Bridge these gaps by requiring
-  // several consecutive miss frames before declaring a true release.
-  if (g_touchDown) {
-    if (++g_touchMissCount < 12) return;  // ~12 frames ≈ 25-50ms hold-off
-    g_touchMissCount = 0;
-  }
-
-  if (!g_touchDown) return;
-  g_touchDown = false;
-  const int16_t dx = g_touchLastX - g_touchStartX;
-  const int16_t dy = g_touchLastY - g_touchStartY;
-  const uint32_t durMs = millis() - g_touchStartMs;
-  const bool horizontalIntent = (abs(dx) >= abs(dy));
-  const bool fastFlick = (durMs <= 220) && (abs(dx) >= ((DISPLAY_TOUCH_SWIPE_MIN_PX / 2) + 2));
-  constexpr int16_t kSwipePageMinPx = DISPLAY_TOUCH_SWIPE_MIN_PX;
-  const bool pageSwipe = horizontalIntent && ((abs(dx) >= kSwipePageMinPx) || fastFlick);
-  const bool isTap = (durMs <= DISPLAY_TOUCH_TAP_MAX_MS &&
-                      abs(dx) <= DISPLAY_TOUCH_TAP_MAX_PX &&
-                      abs(dy) <= DISPLAY_TOUCH_TAP_MAX_PX);
-  const bool isBtnTap = (durMs <= 1400 &&
-                         abs(dx) <= 72 &&
-                         abs(dy) <= 72);
-  const TouchAuxButton touchAuxBtnDown = g_touchAuxBtnDown;
-  g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
-  const uint8_t doomTouchZone = g_doomTouchZone;
-  g_doomTouchZone = DOOM_TOUCH_NONE;
-#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
-  if (doomTouchZone != DOOM_TOUCH_NONE) g_doomFrameDirty = true;
-#endif
-  if (touchAuxBtnDown == TOUCH_AUX_BTN_QR) lvglSetFeedQrButtonPressed(false);
-  else if (touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) lvglSetFeedRefreshButtonPressed(false);
-  else if (touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) lvglSetFeedNextFeedButtonPressed(false);
-
-  if (touchAuxBtnDown != TOUCH_AUX_BTN_NONE) {
-    Serial.printf("[TOUCH] btn-up kind=%u tap=%d dx=%d dy=%d dur=%lums\n",
-                  (unsigned)touchAuxBtnDown, isBtnTap ? 1 : 0, dx, dy, (unsigned long)durMs);
-    if (isBtnTap && uiPageIsFeedDeck(g_uiPageMode)) {
-      RssState &content = (g_uiPageMode == UI_PAGE_WIKI) ? g_wiki : g_rss;
-      const char *tag = (g_uiPageMode == UI_PAGE_WIKI) ? "wiki" : "rss";
-      if (touchAuxBtnDown == TOUCH_AUX_BTN_QR) {
-        if (lvglFeedQrModalIsOpen()) {
-          lvglSetFeedQrModalOpen(false);
-          Serial.println("[TOUCH] qr-close");
-        } else {
-          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_wikiDeck.status : g_auxDeck.status;
-          if (feedStatus) { lv_label_set_text(feedStatus, "QR..."); lvglForceLabelVisible(feedStatus); }
-          lvglSetFeedQrModalOpen(true);
-          Serial.println("[TOUCH] qr-open");
-        }
-      } else if (touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) {
+    } else if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_REFRESH) {
 #if TEST_WIFI && RSS_ENABLED
-        {
-          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_wikiDeck.status : g_auxDeck.status;
-          if (feedStatus) { lv_label_set_text(feedStatus, "SKIP"); lvglForceLabelVisible(feedStatus); }
-        }
-        const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextItem() : rssAdvanceToNextItem();
-        if (moved) g_uiNeedsRedraw = true;
-        Serial.printf("[TOUCH] %s-skip moved=%d idx=%u/%u\n",
-                      tag,
-                      moved ? 1 : 0,
-                      (unsigned)(content.currentIndex + 1),
-                      (unsigned)content.itemCount);
+      {
+        lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_wikiDeck.status : g_auxDeck.status;
+        if (feedStatus) { lv_label_set_text(feedStatus, "SKIP"); lvglForceLabelVisible(feedStatus); }
+      }
+      const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextItem() : rssAdvanceToNextItem();
+      if (moved) g_uiNeedsRedraw = true;
+      Serial.printf("[TOUCH] %s-skip moved=%d idx=%u/%u\n", tag, moved ? 1 : 0,
+                    (unsigned)(content.currentIndex + 1), (unsigned)content.itemCount);
 #endif
-      } else if (touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) {
+    } else if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_NEXT) {
 #if TEST_WIFI && RSS_ENABLED
-        {
-          lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_wikiDeck.status : g_auxDeck.status;
-          if (feedStatus) { lv_label_set_text(feedStatus, "FEED"); lvglForceLabelVisible(feedStatus); }
-        }
-        const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextFeed() : rssAdvanceToNextFeed();
-        if (moved) g_uiNeedsRedraw = true;
-        Serial.printf("[TOUCH] %s-next-feed moved=%d idx=%u/%u\n",
-                      tag,
-                      moved ? 1 : 0,
-                      (unsigned)(content.currentIndex + 1),
-                      (unsigned)content.itemCount);
-#endif
+      {
+        lv_obj_t *feedStatus = (g_uiPageMode == UI_PAGE_WIKI) ? g_wikiDeck.status : g_auxDeck.status;
+        if (feedStatus) { lv_label_set_text(feedStatus, "FEED"); lvglForceLabelVisible(feedStatus); }
       }
+      const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextFeed() : rssAdvanceToNextFeed();
+      if (moved) g_uiNeedsRedraw = true;
+      Serial.printf("[TOUCH] %s-next-feed moved=%d idx=%u/%u\n", tag, moved ? 1 : 0,
+                    (unsigned)(content.currentIndex + 1), (unsigned)content.itemCount);
+#endif
     }
-    g_touchAwaitRelease = true;
-    g_touchReleaseStartMs = 0;
-    return;
   }
+  g_touchAwaitRelease = true;
+  g_touchReleaseStartMs = 0;
+}
 
-  if (g_touchPageDragging) {
-    g_touchPageDragging = false;
+// ── M6: Release handler — LVGL page drag commit/cancel ──
+
+static void handlePageDragRelease(const TouchReleaseInfo &r) {
+  g_touchPageDragging = false;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-    g_lvglPageDragActive = false;
-    if (uiPageIsFeedDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
-      lvglApplyPageVisibility(true);
-      g_touchAwaitRelease = true;
-      g_touchReleaseStartMs = 0;
-      Serial.printf("[TOUCH] drag ignored (qr-open) dx=%d dy=%d dur=%lums\n",
-                    dx, dy, (unsigned long)durMs);
-      return;
-    }
-    if (durMs <= 3000 && pageSwipe && ((millis() - g_lastSwipeToggleMs) >= 140)) {
-      const int8_t dir = (dx < 0) ? 1 : -1;
-      bool moved = false;
-      moved = stepUiPage(dir, false);
-      g_lastSwipeToggleMs = millis();
-      g_touchAwaitRelease = true;
-      g_touchReleaseStartMs = 0;
-      Serial.printf("[TOUCH] drag-swipe dx=%d dy=%d dur=%lums -> page=%s moved=%d\n",
-                    dx, dy, (unsigned long)durMs, uiPageName(g_uiPageMode), moved ? 1 : 0);
-    } else {
-      lvglApplyPageVisibility(true);  // snap back to current page
-      g_touchAwaitRelease = true;
-      g_touchReleaseStartMs = 0;
-      Serial.printf("[TOUCH] drag-cancel dx=%d dy=%d dur=%lums\n",
-                    dx, dy, (unsigned long)durMs);
-    }
-    return;
-#endif
-  }
-
-#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
-  if (g_uiPageMode == UI_PAGE_DOOM) {
-    if (pageSwipe) {
-      UiPageMode doomExit = uiLastEnabledMainViewNoEnsure();
-      const int8_t doomOrd = uiPageOrdinal(UI_PAGE_DOOM);
-      if (doomOrd > 0) doomExit = uiPageFromOrdinal(doomOrd - 1);
-      setUiPage(doomExit);
-      g_lastSwipeToggleMs = millis();
-      g_touchAwaitRelease = true;
-      g_touchReleaseStartMs = 0;
-      Serial.printf("[DOOM][TOUCH] swipe-exit zone=%s dx=%d dy=%d dur=%lums -> %s\n",
-                    doomTouchZoneName(doomTouchZone),
-                    dx,
-                    dy,
-                    (unsigned long)durMs,
-                    uiPageName(g_uiPageMode));
-      return;
-    }
-    if (doomTouchZone == DOOM_TOUCH_LEFT || doomTouchZone == DOOM_TOUCH_RIGHT) {
-      bool doomLaunching = g_doomLaunchRequested;
-#if DB_HAS_PRBOOM_DONOR
-      doomLaunching = doomLaunching || doomPrboomIsRunning();
-#endif
-      if (!doomLaunching && doomTouchZone == DOOM_TOUCH_RIGHT && isTap) {
-        g_doomLaunchRequested = true;
-        g_doomFrameDirty = true;
-#if DB_HAS_PRBOOM_DONOR
-        doomPrboomEnsureStarted();
-#endif
-        Serial.printf("[DOOM][TOUCH] zone=%s action=START tap=1 -> boot core\n",
-                      doomTouchZoneName(doomTouchZone));
-        g_touchAwaitRelease = true;
-        g_touchReleaseStartMs = 0;
-        return;
-      }
-      const char *action = (doomTouchZone == DOOM_TOUCH_LEFT) ? "USE" : "FIRE";
-      Serial.printf("[DOOM][TOUCH] zone=%s action=%s tap=%d dx=%d dy=%d dur=%lums\n",
-                    doomTouchZoneName(doomTouchZone),
-                    action,
-                    isTap ? 1 : 0,
-                    dx,
-                    dy,
-                    (unsigned long)durMs);
-      g_touchAwaitRelease = true;
-      g_touchReleaseStartMs = 0;
-      return;
-    }
-    if (isTap) {
-      doomRequestNeutralCalibrate();
-      g_touchAwaitRelease = true;
-      g_touchReleaseStartMs = 0;
-      Serial.printf("[DOOM][TOUCH] center-tap recalibrate x=%d y=%d\n", g_touchStartX, g_touchStartY);
-      return;
-    }
-  }
-#endif
-
-  if (durMs > 3000) return;
+  g_lvglPageDragActive = false;
   if (uiPageIsFeedDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
-    if (durMs <= 2500) {
-      lvglSetFeedQrModalOpen(false);
-      Serial.println("[TOUCH] qr-close-overlay");
-    }
+    lvglApplyPageVisibility(true);
     g_touchAwaitRelease = true;
     g_touchReleaseStartMs = 0;
+    Serial.printf("[TOUCH] drag ignored (qr-open) dx=%d dy=%d dur=%lums\n", r.dx, r.dy, (unsigned long)r.durMs);
     return;
   }
-  if ((millis() - g_lastSwipeToggleMs) < 140) return;
+  if (r.durMs <= 3000 && r.pageSwipe && ((millis() - g_lastSwipeToggleMs) >= 140)) {
+    const int8_t dir = (r.dx < 0) ? 1 : -1;
+    bool moved = stepUiPage(dir, false);
+    g_lastSwipeToggleMs = millis();
+    g_touchAwaitRelease = true;
+    g_touchReleaseStartMs = 0;
+    Serial.printf("[TOUCH] drag-swipe dx=%d dy=%d dur=%lums -> page=%s moved=%d\n",
+                  r.dx, r.dy, (unsigned long)r.durMs, uiPageName(g_uiPageMode), moved ? 1 : 0);
+  } else {
+    lvglApplyPageVisibility(true);
+    g_touchAwaitRelease = true;
+    g_touchReleaseStartMs = 0;
+    Serial.printf("[TOUCH] drag-cancel dx=%d dy=%d dur=%lums\n", r.dx, r.dy, (unsigned long)r.durMs);
+  }
+#endif
+}
 
-#if TEST_DISPLAY
-  if (g_uiPageMode == UI_PAGE_DOOM && pageSwipe) {
+// ── M6: Release handler — DOOM touch (USE/FIRE/recenter/swipe-exit) ──
+
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+static void handleDoomTouchRelease(const TouchReleaseInfo &r) {
+  if (r.pageSwipe) {
     UiPageMode doomExit = uiLastEnabledMainViewNoEnsure();
     const int8_t doomOrd = uiPageOrdinal(UI_PAGE_DOOM);
     if (doomOrd > 0) doomExit = uiPageFromOrdinal(doomOrd - 1);
@@ -10039,27 +9837,75 @@ static void handleTouchSwipeInput() {
     g_lastSwipeToggleMs = millis();
     g_touchAwaitRelease = true;
     g_touchReleaseStartMs = 0;
-    Serial.printf("[TOUCH] doom-exit dx=%d dy=%d tap=%d -> %s\n", dx, dy, isTap ? 1 : 0, uiPageName(g_uiPageMode));
+    Serial.printf("[DOOM][TOUCH] swipe-exit zone=%s dx=%d dy=%d dur=%lums -> %s\n",
+                  doomTouchZoneName(r.doomTouchZone), r.dx, r.dy, (unsigned long)r.durMs, uiPageName(g_uiPageMode));
     return;
   }
+  if (r.doomTouchZone == DOOM_TOUCH_LEFT || r.doomTouchZone == DOOM_TOUCH_RIGHT) {
+    bool doomLaunching = g_doomLaunchRequested;
+#if DB_HAS_PRBOOM_DONOR
+    doomLaunching = doomLaunching || doomPrboomIsRunning();
+#endif
+    if (!doomLaunching && r.doomTouchZone == DOOM_TOUCH_RIGHT && r.isTap) {
+      g_doomLaunchRequested = true;
+      g_doomFrameDirty = true;
+#if DB_HAS_PRBOOM_DONOR
+      doomPrboomEnsureStarted();
+#endif
+      Serial.printf("[DOOM][TOUCH] zone=%s action=START tap=1 -> boot core\n",
+                    doomTouchZoneName(r.doomTouchZone));
+      g_touchAwaitRelease = true;
+      g_touchReleaseStartMs = 0;
+      return;
+    }
+    const char *action = (r.doomTouchZone == DOOM_TOUCH_LEFT) ? "USE" : "FIRE";
+    Serial.printf("[DOOM][TOUCH] zone=%s action=%s tap=%d dx=%d dy=%d dur=%lums\n",
+                  doomTouchZoneName(r.doomTouchZone), action, r.isTap ? 1 : 0, r.dx, r.dy, (unsigned long)r.durMs);
+    g_touchAwaitRelease = true;
+    g_touchReleaseStartMs = 0;
+    return;
+  }
+  if (r.isTap) {
+    doomRequestNeutralCalibrate();
+    g_touchAwaitRelease = true;
+    g_touchReleaseStartMs = 0;
+    Serial.printf("[DOOM][TOUCH] center-tap recalibrate x=%d y=%d\n", g_touchStartX, g_touchStartY);
+  }
+}
 #endif
 
-  // Primary gesture: horizontal swipe changes page across the enabled carousel.
-  if (pageSwipe) {
-    const int8_t dir = (dx < 0) ? 1 : -1;
-    bool moved = false;
-    moved = stepUiPage(dir, false);
+// ── M6: Release handler — generic carousel swipe ──
+
+static void handleCarouselSwipe(const TouchReleaseInfo &r) {
+#if TEST_DISPLAY
+  if (g_uiPageMode == UI_PAGE_DOOM && r.pageSwipe) {
+    UiPageMode doomExit = uiLastEnabledMainViewNoEnsure();
+    const int8_t doomOrd = uiPageOrdinal(UI_PAGE_DOOM);
+    if (doomOrd > 0) doomExit = uiPageFromOrdinal(doomOrd - 1);
+    setUiPage(doomExit);
     g_lastSwipeToggleMs = millis();
     g_touchAwaitRelease = true;
     g_touchReleaseStartMs = 0;
-    const char *dirLabel = (dx < 0) ? "LEFT" : "RIGHT";
-    Serial.printf("[TOUCH] swipe %s dx=%d dy=%d dur=%lums -> page=%s moved=%d\n",
-                  dirLabel, dx, dy, (unsigned long)durMs, uiPageName(g_uiPageMode), moved ? 1 : 0);
+    Serial.printf("[TOUCH] doom-exit dx=%d dy=%d tap=%d -> %s\n", r.dx, r.dy, r.isTap ? 1 : 0, uiPageName(g_uiPageMode));
     return;
   }
+#endif
+  if (r.pageSwipe) {
+    const int8_t dir = (r.dx < 0) ? 1 : -1;
+    bool moved = stepUiPage(dir, false);
+    g_lastSwipeToggleMs = millis();
+    g_touchAwaitRelease = true;
+    g_touchReleaseStartMs = 0;
+    const char *dirLabel = (r.dx < 0) ? "LEFT" : "RIGHT";
+    Serial.printf("[TOUCH] swipe %s dx=%d dy=%d dur=%lums -> page=%s moved=%d\n",
+                  dirLabel, r.dx, r.dy, (unsigned long)r.durMs, uiPageName(g_uiPageMode), moved ? 1 : 0);
+  }
+}
 
-  // AUX/WIKI ergonomics: tap on current news advances to next item.
-  if (isTap && uiPageIsFeedDeck(g_uiPageMode) &&
+// ── M6: Release handler — feed deck tap (news area + QR overlay close) ──
+
+static void handleFeedDeckTapRelease(const TouchReleaseInfo &r) {
+  if (r.isTap && uiPageIsFeedDeck(g_uiPageMode) &&
       (lvglFeedNewsContainsPoint(g_touchStartX, g_touchStartY) ||
        lvglAuxHeroContainsPoint(g_touchStartX, g_touchStartY))) {
 #if TEST_WIFI && RSS_ENABLED
@@ -10070,26 +9916,144 @@ static void handleTouchSwipeInput() {
       g_uiNeedsRedraw = true;
       g_touchAwaitRelease = true;
       g_touchReleaseStartMs = 0;
-      Serial.printf("[TOUCH] aux-news-tap -> %s %u/%u\n",
-                    tag,
-                    (unsigned)(content.currentIndex + 1),
-                    (unsigned)content.itemCount);
+      Serial.printf("[TOUCH] aux-news-tap -> %s %u/%u\n", tag,
+                    (unsigned)(content.currentIndex + 1), (unsigned)content.itemCount);
       return;
     }
 #endif
   }
-
-  // In AUX/WIKI, ignore neutral taps that are not on actionable regions.
-  if (isTap && uiPageIsFeedDeck(g_uiPageMode)) return;
-
-  // Fallback gesture: quick tap anywhere on left panel toggles clock mode.
-  if (isTap &&
-      g_uiPageMode == UI_PAGE_HOME &&
+  // In AUX/WIKI, ignore neutral taps not on actionable regions.
+  if (r.isTap && uiPageIsFeedDeck(g_uiPageMode)) return;
+  // HOME: tap left panel toggles clock mode.
+  if (r.isTap && g_uiPageMode == UI_PAGE_HOME &&
       g_touchStartX < (canvasWidth() - DISPLAY_WEATHER_PANEL_W)) {
     toggleClockMode();
     Serial.printf("[TOUCH] tap x=%d y=%d -> mode=%s\n",
                   g_touchStartX, g_touchStartY, uiClockModeName(g_uiClockMode));
   }
+}
+
+// ── M6: Orchestrator — touch state machine ──
+
+static void handleTouchSwipeInput() {
+  int16_t x = 0, y = 0;
+  const bool touched = readTouchLogicalPoint(x, y);
+  const uint32_t now = millis();
+
+  // ── Phase 1: Screensaver wake + release gate ──
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
+  if (touched) {
+    markUserInteraction(now);
+    if (g_lvglScreenSaverActive) {
+      lvglSetScreenSaverActive(false);
+      g_touchDown = false; g_touchPageDragging = false;
+      g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
+      g_touchAwaitRelease = true; g_touchReleaseStartMs = 0;
+      return;
+    }
+  }
+#endif
+  if (g_touchAwaitRelease) {
+    if (touched) { g_touchReleaseStartMs = 0; return; }
+    if (g_touchReleaseStartMs == 0) { g_touchReleaseStartMs = now; return; }
+    if ((now - g_touchReleaseStartMs) < 70) return;
+    g_touchAwaitRelease = false; g_touchReleaseStartMs = 0;
+    return;
+  }
+
+  // ── Phase 2: Touch-down registration + drag tracking ──
+  if (touched) {
+    g_touchMissCount = 0;
+    if (!g_touchDown) {
+      g_touchDown = true; g_touchStartX = x; g_touchStartY = y;
+      g_touchStartMs = now; g_touchPageDragging = false;
+      g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
+      if (uiPageIsFeedDeck(g_uiPageMode)) {
+        if (lvglFeedQrButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_QR;
+        else if (lvglFeedRefreshButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_REFRESH;
+        else if (lvglFeedNextFeedButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_NEXT;
+      }
+      if (g_touchAuxBtnDown == TOUCH_AUX_BTN_QR) { lvglSetFeedQrButtonPressed(true); Serial.printf("[TOUCH] btn-down QR x=%d y=%d\n", x, y); }
+      else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) { lvglSetFeedRefreshButtonPressed(true); Serial.printf("[TOUCH] btn-down SKIP x=%d y=%d\n", x, y); }
+      else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) { lvglSetFeedNextFeedButtonPressed(true); Serial.printf("[TOUCH] btn-down NXT x=%d y=%d\n", x, y); }
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+      if (g_uiPageMode == UI_PAGE_DOOM) {
+        g_doomTouchZone = doomTouchZoneFromX(x); g_doomFrameDirty = true;
+        Serial.printf("[DOOM][TOUCH] down zone=%s x=%d y=%d\n", doomTouchZoneName(g_doomTouchZone), x, y);
+      }
+#endif
+    }
+    g_touchLastX = x; g_touchLastY = y;
+#if TEST_DISPLAY
+    if (g_uiPageMode == UI_PAGE_DOOM) return;
+#endif
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+    if (g_lvglReady) {
+      if (g_touchAuxBtnDown != TOUCH_AUX_BTN_NONE) return;
+      const int16_t liveDx = g_touchLastX - g_touchStartX;
+      const int16_t liveDy = g_touchLastY - g_touchStartY;
+      constexpr int16_t kDragStartPx = 5;
+      if (g_touchPageDragging) { lvglApplyPageDrag(liveDx); return; }
+      if (abs(liveDx) >= kDragStartPx && abs(liveDx) >= abs(liveDy)) {
+        g_touchPageDragging = true; lvglApplyPageDrag(liveDx); return;
+      }
+    }
+#endif
+    return;
+  }
+
+  // ── Miss counter (touch controller scan rate bridge) ──
+  if (g_touchDown) { if (++g_touchMissCount < 12) return; g_touchMissCount = 0; }
+  if (!g_touchDown) return;
+  g_touchDown = false;
+
+  // ── Phase 3: Release — compute gesture + dispatch ──
+  const TouchReleaseInfo r = {
+    .dx = (int16_t)(g_touchLastX - g_touchStartX),
+    .dy = (int16_t)(g_touchLastY - g_touchStartY),
+    .durMs = millis() - g_touchStartMs,
+    .horizontalIntent = (abs(g_touchLastX - g_touchStartX) >= abs(g_touchLastY - g_touchStartY)),
+    .pageSwipe = [&]() {
+      const int16_t adx = abs(g_touchLastX - g_touchStartX);
+      const int16_t ady = abs(g_touchLastY - g_touchStartY);
+      const bool horiz = (adx >= ady);
+      const uint32_t dur = millis() - g_touchStartMs;
+      const bool fast = (dur <= 220) && (adx >= ((DISPLAY_TOUCH_SWIPE_MIN_PX / 2) + 2));
+      return horiz && ((adx >= DISPLAY_TOUCH_SWIPE_MIN_PX) || fast);
+    }(),
+    .isTap = ((millis() - g_touchStartMs) <= DISPLAY_TOUCH_TAP_MAX_MS &&
+              abs(g_touchLastX - g_touchStartX) <= DISPLAY_TOUCH_TAP_MAX_PX &&
+              abs(g_touchLastY - g_touchStartY) <= DISPLAY_TOUCH_TAP_MAX_PX),
+    .isBtnTap = ((millis() - g_touchStartMs) <= 1400 &&
+                 abs(g_touchLastX - g_touchStartX) <= 72 &&
+                 abs(g_touchLastY - g_touchStartY) <= 72),
+    .auxBtnDown = (uint8_t)g_touchAuxBtnDown,
+    .doomTouchZone = g_doomTouchZone,
+  };
+  g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
+  g_doomTouchZone = DOOM_TOUCH_NONE;
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+  if (r.doomTouchZone != DOOM_TOUCH_NONE) g_doomFrameDirty = true;
+#endif
+  if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_QR) lvglSetFeedQrButtonPressed(false);
+  else if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_REFRESH) lvglSetFeedRefreshButtonPressed(false);
+  else if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_NEXT) lvglSetFeedNextFeedButtonPressed(false);
+
+  // Dispatch by priority
+  if ((TouchAuxButton)r.auxBtnDown != TOUCH_AUX_BTN_NONE) { handleFeedDeckButtonRelease(r); return; }
+  if (g_touchPageDragging) { handlePageDragRelease(r); return; }
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+  if (g_uiPageMode == UI_PAGE_DOOM) { handleDoomTouchRelease(r); return; }
+#endif
+  if (r.durMs > 3000) return;
+  if (uiPageIsFeedDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
+    if (r.durMs <= 2500) { lvglSetFeedQrModalOpen(false); Serial.println("[TOUCH] qr-close-overlay"); }
+    g_touchAwaitRelease = true; g_touchReleaseStartMs = 0;
+    return;
+  }
+  if ((millis() - g_lastSwipeToggleMs) < 140) return;
+  if (r.pageSwipe) { handleCarouselSwipe(r); return; }
+  handleFeedDeckTapRelease(r);
 }
 #else
 static bool initTouchInput() { return false; }
