@@ -3954,15 +3954,143 @@ static bool ensureWebQrBuffers() {
 }
 #endif
 
-static String buildWebConfigPage(const char *statusMsg) {
-  ensureRuntimeNetConfig();
-  char latBuf[24];
-  char lonBuf[24];
-  snprintf(latBuf, sizeof(latBuf), "%.4f", runtimeWeatherLat());
-  snprintf(lonBuf, sizeof(lonBuf), "%.4f", runtimeWeatherLon());
-  const uint8_t configuredFeeds = runtimeRssConfiguredFeedCount();
-  const UiThemeDefinition &themeDef = activeUiTheme();
-  const UiThemeWebTokens &webTheme = themeDef.web;
+// ── M3 PROGMEM: static CSS (vibemilk DS subset + component classes) ──
+static const char kWebCssCore[] PROGMEM = R"rawliteral(
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--font-family:var(--font-main);--text-primary:var(--txt);--text-secondary:var(--txt2);--text-tertiary:var(--txt3);--accent-primary:var(--acc1);--accent-secondary:var(--acc2);--bg-input:var(--bg-deep);--bg-elevated:var(--bg-surface);--stroke:var(--line);--stroke-soft:var(--line-soft);--shadow-sm:0 2px 8px rgba(0,0,0,.25);--shadow-md:0 4px 16px rgba(0,0,0,.3);--r-sm:8px;--r-md:12px;--r-lg:14px;--focus-ring:0 0 0 3px rgba(57,184,255,.18)}
+body{font-family:var(--font-family);font-size:14px;font-weight:400;line-height:1.5;color:var(--text-secondary);background:var(--bg-deepest);-webkit-font-smoothing:antialiased}
+a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(57,184,255,.24);color:var(--text-primary)}
+.vm-wrap{max-width:780px;margin:0 auto;padding:20px 16px 32px}
+.vm-card{background:var(--bg-surface);border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:12px}
+.vm-card__hd{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-primary)}
+.vm-card__hd .vm-badge{margin-left:auto;text-transform:none;letter-spacing:0}
+.vm-card--inner{background:0;border:0;border-radius:0;padding:10px 0 0}
+.vm-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:var(--font-family);font-weight:600;border:0;cursor:pointer;transition:all .15s ease;white-space:nowrap;font-size:13px;height:40px;padding:0 18px;border-radius:var(--r-sm)}
+.vm-btn--sm{height:34px;padding:0 12px;font-size:12px;border-radius:6px}
+.vm-btn--primary{background:var(--accent-primary);color:#fff}.vm-btn--primary:hover{filter:brightness(1.15);box-shadow:var(--shadow-sm)}
+.vm-btn--secondary{background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--stroke)}.vm-btn--secondary:hover{color:var(--text-primary);border-color:var(--accent-secondary)}
+.vm-btn--danger{background:rgba(238,93,80,.12);color:#f26a5e;border:1px solid rgba(238,93,80,.3)}.vm-btn--danger:hover{background:rgba(238,93,80,.22)}
+.vm-btn--warn{background:rgba(117,81,255,.12);color:#b8a8ff;border:1px solid rgba(117,81,255,.35)}.vm-btn--warn:hover{background:rgba(117,81,255,.22)}
+.vm-btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+.vm-input,.vm-select{width:100%;height:44px;padding:0 16px;font-family:var(--font-family);font-size:14px;font-weight:500;color:var(--text-primary);background:var(--bg-input);border:1px solid var(--stroke);border-radius:var(--r-sm);outline:none;transition:border-color .15s ease;margin:0 0 4px}
+.vm-input:focus,.vm-select:focus{border-color:var(--accent-secondary);box-shadow:var(--focus-ring)}
+.vm-input::placeholder{color:var(--text-tertiary)}
+.vm-select{cursor:pointer;appearance:none;padding-right:40px;background-image:linear-gradient(45deg,transparent 50%,var(--text-tertiary) 50%),linear-gradient(135deg,var(--text-tertiary) 50%,transparent 50%);background-repeat:no-repeat;background-size:6px 6px,6px 6px;background-position:calc(100% - 18px) 52%,calc(100% - 13px) 52%}
+.vm-label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin:0 0 6px}
+.vm-help{font-size:12px;color:var(--text-tertiary);line-height:1.45;margin:6px 0 0}
+.vm-badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 10px;border-radius:999px;font-size:11px;font-weight:600}
+.vm-badge--brand{background:rgba(117,81,255,.14);color:var(--accent-primary)}.vm-badge--info{background:rgba(57,184,255,.14);color:var(--accent-secondary)}
+.pill{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(57,184,255,.12);color:var(--accent-secondary);font-size:11px;font-weight:700}
+.vm-alert{padding:12px 16px;border-radius:var(--r-md);border-left:4px solid #01B574;background:var(--okbg);color:#c9fce9;font-weight:600;font-size:13px}
+.vm-toast-fixed{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(94vw,680px);z-index:9999;box-shadow:var(--shadow-md)}
+.msg{margin:0 0 12px;padding:10px 12px;border-radius:var(--r-md);border:1px solid rgba(1,181,116,.45);background:var(--okbg);color:#c9fce9;font-weight:600}
+.panel{background:transparent;border:0;padding:0}
+.hero{background:0;border:0;border-radius:0;padding:0;margin-bottom:14px}
+.hero-top-card{border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:14px;background:var(--bg-surface)}
+.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}.hero-left{min-width:290px;flex:1 1 560px}
+.logo{height:56px;display:block;object-fit:contain}.hero-right{display:grid;gap:8px;justify-items:end}
+.release-box{display:inline-flex;gap:14px;padding:0;border:0;background:0;font:600 11px var(--font-mono)}
+.release-box .k{color:var(--accent-secondary);text-transform:uppercase;letter-spacing:.08em}.release-box .v{color:var(--text-primary);letter-spacing:.01em}
+.hero-copy{margin-top:10px;border:0;border-radius:0;padding:0;background:0}
+.lede{margin:0;color:var(--text-secondary);font-size:13px;line-height:1.46}
+.vm-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.vm-views{display:grid;gap:0}
+.vm-view{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border:0;border-bottom:1px solid var(--stroke-soft);border-radius:0;background:0}
+.vm-view input[type=checkbox]{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent-secondary);flex:0 0 auto}
+.vm-view__copy{display:grid;gap:3px}.vm-view__copy strong{font-size:13px;color:var(--text-primary)}.vm-view__copy small{color:var(--text-tertiary);line-height:1.35;font-size:12px}
+.vm-view--fixed{border-bottom-style:dashed}.vm-view--off{opacity:.55}.vm-view:last-child{border-bottom:0}
+.vm-secret{display:flex;gap:8px;align-items:stretch;margin:0 0 4px}.vm-secret .vm-input{margin:0}
+.vm-setup-grid{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin-top:10px}
+.vm-setup-qr{width:138px;height:138px;border:1px solid var(--stroke);background:#fff;padding:6px;border-radius:var(--r-sm);display:block}
+.vm-setup-url{font:600 13px var(--font-mono);word-break:break-all;color:var(--text-primary)}
+.vm-rss-composer{display:grid;grid-template-columns:1fr 1.9fr .55fr auto auto;gap:10px;align-items:end;margin-top:4px}
+.vm-rss-list{display:grid;gap:8px;margin-top:10px}
+.rss-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:0;border-left:3px solid var(--accent-primary);border-radius:0;padding:10px 0 10px 12px;background:0;border-bottom:1px solid var(--stroke-soft)}.rss-row:last-child{border-bottom:0}
+.rss-title{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:var(--text-primary);margin:0 0 2px}
+.rss-meta{font-size:12px;color:var(--text-tertiary);margin:0;word-break:break-all}
+.rss-chip{display:inline-block;margin-left:7px;padding:2px 8px;border-radius:999px;background:rgba(57,184,255,.14);color:var(--accent-secondary);font-size:11px;font-weight:600}
+.rss-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.rss-status{margin:6px 0 2px;color:var(--text-tertiary);font-size:12px;min-height:16px}
+.rss-empty{padding:12px;border:1px dashed var(--stroke);border-radius:var(--r-md);color:var(--text-tertiary);font-size:12px;background:rgba(255,255,255,.02)}
+.hidden{display:none}
+.vm-kv{font-size:13px;line-height:1.7}.vm-kv small{color:var(--text-tertiary)}.vm-kv code{color:var(--text-primary);font-family:var(--font-mono);font-size:12px}
+.vm-footer{margin-top:20px;padding:14px 0 4px;border-top:1px solid var(--stroke-soft);font-size:12px;color:var(--text-tertiary);line-height:1.5}.vm-footer strong{color:var(--text-secondary)}.vm-footer a{color:var(--accent-secondary)}
+.vm-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;margin-bottom:40px}
+.vm-api-note{margin-top:12px;padding:6px 0;border-radius:0;background:0;border:0;font-size:12px;color:var(--text-tertiary)}.vm-api-note code{color:var(--text-secondary)}
+#wifi_new_password{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:.02em}
+.geo-status{margin:2px 0 8px;color:var(--text-tertiary);font-size:12px;min-height:16px}
+@media(max-width:768px){.vm-grid{grid-template-columns:1fr}.vm-rss-composer{grid-template-columns:1fr}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions{flex-direction:column}.vm-actions .vm-btn{width:100%;justify-content:center}.logo{height:48px}}
+small{color:var(--text-tertiary)}code{color:var(--text-secondary)}
+)rawliteral";
+
+// ── M3 PROGMEM: static JS (before initialFeeds injection) ──
+static const char kWebJsCorePre[] PROGMEM = R"rawliteral(
+<script>(function(){
+(function(){const t=document.querySelector('.msg.fixed-top');if(t){setTimeout(function(){t.style.transition='opacity .6s';t.style.opacity='0';setTimeout(function(){t.style.display='none';},650);},4200);}})();
+const q=document.getElementById('geo_query');const dl=document.getElementById('geo_hits');const st=document.getElementById('geo_status');const city=document.getElementById('weather_city');const lat=document.getElementById('weather_lat');const lon=document.getElementById('weather_lon');
+if(!q||!dl||!city||!lat||!lon)return;let t=0;let map={};function setStatus(msg){if(st)st.textContent=msg||'';}function clearHits(){dl.innerHTML='';map={};}
+function applyPick(key){const r=map[key];if(!r)return false;city.value=r.name||city.value;lat.value=Number(r.latitude).toFixed(4);lon.value=Number(r.longitude).toFixed(4);setStatus('Coordinates filled in automatically.');return true;}
+q.addEventListener('change',function(){applyPick(q.value);});q.addEventListener('blur',function(){applyPick(q.value);});
+q.addEventListener('input',function(){const term=q.value.trim();if(term.length<2){clearHits();setStatus('');return;}clearTimeout(t);t=setTimeout(async function(){try{setStatus('Searching...');const u='https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name='+encodeURIComponent(term);const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);const data=await r.json();const rows=(data&&data.results)?data.results:[];clearHits();if(!rows.length){setStatus('No results found.');return;}rows.forEach(function(it){const label=[it.name,it.admin1,it.country].filter(Boolean).join(', ');const opt=document.createElement('option');opt.value=label;opt.label=(Number(it.latitude).toFixed(4)+', '+Number(it.longitude).toFixed(4));dl.appendChild(opt);map[label]=it;});setStatus('Select a result to fill city / lat / lon.');if(rows.length===1){const one=[rows[0].name,rows[0].admin1,rows[0].country].filter(Boolean).join(', ');q.value=one;applyPick(one);}}catch(e){clearHits();setStatus('Search unavailable, try again later.');}} ,280);});
+const wifiScanBtn=document.getElementById('wifi_scan_btn');const wifiScanResults=document.getElementById('wifi_scan_results');const wifiScanStatus=document.getElementById('wifi_scan_status');const wifiNewSsid=document.getElementById('wifi_new_ssid');const wifiNewPassword=document.getElementById('wifi_new_password');const wifiPwdToggle=document.getElementById('wifi_pwd_toggle');
+function setWifiStatus(msg){if(wifiScanStatus)wifiScanStatus.textContent=msg||'';}function escHtml(s){return (s||'').replace(/[&<>]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;'})[c];});}
+async function scanWifiNow(){if(!wifiScanResults)return;const ctl=(window.AbortController?new AbortController():null);let tm=0;try{setWifiStatus('Scanning 2.4 GHz networks...');wifiScanResults.innerHTML="<option value=''>Scanning...</option>";if(ctl){tm=window.setTimeout(function(){ctl.abort();},9000);}const res=await fetch('/api/wifi/scan',{cache:'no-store',signal:ctl?ctl.signal:undefined});if(tm)window.clearTimeout(tm);if(!res.ok)throw new Error('http '+res.status);const data=await res.json();const rows=(data&&data.networks)?data.networks:[];wifiScanResults.innerHTML="";if(!rows.length){wifiScanResults.innerHTML="<option value=''>No 2.4 GHz network found</option>";setWifiStatus((data&&data.message==='scan_timeout')?'Scan timed out, retry in a few seconds.':'No 2.4 GHz networks found.');return;}rows.forEach(function(n){const opt=document.createElement('option');const lock=n.secure?'SEC':'OPEN';opt.value=n.ssid||'';opt.dataset.secure=n.secure?'1':'0';opt.dataset.channel=String(n.channel||0);opt.innerHTML=escHtml((n.ssid||'(hidden)')+'  '+lock+'  ch'+(n.channel||'?')+'  '+(n.rssi||0)+'dBm');wifiScanResults.appendChild(opt);});setWifiStatus('Scan complete. Pick an SSID and press Save Config.');if(rows[0]&&rows[0].ssid&&wifiNewSsid&&!wifiNewSsid.value){wifiNewSsid.value=rows[0].ssid;}}catch(e){if(tm)window.clearTimeout(tm);wifiScanResults.innerHTML="<option value=''>Scan failed</option>";setWifiStatus((e&&e.name==='AbortError')?'Scan timeout. Retry.':'Scan unavailable right now.');}}
+function syncWifiPwdToggle(){if(!wifiPwdToggle||!wifiNewPassword)return;const visible=wifiNewPassword.type==='text';wifiPwdToggle.textContent=visible?'Hide':'Show';wifiPwdToggle.title=visible?'Hide password':'Show password';wifiPwdToggle.setAttribute('aria-label',wifiPwdToggle.title);}if(wifiPwdToggle&&wifiNewPassword){wifiPwdToggle.addEventListener('click',function(){wifiNewPassword.type=(wifiNewPassword.type==='password')?'text':'password';syncWifiPwdToggle();});syncWifiPwdToggle();}if(wifiScanBtn)wifiScanBtn.addEventListener('click',function(){scanWifiNow();});if(wifiScanResults)wifiScanResults.addEventListener('change',function(){const v=wifiScanResults.value||'';if(wifiNewSsid&&v)wifiNewSsid.value=v;const sel=wifiScanResults.options[wifiScanResults.selectedIndex];if(wifiNewPassword&&sel&&sel.dataset.secure==='0'){wifiNewPassword.value='';wifiNewPassword.placeholder='Open network (no password)';}else if(wifiNewPassword){wifiNewPassword.placeholder='Password (WPA/WPA2)';}});
+const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');const viewHidden=document.getElementById('view_hidden_inputs');
+const maxSlots=5;const minPosts=1;const maxPosts=8;let editIndex=-1;
+const initialFeeds=[)rawliteral";
+
+// ── M3 PROGMEM: static JS (after initialFeeds injection) ──
+static const char kWebJsCorePost[] PROGMEM = R"rawliteral(];
+let feeds=initialFeeds.filter(f=>f&&f.url&&/^https?:\/\//i.test(f.url));
+function clampPosts(n){n=parseInt(n,10);if(isNaN(n))n=maxPosts;if(n<minPosts)n=minPosts;if(n>maxPosts)n=maxPosts;return n;}function startsHttp(v){return /^https?:\/\//i.test((v||'').trim());}
+function defName(i){return 'Feed '+(i+1);}function setRssStatus(m){if(rssStatus)rssStatus.textContent=m||'';}
+function clearComposer(){editIndex=-1;rssName.value='';rssUrl.value='';rssMax.value='8';rssAdd.innerHTML="+ Add";setRssStatus('');}
+function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML="RSS feeds "+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.textContent='';t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='vm-btn vm-btn--sm vm-btn--warn';bEdit.textContent='Edit';bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.textContent='Update';setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='vm-btn vm-btn--sm vm-btn--danger';bDel.textContent='Delete';bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}
+function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}
+function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}
+function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_doom','view_doom_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}
+if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();
+})();</script>)rawliteral";
+
+// ── M3: sub-functions for buildWebConfigPage decomposition ──
+
+static void buildWebCssBlock(String &html, const UiThemeDefinition &theme) {
+  appendWebThemeCssVars(html, theme.web);
+  html += FPSTR(kWebCssCore);
+}
+
+static void buildWebHeroSection(String &html, const char *statusMsg) {
+  html += F("<section class='hero'><div class='hero-top-card'><div class='hero-top'><div class='hero-left'><img class='logo' alt='Netmilk Studio' src='");
+  appendHtmlEscaped(html, runtimeLogoUrl());
+  html += F("'></div><div class='hero-right'><div class='release-box'><span><span class='k'>release</span> <span class='v'>");
+  appendHtmlEscaped(html, FW_RELEASE_DATE);
+  html += F("</span></span><span><span class='k'>version</span> <span class='v'>");
+  appendHtmlEscaped(html, FW_BUILD_TAG);
+  html += F("</span></span></div></div></div><div class='hero-copy'><p class='lede'>\xE2\x9C\xA8 <b>ScryBar</b> is a mass of sensors, pixels, and unresolved ambition, pretending to be furniture.<br>Time, weather, news, and a talking oracle. Everything you could faster check on your phone, but won't.<br>Overengineered with pride by <b>enuzzo</b>, stealing billable hours at <b>Netmilk Studio</b>. Reflashed at 2 AM with no regrets.<br><em>Your desk knows things now.</em></p></div></section>");
+  html += F("<section class='panel'>");
+  if (statusMsg && statusMsg[0]) {
+    html += F("<p class='vm-alert vm-toast-fixed'>");
+    appendHtmlEscaped(html, statusMsg);
+    html += F("</p>");
+  }
+}
+
+static void buildWebThemeSelector(String &html) {
+  html += F("<div class='vm-card'><h2>&#x1F3A8; Visual Theme</h2><div class='vm-label'>THEME</div><select class='vm-select' name='ui_theme'>");
+  for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
+    html += F("<option value='");
+    html += kUiThemes[i].id;
+    html += '\'';
+    if (strcmp(runtimeUiThemeId(), kUiThemes[i].id) == 0) html += F(" selected");
+    html += '>';
+    html += kUiThemes[i].label;
+    html += F("</option>");
+  }
+  html += F("</select><p class='vm-help'>One selector drives both interfaces: this web control surface and the ESP32 display UI. Switching theme applies instantly and persists in NVS.</p></div>");
+}
+
+static void buildWebViewToggles(String &html) {
   const bool infoViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) != 0;
   const bool auxViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) != 0;
   const bool wikiViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) != 0;
@@ -3974,222 +4102,90 @@ static String buildWebConfigPage(const char *statusMsg) {
       false;
 #endif
   const bool doomViewOn = doomFeatureAvailable && ((g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) != 0);
+  html += F("<div class='vm-card'><h2>Views</h2><div class='vm-card--inner'><div class='vm-views'>");
+  html += F("<label class='vm-view'><input id='view_info_cb' type='checkbox'");
+  if (infoViewOn) html += F(" checked");
+  html += F("><span class='vm-view__copy'><strong>Info</strong><small>Word clock and ambient status page.</small></span></label>");
+  html += F("<label class='vm-view vm-view--fixed'><input type='checkbox' checked disabled><span class='vm-view__copy'><strong>Home</strong><small>Always on. Safe fallback when other pages are disabled.</small></span></label>");
+  html += F("<label class='vm-view'><input id='view_aux_cb' type='checkbox'");
+  if (auxViewOn) html += F(" checked");
+  html += F("><span class='vm-view__copy'><strong>RSS / AUX</strong><small>News feed deck, QR and refresh actions.</small></span></label>");
+  html += F("<label class='vm-view'><input id='view_wiki_cb' type='checkbox'");
+  if (wikiViewOn) html += F(" checked");
+  html += F("><span class='vm-view__copy'><strong>Wikipedia</strong><small>Featured, On This Day and random article cards.</small></span></label>");
+  html += F("<label class='vm-view'><input id='view_now_playing_cb' type='checkbox'");
+  if (nowPlayingViewOn) html += F(" checked");
+  html += F("><span class='vm-view__copy'><strong>Now Playing</strong><small>Live track info from macOS companion app.</small></span></label>");
+  html += F("<label class='view-card");
+  if (!doomFeatureAvailable) html += F(" disabled");
+  html += F("'><input id='view_doom_cb' type='checkbox'");
+  if (doomViewOn) html += F(" checked");
+  if (!doomFeatureAvailable) html += F(" disabled");
+  html += F("><span class='vm-view__copy'><strong>DOOM</strong><small>");
+  if (doomFeatureAvailable) html += F("Swipe-reachable game page with gyro + touch controls.");
+  else html += F("Not available in this firmware build.");
+  html += F("</small></span></label>");
+  html += F("</div><p class='vm-help'>Swipe navigation only includes enabled pages.</p><div id='view_hidden_inputs' class='hidden'></div></div></div>");
+}
 
-  String html;
-  html.reserve(22000);
-  html += F("<!doctype html><html lang='en'><head><meta charset='utf-8'>");
-  html += F("<meta name='viewport' content='width=device-width,initial-scale=1'>");
-  html += F("<title>ScryBar Control Surface</title>");
-  html += F("<link rel='preconnect' href='https://fonts.googleapis.com'>");
-  html += F("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>");
-  // Load remote CSS asynchronously so UI stays paintable even if CDN/fonts are slow or blocked.
-  html += F("<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Chakra+Petch:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap' media='print' onload=\"this.media='all'\">");
-  html += F("<noscript><link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Chakra+Petch:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap' rel='stylesheet'></noscript>");
-  html += F("<style>");
-  // Tron-grid animated background; tuned to stay visible on mobile while keeping form readability.
-  appendWebThemeCssVars(html, webTheme);
-  // ── Vibemilk DS subset: bridge + reset + components ──
-  html += F("*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}");
-  // Bridge: map firmware tokens → vibemilk standard names
-  html += F(":root{--font-family:var(--font-main);--text-primary:var(--txt);--text-secondary:var(--txt2);--text-tertiary:var(--txt3);--accent-primary:var(--acc1);--accent-secondary:var(--acc2);--bg-input:var(--bg-deep);--bg-elevated:var(--bg-surface);--stroke:var(--line);--stroke-soft:var(--line-soft);--shadow-sm:0 2px 8px rgba(0,0,0,.25);--shadow-md:0 4px 16px rgba(0,0,0,.3);--r-sm:8px;--r-md:12px;--r-lg:14px;--focus-ring:0 0 0 3px rgba(57,184,255,.18)}");
-  // Base
-  html += F("body{font-family:var(--font-family);font-size:14px;font-weight:400;line-height:1.5;color:var(--text-secondary);background:var(--bg-deepest);-webkit-font-smoothing:antialiased}");
-  html += F("a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(57,184,255,.24);color:var(--text-primary)}");
-  // Layout
-  html += F(".vm-wrap{max-width:780px;margin:0 auto;padding:20px 16px 32px}");
-  // Card
-  html += F(".vm-card{background:var(--bg-surface);border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:12px}");
-  html += F(".vm-card__hd{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-primary)}");
-  html += F(".vm-card__hd .vm-badge{margin-left:auto;text-transform:none;letter-spacing:0}");
-  html += F(".vm-card--inner{background:0;border:0;border-radius:0;padding:10px 0 0}");
-  // Buttons
-  html += F(".vm-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:var(--font-family);font-weight:600;border:0;cursor:pointer;transition:all .15s ease;white-space:nowrap;font-size:13px;height:40px;padding:0 18px;border-radius:var(--r-sm)}");
-  html += F(".vm-btn--sm{height:34px;padding:0 12px;font-size:12px;border-radius:6px}");
-  html += F(".vm-btn--primary{background:var(--accent-primary);color:#fff}.vm-btn--primary:hover{filter:brightness(1.15);box-shadow:var(--shadow-sm)}");
-  html += F(".vm-btn--secondary{background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--stroke)}.vm-btn--secondary:hover{color:var(--text-primary);border-color:var(--accent-secondary)}");
-  html += F(".vm-btn--danger{background:rgba(238,93,80,.12);color:#f26a5e;border:1px solid rgba(238,93,80,.3)}.vm-btn--danger:hover{background:rgba(238,93,80,.22)}");
-  html += F(".vm-btn--warn{background:rgba(117,81,255,.12);color:#b8a8ff;border:1px solid rgba(117,81,255,.35)}.vm-btn--warn:hover{background:rgba(117,81,255,.22)}");
-  html += F(".vm-btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}");
-  // Forms
-  html += F(".vm-input,.vm-select{width:100%;height:44px;padding:0 16px;font-family:var(--font-family);font-size:14px;font-weight:500;color:var(--text-primary);background:var(--bg-input);border:1px solid var(--stroke);border-radius:var(--r-sm);outline:none;transition:border-color .15s ease;margin:0 0 4px}");
-  html += F(".vm-input:focus,.vm-select:focus{border-color:var(--accent-secondary);box-shadow:var(--focus-ring)}");
-  html += F(".vm-input::placeholder{color:var(--text-tertiary)}");
-  html += F(".vm-select{cursor:pointer;appearance:none;padding-right:40px;background-image:linear-gradient(45deg,transparent 50%,var(--text-tertiary) 50%),linear-gradient(135deg,var(--text-tertiary) 50%,transparent 50%);background-repeat:no-repeat;background-size:6px 6px,6px 6px;background-position:calc(100% - 18px) 52%,calc(100% - 13px) 52%}");
-  html += F(".vm-label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin:0 0 6px}");
-  html += F(".vm-help{font-size:12px;color:var(--text-tertiary);line-height:1.45;margin:6px 0 0}");
-  // Badge
-  html += F(".vm-badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 10px;border-radius:999px;font-size:11px;font-weight:600}");
-  html += F(".vm-badge--brand{background:rgba(117,81,255,.14);color:var(--accent-primary)}.vm-badge--info{background:rgba(57,184,255,.14);color:var(--accent-secondary)}");
-  html += F(".pill{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(57,184,255,.12);color:var(--accent-secondary);font-size:11px;font-weight:700}");
-  // Alert
-  html += F(".vm-alert{padding:12px 16px;border-radius:var(--r-md);border-left:4px solid #01B574;background:var(--okbg);color:#c9fce9;font-weight:600;font-size:13px}");
-  html += F(".vm-toast-fixed{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(94vw,680px);z-index:9999;box-shadow:var(--shadow-md)}");
-  html += F(".msg{margin:0 0 12px;padding:10px 12px;border-radius:var(--r-md);border:1px solid rgba(1,181,116,.45);background:var(--okbg);color:#c9fce9;font-weight:600}");
-  html += F(".panel{background:transparent;border:0;padding:0}");
-  // Hero (keeps existing class names, restyled with tokens)
-  html += F(".hero{background:0;border:0;border-radius:0;padding:0;margin-bottom:14px}");
-  html += F(".hero-top-card{border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:14px;background:var(--bg-surface)}");
-  html += F(".hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}.hero-left{min-width:290px;flex:1 1 560px}");
-  html += F(".logo{height:56px;display:block;object-fit:contain}.hero-right{display:grid;gap:8px;justify-items:end}");
-  html += F(".release-box{display:inline-flex;gap:14px;padding:0;border:0;background:0;font:600 11px var(--font-mono)}");
-  html += F(".release-box .k{color:var(--accent-secondary);text-transform:uppercase;letter-spacing:.08em}.release-box .v{color:var(--text-primary);letter-spacing:.01em}");
-  html += F(".hero-copy{margin-top:10px;border:0;border-radius:0;padding:0;background:0}");
-  html += F(".lede{margin:0;color:var(--text-secondary);font-size:13px;line-height:1.46}");
-  // Grid
-  html += F(".vm-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}");
-  // Views
-  html += F(".vm-views{display:grid;gap:0}");
-  html += F(".vm-view{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border:0;border-bottom:1px solid var(--stroke-soft);border-radius:0;background:0}");
-  html += F(".vm-view input[type=checkbox]{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent-secondary);flex:0 0 auto}");
-  html += F(".vm-view__copy{display:grid;gap:3px}.vm-view__copy strong{font-size:13px;color:var(--text-primary)}.vm-view__copy small{color:var(--text-tertiary);line-height:1.35;font-size:12px}");
-  html += F(".vm-view--fixed{border-bottom-style:dashed}.vm-view--off{opacity:.55}.vm-view:last-child{border-bottom:0}");
-  // WiFi
-  html += F(".vm-secret{display:flex;gap:8px;align-items:stretch;margin:0 0 4px}.vm-secret .vm-input{margin:0}");
-  html += F(".vm-setup-grid{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin-top:10px}");
-  html += F(".vm-setup-qr{width:138px;height:138px;border:1px solid var(--stroke);background:#fff;padding:6px;border-radius:var(--r-sm);display:block}");
-  html += F(".vm-setup-url{font:600 13px var(--font-mono);word-break:break-all;color:var(--text-primary)}");
-  // RSS
-  html += F(".vm-rss-composer{display:grid;grid-template-columns:1fr 1.9fr .55fr auto auto;gap:10px;align-items:end;margin-top:4px}");
-  html += F(".vm-rss-list{display:grid;gap:8px;margin-top:10px}");
-  html += F(".rss-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:0;border-left:3px solid var(--accent-primary);border-radius:0;padding:10px 0 10px 12px;background:0;border-bottom:1px solid var(--stroke-soft)}.rss-row:last-child{border-bottom:0}");
-  html += F(".rss-title{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:var(--text-primary);margin:0 0 2px}");
-  html += F(".rss-meta{font-size:12px;color:var(--text-tertiary);margin:0;word-break:break-all}");
-  html += F(".rss-chip{display:inline-block;margin-left:7px;padding:2px 8px;border-radius:999px;background:rgba(57,184,255,.14);color:var(--accent-secondary);font-size:11px;font-weight:600}");
-  html += F(".rss-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}");
-  html += F(".rss-status{margin:6px 0 2px;color:var(--text-tertiary);font-size:12px;min-height:16px}");
-  html += F(".rss-empty{padding:12px;border:1px dashed var(--stroke);border-radius:var(--r-md);color:var(--text-tertiary);font-size:12px;background:rgba(255,255,255,.02)}");
-  html += F(".hidden{display:none}");
-  // System info
-  html += F(".vm-kv{font-size:13px;line-height:1.7}.vm-kv small{color:var(--text-tertiary)}.vm-kv code{color:var(--text-primary);font-family:var(--font-mono);font-size:12px}");
-  // Footer
-  html += F(".vm-footer{margin-top:20px;padding:14px 0 4px;border-top:1px solid var(--stroke-soft);font-size:12px;color:var(--text-tertiary);line-height:1.5}.vm-footer strong{color:var(--text-secondary)}.vm-footer a{color:var(--accent-secondary)}");
-  // Actions
-  html += F(".vm-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;margin-bottom:40px}");
-  // API note
-  html += F(".vm-api-note{margin-top:12px;padding:6px 0;border-radius:0;background:0;border:0;font-size:12px;color:var(--text-tertiary)}.vm-api-note code{color:var(--text-secondary)}");
-  // Password field mono
-  html += F("#wifi_new_password{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:.02em}");
-  // Geo status
-  html += F(".geo-status{margin:2px 0 8px;color:var(--text-tertiary);font-size:12px;min-height:16px}");
-  // Responsive
-  html += F("@media(max-width:768px){.vm-grid{grid-template-columns:1fr}.vm-rss-composer{grid-template-columns:1fr}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions{flex-direction:column}.vm-actions .vm-btn{width:100%;justify-content:center}.logo{height:48px}}");
-  html += F("small{color:var(--text-tertiary)}code{color:var(--text-secondary)}");
-  html += F("</style></head><body data-theme='");
-  appendHtmlEscaped(html, themeDef.id);
-  html += F("'><main class='vm-wrap'>");
-  html += F("<section class='hero'><div class='hero-top-card'><div class='hero-top'><div class='hero-left'><img class='logo' alt='Netmilk Studio' src='");
-  appendHtmlEscaped(html, runtimeLogoUrl());
-  html += F("'></div><div class='hero-right'><div class='release-box'><span><span class='k'>release</span> <span class='v'>");
-  appendHtmlEscaped(html, FW_RELEASE_DATE);
-  html += F("</span></span><span><span class='k'>version</span> <span class='v'>");
-  appendHtmlEscaped(html, FW_BUILD_TAG);
-  html += F("</span></span></div></div></div><div class='hero-copy'><p class='lede'>✨ <b>ScryBar</b> is a mass of sensors, pixels, and unresolved ambition, pretending to be furniture.<br>Time, weather, news, and a talking oracle. Everything you could faster check on your phone, but won't.<br>Overengineered with pride by <b>enuzzo</b>, stealing billable hours at <b>Netmilk Studio</b>. Reflashed at 2 AM with no regrets.<br><em>Your desk knows things now.</em></p></div></section>");
-  html += F("<section class='panel'>");
-  if (statusMsg && statusMsg[0]) {
-    html += F("<p class='vm-alert vm-toast-fixed'>");
-    appendHtmlEscaped(html, statusMsg);
-    html += F("</p>");
-  }
-  html += F("<form id='cfg_form' method='post' action='/config'>");
-  // Visual theme section
-  {
-    html += F("<div class='vm-card'><h2>&#x1F3A8; Visual Theme</h2><div class='vm-label'>THEME</div><select class='vm-select' name='ui_theme'>");
-    for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
-      html += F("<option value='");
-      html += kUiThemes[i].id;
-      html += '\'';
-      if (strcmp(runtimeUiThemeId(), kUiThemes[i].id) == 0) html += F(" selected");
-      html += '>';
-      html += kUiThemes[i].label;
-      html += F("</option>");
-    }
-    html += F("</select><p class='vm-help'>One selector drives both interfaces: this web control surface and the ESP32 display UI. Switching theme applies instantly and persists in NVS.</p></div>");
-  }
-  {
-    html += F("<div class='vm-card'><h2>Views</h2><div class='vm-card--inner'><div class='vm-views'>");
-    html += F("<label class='vm-view'><input id='view_info_cb' type='checkbox'");
-    if (infoViewOn) html += F(" checked");
-    html += F("><span class='vm-view__copy'><strong>Info</strong><small>Word clock and ambient status page.</small></span></label>");
-    html += F("<label class='vm-view vm-view--fixed'><input type='checkbox' checked disabled><span class='vm-view__copy'><strong>Home</strong><small>Always on. Safe fallback when other pages are disabled.</small></span></label>");
-    html += F("<label class='vm-view'><input id='view_aux_cb' type='checkbox'");
-    if (auxViewOn) html += F(" checked");
-    html += F("><span class='vm-view__copy'><strong>RSS / AUX</strong><small>News feed deck, QR and refresh actions.</small></span></label>");
-    html += F("<label class='vm-view'><input id='view_wiki_cb' type='checkbox'");
-    if (wikiViewOn) html += F(" checked");
-    html += F("><span class='vm-view__copy'><strong>Wikipedia</strong><small>Featured, On This Day and random article cards.</small></span></label>");
-    html += F("<label class='vm-view'><input id='view_now_playing_cb' type='checkbox'");
-    if (nowPlayingViewOn) html += F(" checked");
-    html += F("><span class='vm-view__copy'><strong>Now Playing</strong><small>Live track info from macOS companion app.</small></span></label>");
-    html += F("<label class='view-card");
-    if (!doomFeatureAvailable) html += F(" disabled");
-    html += F("'><input id='view_doom_cb' type='checkbox'");
-    if (doomViewOn) html += F(" checked");
-    if (!doomFeatureAvailable) html += F(" disabled");
-    html += F("><span class='vm-view__copy'><strong>DOOM</strong><small>");
-    if (doomFeatureAvailable) html += F("Swipe-reachable game page with gyro + touch controls.");
-    else html += F("Not available in this firmware build.");
-    html += F("</small></span></label>");
-    html += F("</div><p class='vm-help'>Swipe navigation only includes enabled pages.</p><div id='view_hidden_inputs' class='hidden'></div></div></div>");
-  }
 #if TEST_WIFI
-  // Wi-Fi preferred network section
-  {
-    const bool wifiOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
-    const String activeSsid = wifiOk ? WiFi.SSID() : String("");
-    char setupUrl[96] = "";
-    wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
-    html += F("<div class='vm-card'><h2>Wi-Fi Known Networks</h2><div class='vm-label'>PREFERRED SSID</div><select class='vm-select' name='wifi_pref_ssid'>");
-    html += F("<option value=''");
-    if (!g_wifiPreferredSsid[0]) html += F(" selected");
-    html += F(">Auto (smart rotation)</option>");
-    for (uint8_t i = 0; i < g_wifiCredCount; ++i) {
-      const char *ssid = g_wifiCredSsids[i];
-      if (!ssid || !ssid[0]) continue;
-      html += F("<option value='");
-      appendHtmlEscaped(html, ssid);
-      html += '\'';
-      const bool selected = (strcmp(g_wifiPreferredSsid, ssid) == 0);
-      if (selected) html += F(" selected");
-      html += '>';
-      appendHtmlEscaped(html, ssid);
-      if (wifiOk && activeSsid.equals(ssid)) html += F(" (connected)");
-      html += F("</option>");
-    }
-    html += F("</select><div class='vm-label'>WIFI DIRECT MODE</div><select class='vm-select' name='wifi_setup_mode'>");
-    html += F("<option value='off'");
-    if (wifiSetupModeIsOff()) html += F(" selected");
-    html += F(">Off</option>");
-    html += F("<option value='auto'");
-    if (wifiSetupModeIsAuto()) html += F(" selected");
-    html += F(">Auto fallback</option>");
-    html += F("<option value='on'");
-    if (wifiSetupModeIsOn()) html += F(" selected");
-    html += F(">Always on</option>");
-    html += F("</select>");
-    html += F("<p class='vm-help'>Auto mode cycles known SSIDs first, then starts setup AP if disconnected too long. ScryBar supports <b>2.4 GHz only</b> (5 GHz is ignored).</p>");
-  html += F("<div class='vm-card--inner'><div class='vm-label'>PROVISION NEW NETWORK (2.4 GHZ)</div><div class='vm-grid'><div><button id='wifi_scan_btn' class='vm-btn vm-btn--sm vm-btn--secondary' type='button'>Scan networks</button><p id='wifi_scan_status' class='rss-status'></p><div class='vm-label'>SCAN RESULTS</div><select class='vm-select' id='wifi_scan_results'><option value=''>Press scan first...</option></select></div><div><div class='vm-label'>SSID</div><input class='vm-input' id='wifi_new_ssid' name='wifi_new_ssid' maxlength='32' placeholder='MyPhone Hotspot'><div class='vm-label'>PASSWORD</div><div class='vm-secret'><input class='vm-input' id='wifi_new_password' name='wifi_new_password' maxlength='64' type='password' placeholder='Leave empty if open network'><button id='wifi_pwd_toggle' class='vm-btn vm-btn--sm vm-btn--secondary' type='button' aria-label='Show password' title='Show password'>Show</button></div></div></div>");
-    if (g_wifiSetupApActive) {
-      html += F("<p class='vm-help'>Setup AP active: <code>");
-      appendHtmlEscaped(html, g_wifiSetupApSsid);
-      html += F("</code> @ <code>");
-      html += WiFi.softAPIP().toString();
-      html += F("</code></p>");
-      html += F("<div class='vm-setup-grid'><img class='vm-setup-qr' src='/api/wifi/setup-qr.svg' alt='Setup QR'><div><div class='vm-label'>SETUP URL</div><div class='vm-setup-url'>");
-      appendHtmlEscaped(html, setupUrl);
-      html += F("</div><p class='vm-help'>Scan this QR or open the URL manually to access setup instantly. Captive portal probes are redirected to this page.</p></div></div>");
-    }
-    html += F("<p class='vm-help'>Save Config to store SSID/password in NVS (persistent across reboot/reflash; cleared only by NVS erase).</p></div>");
+static void buildWebWifiSection(String &html) {
+  const bool wifiOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
+  const String activeSsid = wifiOk ? WiFi.SSID() : String("");
+  char setupUrl[96] = "";
+  wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
+  html += F("<div class='vm-card'><h2>Wi-Fi Known Networks</h2><div class='vm-label'>PREFERRED SSID</div><select class='vm-select' name='wifi_pref_ssid'>");
+  html += F("<option value=''");
+  if (!g_wifiPreferredSsid[0]) html += F(" selected");
+  html += F(">Auto (smart rotation)</option>");
+  for (uint8_t i = 0; i < g_wifiCredCount; ++i) {
+    const char *ssid = g_wifiCredSsids[i];
+    if (!ssid || !ssid[0]) continue;
+    html += F("<option value='");
+    appendHtmlEscaped(html, ssid);
+    html += '\'';
+    const bool selected = (strcmp(g_wifiPreferredSsid, ssid) == 0);
+    if (selected) html += F(" selected");
+    html += '>';
+    appendHtmlEscaped(html, ssid);
+    if (wifiOk && activeSsid.equals(ssid)) html += F(" (connected)");
+    html += F("</option>");
   }
+  html += F("</select><div class='vm-label'>WIFI DIRECT MODE</div><select class='vm-select' name='wifi_setup_mode'>");
+  html += F("<option value='off'");
+  if (wifiSetupModeIsOff()) html += F(" selected");
+  html += F(">Off</option>");
+  html += F("<option value='auto'");
+  if (wifiSetupModeIsAuto()) html += F(" selected");
+  html += F(">Auto fallback</option>");
+  html += F("<option value='on'");
+  if (wifiSetupModeIsOn()) html += F(" selected");
+  html += F(">Always on</option>");
+  html += F("</select>");
+  html += F("<p class='vm-help'>Auto mode cycles known SSIDs first, then starts setup AP if disconnected too long. ScryBar supports <b>2.4 GHz only</b> (5 GHz is ignored).</p>");
+  html += F("<div class='vm-card--inner'><div class='vm-label'>PROVISION NEW NETWORK (2.4 GHZ)</div><div class='vm-grid'><div><button id='wifi_scan_btn' class='vm-btn vm-btn--sm vm-btn--secondary' type='button'>Scan networks</button><p id='wifi_scan_status' class='rss-status'></p><div class='vm-label'>SCAN RESULTS</div><select class='vm-select' id='wifi_scan_results'><option value=''>Press scan first...</option></select></div><div><div class='vm-label'>SSID</div><input class='vm-input' id='wifi_new_ssid' name='wifi_new_ssid' maxlength='32' placeholder='MyPhone Hotspot'><div class='vm-label'>PASSWORD</div><div class='vm-secret'><input class='vm-input' id='wifi_new_password' name='wifi_new_password' maxlength='64' type='password' placeholder='Leave empty if open network'><button id='wifi_pwd_toggle' class='vm-btn vm-btn--sm vm-btn--secondary' type='button' aria-label='Show password' title='Show password'>Show</button></div></div></div>");
+  if (g_wifiSetupApActive) {
+    html += F("<p class='vm-help'>Setup AP active: <code>");
+    appendHtmlEscaped(html, g_wifiSetupApSsid);
+    html += F("</code> @ <code>");
+    html += WiFi.softAPIP().toString();
+    html += F("</code></p>");
+    html += F("<div class='vm-setup-grid'><img class='vm-setup-qr' src='/api/wifi/setup-qr.svg' alt='Setup QR'><div><div class='vm-label'>SETUP URL</div><div class='vm-setup-url'>");
+    appendHtmlEscaped(html, setupUrl);
+    html += F("</div><p class='vm-help'>Scan this QR or open the URL manually to access setup instantly. Captive portal probes are redirected to this page.</p></div></div>");
+  }
+  html += F("<p class='vm-help'>Save Config to store SSID/password in NVS (persistent across reboot/reflash; cleared only by NVS erase).</p></div>");
+}
 #endif
+
+static void buildWebLangSelectors(String &html) {
   // System Language section
   {
-    // Helper macro-style: emit one <option> with runtime selected check
     struct { const char *code; const char *label; } kLangsFun[] = {
       {"bellazio", "Bellazio"},
       {"val",  "Valley Girl"},
       {"l33t", "1337 5P34K"},
       {"sha",  "Shakespearean English"},
-
       {"eo",   "Esperanto"},
       {"la",   "Latina"},
       {"tlh",  "tlhIngan Hol (Klingon)"},
@@ -4225,6 +4221,7 @@ static String buildWebConfigPage(const char *statusMsg) {
     }
     html += F("</optgroup></select><p class='vm-help'>Controls the language of the entire display UI: word clock, weather labels, RSS status and touch hints. Saved to NVS, persists across reboots.</p></div>");
   }
+  // Wikipedia Language section
   {
     struct { const char *code; const char *label; } kWikiLangs[] = {
       {"en", "English"}, {"it", "Italiano"},
@@ -4246,6 +4243,13 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += F("</select><p class='vm-help'>"
               "Language for Wikipedia feeds (Featured, On This Day, Random). Independent from the system language.</p></div>");
   }
+}
+
+static void buildWebWeatherSection(String &html) {
+  char latBuf[24];
+  char lonBuf[24];
+  snprintf(latBuf, sizeof(latBuf), "%.4f", runtimeWeatherLat());
+  snprintf(lonBuf, sizeof(lonBuf), "%.4f", runtimeWeatherLon());
   html += F("<div class='vm-card'><h2>Weather & Location</h2><div class='vm-grid'><div><div class='vm-label'>PLACE SEARCH</div><input class='vm-input' id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='vm-label'>CITY LABEL</div><input class='vm-input' id='weather_city' name='weather_city' maxlength='31' value='");
   appendHtmlEscaped(html, runtimeWeatherCityLabel());
   html += F("'></div><div class='vm-grid'><div><div class='vm-label'>LATITUDE</div><input class='vm-input' id='weather_lat' name='weather_lat' value='");
@@ -4253,100 +4257,92 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("'></div><div><div class='vm-label'>LONGITUDE</div><input class='vm-input' id='weather_lon' name='weather_lon' value='");
   appendHtmlEscaped(html, lonBuf);
   html += F("'></div></div></div></div>");
+}
+
+static void buildWebRssBuilder(String &html) {
+  const uint8_t configuredFeeds = runtimeRssConfiguredFeedCount();
   html += F("<div class='vm-card'><h2>&#x1F4E1; RSS Feed Builder <span id='rss_count_pill' class='vm-badge vm-badge--info'>RSS feeds ");
   html += configuredFeeds;
   html += F("/5</span></h2><p class='vm-help'>One composer for name, URL and max posts. Press + to add to the list (max 5 feeds).</p>");
   html += F("<div class='vm-card--inner'><div class='vm-rss-composer'><div><div class='vm-label'>FRIENDLY NAME</div><input class='vm-input' id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='vm-label'>FEED URL</div><input class='vm-input' id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='vm-label'>MAX POSTS</div><input class='vm-input' id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='vm-btn vm-btn--primary' type='button'>+ Add</button><button id='rss_reset' class='vm-btn vm-btn--secondary' type='button'>Reset</button></div><p id='rss_status' class='rss-status'></p></div>");
   html += F("<div id='rss_list' class='vm-rss-list'></div><p id='rss_empty' class='rss-empty'>No feeds configured.</p><div id='rss_hidden_inputs' class='hidden'></div></div>");
-  html += F("<div class='vm-actions'><button class='vm-btn vm-btn--primary' type='submit'>Save Config</button><button class='vm-btn vm-btn--secondary' type='submit' formaction='/reload' formmethod='post'>Force Reload</button></div></form>");
-  // System Info section — built at request time from live globals
-  {
-    char siBuf[48];
-    html += F("<div class='vm-card'><h2>&#x2699; System Info</h2><div class='vm-grid'>");
-    // Network card
-    html += F("<div><div class='vm-label'>NETWORK</div>");
+  html += F("<div class='vm-actions'><button class='vm-btn vm-btn--primary' type='submit'>Save Config</button><button class='vm-btn vm-btn--secondary' type='submit' formaction='/reload' formmethod='post'>Force Reload</button></div>");
+}
+
+static void buildWebSystemInfo(String &html) {
+  char siBuf[48];
+  html += F("<div class='vm-card'><h2>&#x2699; System Info</h2><div class='vm-grid'>");
+  // Network card
+  html += F("<div><div class='vm-label'>NETWORK</div>");
 #if TEST_WIFI
-    {
-      const bool wOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
-      html += F("<small>ip: </small><code>");
-      html += wOk ? WiFi.localIP().toString() : "--";
-      html += F("</code><br><small>ssid: </small><code>");
-      if (wOk) {
-        appendHtmlEscaped(html, WiFi.SSID().c_str());
-      } else {
-        html += F("--");
-      }
-      html += F("</code><br><small>rssi: </small><code>");
-      if (wOk) { snprintf(siBuf, sizeof(siBuf), "%d dBm", WiFi.RSSI()); html += siBuf; }
-      else { html += F("--"); }
-      html += F("</code><br><small>mac: </small><code>");
-      html += wOk ? WiFi.macAddress() : "--";
-      html += F("</code><br><small>dns: </small><code>");
-      if (wOk) {
-        html += WiFi.dnsIP(0).toString();
-        html += F(" / ");
-        html += WiFi.dnsIP(1).toString();
-      } else { html += F("--"); }
-      html += F("</code><br><small>preferred: </small><code>");
-      if (g_wifiPreferredSsid[0]) appendHtmlEscaped(html, g_wifiPreferredSsid);
-      else html += F("auto");
-      html += F("</code><br><small>direct mode: </small><code>");
-      appendHtmlEscaped(html, g_wifiSetupMode);
-      html += F("</code><br><small>setup ap: </small><code>");
-      if (g_wifiSetupApActive) {
-        appendHtmlEscaped(html, g_wifiSetupApSsid);
-        html += F(" @ ");
-        html += WiFi.softAPIP().toString();
-      } else {
-        html += F("off");
-      }
-      html += F("</code>");
+  {
+    const bool wOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
+    html += F("<small>ip: </small><code>");
+    html += wOk ? WiFi.localIP().toString() : "--";
+    html += F("</code><br><small>ssid: </small><code>");
+    if (wOk) {
+      appendHtmlEscaped(html, WiFi.SSID().c_str());
+    } else {
+      html += F("--");
     }
-#else
-    html += F("<code>wifi disabled</code>");
-#endif
-    html += F("</div>");
-    // Firmware / runtime card
-    html += F("<div><div class='vm-label'>FIRMWARE &amp; RUNTIME</div>");
-    html += F("<small>fw: </small><code>"); appendHtmlEscaped(html, FW_BUILD_TAG); html += F("</code><br>");
-    html += F("<small>date: </small><code>"); appendHtmlEscaped(html, FW_RELEASE_DATE); html += F("</code><br>");
-    html += F("<small>lang: </small><code>"); appendHtmlEscaped(html, g_wordClockLang); html += F("</code><br>");
-    html += F("<small>theme: </small><code>"); appendHtmlEscaped(html, runtimeUiThemeLabel()); html += F("</code><br>");
-    snprintf(siBuf, sizeof(siBuf), "%lus", (unsigned long)(millis() / 1000UL));
-    html += F("<small>uptime: </small><code>"); html += siBuf; html += F("</code><br>");
-#if TEST_NTP
-    html += F("<small>ntp: </small><code>"); html += g_ntpSynced ? "SYNCED" : "WAIT"; html += F("</code><br>");
-#endif
-    snprintf(siBuf, sizeof(siBuf), "%u KB", (unsigned)(ESP.getFreeHeap() / 1024));
-    html += F("<small>free heap: </small><code>"); html += siBuf; html += F("</code>");
-#if TEST_BATTERY
-    html += F("<br><small>battery: </small><code>");
-    if (g_battHasSample) {
-      snprintf(siBuf, sizeof(siBuf), "%d%%", g_battPercent);
-      html += siBuf;
-      if (g_battChargingLikely) html += F(" +CHG");
-    } else { html += F("N/A"); }
+    html += F("</code><br><small>rssi: </small><code>");
+    if (wOk) { snprintf(siBuf, sizeof(siBuf), "%d dBm", WiFi.RSSI()); html += siBuf; }
+    else { html += F("--"); }
+    html += F("</code><br><small>mac: </small><code>");
+    html += wOk ? WiFi.macAddress() : "--";
+    html += F("</code><br><small>dns: </small><code>");
+    if (wOk) {
+      html += WiFi.dnsIP(0).toString();
+      html += F(" / ");
+      html += WiFi.dnsIP(1).toString();
+    } else { html += F("--"); }
+    html += F("</code><br><small>preferred: </small><code>");
+    if (g_wifiPreferredSsid[0]) appendHtmlEscaped(html, g_wifiPreferredSsid);
+    else html += F("auto");
+    html += F("</code><br><small>direct mode: </small><code>");
+    appendHtmlEscaped(html, g_wifiSetupMode);
+    html += F("</code><br><small>setup ap: </small><code>");
+    if (g_wifiSetupApActive) {
+      appendHtmlEscaped(html, g_wifiSetupApSsid);
+      html += F(" @ ");
+      html += WiFi.softAPIP().toString();
+    } else {
+      html += F("off");
+    }
     html += F("</code>");
-#endif
-    html += F("</div>");
-    html += F("</div></div>");
   }
-  html += F("<p class='vm-api-note'><small>API ready: <code>GET /api/config</code>, <code>POST /api/config</code>, <code>GET /api/wifi/scan</code>, <code>GET /api/wifi/setup-qr.svg</code>.</small></p>");
-  html += F("<footer class='vm-footer'><strong>A project by Netmilk Studio sagl</strong> | Copyright 2026<br>Open Source under the <a href='https://opensource.org/license/mit' target='_blank' rel='noopener noreferrer'>MIT License</a> | Feel free to steal, fork, remix, and ship. \xF0\x9F\x96\x96</footer>");
-  html += F("<script>(function(){");
-  html += F("(function(){const t=document.querySelector('.msg.fixed-top');if(t){setTimeout(function(){t.style.transition='opacity .6s';t.style.opacity='0';setTimeout(function(){t.style.display='none';},650);},4200);}})();");
-  html += F("const q=document.getElementById('geo_query');const dl=document.getElementById('geo_hits');const st=document.getElementById('geo_status');const city=document.getElementById('weather_city');const lat=document.getElementById('weather_lat');const lon=document.getElementById('weather_lon');");
-  html += F("if(!q||!dl||!city||!lat||!lon)return;let t=0;let map={};function setStatus(msg){if(st)st.textContent=msg||'';}function clearHits(){dl.innerHTML='';map={};}");
-  html += F("function applyPick(key){const r=map[key];if(!r)return false;city.value=r.name||city.value;lat.value=Number(r.latitude).toFixed(4);lon.value=Number(r.longitude).toFixed(4);setStatus('Coordinates filled in automatically.');return true;}");
-  html += F("q.addEventListener('change',function(){applyPick(q.value);});q.addEventListener('blur',function(){applyPick(q.value);});");
-  html += F("q.addEventListener('input',function(){const term=q.value.trim();if(term.length<2){clearHits();setStatus('');return;}clearTimeout(t);t=setTimeout(async function(){try{setStatus('Searching...');const u='https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name='+encodeURIComponent(term);const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);const data=await r.json();const rows=(data&&data.results)?data.results:[];clearHits();if(!rows.length){setStatus('No results found.');return;}rows.forEach(function(it){const label=[it.name,it.admin1,it.country].filter(Boolean).join(', ');const opt=document.createElement('option');opt.value=label;opt.label=(Number(it.latitude).toFixed(4)+', '+Number(it.longitude).toFixed(4));dl.appendChild(opt);map[label]=it;});setStatus('Select a result to fill city / lat / lon.');if(rows.length===1){const one=[rows[0].name,rows[0].admin1,rows[0].country].filter(Boolean).join(', ');q.value=one;applyPick(one);}}catch(e){clearHits();setStatus('Search unavailable, try again later.');}} ,280);});");
-  html += F("const wifiScanBtn=document.getElementById('wifi_scan_btn');const wifiScanResults=document.getElementById('wifi_scan_results');const wifiScanStatus=document.getElementById('wifi_scan_status');const wifiNewSsid=document.getElementById('wifi_new_ssid');const wifiNewPassword=document.getElementById('wifi_new_password');const wifiPwdToggle=document.getElementById('wifi_pwd_toggle');");
-  html += F("function setWifiStatus(msg){if(wifiScanStatus)wifiScanStatus.textContent=msg||'';}function escHtml(s){return (s||'').replace(/[&<>]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;'})[c];});}");
-  html += F("async function scanWifiNow(){if(!wifiScanResults)return;const ctl=(window.AbortController?new AbortController():null);let tm=0;try{setWifiStatus('Scanning 2.4 GHz networks...');wifiScanResults.innerHTML=\"<option value=''>Scanning...</option>\";if(ctl){tm=window.setTimeout(function(){ctl.abort();},9000);}const res=await fetch('/api/wifi/scan',{cache:'no-store',signal:ctl?ctl.signal:undefined});if(tm)window.clearTimeout(tm);if(!res.ok)throw new Error('http '+res.status);const data=await res.json();const rows=(data&&data.networks)?data.networks:[];wifiScanResults.innerHTML=\"\";if(!rows.length){wifiScanResults.innerHTML=\"<option value=''>No 2.4 GHz network found</option>\";setWifiStatus((data&&data.message==='scan_timeout')?'Scan timed out, retry in a few seconds.':'No 2.4 GHz networks found.');return;}rows.forEach(function(n){const opt=document.createElement('option');const lock=n.secure?'SEC':'OPEN';opt.value=n.ssid||'';opt.dataset.secure=n.secure?'1':'0';opt.dataset.channel=String(n.channel||0);opt.innerHTML=escHtml((n.ssid||'(hidden)')+'  '+lock+'  ch'+(n.channel||'?')+'  '+(n.rssi||0)+'dBm');wifiScanResults.appendChild(opt);});setWifiStatus('Scan complete. Pick an SSID and press Save Config.');if(rows[0]&&rows[0].ssid&&wifiNewSsid&&!wifiNewSsid.value){wifiNewSsid.value=rows[0].ssid;}}catch(e){if(tm)window.clearTimeout(tm);wifiScanResults.innerHTML=\"<option value=''>Scan failed</option>\";setWifiStatus((e&&e.name==='AbortError')?'Scan timeout. Retry.':'Scan unavailable right now.');}}");
-  html += F("function syncWifiPwdToggle(){if(!wifiPwdToggle||!wifiNewPassword)return;const visible=wifiNewPassword.type==='text';wifiPwdToggle.textContent=visible?'Hide':'Show';wifiPwdToggle.title=visible?'Hide password':'Show password';wifiPwdToggle.setAttribute('aria-label',wifiPwdToggle.title);}if(wifiPwdToggle&&wifiNewPassword){wifiPwdToggle.addEventListener('click',function(){wifiNewPassword.type=(wifiNewPassword.type==='password')?'text':'password';syncWifiPwdToggle();});syncWifiPwdToggle();}if(wifiScanBtn)wifiScanBtn.addEventListener('click',function(){scanWifiNow();});if(wifiScanResults)wifiScanResults.addEventListener('change',function(){const v=wifiScanResults.value||'';if(wifiNewSsid&&v)wifiNewSsid.value=v;const sel=wifiScanResults.options[wifiScanResults.selectedIndex];if(wifiNewPassword&&sel&&sel.dataset.secure==='0'){wifiNewPassword.value='';wifiNewPassword.placeholder='Open network (no password)';}else if(wifiNewPassword){wifiNewPassword.placeholder='Password (WPA/WPA2)';}});");
-  html += F("const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');const viewHidden=document.getElementById('view_hidden_inputs');");
-  html += F("const maxSlots=5;const minPosts=1;const maxPosts=8;let editIndex=-1;");
-  html += F("const initialFeeds=[");
+#else
+  html += F("<code>wifi disabled</code>");
+#endif
+  html += F("</div>");
+  // Firmware / runtime card
+  html += F("<div><div class='vm-label'>FIRMWARE &amp; RUNTIME</div>");
+  html += F("<small>fw: </small><code>"); appendHtmlEscaped(html, FW_BUILD_TAG); html += F("</code><br>");
+  html += F("<small>date: </small><code>"); appendHtmlEscaped(html, FW_RELEASE_DATE); html += F("</code><br>");
+  html += F("<small>lang: </small><code>"); appendHtmlEscaped(html, g_wordClockLang); html += F("</code><br>");
+  html += F("<small>theme: </small><code>"); appendHtmlEscaped(html, runtimeUiThemeLabel()); html += F("</code><br>");
+  snprintf(siBuf, sizeof(siBuf), "%lus", (unsigned long)(millis() / 1000UL));
+  html += F("<small>uptime: </small><code>"); html += siBuf; html += F("</code><br>");
+#if TEST_NTP
+  html += F("<small>ntp: </small><code>"); html += g_ntpSynced ? "SYNCED" : "WAIT"; html += F("</code><br>");
+#endif
+  snprintf(siBuf, sizeof(siBuf), "%u KB", (unsigned)(ESP.getFreeHeap() / 1024));
+  html += F("<small>free heap: </small><code>"); html += siBuf; html += F("</code>");
+#if TEST_BATTERY
+  html += F("<br><small>battery: </small><code>");
+  if (g_battHasSample) {
+    snprintf(siBuf, sizeof(siBuf), "%d%%", g_battPercent);
+    html += siBuf;
+    if (g_battChargingLikely) html += F(" +CHG");
+  } else { html += F("N/A"); }
+  html += F("</code>");
+#endif
+  html += F("</div>");
+  html += F("</div></div>");
+}
+
+static void buildWebJsBlock(String &html) {
+  html += FPSTR(kWebJsCorePre);
   for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
     const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(i);
     if (i) html += F(",");
@@ -4358,17 +4354,45 @@ static String buildWebConfigPage(const char *statusMsg) {
     html += (unsigned)(feed ? clampRssFeedMaxItems(feed->maxItems) : RSS_DEFAULT_FEED_ITEMS);
     html += F("}");
   }
-  html += F("];");
-  html += F("let feeds=initialFeeds.filter(f=>f&&f.url&&/^https?:\\/\\//i.test(f.url));");
-  html += F("function clampPosts(n){n=parseInt(n,10);if(isNaN(n))n=maxPosts;if(n<minPosts)n=minPosts;if(n>maxPosts)n=maxPosts;return n;}function startsHttp(v){return /^https?:\\/\\//i.test((v||'').trim());}");
-  html += F("function defName(i){return 'Feed '+(i+1);}function setRssStatus(m){if(rssStatus)rssStatus.textContent=m||'';}");
-  html += F("function clearComposer(){editIndex=-1;rssName.value='';rssUrl.value='';rssMax.value='8';rssAdd.innerHTML=\"+ Add\";setRssStatus('');}");
-  html += F("function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML=\"RSS feeds \"+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.textContent='';t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='vm-btn vm-btn--sm vm-btn--warn';bEdit.textContent='Edit';bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.textContent='Update';setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='vm-btn vm-btn--sm vm-btn--danger';bDel.textContent='Delete';bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}");
-  html += F("function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}");
-  html += F("function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}");
-  html += F("function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_doom','view_doom_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}");
-  html += F("if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();");
-  html += F("})();</script>");
+  html += FPSTR(kWebJsCorePost);
+}
+
+static String buildWebConfigPage(const char *statusMsg) {
+  ensureRuntimeNetConfig();
+  const UiThemeDefinition &themeDef = activeUiTheme();
+
+  String html;
+  html.reserve(22000);
+  // ── Head: meta + fonts + CSS ──
+  html += F("<!doctype html><html lang='en'><head><meta charset='utf-8'>");
+  html += F("<meta name='viewport' content='width=device-width,initial-scale=1'>");
+  html += F("<title>ScryBar Control Surface</title>");
+  html += F("<link rel='preconnect' href='https://fonts.googleapis.com'>");
+  html += F("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>");
+  html += F("<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Chakra+Petch:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap' media='print' onload=\"this.media='all'\">");
+  html += F("<noscript><link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Chakra+Petch:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap' rel='stylesheet'></noscript>");
+  html += F("<style>");
+  buildWebCssBlock(html, themeDef);
+  html += F("</style></head><body data-theme='");
+  appendHtmlEscaped(html, themeDef.id);
+  html += F("'><main class='vm-wrap'>");
+  // ── Body: hero + form sections ──
+  buildWebHeroSection(html, statusMsg);
+  html += F("<form id='cfg_form' method='post' action='/config'>");
+  buildWebThemeSelector(html);
+  buildWebViewToggles(html);
+#if TEST_WIFI
+  buildWebWifiSection(html);
+#endif
+  buildWebLangSelectors(html);
+  buildWebWeatherSection(html);
+  buildWebRssBuilder(html);
+  html += F("</form>");
+  // ── System info + footer + JS ──
+  buildWebSystemInfo(html);
+  html += F("<p class='vm-api-note'><small>API ready: <code>GET /api/config</code>, <code>POST /api/config</code>, <code>GET /api/wifi/scan</code>, <code>GET /api/wifi/setup-qr.svg</code>.</small></p>");
+  html += F("<footer class='vm-footer'><strong>A project by Netmilk Studio sagl</strong> | Copyright 2026<br>Open Source under the <a href='https://opensource.org/license/mit' target='_blank' rel='noopener noreferrer'>MIT License</a> | Feel free to steal, fork, remix, and ship. \xF0\x9F\x96\x96</footer>");
+  buildWebJsBlock(html);
   html += F("</section></main></body></html>");
   return html;
 }
