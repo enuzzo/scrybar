@@ -7190,7 +7190,7 @@ static void printTlsDiagResult(const char *label, WiFiClientSecure &client, bool
                 (unsigned)ESP.getFreePsram());
 }
 
-static void runRssShortenerDiag() {
+static void runRssDiag() {
   Serial.println("[RSSDIAG] begin");
 #if WIFI_DNS_OVERRIDE_ENABLED
   {
@@ -7238,7 +7238,7 @@ static bool updateRssFromFeed(bool force) {
   return false;
 }
 
-static void runRssShortenerDiag() {
+static void runRssDiag() {
   Serial.println("[RSSDIAG] RSS disabled");
 }
 #endif
@@ -11660,7 +11660,7 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
         } else {
           lv_obj_add_flag(d.qr, LV_OBJ_FLAG_HIDDEN);
           if (d.qrHint) {
-            lv_label_set_text(d.qrHint, activeUiStrings()->generatingQr);
+            lv_label_set_text(d.qrHint, "Generating QR...");
             lv_obj_clear_flag(d.qrHint, LV_OBJ_FLAG_HIDDEN);
           }
           if (d.status) lv_label_set_text(d.status, "QR...");
@@ -14382,7 +14382,7 @@ static void cmdWifiDirect(const String &args) {
 
 static void cmdRssDiag(const String &args) {
 #if TEST_WIFI
-  runRssShortenerDiag();
+  runRssDiag();
 #else
   Serial.println("[CMD] RSSDIAG unavailable (TEST_WIFI=0)");
 #endif
