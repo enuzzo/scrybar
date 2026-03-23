@@ -8864,12 +8864,8 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
       if (d->qr) {
         lv_obj_t *qrParent = lv_obj_get_parent(d->qr);
-        lv_coord_t qrSize  = lv_obj_get_width(d->qr);
-        if (qrSize < 32 && qrParent) {
-          const lv_coord_t pw = lv_obj_get_width(qrParent);
-          const lv_coord_t ph = lv_obj_get_height(qrParent);
-          qrSize = ((pw < ph) ? pw : ph) - 4;
-        }
+        // Use canvas height directly (parent height may not be resolved yet during theme apply)
+        lv_coord_t qrSize = canvasHeight();
         if (qrSize < 90) qrSize = 90;
         const bool qrHidden = lv_obj_has_flag(d->qr, LV_OBJ_FLAG_HIDDEN);
         const char *feedFallbackUrl = (d == &g_wikiDeck) ? "https://en.wikipedia.org" : "https://ansa.it";
@@ -8879,13 +8875,19 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
         lv_obj_del(d->qr);
         const lv_color_t qrDark  = lv_color_hex(t.auxQrDark);
         const lv_color_t qrLight = lv_color_hex(t.auxQrLight);
-        d->qr = lv_qrcode_create(qrParent, qrSize, qrDark, qrLight);
-        lv_obj_center(d->qr);
-        lv_obj_set_style_bg_color(d->qr, qrLight, LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(d->qr, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_border_width(d->qr, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_color(d->qr, lv_color_hex(t.auxQrHint), LV_PART_MAIN);
-        lv_obj_set_style_border_opa(d->qr, LV_OPA_70, LV_PART_MAIN);
+        // PSRAM canvas (lv_qrcode_create can't allocate full-size buffer)
+        d->qr = lv_canvas_create(qrParent);
+        uint32_t bufSz = LV_CANVAS_BUF_SIZE_INDEXED_1BIT(qrSize, qrSize);
+        uint8_t *psBuf = (uint8_t *)ps_calloc(1, bufSz);
+        if (!psBuf) psBuf = (uint8_t *)calloc(1, bufSz);
+        if (psBuf) {
+          lv_canvas_set_buffer(d->qr, psBuf, qrSize, qrSize, LV_IMG_CF_INDEXED_1BIT);
+          lv_canvas_set_palette(d->qr, 0, qrDark);
+          lv_canvas_set_palette(d->qr, 1, qrLight);
+        }
+        lv_obj_add_flag(d->qr, LV_OBJ_FLAG_FLOATING);
+        lv_obj_set_pos(d->qr, 0, 0);
+        lv_obj_set_style_border_width(d->qr, 0, LV_PART_MAIN);
         lv_qrcode_update(d->qr, qrPayload, strlen(qrPayload));
         if (qrHidden) lv_obj_add_flag(d->qr, LV_OBJ_FLAG_HIDDEN);
       }
@@ -12845,7 +12847,7 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   lvglForceLabelVisible(d.meta);
 
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
-  // ── QR overlay: full-height QR left, readable hint right ──
+  // ── QR overlay: full-height QR flush left, hint right ──
   const int16_t qrOverlayH = cardH;
   d.qrOverlay = lv_obj_create(d.card);
   lv_obj_set_size(d.qrOverlay, cardW, qrOverlayH);
@@ -12856,34 +12858,47 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   lv_obj_set_style_shadow_width(d.qrOverlay, 0, LV_PART_MAIN);
   lv_obj_set_style_radius(d.qrOverlay, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_all(d.qrOverlay, 0, LV_PART_MAIN);
+  lv_obj_set_style_layout(d.qrOverlay, 0, 0);  // LV_LAYOUT_NONE = 0
   lv_obj_clear_flag(d.qrOverlay, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(d.qrOverlay, LV_OBJ_FLAG_HIDDEN);
 
-  // QR code: full viewport height, flush left
+  // QR code: full viewport height, flush left.
+  // Use a raw canvas with PSRAM buffer (lv_qrcode_create uses lv_mem_alloc
+  // which can't handle the full 172×172 buffer in LVGL's constrained heap).
   int16_t qrSize = qrOverlayH;
   if (qrSize > cardW) qrSize = cardW;
   if (qrSize < 90) qrSize = 90;
   const lv_color_t qrDark  = lv_color_hex(theme.auxQrDark);
   const lv_color_t qrLight = lv_color_hex(theme.auxQrLight);
   const char *qrFallback = isWiki ? "https://en.wikipedia.org" : "https://ansa.it";
-  d.qr = lv_qrcode_create(d.qrOverlay, qrSize, qrDark, qrLight);
+  {
+    uint32_t bufSz = LV_CANVAS_BUF_SIZE_INDEXED_1BIT(qrSize, qrSize);
+    uint8_t *psBuf = (uint8_t *)ps_calloc(1, bufSz);
+    if (!psBuf) psBuf = (uint8_t *)calloc(1, bufSz);
+    d.qr = lv_canvas_create(d.qrOverlay);
+    if (psBuf) {
+      lv_canvas_set_buffer(d.qr, psBuf, qrSize, qrSize, LV_IMG_CF_INDEXED_1BIT);
+      lv_canvas_set_palette(d.qr, 0, qrDark);
+      lv_canvas_set_palette(d.qr, 1, qrLight);
+    }
+    if (!psBuf) Serial.println("[QR][ERR] canvas buffer alloc failed");
+  }
+  lv_obj_add_flag(d.qr, LV_OBJ_FLAG_FLOATING);
   lv_obj_set_pos(d.qr, 0, 0);
-  lv_obj_set_style_bg_color(d.qr, qrLight, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(d.qr, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(d.qr, 0, LV_PART_MAIN);
   lv_qrcode_update(d.qr, qrFallback, strlen(qrFallback));
-  lv_obj_clear_flag(d.qr, LV_OBJ_FLAG_SCROLLABLE);
 
-  // Hint label: right side, 16px Montserrat (same as Now Playing meta), readable
+  // Hint label: right of QR, 16px Montserrat, vertically centered
   const int16_t hintX = qrSize + 16;
   const int16_t hintW = cardW - hintX - 12;
   d.qrHint = lv_label_create(d.qrOverlay);
   lv_obj_set_style_text_font(d.qrHint, &lv_font_montserrat_16, 0);
   lv_obj_set_style_text_color(d.qrHint, lv_color_hex(theme.auxQrHint), 0);
-  lv_obj_set_width(d.qrHint, hintW);
+  lv_obj_set_size(d.qrHint, hintW, LV_SIZE_CONTENT);
   lv_label_set_long_mode(d.qrHint, LV_LABEL_LONG_WRAP);
   lv_label_set_text(d.qrHint, activeUiStrings()->touchToClose);
-  lv_obj_set_pos(d.qrHint, hintX, (qrOverlayH - 40) / 2);
+  lv_obj_add_flag(d.qrHint, LV_OBJ_FLAG_FLOATING);  // bypass parent layout
+  lv_obj_set_pos(d.qrHint, hintX, (qrOverlayH / 2) - 20);
   lv_obj_add_flag(d.qrHint, LV_OBJ_FLAG_HIDDEN);
 #endif
 }
