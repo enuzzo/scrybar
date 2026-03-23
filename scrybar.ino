@@ -9580,6 +9580,8 @@ static void handleScreenSaverLoop(uint32_t nowMs) {
 
   if (!g_lvglScreenSaverActive) {
     if (nowMs < g_lvglScreenSaverWakeGuardUntilMs) return;
+    // Never activate screensaver while a QR modal overlay is open
+    if (g_auxDeck.qrModalOpen || g_wikiDeck.qrModalOpen) return;
     const uint32_t idleTargetMs = lvglScreenSaverIdleTargetMs(nowMs);
     if (!rawTouch && !touching && (nowMs - g_lastUserInteractionMs) >= idleTargetMs) {
       lvglSetScreenSaverActive(true);
@@ -11639,7 +11641,7 @@ static void lvglApplyThemeFonts() {
       if (d->sourceSite)      lv_obj_set_style_text_font(d->sourceSite,      lvglFontMeta(),    0);
       if (d->news)            lv_obj_set_style_text_font(d->news,            lvglFontRssNews(), 0);
       if (d->meta)            lv_obj_set_style_text_font(d->meta,            lvglFontSmall(),   0);
-      if (d->qrHint)          lv_obj_set_style_text_font(d->qrHint,          lvglFontTiny(),    0);
+      if (d->qrHint)          lv_obj_set_style_text_font(d->qrHint,          &lv_font_montserrat_16, 0);
     }
   }
 
@@ -12843,7 +12845,7 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   lvglForceLabelVisible(d.meta);
 
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
-  // ── QR overlay: full-height QR left, hint text right ──
+  // ── QR overlay: full-height QR left, readable hint right ──
   const int16_t qrOverlayH = cardH;
   d.qrOverlay = lv_obj_create(d.card);
   lv_obj_set_size(d.qrOverlay, cardW, qrOverlayH);
@@ -12857,7 +12859,7 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   lv_obj_clear_flag(d.qrOverlay, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(d.qrOverlay, LV_OBJ_FLAG_HIDDEN);
 
-  // QR code: full viewport height, no margins, positioned at left edge
+  // QR code: full viewport height, flush left
   int16_t qrSize = qrOverlayH;
   if (qrSize > cardW) qrSize = cardW;
   if (qrSize < 90) qrSize = 90;
@@ -12865,21 +12867,23 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   const lv_color_t qrLight = lv_color_hex(theme.auxQrLight);
   const char *qrFallback = isWiki ? "https://en.wikipedia.org" : "https://ansa.it";
   d.qr = lv_qrcode_create(d.qrOverlay, qrSize, qrDark, qrLight);
-  lv_obj_align(d.qr, LV_ALIGN_LEFT_MID, 0, 0);
+  lv_obj_set_pos(d.qr, 0, 0);
   lv_obj_set_style_bg_color(d.qr, qrLight, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(d.qr, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(d.qr, 0, LV_PART_MAIN);
   lv_qrcode_update(d.qr, qrFallback, strlen(qrFallback));
   lv_obj_clear_flag(d.qr, LV_OBJ_FLAG_SCROLLABLE);
 
-  // Hint label: to the right of the QR, vertically centered
+  // Hint label: right side, 16px Montserrat (same as Now Playing meta), readable
+  const int16_t hintX = qrSize + 16;
+  const int16_t hintW = cardW - hintX - 12;
   d.qrHint = lv_label_create(d.qrOverlay);
-  lv_obj_set_style_text_font(d.qrHint, lvglFontTiny(), 0);
+  lv_obj_set_style_text_font(d.qrHint, &lv_font_montserrat_16, 0);
   lv_obj_set_style_text_color(d.qrHint, lv_color_hex(theme.auxQrHint), 0);
-  lv_obj_set_width(d.qrHint, cardW - qrSize - 16);
+  lv_obj_set_width(d.qrHint, hintW);
   lv_label_set_long_mode(d.qrHint, LV_LABEL_LONG_WRAP);
   lv_label_set_text(d.qrHint, activeUiStrings()->touchToClose);
-  lv_obj_align(d.qrHint, LV_ALIGN_LEFT_MID, qrSize + 12, 0);
+  lv_obj_set_pos(d.qrHint, hintX, (qrOverlayH - 40) / 2);
   lv_obj_add_flag(d.qrHint, LV_OBJ_FLAG_HIDDEN);
 #endif
 }
