@@ -4503,150 +4503,106 @@ static void webConfigRedirect(const char *status) {
   g_webConfigServer.send(303, "text/plain", "");
 }
 
-static bool applyRuntimeConfigFromRequest(String &errorOut) {
-  ensureRuntimeNetConfig();
-  RuntimeNetConfig next = g_runtimeNetConfig;
-  bool hasInput = false;
-  bool langChanged = false;
-  bool wikiLangChanged = false;
-  bool wifiPrefChanged = false;
-  bool wifiSetupModeChanged = false;
-  bool wifiProvisioned = false;
-  int8_t wifiPrefIdx = -1;
+// ── M5: Config parser sub-functions ──
+// (ConfigDiffResult is defined in config.h for Arduino auto-prototype visibility)
 
+static bool parseWeatherConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
   if (g_webConfigServer.hasArg("weather_city")) {
     hasInput = true;
     String city = g_webConfigServer.arg("weather_city");
     city.trim();
-    if (city.length() == 0) {
-      errorOut = "weather_city vuota";
-      return false;
-    }
+    if (city.length() == 0) { errorOut = "weather_city vuota"; return false; }
     copyStringSafe(next.weatherCity, sizeof(next.weatherCity), city.c_str());
   }
-
   if (g_webConfigServer.hasArg("weather_lat")) {
     hasInput = true;
     float lat = 0.0f;
     if (!parseStrictFloat(g_webConfigServer.arg("weather_lat"), lat) || !isfinite(lat) || lat < -90.0f || lat > 90.0f) {
-      errorOut = "weather_lat non valida";
-      return false;
+      errorOut = "weather_lat non valida"; return false;
     }
     next.weatherLat = lat;
   }
-
   if (g_webConfigServer.hasArg("weather_lon")) {
     hasInput = true;
     float lon = 0.0f;
     if (!parseStrictFloat(g_webConfigServer.arg("weather_lon"), lon) || !isfinite(lon) || lon < -180.0f || lon > 180.0f) {
-      errorOut = "weather_lon non valida";
-      return false;
+      errorOut = "weather_lon non valida"; return false;
     }
     next.weatherLon = lon;
   }
+  return true;
+}
 
+static bool parseRssFeedConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
   bool rssInput = false;
   if (g_webConfigServer.hasArg("rss_feed_url")) {
-    hasInput = true;
-    rssInput = true;
-    String rss = g_webConfigServer.arg("rss_feed_url");
-    rss.trim();
-    if (rss.length() > 0 && !isHttpUrl(rss)) {
-      errorOut = "rss_feed_url deve iniziare con http:// o https://";
-      return false;
-    }
+    hasInput = true; rssInput = true;
+    String rss = g_webConfigServer.arg("rss_feed_url"); rss.trim();
+    if (rss.length() > 0 && !isHttpUrl(rss)) { errorOut = "rss_feed_url deve iniziare con http:// o https://"; return false; }
     if (rss.length() == 0) next.rssFeeds[0].url[0] = '\0';
     else copyStringSafe(next.rssFeeds[0].url, sizeof(next.rssFeeds[0].url), rss.c_str());
   }
   if (g_webConfigServer.hasArg("rss_feed_name")) {
-    hasInput = true;
-    rssInput = true;
-    String name = g_webConfigServer.arg("rss_feed_name");
-    name.trim();
+    hasInput = true; rssInput = true;
+    String name = g_webConfigServer.arg("rss_feed_name"); name.trim();
     copyStringSafe(next.rssFeeds[0].name, sizeof(next.rssFeeds[0].name), name.c_str());
   }
   if (g_webConfigServer.hasArg("rss_feed_items")) {
-    hasInput = true;
-    rssInput = true;
+    hasInput = true; rssInput = true;
     uint8_t maxItems = 0;
-    if (!parseStrictUint8(g_webConfigServer.arg("rss_feed_items"), maxItems)) {
-      errorOut = "rss_feed_items non valido";
-      return false;
-    }
+    if (!parseStrictUint8(g_webConfigServer.arg("rss_feed_items"), maxItems)) { errorOut = "rss_feed_items non valido"; return false; }
     next.rssFeeds[0].maxItems = clampRssFeedMaxItems(maxItems);
   }
-
   for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
-    char keyName[32];
-    char keyUrl[32];
-    char keyItems[32];
+    char keyName[32], keyUrl[32], keyItems[32];
     snprintf(keyName, sizeof(keyName), "rss_feed_name_%u", (unsigned)(i + 1));
     snprintf(keyUrl, sizeof(keyUrl), "rss_feed_url_%u", (unsigned)(i + 1));
     snprintf(keyItems, sizeof(keyItems), "rss_feed_items_%u", (unsigned)(i + 1));
-
     if (g_webConfigServer.hasArg(keyName)) {
-      hasInput = true;
-      rssInput = true;
-      String name = g_webConfigServer.arg(keyName);
-      name.trim();
+      hasInput = true; rssInput = true;
+      String name = g_webConfigServer.arg(keyName); name.trim();
       copyStringSafe(next.rssFeeds[i].name, sizeof(next.rssFeeds[i].name), name.c_str());
     }
-
     if (g_webConfigServer.hasArg(keyUrl)) {
-      hasInput = true;
-      rssInput = true;
-      String url = g_webConfigServer.arg(keyUrl);
-      url.trim();
-      if (url.length() > 0 && !isHttpUrl(url)) {
-        errorOut = "rss_feed_url_N deve iniziare con http:// o https://";
-        return false;
-      }
+      hasInput = true; rssInput = true;
+      String url = g_webConfigServer.arg(keyUrl); url.trim();
+      if (url.length() > 0 && !isHttpUrl(url)) { errorOut = "rss_feed_url_N deve iniziare con http:// o https://"; return false; }
       if (url.length() == 0) next.rssFeeds[i].url[0] = '\0';
       else copyStringSafe(next.rssFeeds[i].url, sizeof(next.rssFeeds[i].url), url.c_str());
     }
-
     if (g_webConfigServer.hasArg(keyItems)) {
-      hasInput = true;
-      rssInput = true;
+      hasInput = true; rssInput = true;
       uint8_t maxItems = 0;
-      if (!parseStrictUint8(g_webConfigServer.arg(keyItems), maxItems)) {
-        errorOut = "rss_feed_items_N non valido";
-        return false;
-      }
+      if (!parseStrictUint8(g_webConfigServer.arg(keyItems), maxItems)) { errorOut = "rss_feed_items_N non valido"; return false; }
       next.rssFeeds[i].maxItems = clampRssFeedMaxItems(maxItems);
     }
   }
+  if (rssInput) normalizeRuntimeRssFeeds(next);
+  return true;
+}
 
-  if (rssInput) {
-    normalizeRuntimeRssFeeds(next);
-  }
-
+static bool parseLogoConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
   if (g_webConfigServer.hasArg("logo_url")) {
     hasInput = true;
-    String logo = g_webConfigServer.arg("logo_url");
-    logo.trim();
-    if (logo.length() > 0 && !isHttpUrl(logo)) {
-      errorOut = "logo_url deve iniziare con http:// o https://";
-      return false;
-    }
+    String logo = g_webConfigServer.arg("logo_url"); logo.trim();
+    if (logo.length() > 0 && !isHttpUrl(logo)) { errorOut = "logo_url deve iniziare con http:// o https://"; return false; }
     copyStringSafe(next.logoUrl, sizeof(next.logoUrl), logo.c_str());
   }
+  return true;
+}
 
+static bool parseThemeConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
   if (g_webConfigServer.hasArg("ui_theme")) {
     hasInput = true;
-    String theme = g_webConfigServer.arg("ui_theme");
-    theme.trim();
-    if (theme.length() == 0) {
-      errorOut = "ui_theme vuoto";
-      return false;
-    }
-    if (findUiThemeIndexById(theme.c_str()) < 0) {
-      errorOut = "ui_theme non valido";
-      return false;
-    }
+    String theme = g_webConfigServer.arg("ui_theme"); theme.trim();
+    if (theme.length() == 0) { errorOut = "ui_theme vuoto"; return false; }
+    if (findUiThemeIndexById(theme.c_str()) < 0) { errorOut = "ui_theme non valido"; return false; }
     copyStringSafe(next.uiTheme, sizeof(next.uiTheme), theme.c_str());
   }
+  return true;
+}
 
+static bool parseViewsConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
   bool viewsInput = false;
   struct ViewArgDef { const char *key; uint8_t bit; };
   static const ViewArgDef kViewArgs[] = {
@@ -4658,53 +4614,44 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   };
   for (const ViewArgDef &viewArg : kViewArgs) {
     if (!g_webConfigServer.hasArg(viewArg.key)) continue;
-    hasInput = true;
-    viewsInput = true;
+    hasInput = true; viewsInput = true;
     bool enabled = false;
     if (!parseStrictBool(g_webConfigServer.arg(viewArg.key), enabled)) {
-      errorOut = String(viewArg.key) + " non valido";
-      return false;
+      errorOut = String(viewArg.key) + " non valido"; return false;
     }
     if (enabled) next.enabledViewsMask |= viewArg.bit;
     else next.enabledViewsMask &= (uint8_t)~viewArg.bit;
   }
-  if (viewsInput) {
-    next.enabledViewsMask = normalizeRuntimeViewMask(next.enabledViewsMask);
-  }
+  if (viewsInput) next.enabledViewsMask = normalizeRuntimeViewMask(next.enabledViewsMask);
+  return true;
+}
 
+static bool parseWifiSetupModeConfig(String &errorOut, bool &hasInput, bool &wifiSetupModeChanged) {
   if (g_webConfigServer.hasArg("wifi_setup_mode")) {
     hasInput = true;
     String setupMode = g_webConfigServer.arg("wifi_setup_mode");
-    setupMode.trim();
-    setupMode.toLowerCase();
+    setupMode.trim(); setupMode.toLowerCase();
     if (!(setupMode == "off" || setupMode == "auto" || setupMode == "on")) {
-      errorOut = "wifi_setup_mode non valido";
-      return false;
+      errorOut = "wifi_setup_mode non valido"; return false;
     }
     if (strncmp(g_wifiSetupMode, setupMode.c_str(), sizeof(g_wifiSetupMode)) != 0) {
       copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), setupMode.c_str());
       wifiSetupModeChanged = true;
     }
   }
+  return true;
+}
 
+static bool parseWifiCredentialConfig(String &errorOut, bool &hasInput, bool &wifiPrefChanged, bool &wifiProvisioned, int8_t &wifiPrefIdx) {
   if (g_webConfigServer.hasArg("wifi_new_ssid") || g_webConfigServer.hasArg("wifi_new_password")) {
     hasInput = true;
     String ssid = g_webConfigServer.arg("wifi_new_ssid");
     String pass = g_webConfigServer.arg("wifi_new_password");
     ssid.trim();
     if (ssid.length() > 0) {
-      if (ssid.length() > WIFI_MAX_SSID_LEN) {
-        errorOut = "wifi_new_ssid troppo lungo";
-        return false;
-      }
-      if (pass.length() > WIFI_MAX_PASSWORD_LEN) {
-        errorOut = "wifi_new_password troppo lunga";
-        return false;
-      }
-      if (!upsertRuntimeWiFiCredential(ssid.c_str(), pass.c_str())) {
-        errorOut = "impossibile salvare rete runtime";
-        return false;
-      }
+      if (ssid.length() > WIFI_MAX_SSID_LEN) { errorOut = "wifi_new_ssid troppo lungo"; return false; }
+      if (pass.length() > WIFI_MAX_PASSWORD_LEN) { errorOut = "wifi_new_password troppo lunga"; return false; }
+      if (!upsertRuntimeWiFiCredential(ssid.c_str(), pass.c_str())) { errorOut = "impossibile salvare rete runtime"; return false; }
       wifiPrepareCredentialCache();
       char previousPref[sizeof(g_wifiPreferredSsid)] = {0};
       copyStringSafe(previousPref, sizeof(previousPref), g_wifiPreferredSsid);
@@ -4714,51 +4661,48 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
       wifiPrefIdx = findWiFiCredentialIndexBySsid(g_wifiPreferredSsid);
       if (wifiPrefIdx < 0) wifiPrefChanged = (strcmp(previousPref, g_wifiPreferredSsid) != 0);
       Serial.printf("[WIFI][PROVISION] added ssid='%s' runtime_known=%u\n",
-                    g_wifiPreferredSsid,
-                    (unsigned)g_wifiRuntimeCredCount);
+                    g_wifiPreferredSsid, (unsigned)g_wifiRuntimeCredCount);
     }
   }
+  return true;
+}
 
+static bool parseWifiPreferredConfig(String &errorOut, bool &hasInput, bool wifiProvisioned, bool &wifiPrefChanged, int8_t &wifiPrefIdx) {
   if (!wifiProvisioned && g_webConfigServer.hasArg("wifi_pref_ssid")) {
     hasInput = true;
-    String preferred = g_webConfigServer.arg("wifi_pref_ssid");
-    preferred.trim();
+    String preferred = g_webConfigServer.arg("wifi_pref_ssid"); preferred.trim();
     char previousPref[sizeof(g_wifiPreferredSsid)] = {0};
     copyStringSafe(previousPref, sizeof(previousPref), g_wifiPreferredSsid);
     if (preferred.length() == 0) {
       g_wifiPreferredSsid[0] = '\0';
       wifiPrefChanged = (previousPref[0] != '\0');
     } else {
-      if (preferred.length() >= sizeof(g_wifiPreferredSsid)) {
-        errorOut = "wifi_pref_ssid troppo lungo";
-        return false;
-      }
+      if (preferred.length() >= sizeof(g_wifiPreferredSsid)) { errorOut = "wifi_pref_ssid troppo lungo"; return false; }
       wifiPrefIdx = findWiFiCredentialIndexBySsid(preferred.c_str());
-      if (wifiPrefIdx < 0) {
-        errorOut = "wifi_pref_ssid non presente nelle reti note";
-        return false;
-      }
+      if (wifiPrefIdx < 0) { errorOut = "wifi_pref_ssid non presente nelle reti note"; return false; }
       copyStringSafe(g_wifiPreferredSsid, sizeof(g_wifiPreferredSsid), preferred.c_str());
       wifiPrefChanged = (strcmp(previousPref, g_wifiPreferredSsid) != 0);
     }
   }
+  return true;
+}
 
+static bool parseLangConfig(String &errorOut, bool &hasInput, bool &langChanged) {
   if (g_webConfigServer.hasArg("wc_lang")) {
     hasInput = true;
     String lang = g_webConfigServer.arg("wc_lang");
-    lang.trim();
-    lang.toLowerCase();
-    if (!isValidLangCode(lang)) {
-      errorOut = "wc_lang non valido";
-      return false;
-    }
+    lang.trim(); lang.toLowerCase();
+    if (!isValidLangCode(lang)) { errorOut = "wc_lang non valido"; return false; }
     if (strncmp(g_wordClockLang, lang.c_str(), sizeof(g_wordClockLang)) != 0) {
       copyStringSafe(g_wordClockLang, sizeof(g_wordClockLang), lang.c_str());
       langChanged = true;
       Serial.printf("[CFG][WEB] wc_lang='%s'\n", g_wordClockLang);
     }
   }
+  return true;
+}
 
+static bool parseWikiLangConfig(String &errorOut, bool &hasInput, bool &wikiLangChanged) {
   if (g_webConfigServer.hasArg("wiki_lang")) {
     hasInput = true;
     String wl = g_webConfigServer.arg("wiki_lang");
@@ -4773,31 +4717,24 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
       Serial.printf("[CFG][WEB] wiki_lang='%s'\n", g_wikiLang);
     }
   }
+  return true;
+}
 
-  if (!hasInput) {
-    errorOut = "nessun parametro";
-    return false;
-  }
+// ── M5: Commit phase — diff detection + NVS save ──
 
+static ConfigDiffResult commitConfigToNvs(RuntimeNetConfig &next) {
   normalizeRuntimeUiTheme(next);
-
   const bool weatherChanged =
       (strncmp(g_runtimeNetConfig.weatherCity, next.weatherCity, sizeof(next.weatherCity)) != 0) ||
       (fabsf(g_runtimeNetConfig.weatherLat - next.weatherLat) > 0.00005f) ||
       (fabsf(g_runtimeNetConfig.weatherLon - next.weatherLon) > 0.00005f);
   bool rssChanged = false;
   for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
-    if (!runtimeRssFeedEntriesEqual(g_runtimeNetConfig.rssFeeds[i], next.rssFeeds[i])) {
-      rssChanged = true;
-      break;
-    }
+    if (!runtimeRssFeedEntriesEqual(g_runtimeNetConfig.rssFeeds[i], next.rssFeeds[i])) { rssChanged = true; break; }
   }
-  const bool brandingChanged =
-      (strncmp(g_runtimeNetConfig.logoUrl, next.logoUrl, sizeof(next.logoUrl)) != 0);
-  const bool themeChanged =
-      (strncmp(g_runtimeNetConfig.uiTheme, next.uiTheme, sizeof(next.uiTheme)) != 0);
-  const bool viewsChanged =
-      (g_runtimeNetConfig.enabledViewsMask != next.enabledViewsMask);
+  const bool brandingChanged = (strncmp(g_runtimeNetConfig.logoUrl, next.logoUrl, sizeof(next.logoUrl)) != 0);
+  const bool themeChanged = (strncmp(g_runtimeNetConfig.uiTheme, next.uiTheme, sizeof(next.uiTheme)) != 0);
+  const bool viewsChanged = (g_runtimeNetConfig.enabledViewsMask != next.enabledViewsMask);
 
   g_runtimeNetConfig = next;
   normalizeRuntimeUiTheme(g_runtimeNetConfig);
@@ -4805,42 +4742,37 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   syncActiveUiThemeFromRuntimeConfig(g_runtimeNetConfig);
   g_runtimeNetConfig.ready = true;
   const bool nvsSaved = saveRuntimeNetConfigToNvs();
-  if (!nvsSaved) {
-    Serial.println("[CFG][NVS] warning: config aggiornata in RAM ma non salvata su flash");
-  }
+  if (!nvsSaved) Serial.println("[CFG][NVS] warning: config aggiornata in RAM ma non salvata su flash");
 
-  if (weatherChanged) {
+  return { weatherChanged, rssChanged, brandingChanged, themeChanged, viewsChanged };
+}
+
+// ── M5: Side-effect phase — cache invalidation, WiFi, live reload ──
+
+static void applyConfigSideEffects(const ConfigDiffResult &diff, bool langChanged, bool wikiLangChanged,
+                                    bool wifiPrefChanged, bool wifiSetupModeChanged, int8_t wifiPrefIdx) {
+  if (diff.weatherChanged) {
     g_weather.valid = false;
     g_weather.lastFetchMs = 0;
   }
-  if (rssChanged) {
-    g_rss.valid = false;
-    g_rss.itemCount = 0;
-    g_rss.currentIndex = 0;
-    g_rss.lastFetchMs = 0;
-    g_rss.lastAttemptMs = 0;
-    g_rss.lastRotateMs = 0;
-    g_rss.lastHttpCode = 0;
+  if (diff.rssChanged) {
+    g_rss.valid = false; g_rss.itemCount = 0; g_rss.currentIndex = 0;
+    g_rss.lastFetchMs = 0; g_rss.lastAttemptMs = 0; g_rss.lastRotateMs = 0; g_rss.lastHttpCode = 0;
     strncpy(g_rss.fetchedAt, "--/-- --:--", sizeof(g_rss.fetchedAt) - 1);
     g_rss.fetchedAt[sizeof(g_rss.fetchedAt) - 1] = '\0';
   }
   if (wikiLangChanged) {
-    g_wiki.valid = false;
-    g_wiki.itemCount = 0;
-    g_wiki.currentIndex = 0;
-    g_wiki.lastFetchMs = 0;
-    g_wiki.lastAttemptMs = 0;
-    g_wiki.lastRotateMs = 0;
-    g_wiki.lastShortenAttemptMs = 0;
-    g_wiki.lastHttpCode = 0;
+    g_wiki.valid = false; g_wiki.itemCount = 0; g_wiki.currentIndex = 0;
+    g_wiki.lastFetchMs = 0; g_wiki.lastAttemptMs = 0; g_wiki.lastRotateMs = 0;
+    g_wiki.lastShortenAttemptMs = 0; g_wiki.lastHttpCode = 0;
     strncpy(g_wiki.fetchedAt, "--/-- --:--", sizeof(g_wiki.fetchedAt) - 1);
     g_wiki.fetchedAt[sizeof(g_wiki.fetchedAt) - 1] = '\0';
   }
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-  if (themeChanged && g_lvglReady) lvglApplyThemeStyles(true);
+  if (diff.themeChanged && g_lvglReady) lvglApplyThemeStyles(true);
 #endif
 #if TEST_NTP
-  if (weatherChanged || rssChanged || brandingChanged || themeChanged || langChanged || wikiLangChanged || viewsChanged) g_uiNeedsRedraw = true;
+  if (diff.weatherChanged || diff.rssChanged || diff.brandingChanged || diff.themeChanged || langChanged || wikiLangChanged || diff.viewsChanged) g_uiNeedsRedraw = true;
 #endif
   if (wifiPrefChanged) {
     if (wifiPrefIdx >= 0) g_wifiReconnectIdx = (uint8_t)wifiPrefIdx;
@@ -4848,9 +4780,7 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     if (g_wifiCredCount > 0) {
       const bool wifiUp = wifiIsConnectedNow();
       bool alreadyOnTarget = false;
-      if (wifiUp && wifiPrefIdx >= 0) {
-        alreadyOnTarget = WiFi.SSID().equals(g_wifiCredSsids[wifiPrefIdx]);
-      }
+      if (wifiUp && wifiPrefIdx >= 0) alreadyOnTarget = WiFi.SSID().equals(g_wifiCredSsids[wifiPrefIdx]);
       if (!alreadyOnTarget) {
         wifiScheduleNextAttempt(millis(), 0UL);
         if (wifiUp) {
@@ -4867,12 +4797,38 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
     if (wifiSetupModeIsOff()) wifiStopSetupAp();
     else wifiHandleSetupModeLoop(millis());
   }
-  if (weatherChanged) (void)updateWeatherFromApi(true);
-  if (rssChanged) (void)updateRssFromFeed(true);
+  if (diff.weatherChanged) (void)updateWeatherFromApi(true);
+  if (diff.rssChanged) (void)updateRssFromFeed(true);
   if (wikiLangChanged) (void)updateWikiFromFeed(true);
-  if (viewsChanged && !uiPageEnabledNoEnsure(g_uiPageMode)) {
+  if (diff.viewsChanged && !uiPageEnabledNoEnsure(g_uiPageMode)) {
     setUiPage(uiLastEnabledMainViewNoEnsure());
   }
+}
+
+// ── M5: Orchestrator ──
+
+static bool applyRuntimeConfigFromRequest(String &errorOut) {
+  ensureRuntimeNetConfig();
+  RuntimeNetConfig next = g_runtimeNetConfig;
+  bool hasInput = false, langChanged = false, wikiLangChanged = false;
+  bool wifiPrefChanged = false, wifiSetupModeChanged = false, wifiProvisioned = false;
+  int8_t wifiPrefIdx = -1;
+
+  if (!parseWeatherConfig(next, errorOut, hasInput)) return false;
+  if (!parseRssFeedConfig(next, errorOut, hasInput)) return false;
+  if (!parseLogoConfig(next, errorOut, hasInput)) return false;
+  if (!parseThemeConfig(next, errorOut, hasInput)) return false;
+  if (!parseViewsConfig(next, errorOut, hasInput)) return false;
+  if (!parseWifiSetupModeConfig(errorOut, hasInput, wifiSetupModeChanged)) return false;
+  if (!parseWifiCredentialConfig(errorOut, hasInput, wifiPrefChanged, wifiProvisioned, wifiPrefIdx)) return false;
+  if (!parseWifiPreferredConfig(errorOut, hasInput, wifiProvisioned, wifiPrefChanged, wifiPrefIdx)) return false;
+  if (!parseLangConfig(errorOut, hasInput, langChanged)) return false;
+  if (!parseWikiLangConfig(errorOut, hasInput, wikiLangChanged)) return false;
+
+  if (!hasInput) { errorOut = "nessun parametro"; return false; }
+
+  const ConfigDiffResult diff = commitConfigToNvs(next);
+  applyConfigSideEffects(diff, langChanged, wikiLangChanged, wifiPrefChanged, wifiSetupModeChanged, wifiPrefIdx);
   return true;
 }
 
