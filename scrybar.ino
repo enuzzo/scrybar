@@ -14600,6 +14600,402 @@ static bool emitSnapshotOverSerial() {
 }
 #endif
 
+// ── M4: Serial command handler functions ──
+
+static void cmdHelp(const String &args);  // forward decl for table
+
+static void cmdSnap(const String &args) {
+#if TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
+  emitSnapshotOverSerial();
+#else
+  Serial.println("[SNAP][ERR] non disponibile su questo backend display");
+#endif
+}
+
+static void cmdViewToggle(const String &args) {
+  (void)stepUiPage(1, true);
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
+static void cmdViewFirst(const String &args) {
+  jumpToFirstMainView();
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
+static void cmdViewLast(const String &args) {
+  jumpToLastMainView();
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
+static void cmdViewInfo(const String &args) {
+  setUiPage(UI_PAGE_INFO);
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
+static void cmdViewHome(const String &args) {
+  setUiPage(UI_PAGE_HOME);
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
+static void cmdViewAux(const String &args) {
+  if (!uiPageEnabled(UI_PAGE_AUX)) { Serial.println("[UI] AUX disabled"); return; }
+  setUiPage(UI_PAGE_AUX);
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
+static void cmdViewWiki(const String &args) {
+  if (!uiPageEnabled(UI_PAGE_WIKI)) { Serial.println("[UI] WIKI disabled"); return; }
+  setUiPage(UI_PAGE_WIKI);
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
+static void cmdViewNowPlaying(const String &args) {
+  setUiPage(UI_PAGE_NOW_PLAYING);
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
+static void cmdViewDoom(const String &args) {
+  if (!uiPageEnabled(UI_PAGE_DOOM)) { Serial.println("[UI] DOOM disabled"); return; }
+  setUiPage(UI_PAGE_DOOM);
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
+static void cmdTheme(const String &args) {
+  if (args.length() == 0) {
+    Serial.printf("[UI] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
+    Serial.print("[UI] themes:");
+    for (size_t i = 0; i < UI_THEME_COUNT; ++i) { Serial.print(' '); Serial.print(kUiThemes[i].id); }
+    Serial.println();
+    return;
+  }
+  String themeArg(args);
+  themeArg.trim();
+  themeArg.toLowerCase();
+  if (themeArg.length() == 0) { Serial.println("[UI][ERR] THEME richiede un id"); return; }
+  const int8_t idx = findUiThemeIndexById(themeArg.c_str());
+  if (idx < 0) { Serial.printf("[UI][ERR] theme id non valido: '%s'\n", themeArg.c_str()); return; }
+  setActiveUiThemeById(themeArg.c_str());
+#if TEST_WIFI
+  ensureRuntimeNetConfig();
+  copyStringSafe(g_runtimeNetConfig.uiTheme, sizeof(g_runtimeNetConfig.uiTheme), themeArg.c_str());
+  saveRuntimeNetConfigToNvs();
+#endif
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  if (g_lvglReady) lvglApplyThemeStyles(true);
+#endif
+  g_uiNeedsRedraw = true;
+  Serial.printf("[UI] theme set -> '%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
+}
+
+static void cmdLangStat(const String &args) {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo, 50)) {
+    Serial.printf("[LANG] wc_lang='%s' sentence=<ntp-unavailable>\n", g_wordClockLang);
+    return;
+  }
+  char sentence[96];
+  composeWordClockSentenceActive(timeinfo, sentence, sizeof(sentence));
+  Serial.printf("[LANG] wc_lang='%s' sentence=\"%s\"\n", g_wordClockLang, sentence);
+}
+
+static void cmdLang(const String &args) {
+  if (args.length() == 0) { cmdLangStat(args); return; }
+  String langArg(args);
+  langArg.trim();
+  langArg.toLowerCase();
+  if (!isValidLangCode(langArg)) {
+    Serial.printf("[LANG][ERR] code non valido: '%s'\n", langArg.c_str());
+    return;
+  }
+  copyStringSafe(g_wordClockLang, sizeof(g_wordClockLang), langArg.c_str());
+#if TEST_WIFI
+  ensureRuntimeNetConfig();
+  saveRuntimeNetConfigToNvs();
+#endif
+  g_uiNeedsRedraw = true;
+  Serial.printf("[LANG] set -> '%s'\n", g_wordClockLang);
+}
+
+static void cmdQrOn(const String &args) {
+  setUiPage(UI_PAGE_AUX);
+  lvglSetDeckQrModalOpen(g_auxDeck, true);
+  Serial.println("[UI] qr=ON");
+}
+
+static void cmdQrOff(const String &args) {
+  lvglSetDeckQrModalOpen(g_auxDeck, false);
+  Serial.println("[UI] qr=OFF");
+}
+
+static void cmdQrToggle(const String &args) {
+  setUiPage(UI_PAGE_AUX);
+  lvglSetDeckQrModalOpen(g_auxDeck, !g_auxDeck.qrModalOpen);
+  Serial.printf("[UI] qr=%s\n", g_auxDeck.qrModalOpen ? "ON" : "OFF");
+}
+
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
+static void cmdSaverOn(const String &args) { lvglSetScreenSaverActive(true); }
+
+static void cmdSaverOff(const String &args) {
+  lvglSetScreenSaverActive(false);
+  markUserInteraction(millis());
+}
+
+static void cmdSaverStat(const String &args) {
+  const uint32_t now = millis();
+  const uint32_t idleTargetMs = lvglScreenSaverIdleTargetMs(now);
+  Serial.printf("[SCRNSVR] active=%d idle_ms=%lu last_input_ago=%lu\n",
+                g_lvglScreenSaverActive ? 1 : 0,
+                (unsigned long)idleTargetMs,
+                (unsigned long)(now - g_lastUserInteractionMs));
+}
+#endif
+
+static void cmdPwrStat(const String &args) {
+  const int rawVal = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
+  Serial.printf("[PWR] stat pin=%d raw=%d pressed=%d hold_ms=%lu\n",
+                PWR_BUTTON_PIN, rawVal, isPwrButtonPressed() ? 1 : 0,
+                g_pwrButtonDown ? (unsigned long)(millis() - g_pwrButtonDownMs) : 0UL);
+}
+
+static void cmdNavStat(const String &args) {
+  const int rawVal = gpio_get_level((gpio_num_t)NAV_FIRST_BUTTON_PIN);
+  Serial.printf("[NAV] stat pin=%d raw=%d pressed=%d hold_ms=%lu\n",
+                NAV_FIRST_BUTTON_PIN, rawVal, isNavFirstButtonPressed() ? 1 : 0,
+                g_navFirstButtonDown ? (unsigned long)(millis() - g_navFirstButtonDownMs) : 0UL);
+}
+
+static void cmdPwrOff(const String &args) {
+  Serial.println("[PWR] PWROFF command received.");
+  shutdownFromPowerButton(false);
+}
+
+static void cmdPwrOffHard(const String &args) {
+  Serial.println("[PWR] PWROFFHARD command received.");
+  shutdownFromPowerButton(true);
+}
+
+static void cmdBatStat(const String &args) {
+#if TEST_BATTERY
+  sampleBatteryNow(millis(), true);
+  if (g_battHasSample) {
+    Serial.printf("[BATT] stat raw=%d vbat=%.3fV soc=%d%%\n", g_battRaw, g_battVoltage, g_battPercent);
+  } else {
+    Serial.println("[BATT] stat unavailable");
+  }
+#else
+  Serial.println("[BATT] monitor disabled");
+#endif
+}
+
+static void cmdWebCfg(const String &args) {
+#if TEST_WIFI
+  ensureRuntimeNetConfig();
+#if WEB_CONFIG_ENABLED
+  if (g_wifiConnected && g_webConfigServerStarted) {
+    Serial.printf("[WEB] url=http://%s:%u\n", WiFi.localIP().toString().c_str(), (unsigned)WEB_CONFIG_PORT);
+  } else if (g_wifiConnected) {
+    Serial.printf("[WEB] WiFi OK, server not started yet (port=%u)\n", (unsigned)WEB_CONFIG_PORT);
+  } else if (g_wifiSetupApActive) {
+    Serial.printf("[WEB] setup-ap ssid='%s' url=http://%s:%u\n",
+                  g_wifiSetupApSsid, WiFi.softAPIP().toString().c_str(), (unsigned)WEB_CONFIG_PORT);
+  } else {
+    Serial.println("[WEB] WiFi non connesso");
+  }
+  Serial.printf("[WEB] city='%s' lat=%.4f lon=%.4f\n",
+                runtimeWeatherCityLabel(), runtimeWeatherLat(), runtimeWeatherLon());
+  Serial.printf("[WEB] rss_active='%s' feeds=%u\n",
+                runtimeRssFeedUrl(), (unsigned)runtimeRssConfiguredFeedCount());
+  for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
+    const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(i);
+    if (!feed || !feed->url[0]) continue;
+    Serial.printf("[WEB] rss%u name='%s' max=%u url='%s'\n",
+                  (unsigned)(i + 1), feed->name,
+                  (unsigned)clampRssFeedMaxItems(feed->maxItems), feed->url);
+  }
+  if (runtimeLogoUrl()[0]) Serial.printf("[WEB] logo='%s'\n", runtimeLogoUrl());
+  else Serial.println("[WEB] logo=''");
+  Serial.printf("[WEB] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
+  Serial.printf("[WEB] views info=%d home=1 aux=%d wiki=%d np=%d doom=%d\n",
+                (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) ? 1 : 0,
+                (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) ? 1 : 0,
+                (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) ? 1 : 0,
+                (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) ? 1 : 0,
+                (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? 1 : 0);
+  Serial.printf("[WEB] lang='%s'\n", g_wordClockLang);
+  Serial.printf("[WEB] wifi_setup_mode='%s' setup_ap=%d runtime_known=%u\n",
+                g_wifiSetupMode, g_wifiSetupApActive ? 1 : 0, (unsigned)g_wifiRuntimeCredCount);
+#else
+  Serial.println("[WEB] config UI disabled (WEB_CONFIG_ENABLED=0)");
+#endif
+#else
+  Serial.println("[WEB] unavailable (TEST_WIFI=0)");
+#endif
+}
+
+static void cmdWifiDirect(const String &args) {
+  if (args.length() == 0) {
+    Serial.printf("[WIFI][DIRECT] mode='%s' ap_active=%d ap_ssid='%s' ap_ip=%s\n",
+                  g_wifiSetupMode, g_wifiSetupApActive ? 1 : 0,
+                  g_wifiSetupApSsid[0] ? g_wifiSetupApSsid : "-",
+                  WiFi.softAPIP().toString().c_str());
+    return;
+  }
+  String mode(args);
+  mode.trim();
+  mode.toLowerCase();
+  if (!(mode == "off" || mode == "auto" || mode == "on")) {
+    Serial.println("[WIFI][DIRECT][ERR] usa: WIFIDIRECT off|auto|on");
+    return;
+  }
+  copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), mode.c_str());
+  normalizeWifiSetupMode();
+  ensureRuntimeNetConfig();
+  (void)saveRuntimeNetConfigToNvs();
+  wifiHandleSetupModeLoop(millis());
+  Serial.printf("[WIFI][DIRECT] mode set -> '%s'\n", g_wifiSetupMode);
+}
+
+static void cmdRssDiag(const String &args) {
+#if TEST_WIFI
+  runRssShortenerDiag();
+#else
+  Serial.println("[CMD] RSSDIAG unavailable (TEST_WIFI=0)");
+#endif
+}
+
+static void cmdRssStat(const String &args) {
+#if TEST_WIFI && RSS_ENABLED
+  Serial.printf("[RSSSTAT] valid=%d items=%u idx=%u http=%d fetched='%s' last_fetch=%lu last_attempt=%lu heap=%u psram=%u\n",
+                g_rss.valid ? 1 : 0, (unsigned)g_rss.itemCount, (unsigned)g_rss.currentIndex,
+                g_rss.lastHttpCode, g_rss.fetchedAt, (unsigned long)g_rss.lastFetchMs,
+                (unsigned long)g_rss.lastAttemptMs, (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
+#else
+  Serial.println("[RSSSTAT] unavailable");
+#endif
+}
+
+static void cmdWikiStat(const String &args) {
+#if TEST_WIFI && RSS_ENABLED
+  Serial.printf("[WIKISTAT] valid=%d items=%u idx=%u http=%d fetched='%s' last_fetch=%lu last_attempt=%lu heap=%u psram=%u\n",
+                g_wiki.valid ? 1 : 0, (unsigned)g_wiki.itemCount, (unsigned)g_wiki.currentIndex,
+                g_wiki.lastHttpCode, g_wiki.fetchedAt, (unsigned long)g_wiki.lastFetchMs,
+                (unsigned long)g_wiki.lastAttemptMs, (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
+#else
+  Serial.println("[WIKISTAT] unavailable");
+#endif
+}
+
+static void cmdRssReload(const String &args) {
+#if TEST_WIFI && RSS_ENABLED
+  const bool ok = updateRssFromFeed(true);
+  Serial.printf("[RSSRELOAD] ok=%d valid=%d items=%u http=%d fetched='%s'\n",
+                ok ? 1 : 0, g_rss.valid ? 1 : 0, (unsigned)g_rss.itemCount,
+                g_rss.lastHttpCode, g_rss.fetchedAt);
+#else
+  Serial.println("[RSSRELOAD] unavailable");
+#endif
+}
+
+static void cmdWikiReload(const String &args) {
+#if TEST_WIFI && RSS_ENABLED
+  const bool ok = updateWikiFromFeed(true);
+  Serial.printf("[WIKIRELOAD] ok=%d valid=%d items=%u http=%d fetched='%s'\n",
+                ok ? 1 : 0, g_wiki.valid ? 1 : 0, (unsigned)g_wiki.itemCount,
+                g_wiki.lastHttpCode, g_wiki.fetchedAt);
+#else
+  Serial.println("[WIKIRELOAD] unavailable");
+#endif
+}
+
+static void cmdReload(const String &args) {
+#if TEST_WIFI
+  const bool weatherOk = updateWeatherFromApi(true);
+#if RSS_ENABLED
+  const bool rssOk = updateRssFromFeed(true);
+  const bool wikiOk = updateWikiFromFeed(true);
+  Serial.printf("[RELOAD] weather=%d rss=%d wiki=%d\n", weatherOk ? 1 : 0, rssOk ? 1 : 0, wikiOk ? 1 : 0);
+#else
+  Serial.printf("[RELOAD] weather=%d rss=0 wiki=0\n", weatherOk ? 1 : 0);
+#endif
+#else
+  Serial.println("[RELOAD] unavailable");
+#endif
+}
+
+// ── M4: Dispatch table ──
+
+struct SerialCmd {
+  const char *name;
+  void (*handler)(const String &args);
+};
+
+static const SerialCmd kSerialCmds[] = {
+  { "HELP",          cmdHelp },
+  { "SNAP",          cmdSnap },
+  { "SCREENSHOT",    cmdSnap },
+  { "VIEW",          cmdViewToggle },
+  { "VIEWTOGGLE",    cmdViewToggle },
+  { "VIEWFIRST",     cmdViewFirst },
+  { "VIEWHOMEFIRST", cmdViewFirst },
+  { "VIEWLAST",      cmdViewLast },
+  { "VIEWAUXLAST",   cmdViewLast },
+  { "VIEWRSSLAST",   cmdViewLast },
+  { "VIEW0",         cmdViewInfo },
+  { "VIEWINFO",      cmdViewInfo },
+  { "VIEW1",         cmdViewHome },
+  { "VIEWHOME",      cmdViewHome },
+  { "VIEW2",         cmdViewAux },
+  { "VIEWAUX",       cmdViewAux },
+  { "VIEWRSS",       cmdViewAux },
+  { "VIEW3",         cmdViewWiki },
+  { "VIEWWIKI",      cmdViewWiki },
+  { "VIEW4",         cmdViewNowPlaying },
+  { "VIEWNOW",       cmdViewNowPlaying },
+  { "VIEWNP",        cmdViewNowPlaying },
+  { "VIEWPLAY",      cmdViewNowPlaying },
+  { "VIEW5",         cmdViewDoom },
+  { "VIEWDOOM",      cmdViewDoom },
+  { "DOOM",          cmdViewDoom },
+  { "THEME",         cmdTheme },
+  { "LANG",          cmdLang },
+  { "LANGSTAT",      cmdLangStat },
+  { "QRON",          cmdQrOn },
+  { "QROFF",         cmdQrOff },
+  { "QRTOGGLE",      cmdQrToggle },
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
+  { "SAVERON",       cmdSaverOn },
+  { "SAVEROFF",      cmdSaverOff },
+  { "SAVERSTAT",     cmdSaverStat },
+#endif
+  { "PWRSTAT",       cmdPwrStat },
+  { "NAVSTAT",       cmdNavStat },
+  { "PWROFF",        cmdPwrOff },
+  { "PWROFFHARD",    cmdPwrOffHard },
+  { "BATSTAT",       cmdBatStat },
+  { "WEBCFG",        cmdWebCfg },
+  { "WEB",           cmdWebCfg },
+  { "WIFIDIRECT",    cmdWifiDirect },
+  { "WIFISETUP",     cmdWifiDirect },
+  { "RSSDIAG",       cmdRssDiag },
+  { "RSSSTAT",       cmdRssStat },
+  { "WIKISTAT",      cmdWikiStat },
+  { "RSSRELOAD",     cmdRssReload },
+  { "WIKIRELOAD",    cmdWikiReload },
+  { "RELOAD",        cmdReload },
+};
+
+static void cmdHelp(const String &args) {
+  Serial.print("[CMD] Commands:");
+  for (size_t i = 0; i < sizeof(kSerialCmds) / sizeof(kSerialCmds[0]); ++i) {
+    Serial.print(' ');
+    Serial.print(kSerialCmds[i].name);
+  }
+  Serial.println();
+}
+
+// ── M4: Table-driven dispatch orchestrator ──
+
 static void handleSerialCommand(const char *line) {
   if (!line || !*line) return;
   String raw(line);
@@ -14608,407 +15004,22 @@ static void handleSerialCommand(const char *line) {
   String cmd(raw);
   cmd.toUpperCase();
 
-  if (cmd == "HELP") {
-    Serial.println("[CMD] Commands: HELP, SNAP, VIEW, VIEWFIRST, VIEWLAST, VIEW0, VIEW1, VIEW2, VIEW3, VIEW4, VIEW5, VIEWNOW, VIEWNP, VIEWPLAY, VIEWDOOM, DOOM, VIEWINFO, VIEWHOME, VIEWAUX, VIEWRSS, VIEWWIKI, RSSSTAT, WIKISTAT, RSSRELOAD, WIKIRELOAD, RELOAD, THEME, THEME <id>, LANG, LANG <code>, QRON, QROFF, QRTOGGLE, SAVERON, SAVEROFF, SAVERSTAT, PWRSTAT, NAVSTAT, PWROFF, PWROFFHARD, BATSTAT, RSSDIAG, WEBCFG, WIFIDIRECT, WIFIDIRECT <off|auto|on>");
-    return;
+  // Split on first space: cmdName (uppercase) + cmdArgs (original case)
+  String cmdName, cmdArgs;
+  const int sp = cmd.indexOf(' ');
+  if (sp >= 0) {
+    cmdName = cmd.substring(0, sp);
+    cmdArgs = raw.substring(sp + 1);
+    cmdArgs.trim();
+  } else {
+    cmdName = cmd;
   }
 
-  if (cmd == "SNAP" || cmd == "SCREENSHOT") {
-#if TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
-    emitSnapshotOverSerial();
-#else
-    Serial.println("[SNAP][ERR] non disponibile su questo backend display");
-#endif
-    return;
-  }
-
-  if (cmd == "VIEW" || cmd == "VIEWTOGGLE") {
-    (void)stepUiPage(1, true);
-    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-
-  if (cmd == "VIEWFIRST" || cmd == "VIEWHOMEFIRST") {
-    jumpToFirstMainView();
-    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-
-  if (cmd == "VIEWLAST" || cmd == "VIEWAUXLAST" || cmd == "VIEWRSSLAST") {
-    jumpToLastMainView();
-    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-
-  if (cmd == "VIEW0" || cmd == "VIEWINFO") {
-    setUiPage(UI_PAGE_INFO);
-    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-
-  if (cmd == "VIEW1" || cmd == "VIEWHOME") {
-    setUiPage(UI_PAGE_HOME);
-    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-
-  if (cmd == "VIEW2" || cmd == "VIEWAUX" || cmd == "VIEWRSS") {
-    if (!uiPageEnabled(UI_PAGE_AUX)) {
-      Serial.println("[UI] AUX disabled");
+  for (size_t i = 0; i < sizeof(kSerialCmds) / sizeof(kSerialCmds[0]); ++i) {
+    if (cmdName == kSerialCmds[i].name) {
+      kSerialCmds[i].handler(cmdArgs);
       return;
     }
-    setUiPage(UI_PAGE_AUX);
-    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-
-  if (cmd == "VIEW3" || cmd == "VIEWWIKI") {
-    if (!uiPageEnabled(UI_PAGE_WIKI)) {
-      Serial.println("[UI] WIKI disabled");
-      return;
-    }
-    setUiPage(UI_PAGE_WIKI);
-    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-
-  if (cmd == "VIEW4" || cmd == "VIEWNOW" || cmd == "VIEWNP" || cmd == "VIEWPLAY") {
-    setUiPage(UI_PAGE_NOW_PLAYING);
-    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-
-  if (cmd == "VIEW5" || cmd == "VIEWDOOM" || cmd == "DOOM") {
-    if (!uiPageEnabled(UI_PAGE_DOOM)) {
-      Serial.println("[UI] DOOM disabled");
-      return;
-    }
-    setUiPage(UI_PAGE_DOOM);
-    Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
-    return;
-  }
-
-  if (cmd == "THEME") {
-    Serial.printf("[UI] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
-    Serial.print("[UI] themes:");
-    for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
-      Serial.print(' ');
-      Serial.print(kUiThemes[i].id);
-    }
-    Serial.println();
-    return;
-  }
-
-  if (cmd == "LANG" || cmd == "LANGSTAT") {
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo, 50)) {
-      Serial.printf("[LANG] wc_lang='%s' sentence=<ntp-unavailable>\n", g_wordClockLang);
-      return;
-    }
-    char sentence[96];
-    composeWordClockSentenceActive(timeinfo, sentence, sizeof(sentence));
-    Serial.printf("[LANG] wc_lang='%s' sentence=\"%s\"\n", g_wordClockLang, sentence);
-    return;
-  }
-
-  if (cmd.startsWith("LANG ")) {
-    String langArg = raw.substring(5);
-    langArg.trim();
-    langArg.toLowerCase();
-    if (!isValidLangCode(langArg)) {
-      Serial.printf("[LANG][ERR] code non valido: '%s'\n", langArg.c_str());
-      return;
-    }
-    copyStringSafe(g_wordClockLang, sizeof(g_wordClockLang), langArg.c_str());
-#if TEST_WIFI
-    ensureRuntimeNetConfig();
-    saveRuntimeNetConfigToNvs();
-#endif
-    g_uiNeedsRedraw = true;
-    Serial.printf("[LANG] set -> '%s'\n", g_wordClockLang);
-    return;
-  }
-
-  if (cmd.startsWith("THEME ")) {
-    String themeArg = raw.substring(6);
-    themeArg.trim();
-    themeArg.toLowerCase();
-    if (themeArg.length() == 0) {
-      Serial.println("[UI][ERR] THEME richiede un id");
-      return;
-    }
-    const int8_t idx = findUiThemeIndexById(themeArg.c_str());
-    if (idx < 0) {
-      Serial.printf("[UI][ERR] theme id non valido: '%s'\n", themeArg.c_str());
-      return;
-    }
-    setActiveUiThemeById(themeArg.c_str());
-#if TEST_WIFI
-    ensureRuntimeNetConfig();
-    copyStringSafe(g_runtimeNetConfig.uiTheme, sizeof(g_runtimeNetConfig.uiTheme), themeArg.c_str());
-    saveRuntimeNetConfigToNvs();
-#endif
-#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-    if (g_lvglReady) lvglApplyThemeStyles(true);
-#endif
-    g_uiNeedsRedraw = true;
-    Serial.printf("[UI] theme set -> '%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
-    return;
-  }
-  if (cmd == "QRON") {
-    setUiPage(UI_PAGE_AUX);
-    lvglSetDeckQrModalOpen(g_auxDeck, true);
-    Serial.println("[UI] qr=ON");
-    return;
-  }
-  if (cmd == "QROFF") {
-    lvglSetDeckQrModalOpen(g_auxDeck, false);
-    Serial.println("[UI] qr=OFF");
-    return;
-  }
-  if (cmd == "QRTOGGLE") {
-    setUiPage(UI_PAGE_AUX);
-    lvglSetDeckQrModalOpen(g_auxDeck, !g_auxDeck.qrModalOpen);
-    Serial.printf("[UI] qr=%s\n", g_auxDeck.qrModalOpen ? "ON" : "OFF");
-    return;
-  }
-
-#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
-  if (cmd == "SAVERON") {
-    lvglSetScreenSaverActive(true);
-    return;
-  }
-  if (cmd == "SAVEROFF") {
-    lvglSetScreenSaverActive(false);
-    markUserInteraction(millis());
-    return;
-  }
-  if (cmd == "SAVERSTAT") {
-    const uint32_t now = millis();
-    const uint32_t idleTargetMs = lvglScreenSaverIdleTargetMs(now);
-    Serial.printf("[SCRNSVR] active=%d idle_ms=%lu last_input_ago=%lu\n",
-                  g_lvglScreenSaverActive ? 1 : 0,
-                  (unsigned long)idleTargetMs,
-                  (unsigned long)(now - g_lastUserInteractionMs));
-    return;
-  }
-#endif
-
-  if (cmd == "PWRSTAT") {
-    const int raw = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
-    Serial.printf("[PWR] stat pin=%d raw=%d pressed=%d hold_ms=%lu\n",
-                  PWR_BUTTON_PIN,
-                  raw,
-                  isPwrButtonPressed() ? 1 : 0,
-                  g_pwrButtonDown ? (unsigned long)(millis() - g_pwrButtonDownMs) : 0UL);
-    return;
-  }
-  if (cmd == "NAVSTAT") {
-    const int raw = gpio_get_level((gpio_num_t)NAV_FIRST_BUTTON_PIN);
-    Serial.printf("[NAV] stat pin=%d raw=%d pressed=%d hold_ms=%lu\n",
-                  NAV_FIRST_BUTTON_PIN,
-                  raw,
-                  isNavFirstButtonPressed() ? 1 : 0,
-                  g_navFirstButtonDown ? (unsigned long)(millis() - g_navFirstButtonDownMs) : 0UL);
-    return;
-  }
-
-  if (cmd == "PWROFF") {
-    Serial.println("[PWR] PWROFF command received.");
-    shutdownFromPowerButton(false);
-    return;
-  }
-
-  if (cmd == "PWROFFHARD") {
-    Serial.println("[PWR] PWROFFHARD command received.");
-    shutdownFromPowerButton(true);
-    return;
-  }
-
-  if (cmd == "BATSTAT") {
-#if TEST_BATTERY
-    sampleBatteryNow(millis(), true);
-    if (g_battHasSample) {
-      Serial.printf("[BATT] stat raw=%d vbat=%.3fV soc=%d%%\n", g_battRaw, g_battVoltage, g_battPercent);
-    } else {
-      Serial.println("[BATT] stat unavailable");
-    }
-#else
-    Serial.println("[BATT] monitor disabled");
-#endif
-    return;
-  }
-
-  if (cmd == "WEBCFG" || cmd == "WEB") {
-#if TEST_WIFI
-    ensureRuntimeNetConfig();
-#if WEB_CONFIG_ENABLED
-    if (g_wifiConnected && g_webConfigServerStarted) {
-      Serial.printf("[WEB] url=http://%s:%u\n", WiFi.localIP().toString().c_str(), (unsigned)WEB_CONFIG_PORT);
-    } else if (g_wifiConnected) {
-      Serial.printf("[WEB] WiFi OK, server not started yet (port=%u)\n", (unsigned)WEB_CONFIG_PORT);
-    } else if (g_wifiSetupApActive) {
-      Serial.printf("[WEB] setup-ap ssid='%s' url=http://%s:%u\n",
-                    g_wifiSetupApSsid,
-                    WiFi.softAPIP().toString().c_str(),
-                    (unsigned)WEB_CONFIG_PORT);
-    } else {
-      Serial.println("[WEB] WiFi non connesso");
-    }
-    Serial.printf("[WEB] city='%s' lat=%.4f lon=%.4f\n",
-                  runtimeWeatherCityLabel(),
-                  runtimeWeatherLat(),
-                  runtimeWeatherLon());
-    Serial.printf("[WEB] rss_active='%s' feeds=%u\n",
-                  runtimeRssFeedUrl(),
-                  (unsigned)runtimeRssConfiguredFeedCount());
-    for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
-      const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(i);
-      if (!feed || !feed->url[0]) continue;
-      Serial.printf("[WEB] rss%u name='%s' max=%u url='%s'\n",
-                    (unsigned)(i + 1),
-                    feed->name,
-                    (unsigned)clampRssFeedMaxItems(feed->maxItems),
-                    feed->url);
-    }
-    if (runtimeLogoUrl()[0]) Serial.printf("[WEB] logo='%s'\n", runtimeLogoUrl());
-    else Serial.println("[WEB] logo=''");
-    Serial.printf("[WEB] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
-    Serial.printf("[WEB] views info=%d home=1 aux=%d wiki=%d np=%d doom=%d\n",
-                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) ? 1 : 0,
-                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) ? 1 : 0,
-                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) ? 1 : 0,
-                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) ? 1 : 0,
-                  (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? 1 : 0);
-    Serial.printf("[WEB] lang='%s'\n", g_wordClockLang);
-    Serial.printf("[WEB] wifi_setup_mode='%s' setup_ap=%d runtime_known=%u\n",
-                  g_wifiSetupMode,
-                  g_wifiSetupApActive ? 1 : 0,
-                  (unsigned)g_wifiRuntimeCredCount);
-#else
-    Serial.println("[WEB] config UI disabled (WEB_CONFIG_ENABLED=0)");
-#endif
-#else
-    Serial.println("[WEB] unavailable (TEST_WIFI=0)");
-#endif
-    return;
-  }
-
-  if (cmd == "WIFIDIRECT" || cmd == "WIFISETUP") {
-    Serial.printf("[WIFI][DIRECT] mode='%s' ap_active=%d ap_ssid='%s' ap_ip=%s\n",
-                  g_wifiSetupMode,
-                  g_wifiSetupApActive ? 1 : 0,
-                  g_wifiSetupApSsid[0] ? g_wifiSetupApSsid : "-",
-                  WiFi.softAPIP().toString().c_str());
-    return;
-  }
-
-  if (cmd.startsWith("WIFIDIRECT ") || cmd.startsWith("WIFISETUP ")) {
-    String mode = raw.substring(raw.indexOf(' ') + 1);
-    mode.trim();
-    mode.toLowerCase();
-    if (!(mode == "off" || mode == "auto" || mode == "on")) {
-      Serial.println("[WIFI][DIRECT][ERR] usa: WIFIDIRECT off|auto|on");
-      return;
-    }
-    copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), mode.c_str());
-    normalizeWifiSetupMode();
-    ensureRuntimeNetConfig();
-    (void)saveRuntimeNetConfigToNvs();
-    wifiHandleSetupModeLoop(millis());
-    Serial.printf("[WIFI][DIRECT] mode set -> '%s'\n", g_wifiSetupMode);
-    return;
-  }
-
-  if (cmd == "RSSDIAG") {
-#if TEST_WIFI
-    runRssShortenerDiag();
-#else
-    Serial.println("[CMD] RSSDIAG unavailable (TEST_WIFI=0)");
-#endif
-    return;
-  }
-
-  if (cmd == "RSSSTAT") {
-#if TEST_WIFI && RSS_ENABLED
-    Serial.printf("[RSSSTAT] valid=%d items=%u idx=%u http=%d fetched='%s' last_fetch=%lu last_attempt=%lu heap=%u psram=%u\n",
-                  g_rss.valid ? 1 : 0,
-                  (unsigned)g_rss.itemCount,
-                  (unsigned)g_rss.currentIndex,
-                  g_rss.lastHttpCode,
-                  g_rss.fetchedAt,
-                  (unsigned long)g_rss.lastFetchMs,
-                  (unsigned long)g_rss.lastAttemptMs,
-                  (unsigned)ESP.getFreeHeap(),
-                  (unsigned)ESP.getFreePsram());
-#else
-    Serial.println("[RSSSTAT] unavailable");
-#endif
-    return;
-  }
-
-  if (cmd == "WIKISTAT") {
-#if TEST_WIFI && RSS_ENABLED
-    Serial.printf("[WIKISTAT] valid=%d items=%u idx=%u http=%d fetched='%s' last_fetch=%lu last_attempt=%lu heap=%u psram=%u\n",
-                  g_wiki.valid ? 1 : 0,
-                  (unsigned)g_wiki.itemCount,
-                  (unsigned)g_wiki.currentIndex,
-                  g_wiki.lastHttpCode,
-                  g_wiki.fetchedAt,
-                  (unsigned long)g_wiki.lastFetchMs,
-                  (unsigned long)g_wiki.lastAttemptMs,
-                  (unsigned)ESP.getFreeHeap(),
-                  (unsigned)ESP.getFreePsram());
-#else
-    Serial.println("[WIKISTAT] unavailable");
-#endif
-    return;
-  }
-
-  if (cmd == "RSSRELOAD") {
-#if TEST_WIFI && RSS_ENABLED
-    const bool ok = updateRssFromFeed(true);
-    Serial.printf("[RSSRELOAD] ok=%d valid=%d items=%u http=%d fetched='%s'\n",
-                  ok ? 1 : 0,
-                  g_rss.valid ? 1 : 0,
-                  (unsigned)g_rss.itemCount,
-                  g_rss.lastHttpCode,
-                  g_rss.fetchedAt);
-#else
-    Serial.println("[RSSRELOAD] unavailable");
-#endif
-    return;
-  }
-
-  if (cmd == "WIKIRELOAD") {
-#if TEST_WIFI && RSS_ENABLED
-    const bool ok = updateWikiFromFeed(true);
-    Serial.printf("[WIKIRELOAD] ok=%d valid=%d items=%u http=%d fetched='%s'\n",
-                  ok ? 1 : 0,
-                  g_wiki.valid ? 1 : 0,
-                  (unsigned)g_wiki.itemCount,
-                  g_wiki.lastHttpCode,
-                  g_wiki.fetchedAt);
-#else
-    Serial.println("[WIKIRELOAD] unavailable");
-#endif
-    return;
-  }
-
-  if (cmd == "RELOAD") {
-#if TEST_WIFI
-    const bool weatherOk = updateWeatherFromApi(true);
-#if RSS_ENABLED
-    const bool rssOk = updateRssFromFeed(true);
-    const bool wikiOk = updateWikiFromFeed(true);
-    Serial.printf("[RELOAD] weather=%d rss=%d wiki=%d\n", weatherOk ? 1 : 0, rssOk ? 1 : 0, wikiOk ? 1 : 0);
-#else
-    Serial.printf("[RELOAD] weather=%d rss=0 wiki=0\n", weatherOk ? 1 : 0);
-#endif
-#else
-    Serial.println("[RELOAD] unavailable");
-#endif
-    return;
   }
 
   Serial.printf("[CMD][WARN] comando sconosciuto: %s\n", line);
