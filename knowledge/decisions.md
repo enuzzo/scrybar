@@ -12,11 +12,27 @@ Entry format:
 
 ---
 
-## 2026-03-23 - Web UI Consistency & Theme Simplification (open question)
+## 2026-03-23 - Remove spoo.me URL Shortener
 
-- Context: After M3, the web config UI supports runtime theme switching across multiple visual themes. However some elements don't render well across all themes, and maintaining per-theme visual parity on the web UI is high maintenance relative to its value — the web UI is a config tool, not the primary display surface.
-- Decision: **DEFERRED.** Evaluate whether to freeze the web UI to a single fixed theme (removing theme-switching on the config page) or to invest in proper per-theme QA. Too many details to curate across firmware display + web UI simultaneously.
-- Impact/Tradeoffs: Dropping web theme switching would simplify `buildWebCssBlock()` (remove dynamic theme vars, use hardcoded palette), reduce PROGMEM CSS, and eliminate a class of visual bugs. Tradeoff: users lose the ability to match web UI to their display theme preference.
+- Context: QR codes for RSS/Wiki used spoo.me to shorten URLs before encoding. This caused blocking HTTP calls (~2-3s), burned free API credits, added privacy leak (all URLs transit a third party), and was a single point of failure.
+- Decision: Remove spoo.me entirely. QR codes use the original direct URL. At 172×172px (full viewport height), even URLs of 150+ chars produce scannable QR codes on any modern phone.
+- Impact/Tradeoffs: QR generation is now instant (no network call). Zero external dependency. Zero API credits. Simpler code. Future consideration: if QR readability ever becomes an issue, evaluate self-hosted shortener or user-provided API key — but 172px QR is more than sufficient.
+
+---
+
+## 2026-03-23 - QR Hint Text Hardcoded English (Not Localized)
+
+- Context: QR overlay hint text ("Tap anywhere to close") was using `activeUiStrings()->touchToClose`, which localized it per language — e.g., "74P 4NYwH3R3 70 CL053" in l33t speak. This made the hint unreadable.
+- Decision: QR hint is hardcoded English: "Tap anywhere to close". System/UX labels that are about device operation (not content) should always be universally readable.
+- Impact/Tradeoffs: Consistent UX across all 13 languages. The `touchToClose` field remains in UiStrings for potential future use elsewhere.
+
+---
+
+## 2026-03-23 - Web UI: Single Fixed Theme (TODO, next session)
+
+- Context: The web config UI supports runtime theme switching across 5 visual themes. However some elements don't render well across all themes, and maintaining per-theme visual parity on the web UI is high-effort for a config tool. Themes should only change the physical bar display.
+- Decision: **PLANNED for next session.** Freeze the web UI to a single fixed theme (dark, neutral, well-designed). Remove `data-theme` switching from web builder. Simplify CSS (one set of variables, remove bridge tokens→vibemilk). Fix web UI usability issues identified during testing.
+- Impact/Tradeoffs: Simpler `buildWebCssBlock()`, less PROGMEM, fewer visual bugs. Users can still switch display themes — only the web config page is fixed.
 
 ---
 
