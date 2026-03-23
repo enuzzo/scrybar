@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-03-23 - Web UI Consistency & Theme Simplification (open question)
+
+- Context: After M3, the web config UI supports runtime theme switching across multiple visual themes. However some elements don't render well across all themes, and maintaining per-theme visual parity on the web UI is high maintenance relative to its value — the web UI is a config tool, not the primary display surface.
+- Decision: **DEFERRED.** Evaluate whether to freeze the web UI to a single fixed theme (removing theme-switching on the config page) or to invest in proper per-theme QA. Too many details to curate across firmware display + web UI simultaneously.
+- Impact/Tradeoffs: Dropping web theme switching would simplify `buildWebCssBlock()` (remove dynamic theme vars, use hardcoded palette), reduce PROGMEM CSS, and eliminate a class of visual bugs. Tradeoff: users lose the ability to match web UI to their display theme preference.
+
+---
+
 ## 2026-03-20 - Systematic Firmware Polishing Pass (M1-M10)
 
 - Context: Firmware at r199 is feature-complete and stable but has accumulated structural debt: 10 functions over 200 lines, 56 duplicated language dispatchers (1,855 lines), 249 global variables, and inconsistent memory allocation patterns. Landing page migration to Astro SSG is done; focus shifts to production-grade code quality.
