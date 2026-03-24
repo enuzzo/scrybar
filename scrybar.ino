@@ -6425,7 +6425,7 @@ static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSumm
   if (!rssExtractWikipediaArticleRef(articleUrl, wikiHost, wikiTitlePath)) return false;
 
   const String apiUrl = String("https://") + wikiHost + "/api/rest_v1/page/summary/" + wikiTitlePath;
-  char httpFallback[320];
+  char httpFallback[256];
   const char *requestUrl = apiUrl.c_str();
   bool triedHttpFallback = false;
 
@@ -8256,6 +8256,84 @@ static uint32_t lvglResolvedWeatherGlyphOffline(const UiThemeLvglTokens &t, uint
   return weatherSecondary;
 }
 
+// ── LVGL style helpers (M9) ─────────────────────────────────────────────────
+
+// Set bg + grad to same hex (flat fill), with optional radius.
+static inline void lvglSetBgFlat(lv_obj_t *o, uint32_t hex) {
+  if (!o) return;
+  lv_color_t c = lv_color_hex(hex);
+  lv_obj_set_style_bg_color(o, c, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(o, c, LV_PART_MAIN);
+}
+static inline void lvglSetBgFlatR(lv_obj_t *o, uint32_t hex, lv_coord_t r) {
+  lvglSetBgFlat(o, hex);
+  if (o) lv_obj_set_style_radius(o, r, LV_PART_MAIN);
+}
+
+// Guarded text color from hex.
+static inline void lvglSetTextHex(lv_obj_t *o, uint32_t hex) {
+  if (o) lv_obj_set_style_text_color(o, lv_color_hex(hex), 0);
+}
+
+// Conditional header border (bordered themes: cyberpunk, minimal).
+static inline void lvglSetHeaderBorder(lv_obj_t *o, bool show, uint32_t hex) {
+  if (!o) return;
+  lv_obj_set_style_border_width(o, show ? 1 : 0, LV_PART_MAIN);
+  lv_obj_set_style_border_color(o, lv_color_hex(hex), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(o, show ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+}
+
+// Button accent border (1px, 80% opacity).
+static inline void lvglSetBtnBorder(lv_obj_t *o, uint32_t hex) {
+  if (!o) return;
+  lv_obj_set_style_border_width(o, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(o, lv_color_hex(hex), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(o, LV_OPA_80, LV_PART_MAIN);
+}
+
+// Create opaque panel: flat bg, no border/shadow/scroll.
+static lv_obj_t *lvglCreatePanel(lv_obj_t *parent, lv_coord_t w, lv_coord_t h,
+                                  lv_coord_t x, lv_coord_t y,
+                                  lv_color_t bg, lv_coord_t radius) {
+  lv_obj_t *o = lv_obj_create(parent);
+  lv_obj_set_size(o, w, h);
+  lv_obj_set_pos(o, x, y);
+  lv_obj_set_style_bg_color(o, bg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(o, bg, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(o, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(o, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(o, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(o, radius, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(o, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+  return o;
+}
+
+// Create a deck action button with centered label.
+static lv_obj_t *lvglCreateDeckButton(lv_obj_t *parent, lv_coord_t w, lv_coord_t h,
+                                       lv_coord_t x, lv_coord_t y,
+                                       uint32_t bgHex, lv_coord_t radius,
+                                       const char *label, uint32_t textHex,
+                                       lv_obj_t *&outText) {
+  lv_obj_t *btn = lvglCreatePanel(parent, w, h, x, y, lv_color_hex(bgHex), radius);
+  outText = lv_label_create(btn);
+  lv_obj_set_style_text_font(outText, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(outText, lv_color_hex(textHex), 0);
+  lv_label_set_text(outText, label);
+  lv_obj_center(outText);
+  lvglForceLabelVisible(outText);
+  return btn;
+}
+
+// ── End LVGL style helpers ──────────────────────────────────────────────────
+
+static void lvglApplyThemeStylesFeedDecks(const UiThemeLvglTokens &t,
+                                           uint32_t panelBg, uint32_t headerBg,
+                                           uint32_t headerText, uint32_t headerMeta,
+                                           bool headerBordered, bool cyberpunk,
+                                           lv_coord_t cardRadius, lv_coord_t buttonRadius,
+                                           lv_coord_t badgeRadius, uint32_t btnBorderHex);
+
 static void lvglApplyThemeStyles(bool forceInvalidate) {
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
   const bool cyberpunk = lvglThemeIsCyberpunk();
@@ -8299,98 +8377,49 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     clockDivider = t.auxSourceText;
   }
 
-  lv_obj_t *scr = lv_scr_act();
-  if (scr) {
-    lv_obj_set_style_bg_color(scr, lv_color_hex(t.screenBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(scr, lv_color_hex(t.screenBg), LV_PART_MAIN);
-  }
+  lvglSetBgFlat(lv_scr_act(), t.screenBg);
 
-  if (g_clockUi.block) {
-    lv_obj_set_style_bg_color(g_clockUi.block, lv_color_hex(panelBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_clockUi.block, lv_color_hex(panelBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_clockUi.block, cardRadius, LV_PART_MAIN);
-  }
-  if (g_weatherUi.card) {
-    lv_obj_set_style_bg_color(g_weatherUi.card, lv_color_hex(weatherBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_weatherUi.card, lv_color_hex(weatherBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_weatherUi.card, cardRadius, LV_PART_MAIN);
-  }
-  if (g_weatherUi.forecastBar) {
-    lv_obj_set_style_bg_color(g_weatherUi.forecastBar, lv_color_hex(weatherBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_weatherUi.forecastBar, lv_color_hex(weatherBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_weatherUi.forecastBar, cardRadius, LV_PART_MAIN);
-  }
-  if (g_weatherUi.forecastBarFill) {
-    lv_obj_set_style_bg_color(g_weatherUi.forecastBarFill, lv_color_hex(weatherBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_weatherUi.forecastBarFill, lv_color_hex(weatherBg), LV_PART_MAIN);
-  }
+  lvglSetBgFlatR(g_clockUi.block, panelBg, cardRadius);
+  lvglSetBgFlatR(g_weatherUi.card, weatherBg, cardRadius);
+  lvglSetBgFlatR(g_weatherUi.forecastBar, weatherBg, cardRadius);
+  lvglSetBgFlat(g_weatherUi.forecastBarFill, weatherBg);
 
-  if (g_clockUi.header) {
-    lv_obj_set_style_bg_color(g_clockUi.header, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_clockUi.header, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_clockUi.header, cardRadius, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_clockUi.header, headerBordered ? 1 : 0, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_clockUi.header, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_clockUi.header, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
-  }
-  if (g_clockUi.headerFill) {
-    lv_obj_set_style_bg_color(g_clockUi.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_clockUi.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
-  }
-  if (g_weatherUi.header) {
-    lv_obj_set_style_bg_color(g_weatherUi.header, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_weatherUi.header, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_weatherUi.header, cardRadius, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_weatherUi.header, headerBordered ? 1 : 0, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_weatherUi.header, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_weatherUi.header, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
-  }
-  if (g_weatherUi.headerFill) {
-    lv_obj_set_style_bg_color(g_weatherUi.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_weatherUi.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
-  }
-  if (g_infoUi.card) {
-    lv_obj_set_style_bg_color(g_infoUi.card, lv_color_hex(t.infoBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_infoUi.card, lv_color_hex(t.infoBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_infoUi.card, infoRadius, LV_PART_MAIN);
-  }
-  if (g_infoUi.header) {
-    lv_obj_set_style_bg_color(g_infoUi.header, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_infoUi.header, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_infoUi.header, lv_color_hex(infoHeaderBorder), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_infoUi.header, infoRadius, LV_PART_MAIN);
-  }
-  if (g_infoUi.headerFill) {
-    lv_obj_set_style_bg_color(g_infoUi.headerFill, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_infoUi.headerFill, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
-  }
+  const uint32_t headerBorderHex = cyberpunk ? t.auxSourceText : t.divider;
+  lvglSetBgFlatR(g_clockUi.header, headerBg, cardRadius);
+  lvglSetHeaderBorder(g_clockUi.header, headerBordered, headerBorderHex);
+  lvglSetBgFlat(g_clockUi.headerFill, headerBg);
 
-  if (g_clockUi.date) lv_obj_set_style_text_color(g_clockUi.date, lv_color_hex(headerText), 0);
-  if (g_weatherUi.city) lv_obj_set_style_text_color(g_weatherUi.city, lv_color_hex(headerText), 0);
-  if (g_weatherUi.sun) lv_obj_set_style_text_color(g_weatherUi.sun, lv_color_hex(headerText), 0);
-  if (g_clockUi.l1) lv_obj_set_style_text_color(g_clockUi.l1, lv_color_hex(clockLine1), 0);
-  if (g_clockUi.l2) lv_obj_set_style_text_color(g_clockUi.l2, lv_color_hex(clockLine2), 0);
-  if (g_clockUi.l3) lv_obj_set_style_text_color(g_clockUi.l3, lv_color_hex(clockLine3), 0);
+  lvglSetBgFlatR(g_weatherUi.header, headerBg, cardRadius);
+  lvglSetHeaderBorder(g_weatherUi.header, headerBordered, headerBorderHex);
+  lvglSetBgFlat(g_weatherUi.headerFill, headerBg);
+
+  lvglSetBgFlatR(g_infoUi.card, t.infoBg, infoRadius);
+  lvglSetBgFlatR(g_infoUi.header, infoHeaderBg, infoRadius);
+  if (g_infoUi.header) lv_obj_set_style_border_color(g_infoUi.header, lv_color_hex(infoHeaderBorder), LV_PART_MAIN);
+  lvglSetBgFlat(g_infoUi.headerFill, infoHeaderBg);
+
+  lvglSetTextHex(g_clockUi.date, headerText);
+  lvglSetTextHex(g_weatherUi.city, headerText);
+  lvglSetTextHex(g_weatherUi.sun, headerText);
+  lvglSetTextHex(g_clockUi.l1, clockLine1);
+  lvglSetTextHex(g_clockUi.l2, clockLine2);
+  lvglSetTextHex(g_clockUi.l3, clockLine3);
   if (g_clockUi.divider) lv_obj_set_style_bg_color(g_clockUi.divider, lv_color_hex(clockDivider), LV_PART_MAIN);
 
-  if (g_weatherUi.temp) lv_obj_set_style_text_color(g_weatherUi.temp, lv_color_hex(weatherTextPrimary), 0);
-  if (g_weatherUi.desc) lv_obj_set_style_text_color(g_weatherUi.desc, lv_color_hex(weatherTextPrimary), 0);
-  if (g_weatherUi.humidity) lv_obj_set_style_text_color(g_weatherUi.humidity, lv_color_hex(weatherTextPrimary), 0);
-  if (g_weatherUi.wind) lv_obj_set_style_text_color(g_weatherUi.wind, lv_color_hex(weatherTextSecondary), 0);
-  if (g_weatherUi.forecastNow) lv_obj_set_style_text_color(g_weatherUi.forecastNow, lv_color_hex(forecastText), 0);
-  if (g_weatherUi.forecastTomorrow) lv_obj_set_style_text_color(g_weatherUi.forecastTomorrow, lv_color_hex(weatherTextSecondary), 0);
-  if (g_weatherUi.sep) {
-    lv_obj_set_style_bg_color(g_weatherUi.sep, lv_color_hex(weatherTextSecondary), LV_PART_MAIN);
-  }
+  lvglSetTextHex(g_weatherUi.temp, weatherTextPrimary);
+  lvglSetTextHex(g_weatherUi.desc, weatherTextPrimary);
+  lvglSetTextHex(g_weatherUi.humidity, weatherTextPrimary);
+  lvglSetTextHex(g_weatherUi.wind, weatherTextSecondary);
+  lvglSetTextHex(g_weatherUi.forecastNow, forecastText);
+  lvglSetTextHex(g_weatherUi.forecastTomorrow, weatherTextSecondary);
+  if (g_weatherUi.sep) lv_obj_set_style_bg_color(g_weatherUi.sep, lv_color_hex(weatherTextSecondary), LV_PART_MAIN);
   if (g_weatherUi.glyph) {
-    const bool weatherOnline = g_weather.valid;
-    const uint32_t glyph = weatherOnline ? weatherGlyphOnline : weatherGlyphOffline;
-    lv_obj_set_style_text_color(g_weatherUi.glyph, lv_color_hex(glyph), 0);
+    lvglSetTextHex(g_weatherUi.glyph, g_weather.valid ? weatherGlyphOnline : weatherGlyphOffline);
   }
 
-  if (g_infoUi.title) lv_obj_set_style_text_color(g_infoUi.title, lv_color_hex(infoHeaderText), 0);
-  if (g_infoUi.endpoint) lv_obj_set_style_text_color(g_infoUi.endpoint, lv_color_hex(infoHeaderText), 0);
-  if (g_infoUi.bodyLeft) lv_obj_set_style_text_color(g_infoUi.bodyLeft, lv_color_hex(t.infoText), 0);
+  lvglSetTextHex(g_infoUi.title, infoHeaderText);
+  lvglSetTextHex(g_infoUi.endpoint, infoHeaderText);
+  lvglSetTextHex(g_infoUi.bodyLeft, t.infoText);
 
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   if (g_infoUi.webQr) {
@@ -8429,114 +8458,24 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_set_style_radius(g_clockUi.wifiBars[i], wifiBarRadius, LV_PART_MAIN);
   }
   const uint32_t btnBorderHex = (lvglColorContrastLuma(t.auxSourceText, panelBg) >= 36u) ? t.auxSourceText : 0xEAF0FF;
-  // ── Feed Deck theming (AUX + WIKI) ──────────────────────────────────────────
-  {
-    FeedDeckUi *feedDecks[] = {&g_auxDeck, &g_wikiDeck};
-    for (FeedDeckUi *d : feedDecks) {
-      if (d->card) {
-        lv_obj_set_style_bg_color(d->card, lv_color_hex(panelBg), LV_PART_MAIN);
-        lv_obj_set_style_bg_grad_color(d->card, lv_color_hex(panelBg), LV_PART_MAIN);
-        lv_obj_set_style_radius(d->card, cardRadius, LV_PART_MAIN);
-      }
-      if (d->header) {
-        lv_obj_set_style_bg_color(d->header, lv_color_hex(headerBg), LV_PART_MAIN);
-        lv_obj_set_style_bg_grad_color(d->header, lv_color_hex(headerBg), LV_PART_MAIN);
-        lv_obj_set_style_radius(d->header, cardRadius, LV_PART_MAIN);
-        lv_obj_set_style_border_width(d->header, headerBordered ? 1 : 0, LV_PART_MAIN);
-        lv_obj_set_style_border_color(d->header, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-        lv_obj_set_style_border_opa(d->header, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
-      }
-      if (d->headerFill) {
-        lv_obj_set_style_bg_color(d->headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
-        lv_obj_set_style_bg_grad_color(d->headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
-      }
-      if (d->title)  lv_obj_set_style_text_color(d->title,  lv_color_hex(headerText), 0);
-      if (d->status) lv_obj_set_style_text_color(d->status, lv_color_hex(headerText), 0);
-      if (d->meta)   lv_obj_set_style_text_color(d->meta,   lv_color_hex(headerMeta), 0);
-      if (d->sourceBadge) {
-        lv_obj_set_style_bg_color(d->sourceBadge, lv_color_hex(t.auxBadgeBg), LV_PART_MAIN);
-        lv_obj_set_style_border_width(d->sourceBadge, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_color(d->sourceBadge, lv_color_hex(t.auxSourceText), LV_PART_MAIN);
-        lv_obj_set_style_border_opa(d->sourceBadge, LV_OPA_70, LV_PART_MAIN);
-        lv_obj_set_style_radius(d->sourceBadge, badgeRadius, LV_PART_MAIN);
-      }
-      if (d->sourceBadgeText) lv_obj_set_style_text_color(d->sourceBadgeText, lv_color_hex(t.auxBadgeText), 0);
-      if (d->sourceSite)      lv_obj_set_style_text_color(d->sourceSite,      lv_color_hex(t.auxSourceText), 0);
-      if (d->news)            lv_obj_set_style_text_color(d->news,            lv_color_hex(t.auxText), 0);
-      if (d->qrOverlay)       lv_obj_set_style_bg_color(d->qrOverlay,         lv_color_hex(t.screenBg), LV_PART_MAIN);
-      if (d->qrHint)          lv_obj_set_style_text_color(d->qrHint,          lv_color_hex(t.auxQrHint), 0);
-      if (d->nextFeedBtn) lv_obj_set_style_radius(d->nextFeedBtn, buttonRadius, LV_PART_MAIN);
-      if (d->refreshBtn)  lv_obj_set_style_radius(d->refreshBtn,  buttonRadius, LV_PART_MAIN);
-      if (d->qrBtn)       lv_obj_set_style_radius(d->qrBtn,       buttonRadius, LV_PART_MAIN);
-      if (d->nextFeedBtn) {
-        lv_obj_set_style_border_width(d->nextFeedBtn, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_color(d->nextFeedBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-        lv_obj_set_style_border_opa(d->nextFeedBtn, LV_OPA_80, LV_PART_MAIN);
-      }
-      if (d->refreshBtn) {
-        lv_obj_set_style_border_width(d->refreshBtn, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_color(d->refreshBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-        lv_obj_set_style_border_opa(d->refreshBtn, LV_OPA_80, LV_PART_MAIN);
-      }
-      if (d->qrBtn) {
-        lv_obj_set_style_border_width(d->qrBtn, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_color(d->qrBtn, lv_color_hex(btnBorderHex), LV_PART_MAIN);
-        lv_obj_set_style_border_opa(d->qrBtn, LV_OPA_80, LV_PART_MAIN);
-      }
-#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
-      if (d->qr) {
-        lv_obj_t *qrParent = lv_obj_get_parent(d->qr);
-        // Use canvas height directly (parent height may not be resolved yet during theme apply)
-        lv_coord_t qrSize = canvasHeight();
-        if (qrSize < 90) qrSize = 90;
-        const bool qrHidden = lv_obj_has_flag(d->qr, LV_OBJ_FLAG_HIDDEN);
-        const char *feedFallbackUrl = (d == &g_wikiDeck) ? "https://en.wikipedia.org" : "https://ansa.it";
-        char qrPayload[sizeof(d->lastQrPayload)];
-        copyStringSafe(qrPayload, sizeof(qrPayload),
-          d->lastQrPayload[0] ? d->lastQrPayload : feedFallbackUrl);
-        lv_obj_del(d->qr);
-        const lv_color_t qrDark  = lv_color_hex(t.auxQrDark);
-        const lv_color_t qrLight = lv_color_hex(t.auxQrLight);
-        // PSRAM canvas (lv_qrcode_create can't allocate full-size buffer)
-        d->qr = lv_canvas_create(qrParent);
-        uint32_t bufSz = LV_CANVAS_BUF_SIZE_INDEXED_1BIT(qrSize, qrSize);
-        uint8_t *psBuf = (uint8_t *)ps_calloc(1, bufSz);
-        if (!psBuf) psBuf = (uint8_t *)calloc(1, bufSz);
-        if (psBuf) {
-          lv_canvas_set_buffer(d->qr, psBuf, qrSize, qrSize, LV_IMG_CF_INDEXED_1BIT);
-          lv_canvas_set_palette(d->qr, 0, qrDark);
-          lv_canvas_set_palette(d->qr, 1, qrLight);
-        }
-        lv_obj_add_flag(d->qr, LV_OBJ_FLAG_FLOATING);
-        lv_obj_set_pos(d->qr, 0, 0);
-        lv_obj_set_style_border_width(d->qr, 0, LV_PART_MAIN);
-        lv_qrcode_update(d->qr, qrPayload, strlen(qrPayload));
-        if (qrHidden) lv_obj_add_flag(d->qr, LV_OBJ_FLAG_HIDDEN);
-      }
-#endif
-      lvglSetDeckNextFeedButtonPressed(*d, false);
-      lvglSetDeckRefreshButtonPressed(*d, false);
-      lvglSetDeckQrButtonPressed(*d, false);
-    }
-  }
+  lvglApplyThemeStylesFeedDecks(t, panelBg, headerBg, headerText, headerMeta,
+                                 headerBordered, cyberpunk, cardRadius, buttonRadius,
+                                 badgeRadius, btnBorderHex);
 
   lvglApplyThemeFonts();
   lvglCenterClockSentenceLabel();
 
 #if SCREENSAVER_ENABLED
   if (g_saver.root) lv_obj_set_style_bg_color(g_saver.root, lv_color_hex(t.screenBg), LV_PART_MAIN);
-  if (g_saver.sky) lv_obj_set_style_text_color(g_saver.sky, lv_color_hex(t.saverSky), 0);
-  if (g_saver.field) lv_obj_set_style_text_color(g_saver.field, lv_color_hex(t.saverField), 0);
-  if (g_saver.cow) lv_obj_set_style_text_color(g_saver.cow, lv_color_hex(t.saverCow), 0);
-  if (g_saver.balloon) lv_obj_set_style_text_color(g_saver.balloon, lv_color_hex(saverReadableText), 0);
-  if (g_saver.balloonTail) lv_obj_set_style_text_color(g_saver.balloonTail, lv_color_hex(saverReadableText), 0);
-  if (g_saver.footer) lv_obj_set_style_text_color(g_saver.footer, lv_color_hex(saverReadableText), 0);
-  for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
-    for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
-      if (!g_saver.starObj[r][s]) continue;
-      lv_obj_set_style_text_color(g_saver.starObj[r][s], lv_color_hex(t.saverStarLow), 0);
-    }
-  }
+  lvglSetTextHex(g_saver.sky, t.saverSky);
+  lvglSetTextHex(g_saver.field, t.saverField);
+  lvglSetTextHex(g_saver.cow, t.saverCow);
+  lvglSetTextHex(g_saver.balloon, saverReadableText);
+  lvglSetTextHex(g_saver.balloonTail, saverReadableText);
+  lvglSetTextHex(g_saver.footer, saverReadableText);
+  for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r)
+    for (uint8_t s = 0; s < kSaverStarsPerRow; ++s)
+      lvglSetTextHex(g_saver.starObj[r][s], t.saverStarLow);
 #endif
 
   g_clockUi.wifiMask = 0xFFFF;
@@ -8551,6 +8490,75 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_saver.root) lv_obj_invalidate(g_saver.root);
 #endif
 }
+
+static void lvglApplyThemeStylesFeedDecks(const UiThemeLvglTokens &t,
+                                           uint32_t panelBg, uint32_t headerBg,
+                                           uint32_t headerText, uint32_t headerMeta,
+                                           bool headerBordered, bool cyberpunk,
+                                           lv_coord_t cardRadius, lv_coord_t buttonRadius,
+                                           lv_coord_t badgeRadius, uint32_t btnBorderHex) {
+  const uint32_t headerBorderHex = cyberpunk ? t.auxSourceText : t.divider;
+  FeedDeckUi *feedDecks[] = {&g_auxDeck, &g_wikiDeck};
+  for (FeedDeckUi *d : feedDecks) {
+    lvglSetBgFlatR(d->card, panelBg, cardRadius);
+    lvglSetBgFlatR(d->header, headerBg, cardRadius);
+    lvglSetHeaderBorder(d->header, headerBordered, headerBorderHex);
+    lvglSetBgFlat(d->headerFill, headerBg);
+    lvglSetTextHex(d->title, headerText);
+    lvglSetTextHex(d->status, headerText);
+    lvglSetTextHex(d->meta, headerMeta);
+    if (d->sourceBadge) {
+      lv_obj_set_style_bg_color(d->sourceBadge, lv_color_hex(t.auxBadgeBg), LV_PART_MAIN);
+      lvglSetBtnBorder(d->sourceBadge, t.auxSourceText);
+      if (d->sourceBadge) lv_obj_set_style_border_opa(d->sourceBadge, LV_OPA_70, LV_PART_MAIN);
+      if (d->sourceBadge) lv_obj_set_style_radius(d->sourceBadge, badgeRadius, LV_PART_MAIN);
+    }
+    lvglSetTextHex(d->sourceBadgeText, t.auxBadgeText);
+    lvglSetTextHex(d->sourceSite, t.auxSourceText);
+    lvglSetTextHex(d->news, t.auxText);
+    if (d->qrOverlay) lv_obj_set_style_bg_color(d->qrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
+    lvglSetTextHex(d->qrHint, t.auxQrHint);
+    if (d->nextFeedBtn) lv_obj_set_style_radius(d->nextFeedBtn, buttonRadius, LV_PART_MAIN);
+    if (d->refreshBtn)  lv_obj_set_style_radius(d->refreshBtn,  buttonRadius, LV_PART_MAIN);
+    if (d->qrBtn)       lv_obj_set_style_radius(d->qrBtn,       buttonRadius, LV_PART_MAIN);
+    lvglSetBtnBorder(d->nextFeedBtn, btnBorderHex);
+    lvglSetBtnBorder(d->refreshBtn, btnBorderHex);
+    lvglSetBtnBorder(d->qrBtn, btnBorderHex);
+#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
+    if (d->qr) {
+      lv_obj_t *qrParent = lv_obj_get_parent(d->qr);
+      lv_coord_t qrSize = canvasHeight();
+      if (qrSize < 90) qrSize = 90;
+      const bool qrHidden = lv_obj_has_flag(d->qr, LV_OBJ_FLAG_HIDDEN);
+      const char *feedFallbackUrl = (d == &g_wikiDeck) ? "https://en.wikipedia.org" : "https://ansa.it";
+      char qrPayload[sizeof(d->lastQrPayload)];
+      copyStringSafe(qrPayload, sizeof(qrPayload),
+        d->lastQrPayload[0] ? d->lastQrPayload : feedFallbackUrl);
+      lv_obj_del(d->qr);
+      const lv_color_t qrDark  = lv_color_hex(t.auxQrDark);
+      const lv_color_t qrLight = lv_color_hex(t.auxQrLight);
+      d->qr = lv_canvas_create(qrParent);
+      uint32_t bufSz = LV_CANVAS_BUF_SIZE_INDEXED_1BIT(qrSize, qrSize);
+      uint8_t *psBuf = (uint8_t *)ps_calloc(1, bufSz);
+      if (!psBuf) psBuf = (uint8_t *)calloc(1, bufSz);
+      if (psBuf) {
+        lv_canvas_set_buffer(d->qr, psBuf, qrSize, qrSize, LV_IMG_CF_INDEXED_1BIT);
+        lv_canvas_set_palette(d->qr, 0, qrDark);
+        lv_canvas_set_palette(d->qr, 1, qrLight);
+      }
+      lv_obj_add_flag(d->qr, LV_OBJ_FLAG_FLOATING);
+      lv_obj_set_pos(d->qr, 0, 0);
+      lv_obj_set_style_border_width(d->qr, 0, LV_PART_MAIN);
+      lv_qrcode_update(d->qr, qrPayload, strlen(qrPayload));
+      if (qrHidden) lv_obj_add_flag(d->qr, LV_OBJ_FLAG_HIDDEN);
+    }
+#endif
+    lvglSetDeckNextFeedButtonPressed(*d, false);
+    lvglSetDeckRefreshButtonPressed(*d, false);
+    lvglSetDeckQrButtonPressed(*d, false);
+  }
+}
+
 #else
 static bool lvglAuxHeroContainsPoint(int16_t x, int16_t y) { (void)x; (void)y; return false; }
 static FeedDeckUi &activeFeedDeck() { return g_auxDeck; }
@@ -11550,7 +11558,7 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
   }
 #endif
 
-  char title3[260];
+  char title3[256];
   char whenLine[64];  // AUX only; unused for Wiki
   char status[32];
   char meta[96];
@@ -12179,8 +12187,10 @@ static void lvglUpdateInfoPanel(bool force) {
     snprintf(endpointBuf, sizeof(endpointBuf), "%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
   }
 
-  char leftCol[512];
-  snprintf(leftCol, sizeof(leftCol),
+  const size_t kLeftColSz = 512;
+  char *leftCol = (char *)heap_caps_malloc(kLeftColSz, MALLOC_CAP_SPIRAM);
+  if (!leftCol) return;
+  snprintf(leftCol, kLeftColSz,
            "wifi: %s\n"
            "ssid: %s\n"
            "bat: %s\n"
@@ -12203,6 +12213,7 @@ static void lvglUpdateInfoPanel(bool force) {
   lv_label_set_text(g_infoUi.title, infoTitleBuf);
   lv_label_set_text(g_infoUi.endpoint, endpointBuf);
   lv_label_set_text(g_infoUi.bodyLeft, leftCol);
+  heap_caps_free(leftCol);
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   if (g_infoUi.webQr) {
     if (strncmp(g_infoUi.lastQrPayload, webUrlBuf, sizeof(g_infoUi.lastQrPayload) - 1) != 0) {
@@ -12276,46 +12287,12 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   const lv_color_t kPanelBg    = lv_color_hex(lvglResolvedPanelBg(theme));
   const lv_color_t kHeaderBlue = lv_color_hex(lvglResolvedHeaderBg(theme));
 
-  d.card = lv_obj_create(root);
-  lv_obj_set_size(d.card, cW, cH);
-  lv_obj_set_pos(d.card, 0, 0);
-  lv_obj_set_style_radius(d.card, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(d.card, kPanelBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(d.card, kPanelBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(d.card, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(d.card, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(d.card, 0, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(d.card, false, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(d.card, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(d.card, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(d.card, LV_OBJ_FLAG_SCROLLABLE);
-
+  d.card = lvglCreatePanel(root, cW, cH, 0, 0, kPanelBg, kCardRadius);
   constexpr int16_t kDeckHeaderH = 30;
   const int16_t cardW = cW;
   const int16_t cardH = cH;
-
-  d.header = lv_obj_create(d.card);
-  lv_obj_set_size(d.header, cardW, kDeckHeaderH);
-  lv_obj_set_pos(d.header, 0, 0);
-  lv_obj_set_style_bg_color(d.header, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(d.header, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(d.header, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(d.header, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_radius(d.header, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(d.header, false, LV_PART_MAIN);
-  lv_obj_set_style_border_width(d.header, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(d.header, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(d.header, LV_OBJ_FLAG_SCROLLABLE);
-
-  d.headerFill = lv_obj_create(d.header);
-  lv_obj_set_size(d.headerFill, cardW, 10);
-  lv_obj_set_pos(d.headerFill, 0, kDeckHeaderH - 10);
-  lv_obj_set_style_bg_color(d.headerFill, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(d.headerFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(d.headerFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(d.headerFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(d.headerFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(d.headerFill, LV_OBJ_FLAG_SCROLLABLE);
+  d.header = lvglCreatePanel(d.card, cardW, kDeckHeaderH, 0, 0, kHeaderBlue, kCardRadius);
+  d.headerFill = lvglCreatePanel(d.header, cardW, 10, 0, kDeckHeaderH - 10, kHeaderBlue, 0);
 
   const int16_t btnW = 44;
   const int16_t btnH = 26;
@@ -12325,56 +12302,12 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   const int16_t refreshBtnX = qrBtnX - btnW - btnGap;
   const int16_t nextFeedBtnX = refreshBtnX - btnW - btnGap;
 
-  d.nextFeedBtn = lv_obj_create(d.card);
-  lv_obj_set_size(d.nextFeedBtn, btnW, btnH);
-  lv_obj_set_pos(d.nextFeedBtn, nextFeedBtnX, qrBtnY);
-  lv_obj_set_style_bg_color(d.nextFeedBtn, lv_color_hex(0x7B63FF), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(d.nextFeedBtn, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(d.nextFeedBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(d.nextFeedBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(d.nextFeedBtn, kButtonRadius, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(d.nextFeedBtn, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(d.nextFeedBtn, LV_OBJ_FLAG_SCROLLABLE);
-  d.nextFeedBtnText = lv_label_create(d.nextFeedBtn);
-  lv_obj_set_style_text_font(d.nextFeedBtnText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(d.nextFeedBtnText, lv_color_hex(0xF7F2FF), 0);
-  lv_label_set_text(d.nextFeedBtnText, "NXT");
-  lv_obj_center(d.nextFeedBtnText);
-  lvglForceLabelVisible(d.nextFeedBtnText);
-
-  d.refreshBtn = lv_obj_create(d.card);
-  lv_obj_set_size(d.refreshBtn, btnW, btnH);
-  lv_obj_set_pos(d.refreshBtn, refreshBtnX, qrBtnY);
-  lv_obj_set_style_bg_color(d.refreshBtn, lv_color_hex(0x6FD8FF), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(d.refreshBtn, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(d.refreshBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(d.refreshBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(d.refreshBtn, kButtonRadius, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(d.refreshBtn, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(d.refreshBtn, LV_OBJ_FLAG_SCROLLABLE);
-  d.refreshBtnText = lv_label_create(d.refreshBtn);
-  lv_obj_set_style_text_font(d.refreshBtnText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(d.refreshBtnText, lv_color_hex(0x113063), 0);
-  lv_label_set_text(d.refreshBtnText, "SKIP");
-  lv_obj_center(d.refreshBtnText);
-  lvglForceLabelVisible(d.refreshBtnText);
-
-  d.qrBtn = lv_obj_create(d.card);
-  lv_obj_set_size(d.qrBtn, btnW, btnH);
-  lv_obj_set_pos(d.qrBtn, qrBtnX, qrBtnY);
-  lv_obj_set_style_bg_color(d.qrBtn, lv_color_hex(0xFFD34D), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(d.qrBtn, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(d.qrBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(d.qrBtn, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(d.qrBtn, kButtonRadius, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(d.qrBtn, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(d.qrBtn, LV_OBJ_FLAG_SCROLLABLE);
-  d.qrBtnText = lv_label_create(d.qrBtn);
-  lv_obj_set_style_text_font(d.qrBtnText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(d.qrBtnText, lv_color_hex(0x1E2F63), 0);
-  lv_label_set_text(d.qrBtnText, "QR");
-  lv_obj_center(d.qrBtnText);
-  lvglForceLabelVisible(d.qrBtnText);
+  d.nextFeedBtn = lvglCreateDeckButton(d.card, btnW, btnH, nextFeedBtnX, qrBtnY,
+                                        0x7B63FF, kButtonRadius, "NXT", 0xF7F2FF, d.nextFeedBtnText);
+  d.refreshBtn  = lvglCreateDeckButton(d.card, btnW, btnH, refreshBtnX, qrBtnY,
+                                        0x6FD8FF, kButtonRadius, "SKIP", 0x113063, d.refreshBtnText);
+  d.qrBtn       = lvglCreateDeckButton(d.card, btnW, btnH, qrBtnX, qrBtnY,
+                                        0xFFD34D, kButtonRadius, "QR", 0x1E2F63, d.qrBtnText);
 
   d.title = lv_label_create(d.header);
   lv_obj_set_style_text_font(d.title, lvglFontSmall(), 0);
@@ -12409,16 +12342,8 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   int16_t sourceSiteW = sourceTextTotalW;
   if (sourceSiteW < 40) sourceSiteW = 40;
 
-  d.sourceBadge = lv_obj_create(d.card);
-  lv_obj_set_size(d.sourceBadge, sourceBadgeSize, sourceBadgeSize);
-  lv_obj_set_pos(d.sourceBadge, sourceIconX, sourceRowY);
-  lv_obj_set_style_bg_color(d.sourceBadge, lv_color_hex(0x2B468E), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(d.sourceBadge, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(d.sourceBadge, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(d.sourceBadge, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(d.sourceBadge, kBadgeRadius, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(d.sourceBadge, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(d.sourceBadge, LV_OBJ_FLAG_SCROLLABLE);
+  d.sourceBadge = lvglCreatePanel(d.card, sourceBadgeSize, sourceBadgeSize,
+                                   sourceIconX, sourceRowY, lv_color_hex(0x2B468E), kBadgeRadius);
 
   d.sourceBadgeText = lv_label_create(d.sourceBadge);
   lv_obj_set_style_text_font(d.sourceBadgeText, lvglFontTiny(), 0);
@@ -12468,17 +12393,8 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   // ── QR overlay: full-height QR flush left, hint right ──
   const int16_t qrOverlayH = cardH;
-  d.qrOverlay = lv_obj_create(d.card);
-  lv_obj_set_size(d.qrOverlay, cardW, qrOverlayH);
-  lv_obj_set_pos(d.qrOverlay, 0, 0);
-  lv_obj_set_style_bg_color(d.qrOverlay, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(d.qrOverlay, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(d.qrOverlay, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(d.qrOverlay, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(d.qrOverlay, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(d.qrOverlay, 0, LV_PART_MAIN);
-  lv_obj_set_style_layout(d.qrOverlay, 0, 0);  // LV_LAYOUT_NONE = 0
-  lv_obj_clear_flag(d.qrOverlay, LV_OBJ_FLAG_SCROLLABLE);
+  d.qrOverlay = lvglCreatePanel(d.card, cardW, qrOverlayH, 0, 0, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_layout(d.qrOverlay, 0, 0);
   lv_obj_add_flag(d.qrOverlay, LV_OBJ_FLAG_HIDDEN);
 
   // QR code: full viewport height, flush left.
@@ -12535,40 +12451,15 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   const int16_t contentW = cW - contentX - rightPad;
   const int16_t textW = contentW;
 
-  ui.card = lv_obj_create(root);
-  lv_obj_set_size(ui.card, cW, cH);
-  lv_obj_set_pos(ui.card, 0, 0);
-  lv_obj_set_style_radius(ui.card, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(ui.card, lv_color_hex(theme.screenBg), LV_PART_MAIN);
+  ui.card = lvglCreatePanel(root, cW, cH, 0, 0, lv_color_hex(theme.screenBg), 0);
   lv_obj_set_style_bg_grad_color(ui.card, lv_color_hex(theme.panelBg), LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(ui.card, LV_GRAD_DIR_HOR, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(ui.card, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui.card, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(ui.card, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(ui.card, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(ui.card, LV_OBJ_FLAG_SCROLLABLE);
 
-  ui.header = lv_obj_create(ui.card);
-  lv_obj_set_size(ui.header, cW, headerH);
-  lv_obj_set_pos(ui.header, 0, 0);
-  lv_obj_set_style_bg_color(ui.header, lv_color_hex(0x140C23), LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(ui.header, lv_color_hex(0x140C23), LV_PART_MAIN);
+  ui.header = lvglCreatePanel(ui.card, cW, headerH, 0, 0, lv_color_hex(0x140C23), 0);
   lv_obj_set_style_bg_opa(ui.header, LV_OPA_40, LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui.header, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(ui.header, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(ui.header, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(ui.header, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(ui.header, LV_OBJ_FLAG_SCROLLABLE);
 
-  ui.headerFill = lv_obj_create(ui.header);
-  lv_obj_set_size(ui.headerFill, cW, 1);
-  lv_obj_set_pos(ui.headerFill, 0, headerH - 1);
-  lv_obj_set_style_bg_color(ui.headerFill, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+  ui.headerFill = lvglCreatePanel(ui.header, cW, 1, 0, headerH - 1, lv_color_hex(0xFFFFFF), 0);
   lv_obj_set_style_bg_opa(ui.headerFill, LV_OPA_20, LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui.headerFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(ui.headerFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(ui.headerFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(ui.headerFill, LV_OBJ_FLAG_SCROLLABLE);
 
   ui.title = lv_label_create(ui.header);
   lv_obj_set_style_text_font(ui.title, lvglNowPlayingMetaFont(), 0);
@@ -12577,15 +12468,8 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_label_set_text(ui.title, "Now Playing");
   lvglForceLabelVisible(ui.title);
 
-  ui.statusDot = lv_obj_create(ui.header);
-  lv_obj_set_size(ui.statusDot, 8, 8);
+  ui.statusDot = lvglCreatePanel(ui.header, 8, 8, 0, 0, lv_color_hex(0x7CFF9D), LV_RADIUS_CIRCLE);
   lv_obj_align(ui.statusDot, LV_ALIGN_RIGHT_MID, -10, -1);
-  lv_obj_set_style_bg_color(ui.statusDot, lv_color_hex(0x7CFF9D), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(ui.statusDot, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui.statusDot, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(ui.statusDot, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(ui.statusDot, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-  lv_obj_clear_flag(ui.statusDot, LV_OBJ_FLAG_SCROLLABLE);
 
   ui.status = lv_label_create(ui.header);
   lv_obj_set_style_text_font(ui.status, lvglNowPlayingMetaFont(), 0);
@@ -12602,55 +12486,25 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_label_set_text(ui.headerTime, "");
   lvglForceLabelVisible(ui.headerTime);
 
-  ui.coverShell = lv_obj_create(ui.card);
-  lv_obj_set_size(ui.coverShell, coverSize, coverSize);
-  lv_obj_set_pos(ui.coverShell, 0, bodyTop);
-  lv_obj_set_style_bg_color(ui.coverShell, lv_color_hex(0x09111B), LV_PART_MAIN);
+  ui.coverShell = lvglCreatePanel(ui.card, coverSize, coverSize, 0, bodyTop, lv_color_hex(0x09111B), 0);
   lv_obj_set_style_bg_opa(ui.coverShell, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui.coverShell, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(ui.coverShell, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(ui.coverShell, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(ui.coverShell, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(ui.coverShell, LV_OBJ_FLAG_SCROLLABLE);
 
-  ui.cover = lv_obj_create(ui.coverShell);
-  lv_obj_set_size(ui.cover, coverSize, coverSize);
-  lv_obj_set_pos(ui.cover, 0, 0);
-  lv_obj_set_style_bg_color(ui.cover, lv_color_hex(0x2E145C), LV_PART_MAIN);
+  ui.cover = lvglCreatePanel(ui.coverShell, coverSize, coverSize, 0, 0, lv_color_hex(0x2E145C), 0);
   lv_obj_set_style_bg_grad_color(ui.cover, lv_color_hex(0xD34B70), LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(ui.cover, LV_GRAD_DIR_VER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui.cover, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(ui.cover, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(ui.cover, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(ui.cover, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(ui.cover, LV_OBJ_FLAG_SCROLLABLE);
 
   ui.coverImage = lv_img_create(ui.cover);
   lv_img_set_src(ui.coverImage, &kNowPlayingRealCover150);
   lv_obj_center(ui.coverImage);
   lv_obj_clear_flag(ui.coverImage, LV_OBJ_FLAG_SCROLLABLE);
 
-  ui.coverStripe = lv_obj_create(ui.cover);
-  lv_obj_set_size(ui.coverStripe, coverSize, 22);
-  lv_obj_set_pos(ui.coverStripe, 0, 16);
-  lv_obj_set_style_bg_color(ui.coverStripe, lv_color_hex(0xFFB847), LV_PART_MAIN);
+  ui.coverStripe = lvglCreatePanel(ui.cover, coverSize, 22, 0, 16, lv_color_hex(0xFFB847), 0);
   lv_obj_set_style_bg_opa(ui.coverStripe, LV_OPA_70, LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui.coverStripe, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(ui.coverStripe, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(ui.coverStripe, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(ui.coverStripe, LV_OBJ_FLAG_SCROLLABLE);
 
-  ui.coverOrb = lv_obj_create(ui.cover);
-  lv_obj_set_size(ui.coverOrb, 52, 52);
+  ui.coverOrb = lvglCreatePanel(ui.cover, 52, 52, 0, 0, lv_color_hex(0xFFE17F), LV_RADIUS_CIRCLE);
   lv_obj_align(ui.coverOrb, LV_ALIGN_CENTER, 10, 3);
-  lv_obj_set_style_bg_color(ui.coverOrb, lv_color_hex(0xFFE17F), LV_PART_MAIN);
   lv_obj_set_style_bg_grad_color(ui.coverOrb, lv_color_hex(0xFFF1B4), LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(ui.coverOrb, LV_GRAD_DIR_VER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui.coverOrb, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(ui.coverOrb, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(ui.coverOrb, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(ui.coverOrb, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(ui.coverOrb, LV_OBJ_FLAG_SCROLLABLE);
 
   ui.coverTop = lv_label_create(ui.cover);
   lv_obj_set_style_text_font(ui.coverTop, lvglFontTiny(), 0);
@@ -12718,31 +12572,16 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_label_set_text(ui.progressRemaining, "0% left");
   lv_obj_add_flag(ui.progressRemaining, LV_OBJ_FLAG_HIDDEN);
 
-  ui.progressRail = lv_obj_create(ui.card);
-  lv_obj_set_size(ui.progressRail, textW, 5);
-  lv_obj_set_pos(ui.progressRail, contentX, cH - 16);
-  lv_obj_set_style_bg_color(ui.progressRail, lv_color_hex(0x2A203A), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(ui.progressRail, LV_OPA_COVER, LV_PART_MAIN);
+  ui.progressRail = lvglCreatePanel(ui.card, textW, 5, contentX, cH - 16,
+                                     lv_color_hex(0x2A203A), LV_RADIUS_CIRCLE);
   lv_obj_set_style_border_width(ui.progressRail, 1, LV_PART_MAIN);
   lv_obj_set_style_border_color(ui.progressRail, lv_color_hex(0x000000), LV_PART_MAIN);
   lv_obj_set_style_border_opa(ui.progressRail, LV_OPA_30, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(ui.progressRail, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(ui.progressRail, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(ui.progressRail, 0, LV_PART_MAIN);
   lv_obj_add_flag(ui.progressRail, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(ui.progressRail, LV_OBJ_FLAG_SCROLLABLE);
 
-  ui.progressFill = lv_obj_create(ui.progressRail);
-  lv_obj_set_size(ui.progressFill, 1, 5);
-  lv_obj_set_pos(ui.progressFill, 0, 0);
-  lv_obj_set_style_bg_color(ui.progressFill, lv_color_hex(0xFFD86F), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(ui.progressFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui.progressFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(ui.progressFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(ui.progressFill, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(ui.progressFill, 0, LV_PART_MAIN);
+  ui.progressFill = lvglCreatePanel(ui.progressRail, 1, 5, 0, 0,
+                                     lv_color_hex(0xFFD86F), LV_RADIUS_CIRCLE);
   lv_obj_add_flag(ui.progressFill, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(ui.progressFill, LV_OBJ_FLAG_SCROLLABLE);
 
   // Control buttons (prev/pause/next) removed — decorative only, no event
   // handlers, and their touch area interfered with swipe navigation.

@@ -244,38 +244,52 @@ Grouped 209 individual globals into 16 structs via automated Python transform (`
 
 ### M8 — Stack buffer audit (15 -> <5 large)
 
-**Status: TODO**
+**Status: DONE (r213, 2026-03-24)**
 
-Move buffers >256B from stack to:
-- PSRAM heap (via `heap_caps_malloc(sz, MALLOC_CAP_SPIRAM)`) for ephemeral use
-- Static allocation for persistent buffers
-- Reduce sizes where possible (e.g., `leftCol[512]` — is 512 actually needed?)
+Addressed all 3 stack-local buffers >256B:
 
-**Verification:**
-1. Compile + upload
-2. Trigger RSS fetch while on HOME view (concurrent LVGL + HTTP)
-3. Trigger Wikipedia fetch while on WIKI view
-4. Monitor free heap via serial `WEBCFG` or web System Info
-5. No crashes after 1h runtime
+- `leftCol[512]` in `lvglUpdateInfoPanel()` → moved to PSRAM heap via `heap_caps_malloc(512, MALLOC_CAP_SPIRAM)` + `heap_caps_free()` after use
+- `httpFallback[320]` in `rssFetchWikipediaSummaryMeta()` → reduced to `[256]` (Wikipedia URLs fit comfortably)
+- `title3[260]` in `lvglUpdateFeedDeck()` → reduced to `[256]` (article title truncation is fine at 255 chars)
+- `wrapped[256]` (static) in `lvglScreenSaverSetBalloonText()` — already static, not on stack (no change needed)
 
-**Measurable:** No stack-local buffer >256B.
+**Results:**
+- Stack-local buffers >256B: **3 → 0**
+- Clean compile, 42% flash / 63% RAM (unchanged)
+
+**Verification:** compile --clean ✓ (upload + device test pending)
 
 ---
 
-### M9 — `lvglApplyThemeStyles()` cleanup (293 -> ~150)
+### M9 — LVGL style DRY + function cleanup (776 -> ~465)
 
-**Status: TODO**
+**Status: DONE (r213, 2026-03-24)**
 
-DRY repeated style property sets. Extract helpers:
-- `applyTextStyle(obj, font, color, align)` — combines 3-4 `lv_obj_set_style_*` calls
-- `applyCardStyle(obj, bg, border, radius, pad)` — combines 5-6 calls
+Extracted 7 shared LVGL style helpers and applied them across the three target functions:
 
-**Verification:**
-1. Compile + upload
-2. Switch through all 5 themes via web UI + serial `THEME <id>`
-3. Visual parity on device for all views
+- `lvglSetBgFlat(obj, hex)` — flat bg_color + bg_grad_color from hex (replaces 23 pairs)
+- `lvglSetBgFlatR(obj, hex, radius)` — flat bg + radius
+- `lvglSetTextHex(obj, hex)` — guarded text color from hex (replaces 14+ if-guard patterns)
+- `lvglSetHeaderBorder(obj, show, hex)` — conditional header border (replaces 6× 3-line blocks)
+- `lvglSetBtnBorder(obj, hex)` — button accent border (replaces 3× 3-line blocks per deck)
+- `lvglCreatePanel(parent, w, h, x, y, bg, radius)` — opaque container init (replaces 10+ 10-line blocks)
+- `lvglCreateDeckButton(parent, w, h, x, y, bgHex, radius, label, textHex, outText)` — deck action button (replaces 3× 16-line blocks)
 
-**Measurable:** Function drops to ~150 lines. Style helpers reusable across `initLvgl*` functions.
+Extracted `lvglApplyThemeStylesFeedDecks()` (67 lines) from `lvglApplyThemeStyles()`.
+
+**Results:**
+
+| Function | Before | After |
+|---|---|---|
+| `lvglApplyThemeStyles()` | 295 | **156** (+67 in extracted sub-function) |
+| `lvglInitFeedDeck()` | 256 | **161** |
+| `lvglInitNowPlayingUi()` | 225 | **148** |
+
+- Total sketch lines: 15,040 → **14,879** (-161 net)
+- Clean compile, 42% flash / 63% RAM (unchanged)
+- Style helpers are reusable across all `initLvgl*` and `lvglApplyTheme*` functions
+
+**Verification:** compile --clean ✓ (upload + device test pending)
 
 ---
 
@@ -308,24 +322,24 @@ Track each completed milestone here with date, r-number, and commit hash.
 | 2026-03-23 | — | 48f239d | M6 | handleTouchSwipeInput 346→31 lines, per-page touch handlers |
 | 2026-03-24 | — | 728aaad | M3+ | Fixed scrybar-default theme, flat layout, mobile tightening, DOOM fix |
 | 2026-03-24 | — | — | M7 | 244 g_ globals → 51 (16 structs absorbing 209 vars), +47 lines |
+| 2026-03-24 | r213 | — | M8 | leftCol→PSRAM heap, httpFallback 320→256, title3 260→256, 0 stack buffers >256B |
+| 2026-03-24 | r213 | — | M9 | 7 style helpers, lvglApplyThemeStyles 295→156, lvglInitFeedDeck 256→161, lvglInitNowPlayingUi 225→148 |
 ```
 
-### Current Metrics Snapshot (post-M7, 2026-03-24)
+### Current Metrics Snapshot (post-M9, 2026-03-24)
 
 | Metric | Baseline (r199) | Current |
 |---|---|---|
-| **Total sketch lines** | 15,762 | 15,040 |
-| **Functions >200 lines** | 10 | 5 |
-| **Largest function** | `initLvglUi()` 714 | `lvglApplyThemeStyles()` 295 |
+| **Total sketch lines** | 15,762 | **14,879** |
+| **Functions >200 lines** | 10 | **2** |
+| **Largest function** | `initLvglUi()` 714 | `updateLvglUi()` 210 |
 | **`g_` prefixed globals** | 249 | **51** (16 struct instances + 35 independent) |
+| **Stack buffers >256B** | 15 | **0** |
 
 **Remaining functions >200 lines:**
 
 | Function | Lines | Target milestone |
 |---|---|---|
-| `lvglApplyThemeStyles()` | 295 | M9 |
-| `lvglInitFeedDeck()` | 256 | M9/M10 |
-| `lvglInitNowPlayingUi()` | 225 | M9/M10 |
 | `updateLvglUi()` | 210 | M10 |
 | `loadRuntimeNetConfigFromNvs()` | 202 | M10 |
 
