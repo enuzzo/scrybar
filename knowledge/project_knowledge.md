@@ -365,10 +365,28 @@ This location is intentionally outside ignored `screenshots/` paths.
 - `initLvglWeatherPanel()` — HOME weather card: structure, header, city/sun labels (119 lines)
 - `initLvglWeatherBodyWidgets()` — weather body: temp, icon, glyph, forecast bar (153 lines)
 - `initLvglScreensaverUi()` — cow screensaver: sky, stars, cow, balloon, footer (90 lines)
-- `lvglInitFeedDeck()` — AUX/WIKI feed deck widgets (234 lines, pre-existing)
-- `lvglInitNowPlayingUi()` — Now Playing UI (225 lines, pre-existing)
+- `lvglInitFeedDeck()` — AUX/WIKI feed deck widgets (161 lines, uses shared helpers)
+- `lvglInitNowPlayingUi()` — Now Playing UI (148 lines, uses shared helpers)
 
 Each sub-function locally computes its layout dimensions and theme colors from `canvasWidth()`, `canvasHeight()`, and `activeUiTheme()`, matching the self-contained pattern of `lvglInitFeedDeck()`.
+
+## LVGL Style Helper Library (M9, r213)
+
+Shared helper functions that eliminate repeated LVGL boilerplate across all `initLvgl*` and `lvglApplyTheme*` functions:
+
+| Helper | Purpose | Replaces |
+|---|---|---|
+| `lvglSetBgFlat(obj, hex)` | Flat bg_color + bg_grad_color from hex | 2-line bg pair pattern |
+| `lvglSetBgFlatR(obj, hex, radius)` | Flat bg + radius | 3-line bg+radius pattern |
+| `lvglSetTextHex(obj, hex)` | Null-guarded text color from hex | `if (obj) lv_obj_set_style_text_color(...)` |
+| `lvglSetHeaderBorder(obj, show, hex)` | Conditional header border (bordered themes) | 3-line border_width/color/opa pattern |
+| `lvglSetBtnBorder(obj, hex)` | Button accent border (1px, 80% opacity) | 3-line border pattern |
+| `lvglCreatePanel(parent, w, h, x, y, bg, radius)` | Opaque container: flat bg, no border/shadow/scroll | 10-line object init boilerplate |
+| `lvglCreateDeckButton(parent, w, h, x, y, bgHex, radius, label, textHex, outText)` | Deck action button with centered label | 16-line button init pattern |
+
+`lvglApplyThemeStyles()` (156 lines) delegates feed deck theming to `lvglApplyThemeStylesFeedDecks()` (67 lines).
+
+**When creating new LVGL containers:** Use `lvglCreatePanel()` as the default starting point. Override individual properties (gradient, opacity, border) after the call. Only use raw `lv_obj_create()` if the panel pattern doesn't fit.
 
 ## Language Dispatch Architecture (M2, r201)
 
@@ -603,6 +621,9 @@ For deterministic theme captures:
 - **MediaRemote artist field:** macOS MediaRemote only exposes the primary artist, not collaborators. "Rihanna, Kanye West, Paul McCartney" shows as just "Rihanna". This is a system-level limitation, not a companion bug.
 - **Now Playing LVGL labels:** Use `LV_LABEL_LONG_DOT` for single-line truncation (artist). Title uses `LV_LABEL_LONG_WRAP` with max 2 lines + manual clipping. LVGL 8 has no native multi-line ellipsis.
 - **Struct grouping enum ordering:** When grouping globals into structs, any enum types used as struct members (e.g. `TouchAuxButton`, `UiClockMode`) must be defined *before* the struct definition. The Arduino/GCC single-pass compilation model requires forward declarations for types used in in-class member initializers.
+- **LVGL panel helper vs raw create:** Use `lvglCreatePanel()` for new containers — it handles the 10-line boilerplate (opaque bg, no border/shadow/scroll, pad zero). Override specific properties after. Only use raw `lv_obj_create()` when the panel pattern doesn't fit (e.g. labels, images, canvases).
+- **PSRAM heap for ephemeral large buffers:** Use `heap_caps_malloc(sz, MALLOC_CAP_SPIRAM)` + `heap_caps_free()` for any stack buffer >256B that is ephemeral (used within one function call). LVGL `lv_label_set_text()` copies the string, so the source buffer can be freed immediately after. Always check the allocation return for null.
+- **lvglCreatePanel sets bg_grad_color = bg_color:** This means no visible gradient by default. If you need a gradient, call `lv_obj_set_style_bg_grad_color()` and `lv_obj_set_style_bg_grad_dir()` after `lvglCreatePanel()`. The panel's bg_opa is `LV_OPA_COVER` — override to `LV_OPA_TRANSP` or `LV_OPA_40` etc. if transparency is needed.
 
 ## Toolchain Setup (macOS — reference install)
 

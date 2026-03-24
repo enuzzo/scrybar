@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-03-24 - M8+M9: Stack Buffer Audit + LVGL Style Helper Library
+
+- Context: Firmware had 3 stack-local buffers >256B (leftCol[512], httpFallback[320], title3[260]) risking stack overflow during concurrent LVGL + HTTP operations. Three LVGL functions (lvglApplyThemeStyles 295 lines, lvglInitFeedDeck 256 lines, lvglInitNowPlayingUi 225 lines) contained massive repetition: 23 identical bg_color+bg_grad_color pairs, 14 guarded text color patterns, 10+ identical 10-line container init blocks, and 3 identical 16-line button init blocks.
+- Decision: M8: Move leftCol to PSRAM heap (`heap_caps_malloc` + `heap_caps_free`); shrink httpFallback and title3 to [256] (content fits). M9: Extract 7 shared inline helpers (`lvglSetBgFlat`, `lvglSetBgFlatR`, `lvglSetTextHex`, `lvglSetHeaderBorder`, `lvglSetBtnBorder`, `lvglCreatePanel`, `lvglCreateDeckButton`) and apply across all three functions. Extract feed deck theming loop into `lvglApplyThemeStylesFeedDecks()`.
+- Impact/Tradeoffs: Stack buffers >256B: 3 → 0. Function sizes: 295→156, 256→161, 225→148. Net -161 lines (14,879 total). Flash/RAM unchanged (42%/63%). Helpers are reusable for future LVGL code. `lvglCreatePanel()` sets bg_opa=COVER and bg_grad_color=bg_color by default — callers must override if transparency or gradient is needed.
+
+---
+
 ## 2026-03-24 - M7: Global State Grouping into 16 Structs
 
 - Context: Firmware had 244 individual `g_`-prefixed globals scattered across `scrybar.ino`, making it hard to reason about subsystem boundaries and increasing cognitive load when navigating the codebase. The polishing roadmap targeted <80 `g_` names via struct grouping.
