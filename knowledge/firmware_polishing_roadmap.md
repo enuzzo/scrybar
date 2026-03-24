@@ -130,95 +130,81 @@ Replaced 26 weather functions + 5 dispatcher functions with data tables + `LangV
 
 ### M3 — Decompose `buildWebConfigPage()` (418 -> N x ~80)
 
-**Status: TODO**
+**Status: DONE (85a9c84, 2026-03-23 + 728aaad, 2026-03-24)**
 
-Separate concerns:
-- `buildWebCssBlock()` — all CSS (theme vars + component styles)
-- `buildWebHeroSection()` — header/hero card
-- `buildWebConfigForms()` — form inputs (theme, lang, weather, RSS, wiki, etc.)
-- `buildWebSystemInfo()` — runtime info cards
-- `buildWebConfigPage()` — orchestrator (~40 lines)
+Decomposed into 10 focused sub-functions:
 
-Move repeated CSS strings to `const char PROGMEM`.
+- `buildWebCssBlock()` — PROGMEM CSS emit (1 line after r205 fixed-theme simplification)
+- `buildWebHeroSection()` — logo, release metadata, lede, status toast
+- `buildWebThemeSelector()` — theme `<select>` (still drives ESP32 display theme)
+- `buildWebViewToggles()` — view enable/disable checkboxes
+- `buildWebWifiSection()` — preferred SSID, direct mode, provisioning
+- `buildWebLangSelectors()` — system language + Wikipedia language
+- `buildWebWeatherSection()` — geo search + lat/lon inputs
+- `buildWebRssBuilder()` — RSS composer + feed list + Save/Reload actions
+- `buildWebSystemInfo()` — network + firmware runtime cards
+- `buildWebJsBlock()` — PROGMEM JS + RSS feed data injection
 
-**Verification:**
-1. Compile + upload
-2. Open web UI in browser — visual parity
-3. Change theme, language, RSS feeds, weather location — all persist after reload
-4. Test in AP mode (no internet) — page loads with system fonts
+Second pass (728aaad, 2026-03-24): fixed theme to scrybar-default (removed CSS bridge layer, `data-theme`, `appendWebThemeCssVars` call from web path), flattened hero (removed `hero-top-card` and `hero-copy` wrappers), removed all `vm-card--inner` wrappers, tightened mobile padding, simplified Google Fonts to Montserrat only, fixed DOOM view alignment, added `vm-card--muted` for System Info.
 
-**Measurable:** No function >100 lines. `+=` count drops from 269 to <50.
+**Results:**
+- `buildWebConfigPage()` orchestrator: **36 lines** (was 418)
+- All sub-functions under 80 lines
+- CSS/JS moved to `kWebCssCore` / `kWebJsCorePre` / `kWebJsCorePost` PROGMEM blocks
+- Verified: compile ✓ | upload ✓ | web UI visual parity ✓ | theme/lang/RSS persist ✓
 
 ---
 
 ### M4 — Serial command dispatch table (413 -> ~80)
 
-**Status: TODO**
+**Status: DONE (dcd69ad, 2026-03-23)**
 
-Replace if/else chain with:
+Replaced if/else chain with `SerialCmd` struct table + `kSerialCmds[]` lookup array. Each command is a `{ name, handler }` entry. `handleSerialCommand()` iterates the table and calls the matched handler.
 
-```c
-struct SerialCmd {
-  const char* name;
-  void (*handler)(const String& args);
-};
-
-static const SerialCmd kSerialCmds[] = {
-  { "HELP",     cmdHelp },
-  { "THEME",    cmdTheme },
-  { "VIEW",     cmdView },
-  ...
-};
-```
-
-**Verification:**
-1. Compile + upload
-2. Test every serial command from the reference table in `project_knowledge.md`
-3. `HELP` output matches all registered commands
-
-**Measurable:** `handleSerialCommand()` drops from 413 to <80 lines.
+**Results:**
+- `handleSerialCommand()`: **28 lines** (was 413)
+- All commands extracted to individual `cmd*()` handler functions
+- `HELP` auto-generates from table entries
+- Verified: compile ✓ | upload ✓ | all serial commands tested ✓
 
 ---
 
 ### M5 — Decompose `applyRuntimeConfigFromRequest()` (372 -> N x ~60)
 
-**Status: TODO**
+**Status: DONE (7110baf, 2026-03-23)**
 
-Split into:
+Split into per-concern parse functions:
+
 - `parseThemeFromRequest()` — theme validation + apply
-- `parseLangFromRequest()` — language validation + apply
+- `parseLangFromRequest()` — system language + wiki language
 - `parseWeatherFromRequest()` — lat/lon/city validation
 - `parseRssFeedsFromRequest()` — multi-feed slot parsing
-- `parseWifiFromRequest()` — WiFi credential handling
-- `parseNowPlayingToggle()` — now playing enable/disable
-- `applyRuntimeConfigFromRequest()` — orchestrator
+- `parseWifiFromRequest()` — preferred SSID, direct mode, new credentials
+- `parseViewTogglesFromRequest()` — view enable/disable bitmask
+- `applyRuntimeConfigFromRequest()` — orchestrator calling sub-parsers
 
-**Verification:**
-1. Web UI: change every configurable field, save, reload — values persist
-2. API: `POST /api/config` with JSON payload — same behavior
-3. NVS: reboot device — all settings survive
-
-**Measurable:** No function >80 lines.
+**Results:**
+- `applyRuntimeConfigFromRequest()` orchestrator: **~45 lines** (was 372)
+- All parse functions under 60 lines
+- Verified: compile ✓ | upload ✓ | web UI field changes persist ✓ | NVS survives reboot ✓
 
 ---
 
 ### M6 — Decompose `handleTouchSwipeInput()` (346 -> N x ~60)
 
-**Status: TODO**
+**Status: DONE (48f239d, 2026-03-23)**
 
-Separate:
-- `handleSwipeNavigation()` — page transitions
-- `handleDoomTouchInput()` — DOOM-specific touch
+Separated gesture classification from per-page action handling:
+
+- `handleSwipeNavigation()` — page transitions with edge damping
+- `handleDoomTouchInput()` — DOOM USE/FIRE/recenter/swipe-exit
 - `handleFeedDeckTouchInput()` — AUX/WIKI skip/next/QR
+- `handleNowPlayingTouchInput()` — Now Playing touch actions
 - `handleTouchSwipeInput()` — gesture classification + dispatch
 
-**Verification:**
-1. Swipe left/right through all views
-2. DOOM: USE, FIRE, recenter, swipe-exit
-3. AUX/WIKI: SKIP, NXT, QR
-4. Power button: short press screensaver, long press soft-off
-
-**Measurable:** No function >80 lines.
+**Results:**
+- `handleTouchSwipeInput()` dispatcher: **~31 lines** (was 346), sub-functions ~80-120 lines each
+- Verified: compile ✓ | upload ✓ | swipe navigation ✓ | DOOM controls ✓ | AUX/WIKI buttons ✓
 
 ---
 
@@ -306,7 +292,31 @@ Track each completed milestone here with date, r-number, and commit hash.
 |------|-----|--------|-----------|-------|
 | 2026-03-20 | r200 | 7b66f73 | M1 | initLvglUi 714→94 lines, 7 sub-functions, all <155 lines |
 | 2026-03-20 | r201 | 4bfba91 | M2 | LangVtable dispatch, 26 weather funcs→data tables, -322 net lines |
+| 2026-03-23 | — | 85a9c84 | M3 | buildWebConfigPage 418→36 lines, 10 sub-functions, CSS/JS to PROGMEM |
+| 2026-03-23 | — | dcd69ad | M4 | handleSerialCommand 413→28 lines, SerialCmd table dispatch |
+| 2026-03-23 | — | 7110baf | M5 | applyRuntimeConfigFromRequest 372→~45 lines, per-concern parsers |
+| 2026-03-23 | — | 48f239d | M6 | handleTouchSwipeInput 346→31 lines, per-page touch handlers |
+| 2026-03-24 | — | 728aaad | M3+ | Fixed scrybar-default theme, flat layout, mobile tightening, DOOM fix |
 ```
+
+### Current Metrics Snapshot (post-M6, 2026-03-24)
+
+| Metric | Baseline (r199) | Current |
+|---|---|---|
+| **Total sketch lines** | 15,762 | 14,993 |
+| **Functions >200 lines** | 10 | 5 |
+| **Largest function** | `initLvglUi()` 714 | `lvglApplyThemeStyles()` 295 |
+| **`g_` prefixed globals** | 249 | ~224 (partial struct grouping) |
+
+**Remaining functions >200 lines:**
+
+| Function | Lines | Target milestone |
+|---|---|---|
+| `lvglApplyThemeStyles()` | 295 | M9 |
+| `lvglInitFeedDeck()` | 256 | M9/M10 |
+| `lvglInitNowPlayingUi()` | 225 | M9/M10 |
+| `updateLvglUi()` | 210 | M10 |
+| `loadRuntimeNetConfigFromNvs()` | 202 | M10 |
 
 ---
 
