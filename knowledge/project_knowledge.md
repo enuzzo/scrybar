@@ -385,6 +385,35 @@ Table-driven dispatch via `LangVtable` in `src/lang_types.h`:
 
 **To add a new language:** 1 `kLangTable` entry + 4 functions (wordClock, weatherShort data, weatherUi data, formatDate) + 1 UiStrings in `ui_strings.h` + add code to `kAllowedLangs[]`. Zero dispatcher changes needed.
 
+## Global State Struct Architecture (M7, 2026-03-24)
+
+Firmware globals are grouped into 16 typed structs. Each struct instance keeps the `g_` prefix for grep-ability. Struct definitions sit inside the same `#if` guards as the original variables.
+
+Key struct instances and their subsystems:
+
+| Instance | Struct | Subsystem | Fields |
+|---|---|---|---|
+| `g_batt` | `BatteryState` | Battery + energy saver | 14 |
+| `g_pwrBtn` | `PwrButtonState` | Power button debounce | 7 |
+| `g_navBtn` | `NavButtonState` | Nav/BOOT button | 4 |
+| `g_wifiSt` | `WifiState` | WiFi + credentials + reconnect | 28 |
+| `g_touch` | `TouchState` | Touch input + gestures | 15 |
+| `g_doom` | `DoomState` | DOOM tilt/neutral/palette | 24 |
+| `g_imu` | `ImuState` | IMU sensor state | 6 |
+| `g_clock` | `ClockState` | NTP + clock rendering | 8 |
+| `g_saver` | `ScreensaverState` | Cow screensaver | 34 |
+| `g_perf` | `PerfCounters` | Frame perf counters | 7 |
+| `g_webCfg` | `WebConfigState` | Web server + mDNS + QR | 10 |
+| `g_clockUi` | `LvglClockUi` | Clock LVGL widgets | 10 |
+| `g_weatherUi` | `LvglWeatherUi` | Weather LVGL widgets | 22 |
+| `g_infoUi` | `LvglInfoUi` | INFO page LVGL widgets | 10 |
+| `g_dispHw` | `DisplayHwState` | Display HW handles + DMA | 7 |
+| `g_pageAnim` | `LvglPageAnimState` | Page drag/animation | 3 |
+
+Access pattern: `g_batt.voltage`, `g_wifiSt.connected`, `g_doom.moveBin`, etc.
+
+Remaining independent `g_` globals (35) are pre-existing struct instances (`g_weather`, `g_rss`, `g_wiki`, `g_auxDeck`, `g_wikiDeck`, `g_nowPlayingUi`, `g_liveNowPlaying`, etc.), LVGL page roots, hardware objects (`g_qmi`, `g_gfx`), and standalone config state.
+
 ## LVGL Configuration Baselines
 
 Key settings:
@@ -573,6 +602,7 @@ For deterministic theme captures:
 - **Web UI box nesting:** Never wrap form content in inner containers (`vm-card--inner` was removed). One `vm-card` per section is the visual boundary — content sits directly inside, no wrapper divs. See "Web UI — Architecture & Rules" for the full pattern.
 - **MediaRemote artist field:** macOS MediaRemote only exposes the primary artist, not collaborators. "Rihanna, Kanye West, Paul McCartney" shows as just "Rihanna". This is a system-level limitation, not a companion bug.
 - **Now Playing LVGL labels:** Use `LV_LABEL_LONG_DOT` for single-line truncation (artist). Title uses `LV_LABEL_LONG_WRAP` with max 2 lines + manual clipping. LVGL 8 has no native multi-line ellipsis.
+- **Struct grouping enum ordering:** When grouping globals into structs, any enum types used as struct members (e.g. `TouchAuxButton`, `UiClockMode`) must be defined *before* the struct definition. The Arduino/GCC single-pass compilation model requires forward declarations for types used in in-class member initializers.
 
 ## Toolchain Setup (macOS — reference install)
 

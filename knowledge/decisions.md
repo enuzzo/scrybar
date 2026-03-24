@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-03-24 - M7: Global State Grouping into 16 Structs
+
+- Context: Firmware had 244 individual `g_`-prefixed globals scattered across `scrybar.ino`, making it hard to reason about subsystem boundaries and increasing cognitive load when navigating the codebase. The polishing roadmap targeted <80 `g_` names via struct grouping.
+- Decision: Group 209 globals into 16 typed structs (`BatteryState`, `WifiState`, `TouchState`, `DoomState`, `ScreensaverState`, `ClockState`, `PerfCounters`, `WebConfigState`, `LvglClockUi`, `LvglWeatherUi`, `LvglInfoUi`, `DisplayHwState`, etc.). Each struct instance retains a `g_` prefix for grep-ability (e.g. `g_batt.voltage`, `g_wifiSt.connected`). Struct definitions sit inside the same `#if` feature-gate blocks as the original variables. Automated via `tools/m7_rename_globals.py` (Python transform script with declaration block replacement + word-boundary rename pass).
+- Impact/Tradeoffs: 244 → 51 `g_` names (16 struct instances + 35 truly independent). Zero behavioral change. Flash/RAM unchanged (42%/63%). Struct member ordering is intentionally identical to the original declaration order to minimize diff noise. The transform script is kept in `tools/` for reference but is single-use. Gotcha discovered: enum types used inside structs (e.g. `TouchAuxButton`) must be forward-declared before the struct definition — the script initially placed the struct before the enum, caught at compile time and fixed.
+
+---
+
 ## 2026-03-23 - Remove spoo.me URL Shortener
 
 - Context: QR codes for RSS/Wiki used spoo.me to shorten URLs before encoding. This caused blocking HTTP calls (~2-3s), burned free API credits, added privacy leak (all URLs transit a third party), and was a single point of failure.

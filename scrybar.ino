@@ -173,39 +173,47 @@ LV_FONT_DECLARE(scry_font_montserrat_medium_23);
 static TwoWire I2C_MAIN(0);
 static TwoWire I2C_ALT(1);
 static bool g_backlightReady = false;
-static bool g_pwrButtonDown = false;
-static uint32_t g_pwrButtonDownMs = 0;
-static bool g_pwrHoldReported = false;
-static bool g_pwrIgnoreUntilRelease = false;
-static int g_pwrLastRawLevel = -1;
-static uint32_t g_pwrPressCandidateMs = 0;
-static uint32_t g_pwrReleaseCandidateMs = 0;
+struct PwrButtonState {
+  bool down = false;
+  uint32_t downMs = 0;
+  bool holdReported = false;
+  bool ignoreUntilRelease = false;
+  int lastRawLevel = -1;
+  uint32_t pressCandidateMs = 0;
+  uint32_t releaseCandidateMs = 0;
+};
+static PwrButtonState g_pwrBtn;
 static constexpr uint32_t kPwrPressDebounceMs = 45UL;
 static constexpr uint32_t kPwrShortPressMinMs = 70UL;
-static bool g_navFirstButtonDown = false;
-static uint32_t g_navFirstButtonDownMs = 0;
-static int g_navFirstLastRawLevel = -1;
-static uint32_t g_navFirstReleaseCandidateMs = 0;
+struct NavButtonState {
+  bool down = false;
+  uint32_t downMs = 0;
+  int lastRawLevel = -1;
+  uint32_t releaseCandidateMs = 0;
+};
+static NavButtonState g_navBtn;
 static bool g_softPowerOff = false;
 #if TEST_BATTERY
-static adc_oneshot_unit_handle_t g_battAdcHandle = nullptr;
-static bool g_battReady = false;
-static bool g_battHasSample = false;
-static int g_battRaw = 0;
-static float g_battVoltage = 0.0f;
-static int g_battPercent = -1;
-static uint32_t g_battLastSampleMs = 0;
-static bool g_battChargingLikely = false;
-static uint32_t g_battTrendMs = 0;
-static float g_battTrendVoltage = 0.0f;
-static bool g_battExternalPowerLikely = false;
-static uint32_t g_battExternalPowerHoldUntilMs = 0;
+struct BatteryState {
+  adc_oneshot_unit_handle_t adcHandle = nullptr;
+  bool ready = false;
+  bool hasSample = false;
+  int raw = 0;
+  float voltage = 0.0f;
+  int percent = -1;
+  uint32_t lastSampleMs = 0;
+  bool chargingLikely = false;
+  uint32_t trendMs = 0;
+  float trendVoltage = 0.0f;
+  bool externalPowerLikely = false;
+  uint32_t externalPowerHoldUntilMs = 0;
+  bool energySaverActive = false;
+  uint32_t energyLastEvalMs = 0;
+};
+static BatteryState g_batt;
 #endif
 
-#if TEST_BATTERY && ENERGY_SAVER_ENABLED
-static bool g_energyBatteryMode = false;
-static uint32_t g_energyLastEvalMs = 0;
-#endif
+// Energy saver fields folded into BatteryState (g_batt)
 #if TEST_WIFI || TEST_NTP
 static constexpr uint8_t WIFI_STATIC_CREDENTIALS_MAX = 5;
 static constexpr uint8_t WIFI_TOTAL_CREDENTIALS_MAX = WIFI_STATIC_CREDENTIALS_MAX + WIFI_RUNTIME_CREDENTIALS_MAX;
@@ -215,34 +223,37 @@ struct RuntimeWiFiCredential {
   char ssid[WIFI_MAX_SSID_LEN + 1] = {0};
   char password[WIFI_MAX_PASSWORD_LEN + 1] = {0};
 };
-static bool g_wifiConnected = false;
-static int g_lastWifiDiscReason = -1;
-static bool g_wifiEventRegistered = false;
-static bool g_wifiEverConnected = false;
-static uint32_t g_wifiLastConnectMs = 0;
-static uint32_t g_wifiLastDisconnectMs = 0;
-static const char *g_wifiStaticSsids[WIFI_STATIC_CREDENTIALS_MAX] = {nullptr};
-static const char *g_wifiStaticPasswords[WIFI_STATIC_CREDENTIALS_MAX] = {nullptr};
-static size_t g_wifiStaticCredCount = 0;
-static RuntimeWiFiCredential g_wifiRuntimeCreds[WIFI_RUNTIME_CREDENTIALS_MAX];
-static uint8_t g_wifiRuntimeCredCount = 0;
-static const char *g_wifiCredSsids[WIFI_TOTAL_CREDENTIALS_MAX] = {nullptr};
-static const char *g_wifiCredPasswords[WIFI_TOTAL_CREDENTIALS_MAX] = {nullptr};
-static size_t g_wifiCredCount = 0;
-static char g_wifiPreferredSsid[33] = "";
-static char g_wifiSetupMode[8] = WIFI_SETUP_MODE_DEFAULT;  // off | auto | on
-static bool g_wifiSetupApActive = false;
-static bool g_wifiSetupApAutoStarted = false;
-static uint32_t g_wifiNoLinkSinceMs = 0;
-static char g_wifiSetupApSsid[33] = "";
-static bool g_wifiReconnectAttemptActive = false;
-static uint8_t g_wifiReconnectIdx = 0;
-static uint32_t g_wifiReconnectAttemptStartMs = 0;
-static uint32_t g_wifiReconnectNextAttemptMs = 0;
-static uint16_t g_wifiConsecutiveFailCount = 0;
-static uint32_t g_wifiLastRadioResetMs = 0;
-static bool g_wifiInternalDisconnect = false;
-static uint32_t g_lastNtpAttemptMs = 0;
+struct WifiState {
+  bool connected = false;
+  int lastDiscReason = -1;
+  bool eventRegistered = false;
+  bool everConnected = false;
+  uint32_t lastConnectMs = 0;
+  uint32_t lastDisconnectMs = 0;
+  const char *staticSsids[WIFI_STATIC_CREDENTIALS_MAX] = {nullptr};
+  const char *staticPasswords[WIFI_STATIC_CREDENTIALS_MAX] = {nullptr};
+  size_t staticCredCount = 0;
+  RuntimeWiFiCredential runtimeCreds[WIFI_RUNTIME_CREDENTIALS_MAX];
+  uint8_t runtimeCredCount = 0;
+  const char *credSsids[WIFI_TOTAL_CREDENTIALS_MAX] = {nullptr};
+  const char *credPasswords[WIFI_TOTAL_CREDENTIALS_MAX] = {nullptr};
+  size_t credCount = 0;
+  char preferredSsid[33] = "";
+  char setupMode[8] = WIFI_SETUP_MODE_DEFAULT;
+  bool setupApActive = false;
+  bool setupApAutoStarted = false;
+  uint32_t noLinkSinceMs = 0;
+  char setupApSsid[33] = "";
+  bool reconnectAttemptActive = false;
+  uint8_t reconnectIdx = 0;
+  uint32_t reconnectAttemptStartMs = 0;
+  uint32_t reconnectNextAttemptMs = 0;
+  uint16_t consecutiveFailCount = 0;
+  uint32_t lastRadioResetMs = 0;
+  bool internalDisconnect = false;
+  uint32_t lastNtpAttemptMs = 0;
+};
+static WifiState g_wifiSt;
 #endif
 
 static constexpr size_t UI_THEME_ID_LEN = 24;
@@ -673,21 +684,23 @@ static void setUiPage(UiPageMode mode);
 static void syncImuActiveForUi();
 #endif
 #if WEB_CONFIG_ENABLED
-static WebServer g_webConfigServer(WEB_CONFIG_PORT);
-static bool g_webConfigServerStarted = false;
-static bool g_webConfigRoutesRegistered = false;
-static DNSServer g_webConfigDnsServer;
-static bool g_webConfigDnsStarted = false;
+struct WebConfigState {
+  WebServer server{WEB_CONFIG_PORT};
+  bool serverStarted = false;
+  bool routesRegistered = false;
+  DNSServer dnsServer;
+  bool dnsStarted = false;
 #if DB_HAS_MDNS
-static bool g_scrybarMdnsStarted = false;
-static char g_scrybarMdnsHost[32] = {0};
-static char g_scrybarMdnsInstanceName[40] = {0};
+  bool mdnsStarted = false;
+  char mdnsHost[32] = {0};
+  char mdnsInstanceName[40] = {0};
 #endif
 #if DB_HAS_QRCODEGEN
-// Allocate QR work buffers lazily in PSRAM to keep internal heap free for TLS.
-static uint8_t *g_webQrTempBuf = nullptr;
-static uint8_t *g_webQrDataBuf = nullptr;
+  uint8_t *qrTempBuf = nullptr;
+  uint8_t *qrDataBuf = nullptr;
 #endif
+};
+static WebConfigState g_webCfg;
 #endif
 
 static bool updateRssFromFeed(bool force);
@@ -772,18 +785,21 @@ static uint32_t g_wikiVisiblePreloadLastMs = 0;
 #endif
 
 #if TEST_NTP
-static bool g_ntpSynced = false;
-static int g_lastClockSecond = -1;
-static int g_lastDateKey = -1;
-static bool g_clockStaticDrawn = false;
-static uint32_t g_bellazioLastMinuteKey = 0xFFFFFFFFu;
-static uint8_t g_bellazioLastLeadIdx = 0;
-static uint8_t g_bellazioLastCloserIdx = 0;
 enum UiClockMode : uint8_t {
   UI_CLOCK_MODE_CLOCKCLOCK = 0,
   UI_CLOCK_MODE_WORDCLOCK = 1,
 };
-static UiClockMode g_uiClockMode = UI_CLOCK_MODE_WORDCLOCK;
+struct ClockState {
+  bool ntpSynced = false;
+  int lastSecond = -1;
+  int lastDateKey = -1;
+  bool staticDrawn = false;
+  uint32_t bellazioLastMinuteKey = 0xFFFFFFFFu;
+  uint8_t bellazioLastLeadIdx = 0;
+  uint8_t bellazioLastCloserIdx = 0;
+  UiClockMode mode = UI_CLOCK_MODE_WORDCLOCK;
+};
+static ClockState g_clock;
 enum UiPageMode : uint8_t {
   UI_PAGE_INFO = 0,
   UI_PAGE_HOME = 1,
@@ -802,51 +818,60 @@ static uint32_t g_lvglLastTickMs = 0;
 static lv_disp_draw_buf_t g_lvglDrawBuf;
 static lv_disp_drv_t g_lvglDispDrv;
 static lv_color_t *g_lvglBuf1 = nullptr;
-static lv_obj_t *g_lvglClockL1 = nullptr;
-static lv_obj_t *g_lvglClockL2 = nullptr;
-static lv_obj_t *g_lvglClockL3 = nullptr;
-static lv_obj_t *g_lvglClockDate = nullptr;
-static lv_obj_t *g_lvglClockHeader = nullptr;
-static lv_obj_t *g_lvglClockHeaderFill = nullptr;
-static lv_obj_t *g_lvglClockWiFiBars[4] = {nullptr, nullptr, nullptr, nullptr};
-static uint16_t g_lvglClockWiFiMask = 0xFFFF;
-static lv_obj_t *g_lvglClockDivider = nullptr;
-static lv_obj_t *g_lvglInfoRoot = nullptr;
-static lv_obj_t *g_lvglInfoCard = nullptr;
-static lv_obj_t *g_lvglInfoHeader = nullptr;
-static lv_obj_t *g_lvglInfoHeaderFill = nullptr;
-static lv_obj_t *g_lvglInfoTitle = nullptr;
-static lv_obj_t *g_lvglInfoEndpoint = nullptr;
-static lv_obj_t *g_lvglInfoBodyLeft = nullptr;
-static lv_obj_t *g_lvglInfoBodyRight = nullptr;
+struct LvglClockUi {
+  lv_obj_t *l1 = nullptr;
+  lv_obj_t *l2 = nullptr;
+  lv_obj_t *l3 = nullptr;
+  lv_obj_t *date = nullptr;
+  lv_obj_t *header = nullptr;
+  lv_obj_t *headerFill = nullptr;
+  lv_obj_t *wifiBars[4] = {nullptr, nullptr, nullptr, nullptr};
+  uint16_t wifiMask = 0xFFFF;
+  lv_obj_t *divider = nullptr;
+  lv_obj_t *block = nullptr;
+};
+static LvglClockUi g_clockUi;
+struct LvglInfoUi {
+  lv_obj_t *root = nullptr;
+  lv_obj_t *card = nullptr;
+  lv_obj_t *header = nullptr;
+  lv_obj_t *headerFill = nullptr;
+  lv_obj_t *title = nullptr;
+  lv_obj_t *endpoint = nullptr;
+  lv_obj_t *bodyLeft = nullptr;
+  lv_obj_t *bodyRight = nullptr;
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
-static lv_obj_t *g_lvglInfoWebQr = nullptr;
+  lv_obj_t *webQr = nullptr;
 #endif
-static char g_lvglInfoLastQrPayload[96] = {0};
+  char lastQrPayload[96] = {0};
+};
+static LvglInfoUi g_infoUi;
 static lv_obj_t *g_lvglHomeRoot = nullptr;
-static lv_obj_t *g_lvglClockBlock = nullptr;
-static lv_obj_t *g_lvglWeatherCard = nullptr;
-static lv_obj_t *g_lvglWeatherHeader = nullptr;
-static lv_obj_t *g_lvglWeatherHeaderFill = nullptr;
-static lv_obj_t *g_lvglWeatherBody = nullptr;
-static lv_obj_t *g_lvglCity = nullptr;
-static bool g_lvglCityTickerScroll = false;
-static uint32_t g_lvglCityTickerNextMs = 0;
-static uint32_t g_lvglCityTickerEndMs = 0;
-static char g_lvglCityRawLast[48] = {0};
-static lv_obj_t *g_lvglTemp = nullptr;
-static lv_obj_t *g_lvglIcon = nullptr;
-static lv_obj_t *g_lvglGlyph = nullptr;
-static lv_obj_t *g_lvglDesc = nullptr;
-static lv_obj_t *g_lvglHumidity = nullptr;
-static lv_obj_t *g_lvglSun = nullptr;
-static lv_obj_t *g_lvglWind = nullptr;
-static lv_obj_t *g_lvglWeatherSep = nullptr;
-static lv_obj_t *g_lvglForecastBar = nullptr;
-static lv_obj_t *g_lvglForecastBarFill = nullptr;
-static lv_obj_t *g_lvglForecastIcon = nullptr;
-static lv_obj_t *g_lvglForecastNow = nullptr;
-static lv_obj_t *g_lvglForecastTomorrow = nullptr;
+struct LvglWeatherUi {
+  lv_obj_t *card = nullptr;
+  lv_obj_t *header = nullptr;
+  lv_obj_t *headerFill = nullptr;
+  lv_obj_t *body = nullptr;
+  lv_obj_t *city = nullptr;
+  bool cityTickerScroll = false;
+  uint32_t cityTickerNextMs = 0;
+  uint32_t cityTickerEndMs = 0;
+  char cityRawLast[48] = {0};
+  lv_obj_t *temp = nullptr;
+  lv_obj_t *icon = nullptr;
+  lv_obj_t *glyph = nullptr;
+  lv_obj_t *desc = nullptr;
+  lv_obj_t *humidity = nullptr;
+  lv_obj_t *sun = nullptr;
+  lv_obj_t *wind = nullptr;
+  lv_obj_t *sep = nullptr;
+  lv_obj_t *forecastBar = nullptr;
+  lv_obj_t *forecastBarFill = nullptr;
+  lv_obj_t *forecastIcon = nullptr;
+  lv_obj_t *forecastNow = nullptr;
+  lv_obj_t *forecastTomorrow = nullptr;
+};
+static LvglWeatherUi g_weatherUi;
 // ── FeedDeckUi — shared widget/state bundle for AUX and WIKI decks ──────────
 struct FeedDeckUi {
   lv_obj_t *card         = nullptr;
@@ -1059,11 +1084,33 @@ static constexpr uint8_t DOOM_TOUCH_NONE = 0;
 static constexpr uint8_t DOOM_TOUCH_LEFT = 1;
 static constexpr uint8_t DOOM_TOUCH_CENTER = 2;
 static constexpr uint8_t DOOM_TOUCH_RIGHT = 3;
-static bool      g_doomPaletteReady = false;
-static bool      g_doomFrameDirty   = true;
-static bool      g_doomLaunchRequested = false;
-static uint16_t  g_doomPalette565[256] = {0};
-static uint32_t  g_doomLastRenderLogMs = 0;
+struct DoomState {
+  bool paletteReady = false;
+  bool frameDirty = true;
+  bool launchRequested = false;
+  uint16_t palette565[256] = {0};
+  uint32_t lastRenderLogMs = 0;
+  uint8_t touchZone = DOOM_TOUCH_NONE;
+  bool tiltFilterReady = false;
+  bool neutralPending = false;
+  bool neutralReady = false;
+  uint32_t neutralArmAtMs = 0;
+  uint32_t neutralStableSinceMs = 0;
+  uint32_t lastTiltSampleMs = 0;
+  float moveTiltDeg = 0.0f;
+  float turnTiltDeg = 0.0f;
+  float neutralMoveTiltDeg = 0.0f;
+  float neutralTurnTiltDeg = 0.0f;
+  float neutralAccumMoveDeg = 0.0f;
+  float neutralAccumTurnDeg = 0.0f;
+  uint16_t neutralStableSamples = 0;
+  bool axisFilterReady = false;
+  float moveDeltaFilteredDeg = 0.0f;
+  float turnDeltaFilteredDeg = 0.0f;
+  int8_t moveBin = 0;
+  int8_t turnBin = 0;
+};
+static DoomState g_doom;
 static constexpr int16_t kDoomFrameW = ((LCD_WIDTH * 4) + 2) / 3;  // 4:3 content in 172px height
 static constexpr int16_t kDoomFrameH = LCD_WIDTH;
 static constexpr int16_t kDoomFrameX = (LCD_HEIGHT - kDoomFrameW) / 2;
@@ -1089,101 +1136,95 @@ static constexpr int8_t  kDoomTurnBinMin = -6;
 static constexpr int8_t  kDoomTurnBinMax = 6;
 static constexpr int8_t  kDoomMoveTiltSign = -1;
 static constexpr int8_t  kDoomTurnTiltSign = 1;
-static uint8_t g_doomTouchZone = DOOM_TOUCH_NONE;
-static bool g_doomTiltFilterReady = false;
-static bool g_doomNeutralPending = false;
-static bool g_doomNeutralReady = false;
-static uint32_t g_doomNeutralArmAtMs = 0;
-static uint32_t g_doomNeutralStableSinceMs = 0;
-static uint32_t g_doomLastTiltSampleMs = 0;
-static float g_doomMoveTiltDeg = 0.0f;
-static float g_doomTurnTiltDeg = 0.0f;
-static float g_doomNeutralMoveTiltDeg = 0.0f;
-static float g_doomNeutralTurnTiltDeg = 0.0f;
-static float g_doomNeutralAccumMoveDeg = 0.0f;
-static float g_doomNeutralAccumTurnDeg = 0.0f;
-static uint16_t g_doomNeutralStableSamples = 0;
-static bool g_doomAxisFilterReady = false;
-static float g_doomMoveDeltaFilteredDeg = 0.0f;
-static float g_doomTurnDeltaFilteredDeg = 0.0f;
-static int8_t g_doomMoveBin = 0;
-static int8_t g_doomTurnBin = 0;
+// (tilt/neutral fields folded into DoomState above)
 #endif
-static uint32_t g_lvglPageAnimUntilMs = 0;
-static uint32_t g_lvglLastRunMs = 0;
-static bool g_lvglPageDragActive = false;
+struct LvglPageAnimState {
+  uint32_t untilMs = 0;
+  uint32_t lastRunMs = 0;
+  bool dragActive = false;
+};
+static LvglPageAnimState g_pageAnim;
 #if SCREENSAVER_ENABLED
 static constexpr uint8_t kSaverSkyRowsMax = 10;
 static constexpr uint8_t kSaverSkyColsMax = 80;
 static constexpr uint8_t kSaverStarsPerRow = 2;
-static lv_obj_t *g_lvglScreenSaverRoot = nullptr;
-static lv_obj_t *g_lvglScreenSaverSky = nullptr;
-static lv_obj_t *g_lvglScreenSaverStarObj[kSaverSkyRowsMax][kSaverStarsPerRow] = {};
-static lv_obj_t *g_lvglScreenSaverField = nullptr;
-static lv_obj_t *g_lvglScreenSaverCow = nullptr;
-static lv_obj_t *g_lvglScreenSaverBalloon = nullptr;
-static lv_obj_t *g_lvglScreenSaverBalloonTail = nullptr;
-static lv_obj_t *g_lvglScreenSaverFooter = nullptr;
-static bool g_lvglScreenSaverActive = false;
-static uint32_t g_lastUserInteractionMs = 0;
-static uint32_t g_lvglScreenSaverLastStepMs = 0;
-static uint32_t g_lvglScreenSaverRand = 0x1A2B3C4Du;
-static int16_t g_lvglScreenSaverX = -80;
-static int16_t g_lvglScreenSaverY = 0;
-static int8_t g_lvglScreenSaverColorIdx = 0;
-static uint32_t g_lvglScreenSaverWakeGuardUntilMs = 0;
-static uint32_t g_lvglScreenSaverCowNextMoveMs = 0;
-static uint8_t g_lvglScreenSaverCowStepsLeft = 0;
-static int8_t g_lvglScreenSaverCowDir = 1;
-static uint8_t g_lvglScreenSaverCols = 60;
-static uint8_t g_lvglScreenSaverRows = 6;
-static uint8_t g_lvglScreenSaverStarX[kSaverSkyRowsMax][kSaverStarsPerRow] = {};
-static uint8_t g_lvglScreenSaverStarLevel[kSaverSkyRowsMax][kSaverStarsPerRow] = {};
-static int8_t g_lvglScreenSaverStarDir[kSaverSkyRowsMax][kSaverStarsPerRow] = {};
-static uint32_t g_lvglScreenSaverStarNextMs[kSaverSkyRowsMax][kSaverStarsPerRow] = {};
-static uint8_t g_lvglScreenSaverBalloonIdx = 0;
-static uint32_t g_lvglScreenSaverBalloonNextMs = 0;
-static bool g_lvglScreenSaverBalloonVisible = false;
-static uint32_t g_lvglScreenSaverFooterNextMs = 0;
-static uint32_t g_lvglScreenSaverFooterJitterNextMs = 0;
-static uint8_t g_lvglScreenSaverFooterJitterIdx = 0;
-static uint32_t g_lvglScreenSaverFieldNextMs = 0;
-static uint8_t g_lvglScreenSaverFieldScroll = 0;
-static char g_lvglScreenSaverFieldBuf[256] = {0};
+struct ScreensaverState {
+  lv_obj_t *root = nullptr;
+  lv_obj_t *sky = nullptr;
+  lv_obj_t *starObj[kSaverSkyRowsMax][kSaverStarsPerRow] = {};
+  lv_obj_t *field = nullptr;
+  lv_obj_t *cow = nullptr;
+  lv_obj_t *balloon = nullptr;
+  lv_obj_t *balloonTail = nullptr;
+  lv_obj_t *footer = nullptr;
+  bool active = false;
+  uint32_t lastUserInteractionMs = 0;
+  uint32_t lastStepMs = 0;
+  uint32_t rand = 0x1A2B3C4Du;
+  int16_t x = -80;
+  int16_t y = 0;
+  int8_t colorIdx = 0;
+  uint32_t wakeGuardUntilMs = 0;
+  uint32_t cowNextMoveMs = 0;
+  uint8_t cowStepsLeft = 0;
+  int8_t cowDir = 1;
+  uint8_t cols = 60;
+  uint8_t rows = 6;
+  uint8_t starX[kSaverSkyRowsMax][kSaverStarsPerRow] = {};
+  uint8_t starLevel[kSaverSkyRowsMax][kSaverStarsPerRow] = {};
+  int8_t starDir[kSaverSkyRowsMax][kSaverStarsPerRow] = {};
+  uint32_t starNextMs[kSaverSkyRowsMax][kSaverStarsPerRow] = {};
+  uint8_t balloonIdx = 0;
+  uint32_t balloonNextMs = 0;
+  bool balloonVisible = false;
+  uint32_t footerNextMs = 0;
+  uint32_t footerJitterNextMs = 0;
+  uint8_t footerJitterIdx = 0;
+  uint32_t fieldNextMs = 0;
+  uint8_t fieldScroll = 0;
+  char fieldBuf[256] = {0};
+};
+static ScreensaverState g_saver;
 #endif
 #endif
 
 #if TEST_TOUCH
-static bool g_touchReady = false;
-static bool g_touchUseAltBus = true;
-static bool g_touchDown = false;
-static uint8_t g_touchMissCount = 0;  // consecutive "no touch" frames since last detection
-static uint8_t g_touchRawPresenceCount = 0;
-static bool g_touchPageDragging = false;
 enum TouchAuxButton : uint8_t {
   TOUCH_AUX_BTN_NONE = 0,
   TOUCH_AUX_BTN_QR = 1,
   TOUCH_AUX_BTN_REFRESH = 2,
   TOUCH_AUX_BTN_NEXT = 3,
 };
-static TouchAuxButton g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
-static uint32_t g_lastSwipeToggleMs = 0;
-static bool g_touchAwaitRelease = false;
-static uint32_t g_touchReleaseStartMs = 0;
-static int16_t g_touchStartX = 0;
-static int16_t g_touchStartY = 0;
-static int16_t g_touchLastX = 0;
-static int16_t g_touchLastY = 0;
-static uint32_t g_touchStartMs = 0;
+struct TouchState {
+  bool ready = false;
+  bool useAltBus = true;
+  bool down = false;
+  uint8_t missCount = 0;
+  uint8_t rawPresenceCount = 0;
+  bool pageDragging = false;
+  TouchAuxButton auxBtnDown = TOUCH_AUX_BTN_NONE;
+  uint32_t lastSwipeToggleMs = 0;
+  bool awaitRelease = false;
+  uint32_t releaseStartMs = 0;
+  int16_t startX = 0;
+  int16_t startY = 0;
+  int16_t lastX = 0;
+  int16_t lastY = 0;
+  uint32_t startMs = 0;
+};
+static TouchState g_touch;
 #endif
 
 #if TEST_IMU
-static bool g_imuReady = false;
-static bool g_imuSensorsActive = false;
-static uint8_t g_imuAddr = 0;
-static uint32_t g_lastImuPrintMs = 0;
-static uint32_t g_lastShakeMs = 0;
-static float g_lastAccelMag = 1.0f;
+struct ImuState {
+  bool ready = false;
+  bool sensorsActive = false;
+  uint8_t addr = 0;
+  uint32_t lastPrintMs = 0;
+  uint32_t lastShakeMs = 0;
+  float lastAccelMag = 1.0f;
+};
+static ImuState g_imu;
 #endif
 
 #if TEST_IMU
@@ -1206,13 +1247,16 @@ static Arduino_GFX *g_gfx = nullptr;
 #endif
 
 #if TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
-static esp_lcd_panel_io_handle_t g_panelIo = nullptr;
-static esp_lcd_panel_handle_t g_panel = nullptr;
-static SemaphoreHandle_t g_dispFlushSem = nullptr;
-static uint16_t *g_canvasBuf = nullptr;  // logical 640x172
-// g_rotBuf eliminated — rotation now done directly into DMA chunks
-static uint16_t *g_dmaBuf = nullptr;     // native chunk (172x32) — ping
-static uint16_t *g_dmaBuf2 = nullptr;    // native chunk (172x32) — pong
+struct DisplayHwState {
+  esp_lcd_panel_io_handle_t panelIo = nullptr;
+  esp_lcd_panel_handle_t panel = nullptr;
+  SemaphoreHandle_t flushSem = nullptr;
+  uint16_t *canvasBuf = nullptr;
+  bool canvasDirty = false;
+  uint16_t *dmaBuf = nullptr;
+  uint16_t *dmaBuf2 = nullptr;
+};
+static DisplayHwState g_dispHw;
 static constexpr int16_t DB_CANVAS_W = LCD_HEIGHT;  // 640
 static constexpr int16_t DB_CANVAS_H = LCD_WIDTH;   // 172
 static constexpr int16_t DB_NATIVE_W = LCD_WIDTH;   // 172
@@ -1221,14 +1265,17 @@ static constexpr int16_t DB_NATIVE_H = LCD_HEIGHT;  // 640
 static constexpr int16_t DB_CHUNK_ROWS = 32;
 
 // --- Frame performance counters (lightweight, no per-frame logging) ---
-static uint32_t g_perfFlushCount = 0;
-static uint32_t g_perfFlushTotalUs = 0;
-static uint32_t g_perfFlushMaxUs = 0;
-static uint32_t g_perfLvglFrameCount = 0;
-static uint32_t g_perfLvglTotalUs = 0;
-static uint32_t g_perfLvglMaxUs = 0;
-static uint32_t g_perfLastResetMs = 0;
-static bool g_canvasDirty = false;  // set by flush callback, cleared after dispFlush
+struct PerfCounters {
+  uint32_t flushCount = 0;
+  uint32_t flushTotalUs = 0;
+  uint32_t flushMaxUs = 0;
+  uint32_t lvglFrameCount = 0;
+  uint32_t lvglTotalUs = 0;
+  uint32_t lvglMaxUs = 0;
+  uint32_t lastResetMs = 0;
+};
+static PerfCounters g_perf;
+// g_dispHw.canvasDirty folded into DisplayHwState (g_dispHw)
 #endif
 
 static int detectTca9554Addr();
@@ -1251,35 +1298,35 @@ static int batteryPercentFromVoltage(float vbat) {
 static void initBatteryMonitor() {
   adc_oneshot_unit_init_cfg_t initCfg = {};
   initCfg.unit_id = ADC_UNIT_1;
-  if (adc_oneshot_new_unit(&initCfg, &g_battAdcHandle) != ESP_OK) {
+  if (adc_oneshot_new_unit(&initCfg, &g_batt.adcHandle) != ESP_OK) {
     Serial.println("[BATT][ERR] adc_oneshot_new_unit failed");
-    g_battReady = false;
+    g_batt.ready = false;
     return;
   }
 
   adc_oneshot_chan_cfg_t chanCfg = {};
   chanCfg.atten = ADC_ATTEN_DB_12;
   chanCfg.bitwidth = ADC_BITWIDTH_12;
-  if (adc_oneshot_config_channel(g_battAdcHandle, (adc_channel_t)BATTERY_ADC_CHANNEL, &chanCfg) != ESP_OK) {
+  if (adc_oneshot_config_channel(g_batt.adcHandle, (adc_channel_t)BATTERY_ADC_CHANNEL, &chanCfg) != ESP_OK) {
     Serial.println("[BATT][ERR] adc_oneshot_config_channel failed");
-    g_battReady = false;
+    g_batt.ready = false;
     return;
   }
 
-  g_battReady = true;
+  g_batt.ready = true;
   Serial.printf("[BATT] monitor ready (ADC1_CH%d)\n", BATTERY_ADC_CHANNEL);
 }
 
 static bool sampleBatteryNow(uint32_t nowMs, bool force) {
-  if (!g_battReady || !g_battAdcHandle) return false;
-  if (!force && (nowMs - g_battLastSampleMs) < BATTERY_SAMPLE_INTERVAL_MS) return false;
-  const bool hadPrev = g_battHasSample;
-  const uint32_t prevTs = g_battLastSampleMs;
-  const float prevV = g_battVoltage;
-  g_battLastSampleMs = nowMs;
+  if (!g_batt.ready || !g_batt.adcHandle) return false;
+  if (!force && (nowMs - g_batt.lastSampleMs) < BATTERY_SAMPLE_INTERVAL_MS) return false;
+  const bool hadPrev = g_batt.hasSample;
+  const uint32_t prevTs = g_batt.lastSampleMs;
+  const float prevV = g_batt.voltage;
+  g_batt.lastSampleMs = nowMs;
 
   int raw = 0;
-  if (adc_oneshot_read(g_battAdcHandle, (adc_channel_t)BATTERY_ADC_CHANNEL, &raw) != ESP_OK) {
+  if (adc_oneshot_read(g_batt.adcHandle, (adc_channel_t)BATTERY_ADC_CHANNEL, &raw) != ESP_OK) {
     Serial.println("[BATT][ERR] adc_oneshot_read failed");
     return false;
   }
@@ -1289,47 +1336,47 @@ static bool sampleBatteryNow(uint32_t nowMs, bool force) {
   const float vbat = adcVolts * BATTERY_DIVIDER_RATIO;
   const int pct = batteryPercentFromVoltage(vbat);
 
-  g_battRaw = raw;
-  g_battVoltage = vbat;
-  g_battPercent = pct;
-  g_battHasSample = true;
+  g_batt.raw = raw;
+  g_batt.voltage = vbat;
+  g_batt.percent = pct;
+  g_batt.hasSample = true;
 
   if (!hadPrev) {
-    g_battTrendMs = nowMs;
-    g_battTrendVoltage = vbat;
+    g_batt.trendMs = nowMs;
+    g_batt.trendVoltage = vbat;
   } else if (prevTs > 0 && nowMs > prevTs) {
     const uint32_t dtMs = nowMs - prevTs;
     const float dvNow = vbat - prevV;
     const float mvPerMinNow = (dvNow * 1000.0f) * (60000.0f / (float)dtMs);
     // Fast hint for cable plug/unplug responsiveness between two consecutive samples.
     if (mvPerMinNow >= 18.0f) {
-      g_battExternalPowerLikely = true;
-      g_battExternalPowerHoldUntilMs = nowMs + 180000UL;
+      g_batt.externalPowerLikely = true;
+      g_batt.externalPowerHoldUntilMs = nowMs + 180000UL;
     } else if (mvPerMinNow <= -18.0f) {
-      g_battExternalPowerLikely = false;
-      g_battExternalPowerHoldUntilMs = 0;
+      g_batt.externalPowerLikely = false;
+      g_batt.externalPowerHoldUntilMs = 0;
     }
-    if (g_battTrendMs == 0) {
-      g_battTrendMs = prevTs;
-      g_battTrendVoltage = prevV;
+    if (g_batt.trendMs == 0) {
+      g_batt.trendMs = prevTs;
+      g_batt.trendVoltage = prevV;
     }
-    const uint32_t trendDtMs = nowMs - g_battTrendMs;
+    const uint32_t trendDtMs = nowMs - g_batt.trendMs;
     // Evaluate slope over a longer window to avoid ADC jitter flips.
     if (trendDtMs >= 45000UL) {
-      const float dv = vbat - g_battTrendVoltage;
+      const float dv = vbat - g_batt.trendVoltage;
       const float mvPerMin = (dv * 1000.0f) * (60000.0f / (float)trendDtMs);
-      if (mvPerMin >= 6.0f) g_battChargingLikely = true;
-      else if (mvPerMin <= -6.0f) g_battChargingLikely = false;
-      g_battTrendMs = nowMs;
-      g_battTrendVoltage = vbat;
+      if (mvPerMin >= 6.0f) g_batt.chargingLikely = true;
+      else if (mvPerMin <= -6.0f) g_batt.chargingLikely = false;
+      g_batt.trendMs = nowMs;
+      g_batt.trendVoltage = vbat;
     }
   }
 
-  if (g_battChargingLikely) {
-    g_battExternalPowerLikely = true;
-    g_battExternalPowerHoldUntilMs = nowMs + 180000UL;
-  } else if (g_battExternalPowerLikely && nowMs >= g_battExternalPowerHoldUntilMs) {
-    g_battExternalPowerLikely = false;
+  if (g_batt.chargingLikely) {
+    g_batt.externalPowerLikely = true;
+    g_batt.externalPowerHoldUntilMs = nowMs + 180000UL;
+  } else if (g_batt.externalPowerLikely && nowMs >= g_batt.externalPowerHoldUntilMs) {
+    g_batt.externalPowerLikely = false;
   }
 
   Serial.printf("[BATT] raw=%d vbat=%.3fV soc=%d%%\n", raw, vbat, pct);
@@ -1337,19 +1384,19 @@ static bool sampleBatteryNow(uint32_t nowMs, bool force) {
 }
 
 static const char *batteryPowerModeText() {
-  if (!g_battHasSample) return "UNKNOWN";
-  return g_battChargingLikely ? "CHARGING" : "BATTERY";
+  if (!g_batt.hasSample) return "UNKNOWN";
+  return g_batt.chargingLikely ? "CHARGING" : "BATTERY";
 }
 
 static bool batteryExternalPowerLikelyNow(uint32_t nowMs) {
-  if (!g_battHasSample) return false;
-  if (g_battChargingLikely) return true;
-  if (g_battExternalPowerLikely && nowMs < g_battExternalPowerHoldUntilMs) return true;
+  if (!g_batt.hasSample) return false;
+  if (g_batt.chargingLikely) return true;
+  if (g_batt.externalPowerLikely && nowMs < g_batt.externalPowerHoldUntilMs) return true;
   return false;
 }
 
 static const char *batteryPowerSourceText(uint32_t nowMs) {
-  if (!g_battHasSample) return "UNKNOWN";
+  if (!g_batt.hasSample) return "UNKNOWN";
   if (batteryExternalPowerLikelyNow(nowMs)) return "USB-C";
   return "BATTERY";
 }
@@ -1382,17 +1429,17 @@ static uint32_t rssRefreshIntervalByEnergy() { return RSS_REFRESH_MS; }
 static uint32_t rssRetryIntervalByEnergy() { return RSS_RETRY_MS; }
 
 static void applyEnergyPolicy(uint32_t nowMs, bool force) {
-  if (!force && (nowMs - g_energyLastEvalMs) < 2000UL) return;
-  g_energyLastEvalMs = nowMs;
-  const bool nextBatteryMode = g_battHasSample && !batteryExternalPowerLikelyNow(nowMs);
-  if (!force && nextBatteryMode == g_energyBatteryMode) return;
-  g_energyBatteryMode = nextBatteryMode;
-  const uint8_t targetBacklight = g_energyBatteryMode ? ENERGY_BACKLIGHT_ON_BATTERY : 100;
+  if (!force && (nowMs - g_batt.energyLastEvalMs) < 2000UL) return;
+  g_batt.energyLastEvalMs = nowMs;
+  const bool nextBatteryMode = g_batt.hasSample && !batteryExternalPowerLikelyNow(nowMs);
+  if (!force && nextBatteryMode == g_batt.energySaverActive) return;
+  g_batt.energySaverActive = nextBatteryMode;
+  const uint8_t targetBacklight = g_batt.energySaverActive ? ENERGY_BACKLIGHT_ON_BATTERY : 100;
   setBacklightPercent(targetBacklight);
   Serial.printf("[ENERGY] mode=%s backlight=%u%% batt=%d%% src=%s\n",
-                g_energyBatteryMode ? "BATTERY" : "USB-C",
+                g_batt.energySaverActive ? "BATTERY" : "USB-C",
                 (unsigned)targetBacklight,
-                g_battPercent,
+                g_batt.percent,
                 batteryPowerSourceText(nowMs));
 }
 #else
@@ -1447,7 +1494,7 @@ static void runSerialInfoTest() {
 static void printRuntimeSummary(uint32_t nowMs) {
   char timeBuf[24] = "--";
 #if TEST_NTP
-  if (g_ntpSynced) {
+  if (g_clock.ntpSynced) {
     struct tm ti;
     if (getLocalTime(&ti, 20)) {
       strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &ti);
@@ -1456,7 +1503,7 @@ static void printRuntimeSummary(uint32_t nowMs) {
 #endif
 
 #if TEST_WIFI
-  const bool wifiOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
+  const bool wifiOk = (WiFi.status() == WL_CONNECTED) && g_wifiSt.connected;
   const char *wifiState = wifiOk ? "CONNECTED" : "DISCONNECTED";
   const char *themeState = runtimeUiThemeId();
 #else
@@ -1465,7 +1512,7 @@ static void printRuntimeSummary(uint32_t nowMs) {
 #endif
 
 #if TEST_NTP
-  const char *ntpState = g_ntpSynced ? "SYNCED" : "UNSYNCED";
+  const char *ntpState = g_clock.ntpSynced ? "SYNCED" : "UNSYNCED";
 #else
   const char *ntpState = "OFF";
 #endif
@@ -1492,8 +1539,8 @@ static void printRuntimeSummary(uint32_t nowMs) {
 
 #if TEST_BATTERY
   char battBuf[48];
-  if (g_battHasSample) {
-    snprintf(battBuf, sizeof(battBuf), "%s %.3fV %d%%", batteryPowerModeText(), g_battVoltage, g_battPercent);
+  if (g_batt.hasSample) {
+    snprintf(battBuf, sizeof(battBuf), "%s %.3fV %d%%", batteryPowerModeText(), g_batt.voltage, g_batt.percent);
   } else {
     snprintf(battBuf, sizeof(battBuf), "not-ready");
   }
@@ -1520,16 +1567,16 @@ static void printRuntimeSummary(uint32_t nowMs) {
 
 #if TEST_LVGL_UI && TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
   {
-    const uint32_t window = nowMs - g_perfLastResetMs;
-    const uint32_t flushAvg = g_perfFlushCount ? (g_perfFlushTotalUs / g_perfFlushCount) : 0;
-    const uint32_t lvglAvg = g_perfLvglFrameCount ? (g_perfLvglTotalUs / g_perfLvglFrameCount) : 0;
-    const uint32_t fps = (window > 0 && g_perfFlushCount > 0) ? (g_perfFlushCount * 1000UL / window) : 0;
+    const uint32_t window = nowMs - g_perf.lastResetMs;
+    const uint32_t flushAvg = g_perf.flushCount ? (g_perf.flushTotalUs / g_perf.flushCount) : 0;
+    const uint32_t lvglAvg = g_perf.lvglFrameCount ? (g_perf.lvglTotalUs / g_perf.lvglFrameCount) : 0;
+    const uint32_t fps = (window > 0 && g_perf.flushCount > 0) ? (g_perf.flushCount * 1000UL / window) : 0;
     Serial.printf("[PERF] window=%lums flush=%lu frames avg=%luus max=%luus lvgl_handler=%lu calls avg=%luus max=%luus fps=%lu\n",
-                  window, g_perfFlushCount, flushAvg, g_perfFlushMaxUs,
-                  g_perfLvglFrameCount, lvglAvg, g_perfLvglMaxUs, fps);
-    g_perfFlushCount = 0; g_perfFlushTotalUs = 0; g_perfFlushMaxUs = 0;
-    g_perfLvglFrameCount = 0; g_perfLvglTotalUs = 0; g_perfLvglMaxUs = 0;
-    g_perfLastResetMs = nowMs;
+                  window, g_perf.flushCount, flushAvg, g_perf.flushMaxUs,
+                  g_perf.lvglFrameCount, lvglAvg, g_perf.lvglMaxUs, fps);
+    g_perf.flushCount = 0; g_perf.flushTotalUs = 0; g_perf.flushMaxUs = 0;
+    g_perf.lvglFrameCount = 0; g_perf.lvglTotalUs = 0; g_perf.lvglMaxUs = 0;
+    g_perf.lastResetMs = nowMs;
   }
 #endif
 }
@@ -1636,23 +1683,23 @@ static bool isNavFirstButtonPressed() {
 
 static void preparePowerButtonPin() {
   pinMode(PWR_BUTTON_PIN, PWR_BUTTON_ACTIVE_LOW ? INPUT_PULLUP : INPUT_PULLDOWN);
-  g_pwrLastRawLevel = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
-  g_pwrIgnoreUntilRelease = isPwrButtonPressed();
+  g_pwrBtn.lastRawLevel = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
+  g_pwrBtn.ignoreUntilRelease = isPwrButtonPressed();
   Serial.printf("[PWR] init pin=%d raw=%d active_low=%d\n",
                 PWR_BUTTON_PIN,
-                g_pwrLastRawLevel,
+                g_pwrBtn.lastRawLevel,
                 PWR_BUTTON_ACTIVE_LOW ? 1 : 0);
-  if (g_pwrIgnoreUntilRelease) {
+  if (g_pwrBtn.ignoreUntilRelease) {
     Serial.println("[PWR] Ignoring held key until release after boot.");
   }
 }
 
 static void prepareNavFirstButtonPin() {
   pinMode(NAV_FIRST_BUTTON_PIN, NAV_FIRST_BUTTON_ACTIVE_LOW ? INPUT_PULLUP : INPUT_PULLDOWN);
-  g_navFirstLastRawLevel = gpio_get_level((gpio_num_t)NAV_FIRST_BUTTON_PIN);
+  g_navBtn.lastRawLevel = gpio_get_level((gpio_num_t)NAV_FIRST_BUTTON_PIN);
   Serial.printf("[NAV] first-btn init pin=%d raw=%d active_low=%d\n",
                 NAV_FIRST_BUTTON_PIN,
-                g_navFirstLastRawLevel,
+                g_navBtn.lastRawLevel,
                 NAV_FIRST_BUTTON_ACTIVE_LOW ? 1 : 0);
 }
 
@@ -1695,10 +1742,10 @@ static void enterDeepSleepFromPowerButton() {
 #if TEST_WIFI
   WiFi.disconnect(true, false);
   WiFi.mode(WIFI_OFF);
-  g_wifiConnected = false;
+  g_wifiSt.connected = false;
 #endif
 #if TEST_NTP
-  g_ntpSynced = false;
+  g_clock.ntpSynced = false;
 #endif
 
   // Avoid immediate wake loops if key is still held when we enter deep sleep.
@@ -1716,15 +1763,15 @@ static void enterDeepSleepFromPowerButton() {
 static void resumeFromSoftPowerOff() {
   const uint32_t nowMs = millis();
   g_softPowerOff = false;
-  g_pwrIgnoreUntilRelease = true;
-  g_pwrButtonDown = false;
-  g_pwrHoldReported = false;
-  g_pwrPressCandidateMs = 0;
-  g_pwrReleaseCandidateMs = 0;
+  g_pwrBtn.ignoreUntilRelease = true;
+  g_pwrBtn.down = false;
+  g_pwrBtn.holdReported = false;
+  g_pwrBtn.pressCandidateMs = 0;
+  g_pwrBtn.releaseCandidateMs = 0;
 
   setBacklightPercent(100);
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
-  if (g_lvglReady && g_lvglScreenSaverActive) {
+  if (g_lvglReady && g_saver.active) {
     lvglSetScreenSaverActive(false);
   }
   markUserInteraction(nowMs);
@@ -1738,7 +1785,7 @@ static void resumeFromSoftPowerOff() {
   runWiFiConnectTest();
 #endif
 #if TEST_NTP
-  g_lastNtpAttemptMs = 0;
+  g_wifiSt.lastNtpAttemptMs = 0;
 #endif
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
   if (g_lvglReady) {
@@ -1758,10 +1805,10 @@ static void enterSoftPowerOffFromPowerButton() {
 #if TEST_WIFI
   WiFi.disconnect(true, false);
   WiFi.mode(WIFI_OFF);
-  g_wifiConnected = false;
+  g_wifiSt.connected = false;
 #endif
 #if TEST_NTP
-  g_ntpSynced = false;
+  g_clock.ntpSynced = false;
 #endif
 
   while (isPwrButtonPressed()) {
@@ -1815,7 +1862,7 @@ static void onPowerButtonShortPress(uint32_t nowMs) {
     return;
   }
   markUserInteraction(nowMs);
-  const bool nextSaverState = !g_lvglScreenSaverActive;
+  const bool nextSaverState = !g_saver.active;
   lvglSetScreenSaverActive(nextSaverState);
   Serial.printf("[PWR] Short press: screensaver %s.\n", nextSaverState ? "ON" : "OFF");
 #else
@@ -1826,68 +1873,68 @@ static void onPowerButtonShortPress(uint32_t nowMs) {
 
 static void handlePowerButtonLoop(uint32_t nowMs) {
   const int rawLevel = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
-  if (rawLevel != g_pwrLastRawLevel) {
-    Serial.printf("[PWR] raw level change: %d -> %d\n", g_pwrLastRawLevel, rawLevel);
-    g_pwrLastRawLevel = rawLevel;
+  if (rawLevel != g_pwrBtn.lastRawLevel) {
+    Serial.printf("[PWR] raw level change: %d -> %d\n", g_pwrBtn.lastRawLevel, rawLevel);
+    g_pwrBtn.lastRawLevel = rawLevel;
   }
 
   const bool pressed = isPwrButtonPressed();
-  if (g_pwrIgnoreUntilRelease) {
+  if (g_pwrBtn.ignoreUntilRelease) {
     if (!pressed) {
-      g_pwrIgnoreUntilRelease = false;
-      g_pwrButtonDown = false;
-      g_pwrHoldReported = false;
-      g_pwrPressCandidateMs = 0;
-      g_pwrReleaseCandidateMs = 0;
+      g_pwrBtn.ignoreUntilRelease = false;
+      g_pwrBtn.down = false;
+      g_pwrBtn.holdReported = false;
+      g_pwrBtn.pressCandidateMs = 0;
+      g_pwrBtn.releaseCandidateMs = 0;
       Serial.println("[PWR] Release gate cleared.");
     }
     return;
   }
 
   if (pressed) {
-    g_pwrReleaseCandidateMs = 0;
-    if (!g_pwrButtonDown) {
-      if (g_pwrPressCandidateMs == 0) {
-        g_pwrPressCandidateMs = nowMs;
+    g_pwrBtn.releaseCandidateMs = 0;
+    if (!g_pwrBtn.down) {
+      if (g_pwrBtn.pressCandidateMs == 0) {
+        g_pwrBtn.pressCandidateMs = nowMs;
         return;
       }
-      if ((nowMs - g_pwrPressCandidateMs) < kPwrPressDebounceMs) {
+      if ((nowMs - g_pwrBtn.pressCandidateMs) < kPwrPressDebounceMs) {
         return;
       }
-      g_pwrButtonDown = true;
-      g_pwrButtonDownMs = g_pwrPressCandidateMs;
-      g_pwrHoldReported = false;
+      g_pwrBtn.down = true;
+      g_pwrBtn.downMs = g_pwrBtn.pressCandidateMs;
+      g_pwrBtn.holdReported = false;
       Serial.println("[PWR] Button down.");
     } else {
-      const uint32_t heldMs = nowMs - g_pwrButtonDownMs;
-      if (!g_pwrHoldReported && heldMs >= 1000UL) {
-        g_pwrHoldReported = true;
+      const uint32_t heldMs = nowMs - g_pwrBtn.downMs;
+      if (!g_pwrBtn.holdReported && heldMs >= 1000UL) {
+        g_pwrBtn.holdReported = true;
         Serial.printf("[PWR] Keep holding (%lu/%d ms)\n", (unsigned long)heldMs, PWR_HOLD_SHUTDOWN_MS);
       }
       if (heldMs >= (uint32_t)PWR_HOLD_SHUTDOWN_MS) {
         Serial.printf("[PWR] Long press confirmed (%lu ms).\n", (unsigned long)heldMs);
-        g_pwrButtonDown = false;
-        g_pwrHoldReported = false;
-        g_pwrPressCandidateMs = 0;
-        g_pwrReleaseCandidateMs = 0;
+        g_pwrBtn.down = false;
+        g_pwrBtn.holdReported = false;
+        g_pwrBtn.pressCandidateMs = 0;
+        g_pwrBtn.releaseCandidateMs = 0;
         shutdownFromPowerButton(false);
       }
     }
     return;
   }
 
-  g_pwrPressCandidateMs = 0;
-  if (!g_pwrButtonDown) return;
+  g_pwrBtn.pressCandidateMs = 0;
+  if (!g_pwrBtn.down) return;
 
-  if (g_pwrReleaseCandidateMs == 0) {
-    g_pwrReleaseCandidateMs = nowMs;
+  if (g_pwrBtn.releaseCandidateMs == 0) {
+    g_pwrBtn.releaseCandidateMs = nowMs;
     return;
   }
-  if ((nowMs - g_pwrReleaseCandidateMs) < (uint32_t)PWR_RELEASE_DEBOUNCE_MS) {
+  if ((nowMs - g_pwrBtn.releaseCandidateMs) < (uint32_t)PWR_RELEASE_DEBOUNCE_MS) {
     return;
   }
 
-  const uint32_t heldMs = g_pwrReleaseCandidateMs - g_pwrButtonDownMs;
+  const uint32_t heldMs = g_pwrBtn.releaseCandidateMs - g_pwrBtn.downMs;
   if (heldMs >= (uint32_t)PWR_HOLD_SHUTDOWN_MS) {
     shutdownFromPowerButton(false);
   } else if (heldMs >= kPwrShortPressMinMs) {
@@ -1896,15 +1943,15 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
   } else {
     Serial.printf("[PWR] Ignored bounce/glitch (%lu ms).\n", (unsigned long)heldMs);
   }
-  g_pwrButtonDown = false;
-  g_pwrHoldReported = false;
-  g_pwrReleaseCandidateMs = 0;
+  g_pwrBtn.down = false;
+  g_pwrBtn.holdReported = false;
+  g_pwrBtn.releaseCandidateMs = 0;
 }
 
 static void onNavFirstButtonShortPress(uint32_t nowMs) {
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
   markUserInteraction(nowMs);
-  if (g_lvglReady && g_lvglScreenSaverActive) {
+  if (g_lvglReady && g_saver.active) {
     lvglSetScreenSaverActive(false);
   }
 #else
@@ -1916,39 +1963,39 @@ static void onNavFirstButtonShortPress(uint32_t nowMs) {
 
 static void handleNavFirstButtonLoop(uint32_t nowMs) {
   const int rawLevel = gpio_get_level((gpio_num_t)NAV_FIRST_BUTTON_PIN);
-  if (rawLevel != g_navFirstLastRawLevel) {
-    Serial.printf("[NAV] first-btn raw level change: %d -> %d\n", g_navFirstLastRawLevel, rawLevel);
-    g_navFirstLastRawLevel = rawLevel;
+  if (rawLevel != g_navBtn.lastRawLevel) {
+    Serial.printf("[NAV] first-btn raw level change: %d -> %d\n", g_navBtn.lastRawLevel, rawLevel);
+    g_navBtn.lastRawLevel = rawLevel;
   }
 
   const bool pressed = isNavFirstButtonPressed();
   if (pressed) {
-    g_navFirstReleaseCandidateMs = 0;
-    if (!g_navFirstButtonDown) {
-      g_navFirstButtonDown = true;
-      g_navFirstButtonDownMs = nowMs;
+    g_navBtn.releaseCandidateMs = 0;
+    if (!g_navBtn.down) {
+      g_navBtn.down = true;
+      g_navBtn.downMs = nowMs;
     }
     return;
   }
 
-  if (!g_navFirstButtonDown) return;
-  if (g_navFirstReleaseCandidateMs == 0) {
-    g_navFirstReleaseCandidateMs = nowMs;
+  if (!g_navBtn.down) return;
+  if (g_navBtn.releaseCandidateMs == 0) {
+    g_navBtn.releaseCandidateMs = nowMs;
     return;
   }
-  if ((nowMs - g_navFirstReleaseCandidateMs) < (uint32_t)NAV_BUTTON_RELEASE_DEBOUNCE_MS) {
+  if ((nowMs - g_navBtn.releaseCandidateMs) < (uint32_t)NAV_BUTTON_RELEASE_DEBOUNCE_MS) {
     return;
   }
 
-  const uint32_t heldMs = g_navFirstReleaseCandidateMs - g_navFirstButtonDownMs;
+  const uint32_t heldMs = g_navBtn.releaseCandidateMs - g_navBtn.downMs;
   if (heldMs <= (uint32_t)NAV_BUTTON_TAP_MAX_MS) {
     onNavFirstButtonShortPress(nowMs);
   } else {
     Serial.printf("[NAV] first-btn long press ignored (%lu ms)\n", (unsigned long)heldMs);
   }
 
-  g_navFirstButtonDown = false;
-  g_navFirstReleaseCandidateMs = 0;
+  g_navBtn.down = false;
+  g_navBtn.releaseCandidateMs = 0;
 }
 
 static void handleWakeHoldGate() {
@@ -1973,7 +2020,7 @@ static bool onDisplayFlushDone(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
   (void)edata;
   (void)user_ctx;
   BaseType_t taskWoken = pdFALSE;
-  if (g_dispFlushSem) xSemaphoreGiveFromISR(g_dispFlushSem, &taskWoken);
+  if (g_dispHw.flushSem) xSemaphoreGiveFromISR(g_dispHw.flushSem, &taskWoken);
   return false;
 }
 
@@ -1981,14 +2028,14 @@ static inline int16_t dispWidth() { return DB_CANVAS_W; }
 static inline int16_t dispHeight() { return DB_CANVAS_H; }
 
 static void dispFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
-  if (!g_canvasBuf || w <= 0 || h <= 0) return;
+  if (!g_dispHw.canvasBuf || w <= 0 || h <= 0) return;
   if (x < 0) { w += x; x = 0; }
   if (y < 0) { h += y; y = 0; }
   if (x >= DB_CANVAS_W || y >= DB_CANVAS_H) return;
   if ((x + w) > DB_CANVAS_W) w = DB_CANVAS_W - x;
   if ((y + h) > DB_CANVAS_H) h = DB_CANVAS_H - y;
   for (int16_t yy = y; yy < (y + h); ++yy) {
-    uint16_t *row = g_canvasBuf + (yy * DB_CANVAS_W) + x;
+    uint16_t *row = g_dispHw.canvasBuf + (yy * DB_CANVAS_W) + x;
     for (int16_t xx = 0; xx < w; ++xx) row[xx] = color;
   }
 }
@@ -2002,8 +2049,8 @@ static void dispDrawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 }
 
 static void dispFillScreen(uint16_t color) {
-  if (!g_canvasBuf) return;
-  for (int i = 0; i < (DB_CANVAS_W * DB_CANVAS_H); ++i) g_canvasBuf[i] = color;
+  if (!g_dispHw.canvasBuf) return;
+  for (int i = 0; i < (DB_CANVAS_W * DB_CANVAS_H); ++i) g_dispHw.canvasBuf[i] = color;
 }
 
 // ── CGA palette + CP437 char draw (used by DOOM HUD) ─────────────────────────
@@ -2097,47 +2144,47 @@ static const char *doomTouchZoneName(uint8_t zone) {
 }
 
 static void doomRequestNeutralCalibrate() {
-  g_doomNeutralPending = true;
-  g_doomNeutralReady = false;
-  g_doomNeutralArmAtMs = millis() + kDoomNeutralCaptureDelayMs;
-  g_doomNeutralStableSinceMs = 0;
-  g_doomNeutralStableSamples = 0;
-  g_doomNeutralAccumMoveDeg = 0.0f;
-  g_doomNeutralAccumTurnDeg = 0.0f;
-  g_doomTiltFilterReady = false;
-  g_doomLastTiltSampleMs = 0;
-  g_doomMoveTiltDeg = 0.0f;
-  g_doomTurnTiltDeg = 0.0f;
-  g_doomAxisFilterReady = false;
-  g_doomMoveDeltaFilteredDeg = 0.0f;
-  g_doomTurnDeltaFilteredDeg = 0.0f;
-  g_doomMoveBin = 0;
-  g_doomTurnBin = 0;
-  g_doomFrameDirty = true;
+  g_doom.neutralPending = true;
+  g_doom.neutralReady = false;
+  g_doom.neutralArmAtMs = millis() + kDoomNeutralCaptureDelayMs;
+  g_doom.neutralStableSinceMs = 0;
+  g_doom.neutralStableSamples = 0;
+  g_doom.neutralAccumMoveDeg = 0.0f;
+  g_doom.neutralAccumTurnDeg = 0.0f;
+  g_doom.tiltFilterReady = false;
+  g_doom.lastTiltSampleMs = 0;
+  g_doom.moveTiltDeg = 0.0f;
+  g_doom.turnTiltDeg = 0.0f;
+  g_doom.axisFilterReady = false;
+  g_doom.moveDeltaFilteredDeg = 0.0f;
+  g_doom.turnDeltaFilteredDeg = 0.0f;
+  g_doom.moveBin = 0;
+  g_doom.turnBin = 0;
+  g_doom.frameDirty = true;
   Serial.println("[DOOM][IMU] neutral calibration requested");
 }
 
 static inline void doomFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
-  if (!g_canvasBuf || w <= 0 || h <= 0) return;
+  if (!g_dispHw.canvasBuf || w <= 0 || h <= 0) return;
   if (x < 0) { w += x; x = 0; }
   if (y < 0) { h += y; y = 0; }
   if ((x + w) > DB_CANVAS_W) w = DB_CANVAS_W - x;
   if ((y + h) > DB_CANVAS_H) h = DB_CANVAS_H - y;
   if (w <= 0 || h <= 0) return;
   for (int16_t yy = y; yy < (y + h); ++yy) {
-    uint16_t *row = g_canvasBuf + ((size_t)yy * DB_CANVAS_W) + x;
+    uint16_t *row = g_dispHw.canvasBuf + ((size_t)yy * DB_CANVAS_W) + x;
     for (int16_t xx = 0; xx < w; ++xx) row[xx] = color;
   }
 }
 
 static void doomDrawText(int16_t x, int16_t y, const char *text, uint8_t fgIdx, uint8_t bgIdx,
                          int16_t fontW = 6, int16_t fontH = 12) {
-  if (!g_canvasBuf || !text || !*text) return;
+  if (!g_dispHw.canvasBuf || !text || !*text) return;
   int16_t cursorX = x;
   while (*text) {
     if ((cursorX + fontW) > 0 && cursorX < DB_CANVAS_W &&
         (y + fontH) > 0 && y < DB_CANVAS_H) {
-      drawCgaChar(g_canvasBuf, DB_CANVAS_W, cursorX, y, (uint8_t)*text, fgIdx, bgIdx, fontW, fontH);
+      drawCgaChar(g_dispHw.canvasBuf, DB_CANVAS_W, cursorX, y, (uint8_t)*text, fgIdx, bgIdx, fontW, fontH);
     }
     cursorX += fontW;
     ++text;
@@ -2145,9 +2192,9 @@ static void doomDrawText(int16_t x, int16_t y, const char *text, uint8_t fgIdx, 
 }
 
 static inline void doomSetPixel(int16_t x, int16_t y, uint16_t color) {
-  if (!g_canvasBuf) return;
+  if (!g_dispHw.canvasBuf) return;
   if (x < 0 || x >= DB_CANVAS_W || y < 0 || y >= DB_CANVAS_H) return;
-  g_canvasBuf[((size_t)y * DB_CANVAS_W) + (size_t)x] = color;
+  g_dispHw.canvasBuf[((size_t)y * DB_CANVAS_W) + (size_t)x] = color;
 }
 
 static inline uint8_t doomFontBitmapAlpha(const uint8_t *bitmap, uint32_t pixelIndex, uint8_t bpp) {
@@ -2187,7 +2234,7 @@ static int16_t doomMeasureFontText(const lv_font_t *font, const char *text) {
 static void doomDrawFontText(int16_t x, int16_t y, const char *text,
                              const lv_font_t *font, uint16_t fg,
                              bool opaqueBg = false, uint16_t bg = 0) {
-  if (!g_canvasBuf || !text || !*text || !font) return;
+  if (!g_dispHw.canvasBuf || !text || !*text || !font) return;
   const int16_t lineH = (int16_t)lv_font_get_line_height(font);
   const int16_t textW = doomMeasureFontText(font, text);
   if (opaqueBg && textW > 0 && lineH > 0) doomFillRect(x, y, textW, lineH, bg);
@@ -2237,8 +2284,8 @@ static inline void doomDrawRectOutline(int16_t x, int16_t y, int16_t w, int16_t 
 // meters, industrial touch buttons. Minimal text — the meters speak.
 
 static void doomDrawBandOverlay() {
-  const bool leftActive  = (g_doomTouchZone == DOOM_TOUCH_LEFT);
-  const bool rightActive = (g_doomTouchZone == DOOM_TOUCH_RIGHT);
+  const bool leftActive  = (g_doom.touchZone == DOOM_TOUCH_LEFT);
+  const bool rightActive = (g_doom.touchZone == DOOM_TOUCH_RIGHT);
 
   // ── Palette ───────────────────────────────────────────────────────────
   const uint16_t bgDark      = lv_color_make(6, 8, 4).full;
@@ -2264,7 +2311,7 @@ static void doomDrawBandOverlay() {
   const int16_t bh  = DB_CANVAS_H;                     // 172
   const int16_t lcx = lw / 2;
   const int16_t rcx = rx + (rw / 2);
-  const uint16_t readoutCol = g_imuReady ? textAmber : redHi;
+  const uint16_t readoutCol = g_imu.ready ? textAmber : redHi;
 
   // ── Backgrounds: dark olive + CRT scanlines ───────────────────────────
   doomFillRect(0, 0, lw, bh, bgDark);
@@ -2283,12 +2330,12 @@ static void doomDrawBandOverlay() {
   // ── IMU readout strings ───────────────────────────────────────────────
   char moveBuf[16], turnBuf[16];
 #if TEST_IMU
-  if      (!g_imuReady)         { snprintf(moveBuf, sizeof(moveBuf), "NO IMU");
+  if      (!g_imu.ready)         { snprintf(moveBuf, sizeof(moveBuf), "NO IMU");
                                   snprintf(turnBuf, sizeof(turnBuf), "NO IMU"); }
-  else if (!g_doomNeutralReady) { snprintf(moveBuf, sizeof(moveBuf), "CAL");
+  else if (!g_doom.neutralReady) { snprintf(moveBuf, sizeof(moveBuf), "CAL");
                                   snprintf(turnBuf, sizeof(turnBuf), "CAL"); }
-  else                          { snprintf(moveBuf, sizeof(moveBuf), "%+d", (int)g_doomMoveBin);
-                                  snprintf(turnBuf, sizeof(turnBuf), "%+d", (int)g_doomTurnBin); }
+  else                          { snprintf(moveBuf, sizeof(moveBuf), "%+d", (int)g_doom.moveBin);
+                                  snprintf(turnBuf, sizeof(turnBuf), "%+d", (int)g_doom.turnBin); }
 #else
   snprintf(moveBuf, sizeof(moveBuf), "--");
   snprintf(turnBuf, sizeof(turnBuf), "--");
@@ -2320,11 +2367,11 @@ static void doomDrawBandOverlay() {
 
   doomFillRect(vmX - 5, vmCY - 1, vmW + 10, 2, centerMark);
 
-  if (g_doomMoveBin != 0) {
+  if (g_doom.moveBin != 0) {
     const int16_t halfH = (vmH / 2) - 6;
-    const int16_t span  = max<int16_t>(2, (int16_t)((abs(g_doomMoveBin) * halfH) / kDoomMoveBinMax));
+    const int16_t span  = max<int16_t>(2, (int16_t)((abs(g_doom.moveBin) * halfH) / kDoomMoveBinMax));
     const uint16_t fillC = leftActive ? greenHi : greenMid;
-    if (g_doomMoveBin < 0) {
+    if (g_doom.moveBin < 0) {
       doomFillRect(vmX + 3, vmCY - span,     vmW - 6, span, fillC);
       doomFillRect(vmX + 3, vmCY - span - 1, vmW - 6, 1,    greenDim);
     } else {
@@ -2378,11 +2425,11 @@ static void doomDrawBandOverlay() {
 
   doomFillRect(hmCX, hmY - 3, 2, hmH + 6, centerMark);
 
-  if (g_doomTurnBin != 0) {
+  if (g_doom.turnBin != 0) {
     const int16_t halfW = (hmW / 2) - 6;
-    const int16_t span  = max<int16_t>(2, (int16_t)((abs(g_doomTurnBin) * halfW) / kDoomTurnBinMax));
+    const int16_t span  = max<int16_t>(2, (int16_t)((abs(g_doom.turnBin) * halfW) / kDoomTurnBinMax));
     const uint16_t fillC = rightActive ? textAmber : lv_color_make(180, 120, 0).full;
-    if (g_doomTurnBin < 0)
+    if (g_doom.turnBin < 0)
       doomFillRect(hmCX - span, hmY + 4, span, hmH - 8, fillC);
     else
       doomFillRect(hmCX + 2,    hmY + 4, span, hmH - 8, fillC);
@@ -2397,13 +2444,13 @@ static void doomDrawBandOverlay() {
 #if DB_HAS_PRBOOM_DONOR
   if (!doomPrboomHasFrame()) {
     char promptBuf[24];
-    if (!g_doomLaunchRequested) snprintf(promptBuf, sizeof(promptBuf), "PRESS FIRE");
+    if (!g_doom.launchRequested) snprintf(promptBuf, sizeof(promptBuf), "PRESS FIRE");
     else { const char *s = doomPrboomStatus();
            snprintf(promptBuf, sizeof(promptBuf), "%s", s ? s : "BOOTING"); }
     const int16_t bdW = rw - 36, bdX = rx + 18, bdY = 82, bdH = 24;
     doomFillRect(bdX, bdY, bdW, bdH, lv_color_make(14, 10, 4).full);
     doomDrawRectOutline(bdX, bdY, bdW, bdH,
-                        g_doomLaunchRequested ? textAmber : redHi);
+                        g_doom.launchRequested ? textAmber : redHi);
     doomFillRect(bdX + 1, bdY + 1, bdW - 2, 1, lv_color_make(36, 26, 10).full);
     doomDrawFontTextCentered(rcx, bdY + 4, promptBuf,
                              &scry_font_space_mono_16, textAmber);
@@ -2432,9 +2479,9 @@ bool doomScrybarPageVisible() {
 
 bool doomScrybarGetInputState(int8_t *moveBin, int8_t *turnBin, uint8_t *touchZone) {
   const bool visible = (g_uiPageMode == UI_PAGE_DOOM);
-  if (moveBin) *moveBin = visible ? g_doomMoveBin : 0;
-  if (turnBin) *turnBin = visible ? g_doomTurnBin : 0;
-  if (touchZone) *touchZone = visible ? g_doomTouchZone : DOOM_TOUCH_NONE;
+  if (moveBin) *moveBin = visible ? g_doom.moveBin : 0;
+  if (turnBin) *turnBin = visible ? g_doom.turnBin : 0;
+  if (touchZone) *touchZone = visible ? g_doom.touchZone : DOOM_TOUCH_NONE;
   return visible;
 }
 
@@ -2445,14 +2492,14 @@ bool doomScrybarBlitIndexedFrame(const uint8_t *pixels,
                                  bool forceFlush) {
   if (!pixels || !palette565be) return false;
   if (g_uiPageMode != UI_PAGE_DOOM) return false;
-  if (!g_canvasBuf) return false;
+  if (!g_dispHw.canvasBuf) return false;
   if (!initDisplay()) return false;
 
-  memset(g_canvasBuf, 0, (size_t)DB_CANVAS_W * DB_CANVAS_H * sizeof(uint16_t));
+  memset(g_dispHw.canvasBuf, 0, (size_t)DB_CANVAS_W * DB_CANVAS_H * sizeof(uint16_t));
   for (int16_t y = 0; y < kDoomFrameH; ++y) {
     const int srcY = ((int32_t)y * srcHeight) / kDoomFrameH;
     const size_t srcRow = (size_t)srcY * (size_t)srcWidth;
-    uint16_t *dst = g_canvasBuf + ((size_t)(kDoomFrameY + y) * DB_CANVAS_W) + kDoomFrameX;
+    uint16_t *dst = g_dispHw.canvasBuf + ((size_t)(kDoomFrameY + y) * DB_CANVAS_W) + kDoomFrameX;
     for (int16_t x = 0; x < kDoomFrameW; ++x) {
       const int srcX = ((int32_t)x * srcWidth) / kDoomFrameW;
       dst[x] = palette565be[pixels[srcRow + (size_t)srcX]];
@@ -2468,30 +2515,30 @@ bool doomScrybarBlitIndexedFrame(const uint8_t *pixels,
 }
 
 static void doomBuildPalette() {
-  if (g_doomPaletteReady) return;
+  if (g_doom.paletteReady) return;
   for (uint16_t i = 0; i < 256; ++i) {
     const uint8_t r = pgm_read_byte(kDoomTitlePicPalette + (i * 3) + 0);
     const uint8_t g = pgm_read_byte(kDoomTitlePicPalette + (i * 3) + 1);
     const uint8_t b = pgm_read_byte(kDoomTitlePicPalette + (i * 3) + 2);
     const uint16_t raw565 = doomRgb888To565(r, g, b);
-    g_doomPalette565[i] = (uint16_t)((raw565 << 8) | (raw565 >> 8));
+    g_doom.palette565[i] = (uint16_t)((raw565 << 8) | (raw565 >> 8));
   }
-  g_doomPaletteReady = true;
+  g_doom.paletteReady = true;
 }
 
 static void doomBlitTitlePicToCanvas() {
-  if (!g_canvasBuf) return;
+  if (!g_dispHw.canvasBuf) return;
   doomBuildPalette();
-  memset(g_canvasBuf, 0, (size_t)DB_CANVAS_W * DB_CANVAS_H * sizeof(uint16_t));
+  memset(g_dispHw.canvasBuf, 0, (size_t)DB_CANVAS_W * DB_CANVAS_H * sizeof(uint16_t));
 
   for (int16_t y = 0; y < kDoomFrameH; ++y) {
     const int16_t srcY = (int16_t)(((int32_t)y * kDoomTitlePicHeight) / kDoomFrameH);
     const size_t srcRow = (size_t)srcY * kDoomTitlePicWidth;
-    uint16_t *dst = g_canvasBuf + ((size_t)(kDoomFrameY + y) * DB_CANVAS_W) + kDoomFrameX;
+    uint16_t *dst = g_dispHw.canvasBuf + ((size_t)(kDoomFrameY + y) * DB_CANVAS_W) + kDoomFrameX;
     for (int16_t x = 0; x < kDoomFrameW; ++x) {
       const int16_t srcX = (int16_t)(((int32_t)x * kDoomTitlePicWidth) / kDoomFrameW);
       const uint8_t idx = pgm_read_byte(kDoomTitlePicPixels + srcRow + srcX);
-      const uint16_t color = g_doomPalette565[idx];
+      const uint16_t color = g_doom.palette565[idx];
       dst[x] = color;
     }
   }
@@ -2503,24 +2550,24 @@ static void doomRenderSpike(bool force) {
   if (g_uiPageMode != UI_PAGE_DOOM) return;
   if (!initDisplay()) return;
 #if DB_HAS_PRBOOM_DONOR
-  if (g_doomLaunchRequested) {
+  if (g_doom.launchRequested) {
     doomPrboomEnsureStarted();
     if (doomPrboomHasFrame()) {
-      g_doomFrameDirty = false;
+      g_doom.frameDirty = false;
       return;
     }
   }
 #endif
-  if (!force && !g_doomFrameDirty) return;
+  if (!force && !g_doom.frameDirty) return;
 
   setBacklightPercent(100);
   doomBlitTitlePicToCanvas();
   dispFlush();
-  g_doomFrameDirty = false;
+  g_doom.frameDirty = false;
 
   const uint32_t now = millis();
-  if (force || g_doomLastRenderLogMs == 0 || (now - g_doomLastRenderLogMs) >= 2000) {
-    g_doomLastRenderLogMs = now;
+  if (force || g_doom.lastRenderLogMs == 0 || (now - g_doom.lastRenderLogMs) >= 2000) {
+    g_doom.lastRenderLogMs = now;
     const char *status = doomPrboomStatus();
     Serial.printf("[DOOM] TITLEPIC rendered src=%ux%u frame=%dx%d@x=%d bands=%d/%d move=%d turn=%d status=%s donor=prboom-go\n",
                   (unsigned)kDoomTitlePicWidth,
@@ -2530,8 +2577,8 @@ static void doomRenderSpike(bool force) {
                   (int)kDoomFrameX,
                   (int)kDoomLeftBandW,
                   (int)(DB_CANVAS_W - kDoomRightBandX),
-                  (int)g_doomMoveBin,
-                  (int)g_doomTurnBin,
+                  (int)g_doom.moveBin,
+                  (int)g_doom.turnBin,
                   status ? status : "boot");
   }
 }
@@ -2558,7 +2605,7 @@ static inline void dispRotateChunk(uint16_t *dst, int16_t colBase) {
       for (int16_t dj = dj0; dj < dj0 + T; ++dj) {
         uint16_t *d = &dst[dj * DB_NATIVE_W + di0];
         for (int16_t di = di0; di < diEnd; ++di) {
-          d[di - di0] = g_canvasBuf[(DB_CANVAS_H - 1 - di) * DB_CANVAS_W + colBase + dj];
+          d[di - di0] = g_dispHw.canvasBuf[(DB_CANVAS_H - 1 - di) * DB_CANVAS_W + colBase + dj];
         }
       }
     }
@@ -2566,27 +2613,27 @@ static inline void dispRotateChunk(uint16_t *dst, int16_t colBase) {
 }
 
 static bool dispFlush() {
-  if (!g_panel || !g_canvasBuf || !g_dmaBuf || !g_dmaBuf2 || !g_dispFlushSem) return false;
+  if (!g_dispHw.panel || !g_dispHw.canvasBuf || !g_dispHw.dmaBuf || !g_dispHw.dmaBuf2 || !g_dispHw.flushSem) return false;
 
   const uint32_t t0 = micros();
   const int chunks = DB_NATIVE_H / DB_CHUNK_ROWS;  // 640/64 = 10
-  uint16_t *bufCur = g_dmaBuf;
-  uint16_t *bufNext = g_dmaBuf2;
+  uint16_t *bufCur = g_dispHw.dmaBuf;
+  uint16_t *bufNext = g_dispHw.dmaBuf2;
 
   // Rotate first chunk (no DMA overlap yet)
   dispRotateChunk(bufCur, 0);
 
   // Start DMA on first chunk
-  xSemaphoreGive(g_dispFlushSem);
-  xSemaphoreTake(g_dispFlushSem, portMAX_DELAY);
-  esp_lcd_panel_draw_bitmap(g_panel, 0, 0, DB_NATIVE_W, DB_CHUNK_ROWS, bufCur);
+  xSemaphoreGive(g_dispHw.flushSem);
+  xSemaphoreTake(g_dispHw.flushSem, portMAX_DELAY);
+  esp_lcd_panel_draw_bitmap(g_dispHw.panel, 0, 0, DB_NATIVE_W, DB_CHUNK_ROWS, bufCur);
 
   // Pipeline: rotate chunk c into bufNext while DMA sends chunk c-1 from bufCur
   for (int c = 1; c < chunks; ++c) {
     dispRotateChunk(bufNext, c * DB_CHUNK_ROWS);
 
-    xSemaphoreTake(g_dispFlushSem, portMAX_DELAY);
-    esp_lcd_panel_draw_bitmap(g_panel, 0, c * DB_CHUNK_ROWS, DB_NATIVE_W, (c + 1) * DB_CHUNK_ROWS, bufNext);
+    xSemaphoreTake(g_dispHw.flushSem, portMAX_DELAY);
+    esp_lcd_panel_draw_bitmap(g_dispHw.panel, 0, c * DB_CHUNK_ROWS, DB_NATIVE_W, (c + 1) * DB_CHUNK_ROWS, bufNext);
 
     uint16_t *tmp = bufCur;
     bufCur = bufNext;
@@ -2594,12 +2641,12 @@ static bool dispFlush() {
   }
 
   // Wait for last DMA to complete
-  xSemaphoreTake(g_dispFlushSem, portMAX_DELAY);
+  xSemaphoreTake(g_dispHw.flushSem, portMAX_DELAY);
 
   const uint32_t dt = micros() - t0;
-  g_perfFlushCount++;
-  g_perfFlushTotalUs += dt;
-  if (dt > g_perfFlushMaxUs) g_perfFlushMaxUs = dt;
+  g_perf.flushCount++;
+  g_perf.flushTotalUs += dt;
+  if (dt > g_perf.flushMaxUs) g_perf.flushMaxUs = dt;
 
   return true;
 }
@@ -2607,7 +2654,7 @@ static bool dispFlush() {
 
 static bool initDisplay() {
 #if TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
-  if (g_panel != nullptr) return true;
+  if (g_dispHw.panel != nullptr) return true;
 
   gpio_config_t rst_cfg = {};
   rst_cfg.intr_type = GPIO_INTR_DISABLE;
@@ -2632,8 +2679,8 @@ static bool initDisplay() {
     return false;
   }
 
-  g_dispFlushSem = xSemaphoreCreateBinary();
-  if (!g_dispFlushSem) {
+  g_dispHw.flushSem = xSemaphoreCreateBinary();
+  if (!g_dispHw.flushSem) {
     Serial.println("[ERR] flush semaphore alloc failed.");
     return false;
   }
@@ -2649,7 +2696,7 @@ static bool initDisplay() {
   io_config.lcd_cmd_bits = 32;
   io_config.lcd_param_bits = 8;
   io_config.flags.quad_mode = true;
-  if (esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &g_panelIo) != ESP_OK) {
+  if (esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &g_dispHw.panelIo) != ESP_OK) {
     Serial.println("[ERR] esp_lcd_new_panel_io_spi failed.");
     return false;
   }
@@ -2668,7 +2715,7 @@ static bool initDisplay() {
   panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
   panel_config.bits_per_pixel = 16;
   panel_config.vendor_config = &vendor_config;
-  if (esp_lcd_new_panel_axs15231b(g_panelIo, &panel_config, &g_panel) != ESP_OK) {
+  if (esp_lcd_new_panel_axs15231b(g_dispHw.panelIo, &panel_config, &g_dispHw.panel) != ESP_OK) {
     Serial.println("[ERR] esp_lcd_new_panel_axs15231b failed.");
     return false;
   }
@@ -2679,21 +2726,21 @@ static bool initDisplay() {
   delay(250);
   gpio_set_level((gpio_num_t)LCD_RST_PIN, 1);
   delay(30);
-  if (esp_lcd_panel_init(g_panel) != ESP_OK) {
+  if (esp_lcd_panel_init(g_dispHw.panel) != ESP_OK) {
     Serial.println("[ERR] esp_lcd_panel_init failed.");
     return false;
   }
 #if DISPLAY_FLIP_180
-  if (esp_lcd_panel_mirror(g_panel, true, true) != ESP_OK) {
+  if (esp_lcd_panel_mirror(g_dispHw.panel, true, true) != ESP_OK) {
     Serial.println("[ERR] esp_lcd_panel_mirror(180) failed.");
     return false;
   }
 #endif
 
-  g_canvasBuf = (uint16_t *)heap_caps_malloc(DB_CANVAS_W * DB_CANVAS_H * sizeof(uint16_t), MALLOC_CAP_SPIRAM);
-  g_dmaBuf = (uint16_t *)heap_caps_malloc(DB_NATIVE_W * DB_CHUNK_ROWS * sizeof(uint16_t), MALLOC_CAP_DMA);
-  g_dmaBuf2 = (uint16_t *)heap_caps_malloc(DB_NATIVE_W * DB_CHUNK_ROWS * sizeof(uint16_t), MALLOC_CAP_DMA);
-  if (!g_canvasBuf || !g_dmaBuf || !g_dmaBuf2) {
+  g_dispHw.canvasBuf = (uint16_t *)heap_caps_malloc(DB_CANVAS_W * DB_CANVAS_H * sizeof(uint16_t), MALLOC_CAP_SPIRAM);
+  g_dispHw.dmaBuf = (uint16_t *)heap_caps_malloc(DB_NATIVE_W * DB_CHUNK_ROWS * sizeof(uint16_t), MALLOC_CAP_DMA);
+  g_dispHw.dmaBuf2 = (uint16_t *)heap_caps_malloc(DB_NATIVE_W * DB_CHUNK_ROWS * sizeof(uint16_t), MALLOC_CAP_DMA);
+  if (!g_dispHw.canvasBuf || !g_dispHw.dmaBuf || !g_dispHw.dmaBuf2) {
     Serial.println("[ERR] display buffers alloc failed.");
     return false;
   }
@@ -2766,16 +2813,16 @@ static bool applyWiFiDnsOverrideIfEnabled(bool verbose);
 static void webConfigStartCaptiveDnsIfNeeded();
 static void webConfigStopCaptiveDns();
 #endif
-static bool wifiSetupModeIsOff() { return strcmp(g_wifiSetupMode, "off") == 0; }
-static bool wifiSetupModeIsOn() { return strcmp(g_wifiSetupMode, "on") == 0; }
+static bool wifiSetupModeIsOff() { return strcmp(g_wifiSt.setupMode, "off") == 0; }
+static bool wifiSetupModeIsOn() { return strcmp(g_wifiSt.setupMode, "on") == 0; }
 static bool wifiSetupModeIsAuto() { return !wifiSetupModeIsOff() && !wifiSetupModeIsOn(); }
 
 static void wifiBuildSetupApSsid() {
-  if (g_wifiSetupApSsid[0]) return;
+  if (g_wifiSt.setupApSsid[0]) return;
   const uint64_t mac = ESP.getEfuseMac();
   const uint8_t tailA = (uint8_t)((mac >> 8) & 0xFF);
   const uint8_t tailB = (uint8_t)(mac & 0xFF);
-  snprintf(g_wifiSetupApSsid, sizeof(g_wifiSetupApSsid), "%s-%02X%02X", WIFI_SETUP_AP_SSID_PREFIX, tailA, tailB);
+  snprintf(g_wifiSt.setupApSsid, sizeof(g_wifiSt.setupApSsid), "%s-%02X%02X", WIFI_SETUP_AP_SSID_PREFIX, tailA, tailB);
 }
 
 static void wifiBuildSetupPortalUrl(char *out, size_t outLen) {
@@ -2787,36 +2834,36 @@ static void wifiBuildSetupPortalUrl(char *out, size_t outLen) {
 }
 
 static bool wifiStartSetupAp(bool autoStart) {
-  if (g_wifiSetupApActive) return true;
+  if (g_wifiSt.setupApActive) return true;
   wifiBuildSetupApSsid();
   WiFi.mode(WIFI_AP_STA);
   bool ok = false;
   if (strlen(WIFI_SETUP_AP_PASSWORD) >= 8) {
-    ok = WiFi.softAP(g_wifiSetupApSsid, WIFI_SETUP_AP_PASSWORD, WIFI_SETUP_AP_CHANNEL, false, WIFI_SETUP_AP_MAX_CLIENTS);
+    ok = WiFi.softAP(g_wifiSt.setupApSsid, WIFI_SETUP_AP_PASSWORD, WIFI_SETUP_AP_CHANNEL, false, WIFI_SETUP_AP_MAX_CLIENTS);
   } else {
-    ok = WiFi.softAP(g_wifiSetupApSsid, nullptr, WIFI_SETUP_AP_CHANNEL, false, WIFI_SETUP_AP_MAX_CLIENTS);
+    ok = WiFi.softAP(g_wifiSt.setupApSsid, nullptr, WIFI_SETUP_AP_CHANNEL, false, WIFI_SETUP_AP_MAX_CLIENTS);
   }
   if (!ok) {
     Serial.println("[WIFI][AP][ERR] impossibile avviare setup AP");
     return false;
   }
-  g_wifiSetupApActive = true;
-  g_wifiSetupApAutoStarted = autoStart;
+  g_wifiSt.setupApActive = true;
+  g_wifiSt.setupApAutoStarted = autoStart;
 #if WEB_CONFIG_ENABLED
   webConfigStartCaptiveDnsIfNeeded();
 #endif
   Serial.printf("[WIFI][AP] setup active ssid='%s' ip=%s mode=%s\n",
-                g_wifiSetupApSsid,
+                g_wifiSt.setupApSsid,
                 WiFi.softAPIP().toString().c_str(),
                 autoStart ? "auto" : "manual");
   return true;
 }
 
 static void wifiStopSetupAp() {
-  if (!g_wifiSetupApActive) return;
+  if (!g_wifiSt.setupApActive) return;
   WiFi.softAPdisconnect(true);
-  g_wifiSetupApActive = false;
-  g_wifiSetupApAutoStarted = false;
+  g_wifiSt.setupApActive = false;
+  g_wifiSt.setupApAutoStarted = false;
 #if WEB_CONFIG_ENABLED
   webConfigStopCaptiveDns();
 #endif
@@ -2825,49 +2872,49 @@ static void wifiStopSetupAp() {
 }
 
 static void wifiScheduleNextAttempt(uint32_t nowMs, uint32_t delayMs) {
-  g_wifiReconnectAttemptActive = false;
-  g_wifiReconnectNextAttemptMs = nowMs + delayMs;
+  g_wifiSt.reconnectAttemptActive = false;
+  g_wifiSt.reconnectNextAttemptMs = nowMs + delayMs;
 }
 
 static void wifiRotateCredentialIndex() {
-  if (g_wifiCredCount <= 1) return;
-  g_wifiReconnectIdx = (uint8_t)((g_wifiReconnectIdx + 1U) % g_wifiCredCount);
+  if (g_wifiSt.credCount <= 1) return;
+  g_wifiSt.reconnectIdx = (uint8_t)((g_wifiSt.reconnectIdx + 1U) % g_wifiSt.credCount);
 }
 
 static void wifiRearmStationRadio(uint32_t nowMs, const char *cause) {
-  if ((nowMs - g_wifiLastRadioResetMs) < 1500UL) {
+  if ((nowMs - g_wifiSt.lastRadioResetMs) < 1500UL) {
     wifiScheduleNextAttempt(nowMs, WIFI_RETRY_AFTER_RADIO_RESET_MS);
     return;
   }
   Serial.printf("[WIFI][HEAL] radio reset cause=%s\n", cause ? cause : "-");
-  g_wifiInternalDisconnect = true;
+  g_wifiSt.internalDisconnect = true;
   WiFi.disconnect(true, false);
   delay(20);
   WiFi.mode(WIFI_OFF);
-  g_wifiSetupApActive = false;
-  g_wifiSetupApAutoStarted = false;
+  g_wifiSt.setupApActive = false;
+  g_wifiSt.setupApAutoStarted = false;
   delay(60);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
-  g_wifiInternalDisconnect = false;
-  g_lastWifiDiscReason = -1;
-  g_wifiLastRadioResetMs = millis();
-  wifiScheduleNextAttempt(g_wifiLastRadioResetMs, WIFI_RETRY_AFTER_RADIO_RESET_MS);
+  g_wifiSt.internalDisconnect = false;
+  g_wifiSt.lastDiscReason = -1;
+  g_wifiSt.lastRadioResetMs = millis();
+  wifiScheduleNextAttempt(g_wifiSt.lastRadioResetMs, WIFI_RETRY_AFTER_RADIO_RESET_MS);
 }
 
 static void wifiHandleFailure(uint32_t nowMs, const char *cause) {
-  const uint8_t failedIdx = g_wifiReconnectIdx;
-  const char *failedSsid = g_wifiCredSsids[failedIdx] ? g_wifiCredSsids[failedIdx] : "-";
+  const uint8_t failedIdx = g_wifiSt.reconnectIdx;
+  const char *failedSsid = g_wifiSt.credSsids[failedIdx] ? g_wifiSt.credSsids[failedIdx] : "-";
   wifiRotateCredentialIndex();
-  const char *nextSsid = g_wifiCredSsids[g_wifiReconnectIdx] ? g_wifiCredSsids[g_wifiReconnectIdx] : "-";
-  ++g_wifiConsecutiveFailCount;
+  const char *nextSsid = g_wifiSt.credSsids[g_wifiSt.reconnectIdx] ? g_wifiSt.credSsids[g_wifiSt.reconnectIdx] : "-";
+  ++g_wifiSt.consecutiveFailCount;
   Serial.printf("[WIFI][RETRY] cause=%s fail_streak=%u failed='%s' next='%s'\n",
                 cause ? cause : "-",
-                (unsigned)g_wifiConsecutiveFailCount,
+                (unsigned)g_wifiSt.consecutiveFailCount,
                 failedSsid,
                 nextSsid);
-  if (g_wifiConsecutiveFailCount >= WIFI_RETRY_FAILS_BEFORE_RADIO_RESET) {
-    g_wifiConsecutiveFailCount = 0;
+  if (g_wifiSt.consecutiveFailCount >= WIFI_RETRY_FAILS_BEFORE_RADIO_RESET) {
+    g_wifiSt.consecutiveFailCount = 0;
     wifiRearmStationRadio(nowMs, cause);
     return;
   }
@@ -2876,17 +2923,17 @@ static void wifiHandleFailure(uint32_t nowMs, const char *cause) {
 
 static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
   if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
-    g_wifiConnected = true;
-    g_wifiEverConnected = true;
-    g_wifiLastConnectMs = millis();
-    g_wifiNoLinkSinceMs = 0;
-    g_wifiConsecutiveFailCount = 0;
+    g_wifiSt.connected = true;
+    g_wifiSt.everConnected = true;
+    g_wifiSt.lastConnectMs = millis();
+    g_wifiSt.noLinkSinceMs = 0;
+    g_wifiSt.consecutiveFailCount = 0;
     Serial.printf("[WIFI][GOT_IP] ip=%s\n", WiFi.localIP().toString().c_str());
     const String activeSsid = WiFi.SSID();
-    for (uint8_t i = 0; i < g_wifiCredCount; ++i) {
-      const char *known = g_wifiCredSsids[i];
+    for (uint8_t i = 0; i < g_wifiSt.credCount; ++i) {
+      const char *known = g_wifiSt.credSsids[i];
       if (known && activeSsid.equals(known)) {
-        g_wifiReconnectIdx = i;
+        g_wifiSt.reconnectIdx = i;
         break;
       }
     }
@@ -2900,19 +2947,19 @@ static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
     ensureScryBarMdnsStarted();
 #endif
   } else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
-    const bool attemptWasActive = g_wifiReconnectAttemptActive;
-    g_wifiConnected = false;
-    g_wifiLastDisconnectMs = millis();
-    if (g_wifiNoLinkSinceMs == 0) g_wifiNoLinkSinceMs = g_wifiLastDisconnectMs;
-    g_lastWifiDiscReason = (int)info.wifi_sta_disconnected.reason;
+    const bool attemptWasActive = g_wifiSt.reconnectAttemptActive;
+    g_wifiSt.connected = false;
+    g_wifiSt.lastDisconnectMs = millis();
+    if (g_wifiSt.noLinkSinceMs == 0) g_wifiSt.noLinkSinceMs = g_wifiSt.lastDisconnectMs;
+    g_wifiSt.lastDiscReason = (int)info.wifi_sta_disconnected.reason;
 #if WEB_CONFIG_ENABLED
     stopScryBarMdns();
 #endif
     Serial.printf("[WIFI][DISC] reason=%d (%s)\n",
-                  g_lastWifiDiscReason,
-                  WiFi.disconnectReasonName((wifi_err_reason_t)g_lastWifiDiscReason));
-    if (g_wifiCredCount == 0) return;
-    if (g_wifiInternalDisconnect) {
+                  g_wifiSt.lastDiscReason,
+                  WiFi.disconnectReasonName((wifi_err_reason_t)g_wifiSt.lastDiscReason));
+    if (g_wifiSt.credCount == 0) return;
+    if (g_wifiSt.internalDisconnect) {
       wifiScheduleNextAttempt(millis(), WIFI_RETRY_STEP_DELAY_MS);
       return;
     }
@@ -2967,8 +3014,8 @@ static size_t buildWiFiStaticCredentialList(const char **ssidOut, const char **p
 
 static int8_t findWiFiCredentialIndexBySsid(const char *ssid) {
   if (!ssid || !ssid[0]) return -1;
-  for (uint8_t i = 0; i < g_wifiCredCount; ++i) {
-    const char *known = g_wifiCredSsids[i];
+  for (uint8_t i = 0; i < g_wifiSt.credCount; ++i) {
+    const char *known = g_wifiSt.credSsids[i];
     if (!known || !known[0]) continue;
     if (strcmp(known, ssid) == 0) return (int8_t)i;
   }
@@ -2976,49 +3023,49 @@ static int8_t findWiFiCredentialIndexBySsid(const char *ssid) {
 }
 
 static void wifiPrepareCredentialCache() {
-  g_wifiStaticCredCount = buildWiFiStaticCredentialList(g_wifiStaticSsids, g_wifiStaticPasswords, WIFI_STATIC_CREDENTIALS_MAX);
-  g_wifiCredCount = 0;
-  for (uint8_t i = 0; i < g_wifiRuntimeCredCount && g_wifiCredCount < WIFI_TOTAL_CREDENTIALS_MAX; ++i) {
-    const char *ssid = g_wifiRuntimeCreds[i].ssid;
+  g_wifiSt.staticCredCount = buildWiFiStaticCredentialList(g_wifiSt.staticSsids, g_wifiSt.staticPasswords, WIFI_STATIC_CREDENTIALS_MAX);
+  g_wifiSt.credCount = 0;
+  for (uint8_t i = 0; i < g_wifiSt.runtimeCredCount && g_wifiSt.credCount < WIFI_TOTAL_CREDENTIALS_MAX; ++i) {
+    const char *ssid = g_wifiSt.runtimeCreds[i].ssid;
     if (!ssid[0]) continue;
-    g_wifiCredSsids[g_wifiCredCount] = g_wifiRuntimeCreds[i].ssid;
-    g_wifiCredPasswords[g_wifiCredCount] = g_wifiRuntimeCreds[i].password;
-    ++g_wifiCredCount;
+    g_wifiSt.credSsids[g_wifiSt.credCount] = g_wifiSt.runtimeCreds[i].ssid;
+    g_wifiSt.credPasswords[g_wifiSt.credCount] = g_wifiSt.runtimeCreds[i].password;
+    ++g_wifiSt.credCount;
   }
-  for (size_t i = 0; i < g_wifiStaticCredCount && g_wifiCredCount < WIFI_TOTAL_CREDENTIALS_MAX; ++i) {
-    const char *ssid = g_wifiStaticSsids[i];
+  for (size_t i = 0; i < g_wifiSt.staticCredCount && g_wifiSt.credCount < WIFI_TOTAL_CREDENTIALS_MAX; ++i) {
+    const char *ssid = g_wifiSt.staticSsids[i];
     if (!ssid || !ssid[0]) continue;
     bool duplicate = false;
-    for (size_t j = 0; j < g_wifiCredCount; ++j) {
-      if (g_wifiCredSsids[j] && strcmp(g_wifiCredSsids[j], ssid) == 0) {
+    for (size_t j = 0; j < g_wifiSt.credCount; ++j) {
+      if (g_wifiSt.credSsids[j] && strcmp(g_wifiSt.credSsids[j], ssid) == 0) {
         duplicate = true;
         break;
       }
     }
     if (duplicate) continue;
-    g_wifiCredSsids[g_wifiCredCount] = ssid;
-    g_wifiCredPasswords[g_wifiCredCount] = g_wifiStaticPasswords[i];
-    ++g_wifiCredCount;
+    g_wifiSt.credSsids[g_wifiSt.credCount] = ssid;
+    g_wifiSt.credPasswords[g_wifiSt.credCount] = g_wifiSt.staticPasswords[i];
+    ++g_wifiSt.credCount;
   }
-  if (g_wifiCredCount == 0) {
+  if (g_wifiSt.credCount == 0) {
     Serial.println("[WIFI][WARN] Nessuna rete nota configurata (secrets + NVS)");
   } else {
     Serial.printf("[WIFI] reti note: %u (secrets=%u runtime=%u)\n",
-                  (unsigned)g_wifiCredCount,
-                  (unsigned)g_wifiStaticCredCount,
-                  (unsigned)g_wifiRuntimeCredCount);
+                  (unsigned)g_wifiSt.credCount,
+                  (unsigned)g_wifiSt.staticCredCount,
+                  (unsigned)g_wifiSt.runtimeCredCount);
   }
-  g_wifiReconnectIdx = 0;
-  if (g_wifiPreferredSsid[0]) {
-    const int8_t preferredIdx = findWiFiCredentialIndexBySsid(g_wifiPreferredSsid);
-    if (preferredIdx >= 0) g_wifiReconnectIdx = (uint8_t)preferredIdx;
+  g_wifiSt.reconnectIdx = 0;
+  if (g_wifiSt.preferredSsid[0]) {
+    const int8_t preferredIdx = findWiFiCredentialIndexBySsid(g_wifiSt.preferredSsid);
+    if (preferredIdx >= 0) g_wifiSt.reconnectIdx = (uint8_t)preferredIdx;
   }
-  g_wifiReconnectAttemptActive = false;
-  g_wifiReconnectAttemptStartMs = 0;
-  g_wifiReconnectNextAttemptMs = 0;
-  g_wifiConsecutiveFailCount = 0;
-  g_wifiLastRadioResetMs = 0;
-  g_wifiInternalDisconnect = false;
+  g_wifiSt.reconnectAttemptActive = false;
+  g_wifiSt.reconnectAttemptStartMs = 0;
+  g_wifiSt.reconnectNextAttemptMs = 0;
+  g_wifiSt.consecutiveFailCount = 0;
+  g_wifiSt.lastRadioResetMs = 0;
+  g_wifiSt.internalDisconnect = false;
 }
 
 static bool wifiIsConnectedNow();
@@ -3026,91 +3073,91 @@ static bool wifiIsConnectedNow();
 static void wifiHandleSetupModeLoop(uint32_t nowMs) {
   if (wifiSetupModeIsOn()) {
     (void)wifiStartSetupAp(false);
-    if (wifiIsConnectedNow()) g_wifiNoLinkSinceMs = 0;
+    if (wifiIsConnectedNow()) g_wifiSt.noLinkSinceMs = 0;
     return;
   }
 
   if (wifiIsConnectedNow()) {
-    g_wifiNoLinkSinceMs = 0;
-    if (g_wifiSetupApActive) wifiStopSetupAp();
+    g_wifiSt.noLinkSinceMs = 0;
+    if (g_wifiSt.setupApActive) wifiStopSetupAp();
     return;
   }
-  if (g_wifiNoLinkSinceMs == 0) g_wifiNoLinkSinceMs = nowMs;
+  if (g_wifiSt.noLinkSinceMs == 0) g_wifiSt.noLinkSinceMs = nowMs;
 
   if (wifiSetupModeIsOff()) {
-    if (g_wifiSetupApActive) wifiStopSetupAp();
+    if (g_wifiSt.setupApActive) wifiStopSetupAp();
     return;
   }
   if (!wifiSetupModeIsAuto()) return;
 
-  const uint32_t bootstrapDelay = (g_wifiCredCount == 0) ? 500UL : WIFI_SETUP_AP_AUTOSTART_MS;
-  if (!g_wifiSetupApActive && (nowMs - g_wifiNoLinkSinceMs) >= bootstrapDelay) {
+  const uint32_t bootstrapDelay = (g_wifiSt.credCount == 0) ? 500UL : WIFI_SETUP_AP_AUTOSTART_MS;
+  if (!g_wifiSt.setupApActive && (nowMs - g_wifiSt.noLinkSinceMs) >= bootstrapDelay) {
     (void)wifiStartSetupAp(true);
   }
 }
 
 static bool wifiIsConnectedNow() {
-  return (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
+  return (WiFi.status() == WL_CONNECTED) && g_wifiSt.connected;
 }
 
 static void wifiBeginAttempt(uint8_t idx) {
-  if (idx >= g_wifiCredCount) return;
-  const char *ssid = g_wifiCredSsids[idx];
-  const char *password = g_wifiCredPasswords[idx];
+  if (idx >= g_wifiSt.credCount) return;
+  const char *ssid = g_wifiSt.credSsids[idx];
+  const char *password = g_wifiSt.credPasswords[idx];
   if (!ssid || !ssid[0]) return;
 
-  g_wifiConnected = false;
-  g_lastWifiDiscReason = -1;
-  g_wifiInternalDisconnect = true;
+  g_wifiSt.connected = false;
+  g_wifiSt.lastDiscReason = -1;
+  g_wifiSt.internalDisconnect = true;
   WiFi.disconnect(true, false);
   delay(20);
-  g_wifiInternalDisconnect = false;
+  g_wifiSt.internalDisconnect = false;
 
   Serial.printf("[WIFI] try %u/%u ssid='%s' timeout=%ums\n",
                 (unsigned)(idx + 1),
-                (unsigned)g_wifiCredCount,
+                (unsigned)g_wifiSt.credCount,
                 ssid,
                 (unsigned)WIFI_CONNECT_TIMEOUT_MS);
   if (password && password[0]) WiFi.begin(ssid, password);
   else WiFi.begin(ssid);
 
-  g_wifiReconnectAttemptActive = true;
-  g_wifiReconnectAttemptStartMs = millis();
+  g_wifiSt.reconnectAttemptActive = true;
+  g_wifiSt.reconnectAttemptStartMs = millis();
 }
 
 static void handleWiFiReconnectLoop(uint32_t nowMs) {
-  if (g_wifiCredCount == 0) return;
+  if (g_wifiSt.credCount == 0) return;
   if (wifiIsConnectedNow()) {
-    g_wifiReconnectAttemptActive = false;
+    g_wifiSt.reconnectAttemptActive = false;
     return;
   }
 
-  if (!g_wifiReconnectAttemptActive) {
-    if (nowMs < g_wifiReconnectNextAttemptMs) return;
-    wifiBeginAttempt(g_wifiReconnectIdx);
+  if (!g_wifiSt.reconnectAttemptActive) {
+    if (nowMs < g_wifiSt.reconnectNextAttemptMs) return;
+    wifiBeginAttempt(g_wifiSt.reconnectIdx);
     return;
   }
 
-  if ((nowMs - g_wifiReconnectAttemptStartMs) < (uint32_t)WIFI_CONNECT_TIMEOUT_MS) return;
+  if ((nowMs - g_wifiSt.reconnectAttemptStartMs) < (uint32_t)WIFI_CONNECT_TIMEOUT_MS) return;
 
-  const uint8_t failedIdx = g_wifiReconnectIdx;
-  const char *failedSsid = g_wifiCredSsids[failedIdx] ? g_wifiCredSsids[failedIdx] : "-";
+  const uint8_t failedIdx = g_wifiSt.reconnectIdx;
+  const char *failedSsid = g_wifiSt.credSsids[failedIdx] ? g_wifiSt.credSsids[failedIdx] : "-";
   Serial.printf("[WIFI][FAIL] ssid='%s' status=%s (%d)\n",
                 failedSsid,
                 wlStatusToStr(WiFi.status()),
                 (int)WiFi.status());
-  if (g_lastWifiDiscReason >= 0) {
+  if (g_wifiSt.lastDiscReason >= 0) {
     Serial.printf("[WIFI][FAIL] reason=%d (%s)\n",
-                  g_lastWifiDiscReason,
-                  WiFi.disconnectReasonName((wifi_err_reason_t)g_lastWifiDiscReason));
+                  g_wifiSt.lastDiscReason,
+                  WiFi.disconnectReasonName((wifi_err_reason_t)g_wifiSt.lastDiscReason));
   }
 
   // Close current attempt first; avoid event-side double handling.
-  g_wifiReconnectAttemptActive = false;
-  g_wifiInternalDisconnect = true;
+  g_wifiSt.reconnectAttemptActive = false;
+  g_wifiSt.internalDisconnect = true;
   WiFi.disconnect(true, false);
   delay(10);
-  g_wifiInternalDisconnect = false;
+  g_wifiSt.internalDisconnect = false;
   wifiHandleFailure(nowMs, "timeout");
 }
 
@@ -3146,19 +3193,19 @@ static bool runWiFiConnectTest() {
   WiFi.disconnect(true, false);
   delay(100);
 
-  g_wifiConnected = false;
-  g_lastWifiDiscReason = -1;
-  if (!g_wifiEventRegistered) {
+  g_wifiSt.connected = false;
+  g_wifiSt.lastDiscReason = -1;
+  if (!g_wifiSt.eventRegistered) {
     WiFi.onEvent(onWiFiEvent);
-    g_wifiEventRegistered = true;
+    g_wifiSt.eventRegistered = true;
   }
   normalizeWifiSetupMode();
   wifiPrepareCredentialCache();
-  g_wifiNoLinkSinceMs = millis();
+  g_wifiSt.noLinkSinceMs = millis();
 
-  if (g_wifiCredCount > 0) {
+  if (g_wifiSt.credCount > 0) {
     // Non-blocking strategy: one SSID attempt at a time, cycled in loop().
-    wifiBeginAttempt(g_wifiReconnectIdx);
+    wifiBeginAttempt(g_wifiSt.reconnectIdx);
   } else {
     Serial.println("[WIFI][INFO] Nessuna rete nota: avvio setup AP fallback.");
     (void)wifiStartSetupAp(true);
@@ -3188,15 +3235,15 @@ static bool runNtpTimeTest() {
       char buf[64];
       strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
       Serial.printf("[OK] NTP sync riuscita. local_time=%s\n", buf);
-      g_ntpSynced = true;
-      g_lastClockSecond = -1;
-      g_lastDateKey = -1;
-      g_clockStaticDrawn = false;
+      g_clock.ntpSynced = true;
+      g_clock.lastSecond = -1;
+      g_clock.lastDateKey = -1;
+      g_clock.staticDrawn = false;
       return true;
     }
   }
 
-  g_ntpSynced = false;
+  g_clock.ntpSynced = false;
   Serial.printf("[FAIL] NTP timeout dopo %u ms\n", NTP_SYNC_TIMEOUT_MS);
   return false;
 }
@@ -3225,11 +3272,11 @@ static void buildScryBarMdnsIdentity(char *hostOut, size_t hostLen, char *instan
 }
 
 static void ensureScryBarMdnsStarted() {
-  if (g_scrybarMdnsStarted) return;
-  if (!g_wifiConnected || WiFi.status() != WL_CONNECTED) return;
+  if (g_webCfg.mdnsStarted) return;
+  if (!g_wifiSt.connected || WiFi.status() != WL_CONNECTED) return;
 
-  char host[sizeof(g_scrybarMdnsHost)] = {0};
-  char instance[sizeof(g_scrybarMdnsInstanceName)] = {0};
+  char host[sizeof(g_webCfg.mdnsHost)] = {0};
+  char instance[sizeof(g_webCfg.mdnsInstanceName)] = {0};
   buildScryBarMdnsIdentity(host, sizeof(host), instance, sizeof(instance));
   if (!host[0]) return;
 
@@ -3248,21 +3295,21 @@ static void ensureScryBarMdnsStarted() {
   MDNS.addServiceTxt("scrybar", "tcp", "fw", FW_BUILD_TAG);
   MDNS.addServiceTxt("scrybar", "tcp", "api", "/api/now-playing");
 
-  copyStringSafe(g_scrybarMdnsHost, sizeof(g_scrybarMdnsHost), host);
-  copyStringSafe(g_scrybarMdnsInstanceName, sizeof(g_scrybarMdnsInstanceName), instance);
-  g_scrybarMdnsStarted = true;
+  copyStringSafe(g_webCfg.mdnsHost, sizeof(g_webCfg.mdnsHost), host);
+  copyStringSafe(g_webCfg.mdnsInstanceName, sizeof(g_webCfg.mdnsInstanceName), instance);
+  g_webCfg.mdnsStarted = true;
   Serial.printf("[MDNS] service='%s' host=%s.local type=_scrybar._tcp port=%u\n",
-                g_scrybarMdnsInstanceName,
-                g_scrybarMdnsHost,
+                g_webCfg.mdnsInstanceName,
+                g_webCfg.mdnsHost,
                 (unsigned)WEB_CONFIG_PORT);
 }
 
 static void stopScryBarMdns() {
-  if (!g_scrybarMdnsStarted) return;
+  if (!g_webCfg.mdnsStarted) return;
   MDNS.end();
-  g_scrybarMdnsStarted = false;
-  g_scrybarMdnsHost[0] = '\0';
-  g_scrybarMdnsInstanceName[0] = '\0';
+  g_webCfg.mdnsStarted = false;
+  g_webCfg.mdnsHost[0] = '\0';
+  g_webCfg.mdnsInstanceName[0] = '\0';
   Serial.println("[MDNS] stopped");
 }
 #elif WEB_CONFIG_ENABLED
@@ -3277,16 +3324,16 @@ static bool startsWithHttp(const char *url) {
 
 static void normalizeWifiSetupMode() {
   if (wifiSetupModeIsOff() || wifiSetupModeIsOn() || wifiSetupModeIsAuto()) return;
-  copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), WIFI_SETUP_MODE_DEFAULT);
+  copyStringSafe(g_wifiSt.setupMode, sizeof(g_wifiSt.setupMode), WIFI_SETUP_MODE_DEFAULT);
   if (!wifiSetupModeIsOff() && !wifiSetupModeIsOn() && !wifiSetupModeIsAuto()) {
-    copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), "auto");
+    copyStringSafe(g_wifiSt.setupMode, sizeof(g_wifiSt.setupMode), "auto");
   }
 }
 
 static int8_t findRuntimeWiFiCredentialBySsid(const char *ssid) {
   if (!ssid || !ssid[0]) return -1;
-  for (uint8_t i = 0; i < g_wifiRuntimeCredCount; ++i) {
-    if (strcmp(g_wifiRuntimeCreds[i].ssid, ssid) == 0) return (int8_t)i;
+  for (uint8_t i = 0; i < g_wifiSt.runtimeCredCount; ++i) {
+    if (strcmp(g_wifiSt.runtimeCreds[i].ssid, ssid) == 0) return (int8_t)i;
   }
   return -1;
 }
@@ -3299,30 +3346,30 @@ static bool upsertRuntimeWiFiCredential(const char *ssid, const char *password) 
 
   const int8_t existing = findRuntimeWiFiCredentialBySsid(ssid);
   if (existing >= 0) {
-    copyStringSafe(g_wifiRuntimeCreds[(uint8_t)existing].password, sizeof(g_wifiRuntimeCreds[(uint8_t)existing].password), safePass);
+    copyStringSafe(g_wifiSt.runtimeCreds[(uint8_t)existing].password, sizeof(g_wifiSt.runtimeCreds[(uint8_t)existing].password), safePass);
     return true;
   }
 
-  if (g_wifiRuntimeCredCount < WIFI_RUNTIME_CREDENTIALS_MAX) {
-    copyStringSafe(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].ssid, sizeof(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].ssid), ssid);
-    copyStringSafe(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].password, sizeof(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].password), safePass);
-    ++g_wifiRuntimeCredCount;
+  if (g_wifiSt.runtimeCredCount < WIFI_RUNTIME_CREDENTIALS_MAX) {
+    copyStringSafe(g_wifiSt.runtimeCreds[g_wifiSt.runtimeCredCount].ssid, sizeof(g_wifiSt.runtimeCreds[g_wifiSt.runtimeCredCount].ssid), ssid);
+    copyStringSafe(g_wifiSt.runtimeCreds[g_wifiSt.runtimeCredCount].password, sizeof(g_wifiSt.runtimeCreds[g_wifiSt.runtimeCredCount].password), safePass);
+    ++g_wifiSt.runtimeCredCount;
     return true;
   }
 
   // FIFO eviction when runtime slots are full.
   for (uint8_t i = 1; i < WIFI_RUNTIME_CREDENTIALS_MAX; ++i) {
-    copyStringSafe(g_wifiRuntimeCreds[i - 1].ssid, sizeof(g_wifiRuntimeCreds[i - 1].ssid), g_wifiRuntimeCreds[i].ssid);
-    copyStringSafe(g_wifiRuntimeCreds[i - 1].password, sizeof(g_wifiRuntimeCreds[i - 1].password), g_wifiRuntimeCreds[i].password);
+    copyStringSafe(g_wifiSt.runtimeCreds[i - 1].ssid, sizeof(g_wifiSt.runtimeCreds[i - 1].ssid), g_wifiSt.runtimeCreds[i].ssid);
+    copyStringSafe(g_wifiSt.runtimeCreds[i - 1].password, sizeof(g_wifiSt.runtimeCreds[i - 1].password), g_wifiSt.runtimeCreds[i].password);
   }
   const uint8_t tail = WIFI_RUNTIME_CREDENTIALS_MAX - 1;
-  copyStringSafe(g_wifiRuntimeCreds[tail].ssid, sizeof(g_wifiRuntimeCreds[tail].ssid), ssid);
-  copyStringSafe(g_wifiRuntimeCreds[tail].password, sizeof(g_wifiRuntimeCreds[tail].password), safePass);
+  copyStringSafe(g_wifiSt.runtimeCreds[tail].ssid, sizeof(g_wifiSt.runtimeCreds[tail].ssid), ssid);
+  copyStringSafe(g_wifiSt.runtimeCreds[tail].password, sizeof(g_wifiSt.runtimeCreds[tail].password), safePass);
   return true;
 }
 
 static void loadRuntimeWiFiCredentialsFromPrefs(Preferences &prefs, bool &loadedAny) {
-  g_wifiRuntimeCredCount = 0;
+  g_wifiSt.runtimeCredCount = 0;
   const uint8_t rawCount = prefs.getUChar("wifi_dyn_n", 0);
   const uint8_t count = (rawCount > WIFI_RUNTIME_CREDENTIALS_MAX) ? WIFI_RUNTIME_CREDENTIALS_MAX : rawCount;
   for (uint8_t i = 0; i < count; ++i) {
@@ -3334,23 +3381,23 @@ static void loadRuntimeWiFiCredentialsFromPrefs(Preferences &prefs, bool &loaded
     if (ssid.length() == 0 || ssid.length() > WIFI_MAX_SSID_LEN) continue;
     const String pass = prefs.getString(keyPass, "");
     if (pass.length() > WIFI_MAX_PASSWORD_LEN) continue;
-    copyStringSafe(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].ssid, sizeof(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].ssid), ssid.c_str());
-    copyStringSafe(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].password, sizeof(g_wifiRuntimeCreds[g_wifiRuntimeCredCount].password), pass.c_str());
-    ++g_wifiRuntimeCredCount;
+    copyStringSafe(g_wifiSt.runtimeCreds[g_wifiSt.runtimeCredCount].ssid, sizeof(g_wifiSt.runtimeCreds[g_wifiSt.runtimeCredCount].ssid), ssid.c_str());
+    copyStringSafe(g_wifiSt.runtimeCreds[g_wifiSt.runtimeCredCount].password, sizeof(g_wifiSt.runtimeCreds[g_wifiSt.runtimeCredCount].password), pass.c_str());
+    ++g_wifiSt.runtimeCredCount;
     loadedAny = true;
   }
 }
 
 static size_t saveRuntimeWiFiCredentialsToPrefs(Preferences &prefs) {
-  size_t bytes = prefs.putUChar("wifi_dyn_n", g_wifiRuntimeCredCount);
+  size_t bytes = prefs.putUChar("wifi_dyn_n", g_wifiSt.runtimeCredCount);
   for (uint8_t i = 0; i < WIFI_RUNTIME_CREDENTIALS_MAX; ++i) {
     char keySsid[16];
     char keyPass[16];
     snprintf(keySsid, sizeof(keySsid), "wifi_ds%u", (unsigned)(i + 1));
     snprintf(keyPass, sizeof(keyPass), "wifi_dp%u", (unsigned)(i + 1));
-    if (i < g_wifiRuntimeCredCount) {
-      bytes += prefs.putString(keySsid, g_wifiRuntimeCreds[i].ssid);
-      bytes += prefs.putString(keyPass, g_wifiRuntimeCreds[i].password);
+    if (i < g_wifiSt.runtimeCredCount) {
+      bytes += prefs.putString(keySsid, g_wifiSt.runtimeCreds[i].ssid);
+      bytes += prefs.putString(keyPass, g_wifiSt.runtimeCreds[i].password);
     } else {
       bytes += prefs.putString(keySsid, "");
       bytes += prefs.putString(keyPass, "");
@@ -3552,8 +3599,8 @@ static void loadRuntimeNetConfigFromNvs() {
   if (prefs.isKey("wifi_pref")) {
     String wifiPref = prefs.getString("wifi_pref", "");
     wifiPref.trim();
-    if (wifiPref.length() < sizeof(g_wifiPreferredSsid)) {
-      copyStringSafe(g_wifiPreferredSsid, sizeof(g_wifiPreferredSsid), wifiPref.c_str());
+    if (wifiPref.length() < sizeof(g_wifiSt.preferredSsid)) {
+      copyStringSafe(g_wifiSt.preferredSsid, sizeof(g_wifiSt.preferredSsid), wifiPref.c_str());
       loadedAny = true;
     }
   }
@@ -3561,8 +3608,8 @@ static void loadRuntimeNetConfigFromNvs() {
     String setupMode = prefs.getString("wifi_setup_mode", WIFI_SETUP_MODE_DEFAULT);
     setupMode.trim();
     setupMode.toLowerCase();
-    if (setupMode.length() < sizeof(g_wifiSetupMode)) {
-      copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), setupMode.c_str());
+    if (setupMode.length() < sizeof(g_wifiSt.setupMode)) {
+      copyStringSafe(g_wifiSt.setupMode, sizeof(g_wifiSt.setupMode), setupMode.c_str());
       loadedAny = true;
     }
   }
@@ -3633,10 +3680,10 @@ static void loadRuntimeNetConfigFromNvs() {
 
   normalizeWifiSetupMode();
   wifiPrepareCredentialCache();
-  if (g_wifiPreferredSsid[0]) {
-    const int8_t preferredIdx = findWiFiCredentialIndexBySsid(g_wifiPreferredSsid);
-    if (preferredIdx >= 0) g_wifiReconnectIdx = (uint8_t)preferredIdx;
-    else g_wifiPreferredSsid[0] = '\0';
+  if (g_wifiSt.preferredSsid[0]) {
+    const int8_t preferredIdx = findWiFiCredentialIndexBySsid(g_wifiSt.preferredSsid);
+    if (preferredIdx >= 0) g_wifiSt.reconnectIdx = (uint8_t)preferredIdx;
+    else g_wifiSt.preferredSsid[0] = '\0';
   }
 
   if (langNeedsPersist) {
@@ -3663,9 +3710,9 @@ static void loadRuntimeNetConfigFromNvs() {
                   g_runtimeNetConfig.uiTheme,
                   (unsigned)g_runtimeNetConfig.enabledViewsMask,
                   g_wikiLang,
-                  g_wifiPreferredSsid[0] ? g_wifiPreferredSsid : "auto",
-                  g_wifiSetupMode,
-                  (unsigned)g_wifiRuntimeCredCount);
+                  g_wifiSt.preferredSsid[0] ? g_wifiSt.preferredSsid : "auto",
+                  g_wifiSt.setupMode,
+                  (unsigned)g_wifiSt.runtimeCredCount);
   } else {
     Serial.println("[CFG][NVS] no saved config, uso default");
   }
@@ -3699,8 +3746,8 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t nViewMask = prefs.putUChar("ui_views", normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask));
   prefs.putUChar("ui_views_gen", UI_VIEW_MASK_DEFAULT);  // track known flags for future migrations
   const size_t nWikiLang = prefs.putString("wiki_lang", g_wikiLang);
-  const size_t n8 = prefs.putString("wifi_pref", g_wifiPreferredSsid);
-  const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSetupMode);
+  const size_t n8 = prefs.putString("wifi_pref", g_wifiSt.preferredSsid);
+  const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSt.setupMode);
   const size_t n10 = saveRuntimeWiFiCredentialsToPrefs(prefs);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
@@ -3884,19 +3931,19 @@ static void appendWebThemeCssVars(String &out, const UiThemeWebTokens &t) {
 
 #if WEB_CONFIG_ENABLED && DB_HAS_QRCODEGEN
 static bool ensureWebQrBuffers() {
-  if (g_webQrTempBuf && g_webQrDataBuf) return true;
-  if (!g_webQrTempBuf) {
-    g_webQrTempBuf = (uint8_t *)ps_malloc(qrcodegen_BUFFER_LEN_MAX);
-    if (!g_webQrTempBuf) g_webQrTempBuf = (uint8_t *)malloc(qrcodegen_BUFFER_LEN_MAX);
+  if (g_webCfg.qrTempBuf && g_webCfg.qrDataBuf) return true;
+  if (!g_webCfg.qrTempBuf) {
+    g_webCfg.qrTempBuf = (uint8_t *)ps_malloc(qrcodegen_BUFFER_LEN_MAX);
+    if (!g_webCfg.qrTempBuf) g_webCfg.qrTempBuf = (uint8_t *)malloc(qrcodegen_BUFFER_LEN_MAX);
   }
-  if (!g_webQrDataBuf) {
-    g_webQrDataBuf = (uint8_t *)ps_malloc(qrcodegen_BUFFER_LEN_MAX);
-    if (!g_webQrDataBuf) g_webQrDataBuf = (uint8_t *)malloc(qrcodegen_BUFFER_LEN_MAX);
+  if (!g_webCfg.qrDataBuf) {
+    g_webCfg.qrDataBuf = (uint8_t *)ps_malloc(qrcodegen_BUFFER_LEN_MAX);
+    if (!g_webCfg.qrDataBuf) g_webCfg.qrDataBuf = (uint8_t *)malloc(qrcodegen_BUFFER_LEN_MAX);
   }
-  if (!g_webQrTempBuf || !g_webQrDataBuf) {
+  if (!g_webCfg.qrTempBuf || !g_webCfg.qrDataBuf) {
     Serial.printf("[WEB][QR][ERR] alloc failed temp=%d data=%d heap=%u psram=%u\n",
-                  g_webQrTempBuf ? 1 : 0,
-                  g_webQrDataBuf ? 1 : 0,
+                  g_webCfg.qrTempBuf ? 1 : 0,
+                  g_webCfg.qrDataBuf ? 1 : 0,
                   (unsigned)ESP.getFreeHeap(),
                   (unsigned)ESP.getFreePsram());
     return false;
@@ -4077,21 +4124,21 @@ static void buildWebViewToggles(String &html) {
 
 #if TEST_WIFI
 static void buildWebWifiSection(String &html) {
-  const bool wifiOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
+  const bool wifiOk = (WiFi.status() == WL_CONNECTED) && g_wifiSt.connected;
   const String activeSsid = wifiOk ? WiFi.SSID() : String("");
   char setupUrl[96] = "";
   wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
   html += F("<div class='vm-card'><h2>Wi-Fi Known Networks</h2><div class='vm-label'>PREFERRED SSID</div><select class='vm-select' name='wifi_pref_ssid'>");
   html += F("<option value=''");
-  if (!g_wifiPreferredSsid[0]) html += F(" selected");
+  if (!g_wifiSt.preferredSsid[0]) html += F(" selected");
   html += F(">Auto (smart rotation)</option>");
-  for (uint8_t i = 0; i < g_wifiCredCount; ++i) {
-    const char *ssid = g_wifiCredSsids[i];
+  for (uint8_t i = 0; i < g_wifiSt.credCount; ++i) {
+    const char *ssid = g_wifiSt.credSsids[i];
     if (!ssid || !ssid[0]) continue;
     html += F("<option value='");
     appendHtmlEscaped(html, ssid);
     html += '\'';
-    const bool selected = (strcmp(g_wifiPreferredSsid, ssid) == 0);
+    const bool selected = (strcmp(g_wifiSt.preferredSsid, ssid) == 0);
     if (selected) html += F(" selected");
     html += '>';
     appendHtmlEscaped(html, ssid);
@@ -4111,9 +4158,9 @@ static void buildWebWifiSection(String &html) {
   html += F("</select>");
   html += F("<p class='vm-help'>Auto mode cycles known SSIDs first, then starts setup AP if disconnected too long. ScryBar supports <b>2.4 GHz only</b> (5 GHz is ignored).</p>");
   html += F("<div class='vm-label' style='margin-top:14px'>PROVISION NEW NETWORK (2.4 GHZ)</div><div class='vm-grid'><div><button id='wifi_scan_btn' class='vm-btn vm-btn--sm vm-btn--secondary' type='button'>Scan networks</button><p id='wifi_scan_status' class='rss-status'></p><div class='vm-label'>SCAN RESULTS</div><select class='vm-select' id='wifi_scan_results'><option value=''>Press scan first...</option></select></div><div><div class='vm-label'>SSID</div><input class='vm-input' id='wifi_new_ssid' name='wifi_new_ssid' maxlength='32' placeholder='MyPhone Hotspot'><div class='vm-label'>PASSWORD</div><div class='vm-secret'><input class='vm-input' id='wifi_new_password' name='wifi_new_password' maxlength='64' type='password' placeholder='Leave empty if open network'><button id='wifi_pwd_toggle' class='vm-btn vm-btn--sm vm-btn--secondary' type='button' aria-label='Show password' title='Show password'>Show</button></div></div></div>");
-  if (g_wifiSetupApActive) {
+  if (g_wifiSt.setupApActive) {
     html += F("<p class='vm-help'>Setup AP active: <code>");
-    appendHtmlEscaped(html, g_wifiSetupApSsid);
+    appendHtmlEscaped(html, g_wifiSt.setupApSsid);
     html += F("</code> @ <code>");
     html += WiFi.softAPIP().toString();
     html += F("</code></p>");
@@ -4223,7 +4270,7 @@ static void buildWebSystemInfo(String &html) {
   html += F("<div><div class='vm-label'>NETWORK</div>");
 #if TEST_WIFI
   {
-    const bool wOk = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
+    const bool wOk = (WiFi.status() == WL_CONNECTED) && g_wifiSt.connected;
     html += F("<small>ip: </small><code>");
     html += wOk ? WiFi.localIP().toString() : "--";
     html += F("</code><br><small>ssid: </small><code>");
@@ -4244,13 +4291,13 @@ static void buildWebSystemInfo(String &html) {
       html += WiFi.dnsIP(1).toString();
     } else { html += F("--"); }
     html += F("</code><br><small>preferred: </small><code>");
-    if (g_wifiPreferredSsid[0]) appendHtmlEscaped(html, g_wifiPreferredSsid);
+    if (g_wifiSt.preferredSsid[0]) appendHtmlEscaped(html, g_wifiSt.preferredSsid);
     else html += F("auto");
     html += F("</code><br><small>direct mode: </small><code>");
-    appendHtmlEscaped(html, g_wifiSetupMode);
+    appendHtmlEscaped(html, g_wifiSt.setupMode);
     html += F("</code><br><small>setup ap: </small><code>");
-    if (g_wifiSetupApActive) {
-      appendHtmlEscaped(html, g_wifiSetupApSsid);
+    if (g_wifiSt.setupApActive) {
+      appendHtmlEscaped(html, g_wifiSt.setupApSsid);
       html += F(" @ ");
       html += WiFi.softAPIP().toString();
     } else {
@@ -4271,16 +4318,16 @@ static void buildWebSystemInfo(String &html) {
   snprintf(siBuf, sizeof(siBuf), "%lus", (unsigned long)(millis() / 1000UL));
   html += F("<small>uptime: </small><code>"); html += siBuf; html += F("</code><br>");
 #if TEST_NTP
-  html += F("<small>ntp: </small><code>"); html += g_ntpSynced ? "SYNCED" : "WAIT"; html += F("</code><br>");
+  html += F("<small>ntp: </small><code>"); html += g_clock.ntpSynced ? "SYNCED" : "WAIT"; html += F("</code><br>");
 #endif
   snprintf(siBuf, sizeof(siBuf), "%u KB", (unsigned)(ESP.getFreeHeap() / 1024));
   html += F("<small>free heap: </small><code>"); html += siBuf; html += F("</code>");
 #if TEST_BATTERY
   html += F("<br><small>battery: </small><code>");
-  if (g_battHasSample) {
-    snprintf(siBuf, sizeof(siBuf), "%d%%", g_battPercent);
+  if (g_batt.hasSample) {
+    snprintf(siBuf, sizeof(siBuf), "%d%%", g_batt.percent);
     html += siBuf;
-    if (g_battChargingLikely) html += F(" +CHG");
+    if (g_batt.chargingLikely) html += F(" +CHG");
   } else { html += F("N/A"); }
   html += F("</code>");
 #endif
@@ -4364,11 +4411,11 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   out += F(",\"lon\":");
   out += lonBuf;
   out += F("},\"wifi\":{\"preferred_ssid\":\"");
-  appendJsonEscaped(out, g_wifiPreferredSsid);
+  appendJsonEscaped(out, g_wifiSt.preferredSsid);
   out += F("\",\"known\":[");
   bool firstSsid = true;
-  for (uint8_t i = 0; i < g_wifiCredCount; ++i) {
-    const char *ssid = g_wifiCredSsids[i];
+  for (uint8_t i = 0; i < g_wifiSt.credCount; ++i) {
+    const char *ssid = g_wifiSt.credSsids[i];
     if (!ssid || !ssid[0]) continue;
     if (!firstSsid) out += ',';
     firstSsid = false;
@@ -4377,15 +4424,15 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
     out += '"';
   }
   out += F("],\"setup_mode\":\"");
-  appendJsonEscaped(out, g_wifiSetupMode);
+  appendJsonEscaped(out, g_wifiSt.setupMode);
   out += F("\",\"setup_ap_active\":");
-  out += g_wifiSetupApActive ? F("true") : F("false");
+  out += g_wifiSt.setupApActive ? F("true") : F("false");
   out += F(",\"setup_ap_ssid\":\"");
-  appendJsonEscaped(out, g_wifiSetupApSsid);
+  appendJsonEscaped(out, g_wifiSt.setupApSsid);
   out += F("\",\"setup_ap_ip\":\"");
   appendJsonEscaped(out, WiFi.softAPIP().toString().c_str());
   out += F("\",\"runtime_known\":");
-  out += (unsigned)g_wifiRuntimeCredCount;
+  out += (unsigned)g_wifiSt.runtimeCredCount;
   out += F("},\"rss\":{\"feed_url\":\"");
   appendJsonEscaped(out, runtimeRssFeedUrl());
   out += F("\",\"active_max_items\":");
@@ -4434,7 +4481,7 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
     out += F("\"}");
   }
   out += F("]}}");
-  g_webConfigServer.send(code, "application/json", out);
+  g_webCfg.server.send(code, "application/json", out);
 }
 
 static void webConfigRedirect(const char *status) {
@@ -4443,33 +4490,33 @@ static void webConfigRedirect(const char *status) {
     location += "?status=";
     location += status;
   }
-  g_webConfigServer.sendHeader("Location", location, true);
-  g_webConfigServer.send(303, "text/plain", "");
+  g_webCfg.server.sendHeader("Location", location, true);
+  g_webCfg.server.send(303, "text/plain", "");
 }
 
 // ── M5: Config parser sub-functions ──
 // (ConfigDiffResult is defined in config.h for Arduino auto-prototype visibility)
 
 static bool parseWeatherConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
-  if (g_webConfigServer.hasArg("weather_city")) {
+  if (g_webCfg.server.hasArg("weather_city")) {
     hasInput = true;
-    String city = g_webConfigServer.arg("weather_city");
+    String city = g_webCfg.server.arg("weather_city");
     city.trim();
     if (city.length() == 0) { errorOut = "weather_city vuota"; return false; }
     copyStringSafe(next.weatherCity, sizeof(next.weatherCity), city.c_str());
   }
-  if (g_webConfigServer.hasArg("weather_lat")) {
+  if (g_webCfg.server.hasArg("weather_lat")) {
     hasInput = true;
     float lat = 0.0f;
-    if (!parseStrictFloat(g_webConfigServer.arg("weather_lat"), lat) || !isfinite(lat) || lat < -90.0f || lat > 90.0f) {
+    if (!parseStrictFloat(g_webCfg.server.arg("weather_lat"), lat) || !isfinite(lat) || lat < -90.0f || lat > 90.0f) {
       errorOut = "weather_lat non valida"; return false;
     }
     next.weatherLat = lat;
   }
-  if (g_webConfigServer.hasArg("weather_lon")) {
+  if (g_webCfg.server.hasArg("weather_lon")) {
     hasInput = true;
     float lon = 0.0f;
-    if (!parseStrictFloat(g_webConfigServer.arg("weather_lon"), lon) || !isfinite(lon) || lon < -180.0f || lon > 180.0f) {
+    if (!parseStrictFloat(g_webCfg.server.arg("weather_lon"), lon) || !isfinite(lon) || lon < -180.0f || lon > 180.0f) {
       errorOut = "weather_lon non valida"; return false;
     }
     next.weatherLon = lon;
@@ -4479,22 +4526,22 @@ static bool parseWeatherConfig(RuntimeNetConfig &next, String &errorOut, bool &h
 
 static bool parseRssFeedConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
   bool rssInput = false;
-  if (g_webConfigServer.hasArg("rss_feed_url")) {
+  if (g_webCfg.server.hasArg("rss_feed_url")) {
     hasInput = true; rssInput = true;
-    String rss = g_webConfigServer.arg("rss_feed_url"); rss.trim();
+    String rss = g_webCfg.server.arg("rss_feed_url"); rss.trim();
     if (rss.length() > 0 && !isHttpUrl(rss)) { errorOut = "rss_feed_url deve iniziare con http:// o https://"; return false; }
     if (rss.length() == 0) next.rssFeeds[0].url[0] = '\0';
     else copyStringSafe(next.rssFeeds[0].url, sizeof(next.rssFeeds[0].url), rss.c_str());
   }
-  if (g_webConfigServer.hasArg("rss_feed_name")) {
+  if (g_webCfg.server.hasArg("rss_feed_name")) {
     hasInput = true; rssInput = true;
-    String name = g_webConfigServer.arg("rss_feed_name"); name.trim();
+    String name = g_webCfg.server.arg("rss_feed_name"); name.trim();
     copyStringSafe(next.rssFeeds[0].name, sizeof(next.rssFeeds[0].name), name.c_str());
   }
-  if (g_webConfigServer.hasArg("rss_feed_items")) {
+  if (g_webCfg.server.hasArg("rss_feed_items")) {
     hasInput = true; rssInput = true;
     uint8_t maxItems = 0;
-    if (!parseStrictUint8(g_webConfigServer.arg("rss_feed_items"), maxItems)) { errorOut = "rss_feed_items non valido"; return false; }
+    if (!parseStrictUint8(g_webCfg.server.arg("rss_feed_items"), maxItems)) { errorOut = "rss_feed_items non valido"; return false; }
     next.rssFeeds[0].maxItems = clampRssFeedMaxItems(maxItems);
   }
   for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
@@ -4502,22 +4549,22 @@ static bool parseRssFeedConfig(RuntimeNetConfig &next, String &errorOut, bool &h
     snprintf(keyName, sizeof(keyName), "rss_feed_name_%u", (unsigned)(i + 1));
     snprintf(keyUrl, sizeof(keyUrl), "rss_feed_url_%u", (unsigned)(i + 1));
     snprintf(keyItems, sizeof(keyItems), "rss_feed_items_%u", (unsigned)(i + 1));
-    if (g_webConfigServer.hasArg(keyName)) {
+    if (g_webCfg.server.hasArg(keyName)) {
       hasInput = true; rssInput = true;
-      String name = g_webConfigServer.arg(keyName); name.trim();
+      String name = g_webCfg.server.arg(keyName); name.trim();
       copyStringSafe(next.rssFeeds[i].name, sizeof(next.rssFeeds[i].name), name.c_str());
     }
-    if (g_webConfigServer.hasArg(keyUrl)) {
+    if (g_webCfg.server.hasArg(keyUrl)) {
       hasInput = true; rssInput = true;
-      String url = g_webConfigServer.arg(keyUrl); url.trim();
+      String url = g_webCfg.server.arg(keyUrl); url.trim();
       if (url.length() > 0 && !isHttpUrl(url)) { errorOut = "rss_feed_url_N deve iniziare con http:// o https://"; return false; }
       if (url.length() == 0) next.rssFeeds[i].url[0] = '\0';
       else copyStringSafe(next.rssFeeds[i].url, sizeof(next.rssFeeds[i].url), url.c_str());
     }
-    if (g_webConfigServer.hasArg(keyItems)) {
+    if (g_webCfg.server.hasArg(keyItems)) {
       hasInput = true; rssInput = true;
       uint8_t maxItems = 0;
-      if (!parseStrictUint8(g_webConfigServer.arg(keyItems), maxItems)) { errorOut = "rss_feed_items_N non valido"; return false; }
+      if (!parseStrictUint8(g_webCfg.server.arg(keyItems), maxItems)) { errorOut = "rss_feed_items_N non valido"; return false; }
       next.rssFeeds[i].maxItems = clampRssFeedMaxItems(maxItems);
     }
   }
@@ -4526,9 +4573,9 @@ static bool parseRssFeedConfig(RuntimeNetConfig &next, String &errorOut, bool &h
 }
 
 static bool parseLogoConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
-  if (g_webConfigServer.hasArg("logo_url")) {
+  if (g_webCfg.server.hasArg("logo_url")) {
     hasInput = true;
-    String logo = g_webConfigServer.arg("logo_url"); logo.trim();
+    String logo = g_webCfg.server.arg("logo_url"); logo.trim();
     if (logo.length() > 0 && !isHttpUrl(logo)) { errorOut = "logo_url deve iniziare con http:// o https://"; return false; }
     copyStringSafe(next.logoUrl, sizeof(next.logoUrl), logo.c_str());
   }
@@ -4536,9 +4583,9 @@ static bool parseLogoConfig(RuntimeNetConfig &next, String &errorOut, bool &hasI
 }
 
 static bool parseThemeConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
-  if (g_webConfigServer.hasArg("ui_theme")) {
+  if (g_webCfg.server.hasArg("ui_theme")) {
     hasInput = true;
-    String theme = g_webConfigServer.arg("ui_theme"); theme.trim();
+    String theme = g_webCfg.server.arg("ui_theme"); theme.trim();
     if (theme.length() == 0) { errorOut = "ui_theme vuoto"; return false; }
     if (findUiThemeIndexById(theme.c_str()) < 0) { errorOut = "ui_theme non valido"; return false; }
     copyStringSafe(next.uiTheme, sizeof(next.uiTheme), theme.c_str());
@@ -4557,10 +4604,10 @@ static bool parseViewsConfig(RuntimeNetConfig &next, String &errorOut, bool &has
       {"view_doom",        UI_VIEW_FLAG_DOOM},
   };
   for (const ViewArgDef &viewArg : kViewArgs) {
-    if (!g_webConfigServer.hasArg(viewArg.key)) continue;
+    if (!g_webCfg.server.hasArg(viewArg.key)) continue;
     hasInput = true; viewsInput = true;
     bool enabled = false;
-    if (!parseStrictBool(g_webConfigServer.arg(viewArg.key), enabled)) {
+    if (!parseStrictBool(g_webCfg.server.arg(viewArg.key), enabled)) {
       errorOut = String(viewArg.key) + " non valido"; return false;
     }
     if (enabled) next.enabledViewsMask |= viewArg.bit;
@@ -4571,15 +4618,15 @@ static bool parseViewsConfig(RuntimeNetConfig &next, String &errorOut, bool &has
 }
 
 static bool parseWifiSetupModeConfig(String &errorOut, bool &hasInput, bool &wifiSetupModeChanged) {
-  if (g_webConfigServer.hasArg("wifi_setup_mode")) {
+  if (g_webCfg.server.hasArg("wifi_setup_mode")) {
     hasInput = true;
-    String setupMode = g_webConfigServer.arg("wifi_setup_mode");
+    String setupMode = g_webCfg.server.arg("wifi_setup_mode");
     setupMode.trim(); setupMode.toLowerCase();
     if (!(setupMode == "off" || setupMode == "auto" || setupMode == "on")) {
       errorOut = "wifi_setup_mode non valido"; return false;
     }
-    if (strncmp(g_wifiSetupMode, setupMode.c_str(), sizeof(g_wifiSetupMode)) != 0) {
-      copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), setupMode.c_str());
+    if (strncmp(g_wifiSt.setupMode, setupMode.c_str(), sizeof(g_wifiSt.setupMode)) != 0) {
+      copyStringSafe(g_wifiSt.setupMode, sizeof(g_wifiSt.setupMode), setupMode.c_str());
       wifiSetupModeChanged = true;
     }
   }
@@ -4587,54 +4634,54 @@ static bool parseWifiSetupModeConfig(String &errorOut, bool &hasInput, bool &wif
 }
 
 static bool parseWifiCredentialConfig(String &errorOut, bool &hasInput, bool &wifiPrefChanged, bool &wifiProvisioned, int8_t &wifiPrefIdx) {
-  if (g_webConfigServer.hasArg("wifi_new_ssid") || g_webConfigServer.hasArg("wifi_new_password")) {
+  if (g_webCfg.server.hasArg("wifi_new_ssid") || g_webCfg.server.hasArg("wifi_new_password")) {
     hasInput = true;
-    String ssid = g_webConfigServer.arg("wifi_new_ssid");
-    String pass = g_webConfigServer.arg("wifi_new_password");
+    String ssid = g_webCfg.server.arg("wifi_new_ssid");
+    String pass = g_webCfg.server.arg("wifi_new_password");
     ssid.trim();
     if (ssid.length() > 0) {
       if (ssid.length() > WIFI_MAX_SSID_LEN) { errorOut = "wifi_new_ssid troppo lungo"; return false; }
       if (pass.length() > WIFI_MAX_PASSWORD_LEN) { errorOut = "wifi_new_password troppo lunga"; return false; }
       if (!upsertRuntimeWiFiCredential(ssid.c_str(), pass.c_str())) { errorOut = "impossibile salvare rete runtime"; return false; }
       wifiPrepareCredentialCache();
-      char previousPref[sizeof(g_wifiPreferredSsid)] = {0};
-      copyStringSafe(previousPref, sizeof(previousPref), g_wifiPreferredSsid);
-      copyStringSafe(g_wifiPreferredSsid, sizeof(g_wifiPreferredSsid), ssid.c_str());
+      char previousPref[sizeof(g_wifiSt.preferredSsid)] = {0};
+      copyStringSafe(previousPref, sizeof(previousPref), g_wifiSt.preferredSsid);
+      copyStringSafe(g_wifiSt.preferredSsid, sizeof(g_wifiSt.preferredSsid), ssid.c_str());
       wifiPrefChanged = true;
       wifiProvisioned = true;
-      wifiPrefIdx = findWiFiCredentialIndexBySsid(g_wifiPreferredSsid);
-      if (wifiPrefIdx < 0) wifiPrefChanged = (strcmp(previousPref, g_wifiPreferredSsid) != 0);
+      wifiPrefIdx = findWiFiCredentialIndexBySsid(g_wifiSt.preferredSsid);
+      if (wifiPrefIdx < 0) wifiPrefChanged = (strcmp(previousPref, g_wifiSt.preferredSsid) != 0);
       Serial.printf("[WIFI][PROVISION] added ssid='%s' runtime_known=%u\n",
-                    g_wifiPreferredSsid, (unsigned)g_wifiRuntimeCredCount);
+                    g_wifiSt.preferredSsid, (unsigned)g_wifiSt.runtimeCredCount);
     }
   }
   return true;
 }
 
 static bool parseWifiPreferredConfig(String &errorOut, bool &hasInput, bool wifiProvisioned, bool &wifiPrefChanged, int8_t &wifiPrefIdx) {
-  if (!wifiProvisioned && g_webConfigServer.hasArg("wifi_pref_ssid")) {
+  if (!wifiProvisioned && g_webCfg.server.hasArg("wifi_pref_ssid")) {
     hasInput = true;
-    String preferred = g_webConfigServer.arg("wifi_pref_ssid"); preferred.trim();
-    char previousPref[sizeof(g_wifiPreferredSsid)] = {0};
-    copyStringSafe(previousPref, sizeof(previousPref), g_wifiPreferredSsid);
+    String preferred = g_webCfg.server.arg("wifi_pref_ssid"); preferred.trim();
+    char previousPref[sizeof(g_wifiSt.preferredSsid)] = {0};
+    copyStringSafe(previousPref, sizeof(previousPref), g_wifiSt.preferredSsid);
     if (preferred.length() == 0) {
-      g_wifiPreferredSsid[0] = '\0';
+      g_wifiSt.preferredSsid[0] = '\0';
       wifiPrefChanged = (previousPref[0] != '\0');
     } else {
-      if (preferred.length() >= sizeof(g_wifiPreferredSsid)) { errorOut = "wifi_pref_ssid troppo lungo"; return false; }
+      if (preferred.length() >= sizeof(g_wifiSt.preferredSsid)) { errorOut = "wifi_pref_ssid troppo lungo"; return false; }
       wifiPrefIdx = findWiFiCredentialIndexBySsid(preferred.c_str());
       if (wifiPrefIdx < 0) { errorOut = "wifi_pref_ssid non presente nelle reti note"; return false; }
-      copyStringSafe(g_wifiPreferredSsid, sizeof(g_wifiPreferredSsid), preferred.c_str());
-      wifiPrefChanged = (strcmp(previousPref, g_wifiPreferredSsid) != 0);
+      copyStringSafe(g_wifiSt.preferredSsid, sizeof(g_wifiSt.preferredSsid), preferred.c_str());
+      wifiPrefChanged = (strcmp(previousPref, g_wifiSt.preferredSsid) != 0);
     }
   }
   return true;
 }
 
 static bool parseLangConfig(String &errorOut, bool &hasInput, bool &langChanged) {
-  if (g_webConfigServer.hasArg("wc_lang")) {
+  if (g_webCfg.server.hasArg("wc_lang")) {
     hasInput = true;
-    String lang = g_webConfigServer.arg("wc_lang");
+    String lang = g_webCfg.server.arg("wc_lang");
     lang.trim(); lang.toLowerCase();
     if (!isValidLangCode(lang)) { errorOut = "wc_lang non valido"; return false; }
     if (strncmp(g_wordClockLang, lang.c_str(), sizeof(g_wordClockLang)) != 0) {
@@ -4647,9 +4694,9 @@ static bool parseLangConfig(String &errorOut, bool &hasInput, bool &langChanged)
 }
 
 static bool parseWikiLangConfig(String &errorOut, bool &hasInput, bool &wikiLangChanged) {
-  if (g_webConfigServer.hasArg("wiki_lang")) {
+  if (g_webCfg.server.hasArg("wiki_lang")) {
     hasInput = true;
-    String wl = g_webConfigServer.arg("wiki_lang");
+    String wl = g_webCfg.server.arg("wiki_lang");
     wl.trim(); wl.toLowerCase();
     const char* kWikiLangs[] = {"en","it","fr","de","es","pt","la","eo",nullptr};
     bool wlValid = false;
@@ -4719,19 +4766,19 @@ static void applyConfigSideEffects(const ConfigDiffResult &diff, bool langChange
   if (diff.weatherChanged || diff.rssChanged || diff.brandingChanged || diff.themeChanged || langChanged || wikiLangChanged || diff.viewsChanged) g_uiNeedsRedraw = true;
 #endif
   if (wifiPrefChanged) {
-    if (wifiPrefIdx >= 0) g_wifiReconnectIdx = (uint8_t)wifiPrefIdx;
-    else if (g_wifiReconnectIdx >= g_wifiCredCount) g_wifiReconnectIdx = 0;
-    if (g_wifiCredCount > 0) {
+    if (wifiPrefIdx >= 0) g_wifiSt.reconnectIdx = (uint8_t)wifiPrefIdx;
+    else if (g_wifiSt.reconnectIdx >= g_wifiSt.credCount) g_wifiSt.reconnectIdx = 0;
+    if (g_wifiSt.credCount > 0) {
       const bool wifiUp = wifiIsConnectedNow();
       bool alreadyOnTarget = false;
-      if (wifiUp && wifiPrefIdx >= 0) alreadyOnTarget = WiFi.SSID().equals(g_wifiCredSsids[wifiPrefIdx]);
+      if (wifiUp && wifiPrefIdx >= 0) alreadyOnTarget = WiFi.SSID().equals(g_wifiSt.credSsids[wifiPrefIdx]);
       if (!alreadyOnTarget) {
         wifiScheduleNextAttempt(millis(), 0UL);
         if (wifiUp) {
-          g_wifiInternalDisconnect = true;
+          g_wifiSt.internalDisconnect = true;
           WiFi.disconnect(true, false);
           delay(20);
-          g_wifiInternalDisconnect = false;
+          g_wifiSt.internalDisconnect = false;
         }
       }
     }
@@ -4785,17 +4832,17 @@ static const char *statusMessageFromCode(const String &status) {
 
 static void handleWebConfigRoot() {
   String msg;
-  if (g_webConfigServer.hasArg("status")) msg = g_webConfigServer.arg("status");
+  if (g_webCfg.server.hasArg("status")) msg = g_webCfg.server.arg("status");
   const String html = buildWebConfigPage(statusMessageFromCode(msg));
-  g_webConfigServer.send(200, "text/html; charset=utf-8", html);
+  g_webCfg.server.send(200, "text/html; charset=utf-8", html);
 }
 
 static void sendWebCaptiveRedirect() {
   char setupUrl[96] = "";
   wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
-  g_webConfigServer.sendHeader("Cache-Control", "no-store", true);
-  g_webConfigServer.sendHeader("Location", setupUrl, true);
-  g_webConfigServer.send(302, "text/plain", "");
+  g_webCfg.server.sendHeader("Cache-Control", "no-store", true);
+  g_webCfg.server.sendHeader("Location", setupUrl, true);
+  g_webCfg.server.send(302, "text/plain", "");
 }
 
 static void handleWebCaptivePortalProbe() {
@@ -4804,19 +4851,19 @@ static void handleWebCaptivePortalProbe() {
 
 #if WEB_CONFIG_ENABLED
 static void webConfigStartCaptiveDnsIfNeeded() {
-  if (!g_wifiSetupApActive || g_webConfigDnsStarted) return;
-  if (!g_webConfigDnsServer.start(53, "*", WiFi.softAPIP())) {
+  if (!g_wifiSt.setupApActive || g_webCfg.dnsStarted) return;
+  if (!g_webCfg.dnsServer.start(53, "*", WiFi.softAPIP())) {
     Serial.println("[WEB][DNS][ERR] captive dns start failed");
     return;
   }
-  g_webConfigDnsStarted = true;
+  g_webCfg.dnsStarted = true;
   Serial.printf("[WEB][DNS] captive resolver active on %s\n", WiFi.softAPIP().toString().c_str());
 }
 
 static void webConfigStopCaptiveDns() {
-  if (!g_webConfigDnsStarted) return;
-  g_webConfigDnsServer.stop();
-  g_webConfigDnsStarted = false;
+  if (!g_webCfg.dnsStarted) return;
+  g_webCfg.dnsServer.stop();
+  g_webCfg.dnsStarted = false;
   Serial.println("[WEB][DNS] captive resolver stopped");
 }
 #endif
@@ -4852,7 +4899,7 @@ static void handleWebWifiScanApi() {
         break;
       }
 #if WEB_CONFIG_ENABLED
-      if (g_webConfigDnsStarted) g_webConfigDnsServer.processNextRequest();
+      if (g_webCfg.dnsStarted) g_webCfg.dnsServer.processNextRequest();
 #endif
       delay(35);
     }
@@ -4867,7 +4914,7 @@ static void handleWebWifiScanApi() {
                 found,
                 (unsigned long)(millis() - scanStartMs),
                 (int)WiFi.getMode(),
-                g_wifiSetupApActive ? 1 : 0,
+                g_wifiSt.setupApActive ? 1 : 0,
                 wifiIsConnectedNow() ? 1 : 0,
                 scanTimedOut ? 1 : 0);
 
@@ -4895,7 +4942,7 @@ static void handleWebWifiScanApi() {
   if (scanTimedOut) out += F("],\"message\":\"scan_timeout\"}");
   else if (found == WIFI_SCAN_FAILED) out += F("],\"message\":\"scan_failed\"}");
   else out += F("]}");
-  g_webConfigServer.send(200, "application/json", out);
+  g_webCfg.server.send(200, "application/json", out);
 }
 
 static void handleWebWifiSetupQrSvgApi() {
@@ -4904,24 +4951,24 @@ static void handleWebWifiSetupQrSvgApi() {
 
 #if DB_HAS_QRCODEGEN
   if (!ensureWebQrBuffers()) {
-    g_webConfigServer.send(500, "text/plain", "QR buffers unavailable");
+    g_webCfg.server.send(500, "text/plain", "QR buffers unavailable");
     return;
   }
   const bool ok = qrcodegen_encodeText(
       setupUrl,
-      g_webQrTempBuf,
-      g_webQrDataBuf,
+      g_webCfg.qrTempBuf,
+      g_webCfg.qrDataBuf,
       qrcodegen_Ecc_MEDIUM,
       1,
       8,
       qrcodegen_Mask_AUTO,
       true);
   if (!ok) {
-    g_webConfigServer.send(500, "text/plain", "QR encode failed");
+    g_webCfg.server.send(500, "text/plain", "QR encode failed");
     return;
   }
 
-  const int qrSize = qrcodegen_getSize(g_webQrDataBuf);
+  const int qrSize = qrcodegen_getSize(g_webCfg.qrDataBuf);
   const int border = 3;
   const int scale = 5;
   const int dim = (qrSize + border * 2) * scale;
@@ -4936,7 +4983,7 @@ static void handleWebWifiSetupQrSvgApi() {
   svg += F("<rect width='100%' height='100%' fill='#ffffff'/>");
   for (int y = 0; y < qrSize; ++y) {
     for (int x = 0; x < qrSize; ++x) {
-      if (!qrcodegen_getModule(g_webQrDataBuf, x, y)) continue;
+      if (!qrcodegen_getModule(g_webCfg.qrDataBuf, x, y)) continue;
       const int px = (x + border) * scale;
       const int py = (y + border) * scale;
       svg += F("<rect x='");
@@ -4951,7 +4998,7 @@ static void handleWebWifiSetupQrSvgApi() {
     }
   }
   svg += F("</svg>");
-  g_webConfigServer.send(200, "image/svg+xml", svg);
+  g_webCfg.server.send(200, "image/svg+xml", svg);
 #else
   String fallback;
   fallback.reserve(256);
@@ -4960,7 +5007,7 @@ static void handleWebWifiSetupQrSvgApi() {
   fallback += F("<text x='12' y='56' font-family='monospace' font-size='12' fill='#93c5fd'>");
   appendHtmlEscaped(fallback, setupUrl);
   fallback += F("</text></svg>");
-  g_webConfigServer.send(200, "image/svg+xml", fallback);
+  g_webCfg.server.send(200, "image/svg+xml", fallback);
 #endif
 }
 
@@ -4983,25 +5030,25 @@ static void handleWebConfigApplyForm() {
 }
 
 static bool webRequestHasConfigParams() {
-  if (g_webConfigServer.hasArg("weather_city")) return true;
-  if (g_webConfigServer.hasArg("weather_lat")) return true;
-  if (g_webConfigServer.hasArg("weather_lon")) return true;
-  if (g_webConfigServer.hasArg("wc_lang")) return true;
-  if (g_webConfigServer.hasArg("wiki_lang")) return true;
-  if (g_webConfigServer.hasArg("wifi_pref_ssid")) return true;
-  if (g_webConfigServer.hasArg("wifi_setup_mode")) return true;
-  if (g_webConfigServer.hasArg("wifi_new_ssid")) return true;
-  if (g_webConfigServer.hasArg("wifi_new_password")) return true;
-  if (g_webConfigServer.hasArg("ui_theme")) return true;
-  if (g_webConfigServer.hasArg("view_info")) return true;
-  if (g_webConfigServer.hasArg("view_aux")) return true;
-  if (g_webConfigServer.hasArg("view_wiki")) return true;
-  if (g_webConfigServer.hasArg("view_doom")) return true;
-  if (g_webConfigServer.hasArg("rss_feed_url")) return true;
-  if (g_webConfigServer.hasArg("logo_url")) return true;
+  if (g_webCfg.server.hasArg("weather_city")) return true;
+  if (g_webCfg.server.hasArg("weather_lat")) return true;
+  if (g_webCfg.server.hasArg("weather_lon")) return true;
+  if (g_webCfg.server.hasArg("wc_lang")) return true;
+  if (g_webCfg.server.hasArg("wiki_lang")) return true;
+  if (g_webCfg.server.hasArg("wifi_pref_ssid")) return true;
+  if (g_webCfg.server.hasArg("wifi_setup_mode")) return true;
+  if (g_webCfg.server.hasArg("wifi_new_ssid")) return true;
+  if (g_webCfg.server.hasArg("wifi_new_password")) return true;
+  if (g_webCfg.server.hasArg("ui_theme")) return true;
+  if (g_webCfg.server.hasArg("view_info")) return true;
+  if (g_webCfg.server.hasArg("view_aux")) return true;
+  if (g_webCfg.server.hasArg("view_wiki")) return true;
+  if (g_webCfg.server.hasArg("view_doom")) return true;
+  if (g_webCfg.server.hasArg("rss_feed_url")) return true;
+  if (g_webCfg.server.hasArg("logo_url")) return true;
   for (uint8_t i = 1; i <= RSS_FEED_SLOT_COUNT; ++i) {
     const String keyUrl = String("rss_feed_url_") + String(i);
-    if (g_webConfigServer.hasArg(keyUrl)) return true;
+    if (g_webCfg.server.hasArg(keyUrl)) return true;
   }
   return false;
 }
@@ -5046,60 +5093,60 @@ static void handleWebReloadApi() {
 
 static void ensureWebConfigServerStarted() {
   ensureRuntimeNetConfig();
-  const bool staUp = (WiFi.status() == WL_CONNECTED) && g_wifiConnected;
-  if (!staUp && !g_wifiSetupApActive) {
-    if (g_webConfigDnsStarted) webConfigStopCaptiveDns();
+  const bool staUp = (WiFi.status() == WL_CONNECTED) && g_wifiSt.connected;
+  if (!staUp && !g_wifiSt.setupApActive) {
+    if (g_webCfg.dnsStarted) webConfigStopCaptiveDns();
     stopScryBarMdns();
     return;
   }
-  if (g_webConfigServerStarted) {
-    if (g_wifiSetupApActive) webConfigStartCaptiveDnsIfNeeded();
-    else if (g_webConfigDnsStarted) webConfigStopCaptiveDns();
+  if (g_webCfg.serverStarted) {
+    if (g_wifiSt.setupApActive) webConfigStartCaptiveDnsIfNeeded();
+    else if (g_webCfg.dnsStarted) webConfigStopCaptiveDns();
     if (staUp) ensureScryBarMdnsStarted();
     else stopScryBarMdns();
     return;
   }
 
-  if (!g_webConfigRoutesRegistered) {
-    g_webConfigServer.on("/", HTTP_GET, handleWebConfigRoot);
-    g_webConfigServer.on("/generate_204", HTTP_GET, handleWebCaptivePortalProbe);
-    g_webConfigServer.on("/gen_204", HTTP_GET, handleWebCaptivePortalProbe);
-    g_webConfigServer.on("/hotspot-detect.html", HTTP_GET, handleWebCaptivePortalProbe);
-    g_webConfigServer.on("/connecttest.txt", HTTP_GET, handleWebCaptivePortalProbe);
-    g_webConfigServer.on("/ncsi.txt", HTTP_GET, handleWebCaptivePortalProbe);
-    g_webConfigServer.on("/fwlink", HTTP_GET, handleWebCaptivePortalProbe);
-    g_webConfigServer.on("/success.txt", HTTP_GET, handleWebCaptivePortalProbe);
-    g_webConfigServer.on("/config", HTTP_POST, handleWebConfigApplyForm);
-    g_webConfigServer.on("/reload", HTTP_POST, handleWebReloadForm);
-    g_webConfigServer.on("/api/config", HTTP_GET, handleWebConfigGet);
-    g_webConfigServer.on("/api/config", HTTP_POST, handleWebConfigApplyApi);
-    g_webConfigServer.on("/api/now-playing", HTTP_GET, handleWebNowPlayingGetApi);
-    g_webConfigServer.on("/api/now-playing", HTTP_POST, handleWebNowPlayingPostApi);
-    g_webConfigServer.on("/api/wifi/scan", HTTP_GET, handleWebWifiScanApi);
-    g_webConfigServer.on("/api/wifi/setup-qr.svg", HTTP_GET, handleWebWifiSetupQrSvgApi);
-    g_webConfigServer.on("/api/reload", HTTP_POST, handleWebReloadApi);
-    g_webConfigServer.onNotFound([]() {
-      if (g_wifiSetupApActive) {
+  if (!g_webCfg.routesRegistered) {
+    g_webCfg.server.on("/", HTTP_GET, handleWebConfigRoot);
+    g_webCfg.server.on("/generate_204", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webCfg.server.on("/gen_204", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webCfg.server.on("/hotspot-detect.html", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webCfg.server.on("/connecttest.txt", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webCfg.server.on("/ncsi.txt", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webCfg.server.on("/fwlink", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webCfg.server.on("/success.txt", HTTP_GET, handleWebCaptivePortalProbe);
+    g_webCfg.server.on("/config", HTTP_POST, handleWebConfigApplyForm);
+    g_webCfg.server.on("/reload", HTTP_POST, handleWebReloadForm);
+    g_webCfg.server.on("/api/config", HTTP_GET, handleWebConfigGet);
+    g_webCfg.server.on("/api/config", HTTP_POST, handleWebConfigApplyApi);
+    g_webCfg.server.on("/api/now-playing", HTTP_GET, handleWebNowPlayingGetApi);
+    g_webCfg.server.on("/api/now-playing", HTTP_POST, handleWebNowPlayingPostApi);
+    g_webCfg.server.on("/api/wifi/scan", HTTP_GET, handleWebWifiScanApi);
+    g_webCfg.server.on("/api/wifi/setup-qr.svg", HTTP_GET, handleWebWifiSetupQrSvgApi);
+    g_webCfg.server.on("/api/reload", HTTP_POST, handleWebReloadApi);
+    g_webCfg.server.onNotFound([]() {
+      if (g_wifiSt.setupApActive) {
         sendWebCaptiveRedirect();
         return;
       }
-      g_webConfigServer.send(404, "text/plain", "Not found");
+      g_webCfg.server.send(404, "text/plain", "Not found");
     });
-    g_webConfigRoutesRegistered = true;
+    g_webCfg.routesRegistered = true;
   }
 
-  g_webConfigServer.begin();
-  g_webConfigServerStarted = true;
+  g_webCfg.server.begin();
+  g_webCfg.serverStarted = true;
   if (staUp) ensureScryBarMdnsStarted();
   if (staUp) {
     Serial.printf("[WEB] config ui ready (STA): http://%s:%u\n",
                   WiFi.localIP().toString().c_str(),
                   (unsigned)WEB_CONFIG_PORT);
   }
-  if (g_wifiSetupApActive) {
+  if (g_wifiSt.setupApActive) {
     webConfigStartCaptiveDnsIfNeeded();
     Serial.printf("[WEB] config ui ready (AP): ssid='%s' url=http://%s:%u\n",
-                  g_wifiSetupApSsid,
+                  g_wifiSt.setupApSsid,
                   WiFi.softAPIP().toString().c_str(),
                   (unsigned)WEB_CONFIG_PORT);
   }
@@ -5107,8 +5154,8 @@ static void ensureWebConfigServerStarted() {
 
 static void handleWebConfigServerLoop() {
   ensureWebConfigServerStarted();
-  if (g_webConfigDnsStarted) g_webConfigDnsServer.processNextRequest();
-  if (g_webConfigServerStarted) g_webConfigServer.handleClient();
+  if (g_webCfg.dnsStarted) g_webCfg.dnsServer.processNextRequest();
+  if (g_webCfg.serverStarted) g_webCfg.server.handleClient();
 }
 #else
 static void ensureWebConfigServerStarted() {
@@ -6160,14 +6207,14 @@ static void handleWebNowPlayingGetApi() {
   out += (unsigned)WEB_CONFIG_PORT;
   out += F(",\"path\":\"/api/now-playing\"");
 #if DB_HAS_MDNS
-  if (g_scrybarMdnsHost[0]) {
+  if (g_webCfg.mdnsHost[0]) {
     out += F(",\"host\":\"");
-    appendJsonEscaped(out, g_scrybarMdnsHost);
+    appendJsonEscaped(out, g_webCfg.mdnsHost);
     out += '"';
   }
-  if (g_scrybarMdnsInstanceName[0]) {
+  if (g_webCfg.mdnsInstanceName[0]) {
     out += F(",\"instance\":\"");
-    appendJsonEscaped(out, g_scrybarMdnsInstanceName);
+    appendJsonEscaped(out, g_webCfg.mdnsInstanceName);
     out += '"';
   }
 #endif
@@ -6214,14 +6261,14 @@ static void handleWebNowPlayingGetApi() {
     }
   }
   out += F("}}");
-  g_webConfigServer.sendHeader("Cache-Control", "no-store", true);
-  g_webConfigServer.send(200, "application/json", out);
+  g_webCfg.server.sendHeader("Cache-Control", "no-store", true);
+  g_webCfg.server.send(200, "application/json", out);
 }
 
 static void handleWebNowPlayingPostApi() {
-  const String body = g_webConfigServer.arg("plain");
+  const String body = g_webCfg.server.arg("plain");
   if (body.length() == 0) {
-    g_webConfigServer.send(400, "application/json", "{\"ok\":false,\"message\":\"Empty JSON body\"}");
+    g_webCfg.server.send(400, "application/json", "{\"ok\":false,\"message\":\"Empty JSON body\"}");
     return;
   }
 
@@ -6232,7 +6279,7 @@ static void handleWebNowPlayingPostApi() {
     out += F("{\"ok\":false,\"message\":\"");
     appendJsonEscaped(out, err.c_str());
     out += F("\"}");
-    g_webConfigServer.send(400, "application/json", out);
+    g_webCfg.server.send(400, "application/json", out);
     return;
   }
 
@@ -6243,8 +6290,8 @@ static void handleWebNowPlayingPostApi() {
   out += F(",\"source\":\"");
   appendJsonEscaped(out, liveNowPlayingSourceLabel());
   out += F("\"}");
-  g_webConfigServer.sendHeader("Cache-Control", "no-store", true);
-  g_webConfigServer.send(200, "application/json", out);
+  g_webCfg.server.sendHeader("Cache-Control", "no-store", true);
+  g_webCfg.server.send(200, "application/json", out);
 }
 #endif
 
@@ -6371,7 +6418,7 @@ static bool buildHttpDowngradeUrl(const char *srcUrl, char *out, size_t outLen) 
 
 static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSummary) {
   outSummary = "";
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
   ScopedPsramTls psramTls;  // redirect mbedtls allocations to PSRAM
 
   String wikiHost, wikiTitlePath;
@@ -6655,7 +6702,7 @@ static RssItem *ensureRssParseBuf() {
 }
 
 static bool updateRssFromFeed(bool force) {
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
   RssItem *parseBuf = ensureRssParseBuf();
   if (!parseBuf) return false;
   const uint32_t now = millis();
@@ -6899,7 +6946,7 @@ static bool fetchWikiRandomArticle(RssItem &item) {
 }
 
 static bool updateWikiFromFeed(bool force) {
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
   RssItem *parseBuf = ensureRssParseBuf();
   if (!parseBuf) return false;
   const uint32_t now = millis();
@@ -7122,7 +7169,7 @@ static bool wikiAdvanceToNextItem() {
 
 static void wikiPreloadMetaStep() {
   if (!g_wiki.valid || g_wiki.itemCount == 0) return;
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return;
   const uint32_t now = millis();
   if ((now - g_wikiMetaPreloadLastMs) < 2500UL) return;
   g_wikiMetaPreloadLastMs = now;
@@ -7150,7 +7197,7 @@ static void wikiPreloadMetaStep() {
 static void wikiPreloadVisibleItemStep() {
   if (g_uiPageMode != UI_PAGE_WIKI) return;
   if (!g_wiki.valid || g_wiki.itemCount == 0) return;
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return;
 
   const uint32_t now = millis();
   if ((now - g_wikiVisiblePreloadLastMs) < 2200UL) return;
@@ -7237,7 +7284,7 @@ static void runRssDiag() {
 #endif
 
 static bool updateWeatherFromApi(bool force) {
-  if (WiFi.status() != WL_CONNECTED || !g_wifiConnected) return false;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
   const uint32_t now = millis();
   const uint32_t waitMs = g_weather.valid ? weatherRefreshIntervalByEnergy() : weatherRetryIntervalByEnergy();
   if (!force && (now - g_weather.lastFetchMs) < waitMs) return g_weather.valid;
@@ -7408,7 +7455,7 @@ static void runStartupSplash() {
   if (!initDisplay()) return;
 
 #if DISPLAY_BACKEND_ESP_LCD
-  if (!g_canvasBuf) return;
+  if (!g_dispHw.canvasBuf) return;
   constexpr int16_t kLogoW = 283;
   constexpr int16_t kLogoH = 152;
   constexpr size_t kLogoBytes = (size_t)kLogoW * (size_t)kLogoH * 2U;
@@ -7430,7 +7477,7 @@ static void runStartupSplash() {
     const int16_t yy = startY + y;
     if (yy < 0 || yy >= canvasH) continue;
     const size_t srcOff = (size_t)y * (size_t)kLogoW * 2U;
-    uint8_t *dst = reinterpret_cast<uint8_t *>(&g_canvasBuf[(size_t)yy * (size_t)DB_CANVAS_W + (size_t)startX]);
+    uint8_t *dst = reinterpret_cast<uint8_t *>(&g_dispHw.canvasBuf[(size_t)yy * (size_t)DB_CANVAS_W + (size_t)startX]);
     memcpy(dst, src + srcOff, (size_t)kLogoW * 2U);
   }
   dispFlush();
@@ -8258,128 +8305,128 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lv_obj_set_style_bg_grad_color(scr, lv_color_hex(t.screenBg), LV_PART_MAIN);
   }
 
-  if (g_lvglClockBlock) {
-    lv_obj_set_style_bg_color(g_lvglClockBlock, lv_color_hex(panelBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglClockBlock, lv_color_hex(panelBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglClockBlock, cardRadius, LV_PART_MAIN);
+  if (g_clockUi.block) {
+    lv_obj_set_style_bg_color(g_clockUi.block, lv_color_hex(panelBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_clockUi.block, lv_color_hex(panelBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_clockUi.block, cardRadius, LV_PART_MAIN);
   }
-  if (g_lvglWeatherCard) {
-    lv_obj_set_style_bg_color(g_lvglWeatherCard, lv_color_hex(weatherBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglWeatherCard, lv_color_hex(weatherBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglWeatherCard, cardRadius, LV_PART_MAIN);
+  if (g_weatherUi.card) {
+    lv_obj_set_style_bg_color(g_weatherUi.card, lv_color_hex(weatherBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_weatherUi.card, lv_color_hex(weatherBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_weatherUi.card, cardRadius, LV_PART_MAIN);
   }
-  if (g_lvglForecastBar) {
-    lv_obj_set_style_bg_color(g_lvglForecastBar, lv_color_hex(weatherBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglForecastBar, lv_color_hex(weatherBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglForecastBar, cardRadius, LV_PART_MAIN);
+  if (g_weatherUi.forecastBar) {
+    lv_obj_set_style_bg_color(g_weatherUi.forecastBar, lv_color_hex(weatherBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_weatherUi.forecastBar, lv_color_hex(weatherBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_weatherUi.forecastBar, cardRadius, LV_PART_MAIN);
   }
-  if (g_lvglForecastBarFill) {
-    lv_obj_set_style_bg_color(g_lvglForecastBarFill, lv_color_hex(weatherBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglForecastBarFill, lv_color_hex(weatherBg), LV_PART_MAIN);
-  }
-
-  if (g_lvglClockHeader) {
-    lv_obj_set_style_bg_color(g_lvglClockHeader, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglClockHeader, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglClockHeader, cardRadius, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_lvglClockHeader, headerBordered ? 1 : 0, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_lvglClockHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglClockHeader, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
-  }
-  if (g_lvglClockHeaderFill) {
-    lv_obj_set_style_bg_color(g_lvglClockHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglClockHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
-  }
-  if (g_lvglWeatherHeader) {
-    lv_obj_set_style_bg_color(g_lvglWeatherHeader, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglWeatherHeader, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglWeatherHeader, cardRadius, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_lvglWeatherHeader, headerBordered ? 1 : 0, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_lvglWeatherHeader, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglWeatherHeader, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
-  }
-  if (g_lvglWeatherHeaderFill) {
-    lv_obj_set_style_bg_color(g_lvglWeatherHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglWeatherHeaderFill, lv_color_hex(headerBg), LV_PART_MAIN);
-  }
-  if (g_lvglInfoCard) {
-    lv_obj_set_style_bg_color(g_lvglInfoCard, lv_color_hex(t.infoBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglInfoCard, lv_color_hex(t.infoBg), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglInfoCard, infoRadius, LV_PART_MAIN);
-  }
-  if (g_lvglInfoHeader) {
-    lv_obj_set_style_bg_color(g_lvglInfoHeader, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglInfoHeader, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_lvglInfoHeader, lv_color_hex(infoHeaderBorder), LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglInfoHeader, infoRadius, LV_PART_MAIN);
-  }
-  if (g_lvglInfoHeaderFill) {
-    lv_obj_set_style_bg_color(g_lvglInfoHeaderFill, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_lvglInfoHeaderFill, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
+  if (g_weatherUi.forecastBarFill) {
+    lv_obj_set_style_bg_color(g_weatherUi.forecastBarFill, lv_color_hex(weatherBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_weatherUi.forecastBarFill, lv_color_hex(weatherBg), LV_PART_MAIN);
   }
 
-  if (g_lvglClockDate) lv_obj_set_style_text_color(g_lvglClockDate, lv_color_hex(headerText), 0);
-  if (g_lvglCity) lv_obj_set_style_text_color(g_lvglCity, lv_color_hex(headerText), 0);
-  if (g_lvglSun) lv_obj_set_style_text_color(g_lvglSun, lv_color_hex(headerText), 0);
-  if (g_lvglClockL1) lv_obj_set_style_text_color(g_lvglClockL1, lv_color_hex(clockLine1), 0);
-  if (g_lvglClockL2) lv_obj_set_style_text_color(g_lvglClockL2, lv_color_hex(clockLine2), 0);
-  if (g_lvglClockL3) lv_obj_set_style_text_color(g_lvglClockL3, lv_color_hex(clockLine3), 0);
-  if (g_lvglClockDivider) lv_obj_set_style_bg_color(g_lvglClockDivider, lv_color_hex(clockDivider), LV_PART_MAIN);
-
-  if (g_lvglTemp) lv_obj_set_style_text_color(g_lvglTemp, lv_color_hex(weatherTextPrimary), 0);
-  if (g_lvglDesc) lv_obj_set_style_text_color(g_lvglDesc, lv_color_hex(weatherTextPrimary), 0);
-  if (g_lvglHumidity) lv_obj_set_style_text_color(g_lvglHumidity, lv_color_hex(weatherTextPrimary), 0);
-  if (g_lvglWind) lv_obj_set_style_text_color(g_lvglWind, lv_color_hex(weatherTextSecondary), 0);
-  if (g_lvglForecastNow) lv_obj_set_style_text_color(g_lvglForecastNow, lv_color_hex(forecastText), 0);
-  if (g_lvglForecastTomorrow) lv_obj_set_style_text_color(g_lvglForecastTomorrow, lv_color_hex(weatherTextSecondary), 0);
-  if (g_lvglWeatherSep) {
-    lv_obj_set_style_bg_color(g_lvglWeatherSep, lv_color_hex(weatherTextSecondary), LV_PART_MAIN);
+  if (g_clockUi.header) {
+    lv_obj_set_style_bg_color(g_clockUi.header, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_clockUi.header, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_clockUi.header, cardRadius, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_clockUi.header, headerBordered ? 1 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_clockUi.header, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_clockUi.header, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
   }
-  if (g_lvglGlyph) {
+  if (g_clockUi.headerFill) {
+    lv_obj_set_style_bg_color(g_clockUi.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_clockUi.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
+  }
+  if (g_weatherUi.header) {
+    lv_obj_set_style_bg_color(g_weatherUi.header, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_weatherUi.header, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_weatherUi.header, cardRadius, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_weatherUi.header, headerBordered ? 1 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_weatherUi.header, lv_color_hex(cyberpunk ? t.auxSourceText : t.divider), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_weatherUi.header, headerBordered ? LV_OPA_80 : LV_OPA_0, LV_PART_MAIN);
+  }
+  if (g_weatherUi.headerFill) {
+    lv_obj_set_style_bg_color(g_weatherUi.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_weatherUi.headerFill, lv_color_hex(headerBg), LV_PART_MAIN);
+  }
+  if (g_infoUi.card) {
+    lv_obj_set_style_bg_color(g_infoUi.card, lv_color_hex(t.infoBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_infoUi.card, lv_color_hex(t.infoBg), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_infoUi.card, infoRadius, LV_PART_MAIN);
+  }
+  if (g_infoUi.header) {
+    lv_obj_set_style_bg_color(g_infoUi.header, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_infoUi.header, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_infoUi.header, lv_color_hex(infoHeaderBorder), LV_PART_MAIN);
+    lv_obj_set_style_radius(g_infoUi.header, infoRadius, LV_PART_MAIN);
+  }
+  if (g_infoUi.headerFill) {
+    lv_obj_set_style_bg_color(g_infoUi.headerFill, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(g_infoUi.headerFill, lv_color_hex(infoHeaderBg), LV_PART_MAIN);
+  }
+
+  if (g_clockUi.date) lv_obj_set_style_text_color(g_clockUi.date, lv_color_hex(headerText), 0);
+  if (g_weatherUi.city) lv_obj_set_style_text_color(g_weatherUi.city, lv_color_hex(headerText), 0);
+  if (g_weatherUi.sun) lv_obj_set_style_text_color(g_weatherUi.sun, lv_color_hex(headerText), 0);
+  if (g_clockUi.l1) lv_obj_set_style_text_color(g_clockUi.l1, lv_color_hex(clockLine1), 0);
+  if (g_clockUi.l2) lv_obj_set_style_text_color(g_clockUi.l2, lv_color_hex(clockLine2), 0);
+  if (g_clockUi.l3) lv_obj_set_style_text_color(g_clockUi.l3, lv_color_hex(clockLine3), 0);
+  if (g_clockUi.divider) lv_obj_set_style_bg_color(g_clockUi.divider, lv_color_hex(clockDivider), LV_PART_MAIN);
+
+  if (g_weatherUi.temp) lv_obj_set_style_text_color(g_weatherUi.temp, lv_color_hex(weatherTextPrimary), 0);
+  if (g_weatherUi.desc) lv_obj_set_style_text_color(g_weatherUi.desc, lv_color_hex(weatherTextPrimary), 0);
+  if (g_weatherUi.humidity) lv_obj_set_style_text_color(g_weatherUi.humidity, lv_color_hex(weatherTextPrimary), 0);
+  if (g_weatherUi.wind) lv_obj_set_style_text_color(g_weatherUi.wind, lv_color_hex(weatherTextSecondary), 0);
+  if (g_weatherUi.forecastNow) lv_obj_set_style_text_color(g_weatherUi.forecastNow, lv_color_hex(forecastText), 0);
+  if (g_weatherUi.forecastTomorrow) lv_obj_set_style_text_color(g_weatherUi.forecastTomorrow, lv_color_hex(weatherTextSecondary), 0);
+  if (g_weatherUi.sep) {
+    lv_obj_set_style_bg_color(g_weatherUi.sep, lv_color_hex(weatherTextSecondary), LV_PART_MAIN);
+  }
+  if (g_weatherUi.glyph) {
     const bool weatherOnline = g_weather.valid;
     const uint32_t glyph = weatherOnline ? weatherGlyphOnline : weatherGlyphOffline;
-    lv_obj_set_style_text_color(g_lvglGlyph, lv_color_hex(glyph), 0);
+    lv_obj_set_style_text_color(g_weatherUi.glyph, lv_color_hex(glyph), 0);
   }
 
-  if (g_lvglInfoTitle) lv_obj_set_style_text_color(g_lvglInfoTitle, lv_color_hex(infoHeaderText), 0);
-  if (g_lvglInfoEndpoint) lv_obj_set_style_text_color(g_lvglInfoEndpoint, lv_color_hex(infoHeaderText), 0);
-  if (g_lvglInfoBodyLeft) lv_obj_set_style_text_color(g_lvglInfoBodyLeft, lv_color_hex(t.infoText), 0);
+  if (g_infoUi.title) lv_obj_set_style_text_color(g_infoUi.title, lv_color_hex(infoHeaderText), 0);
+  if (g_infoUi.endpoint) lv_obj_set_style_text_color(g_infoUi.endpoint, lv_color_hex(infoHeaderText), 0);
+  if (g_infoUi.bodyLeft) lv_obj_set_style_text_color(g_infoUi.bodyLeft, lv_color_hex(t.infoText), 0);
 
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
-  if (g_lvglInfoWebQr) {
-    lv_obj_t *infoQrParent = lv_obj_get_parent(g_lvglInfoWebQr);
-    lv_coord_t infoQrSize = lv_obj_get_width(g_lvglInfoWebQr);
+  if (g_infoUi.webQr) {
+    lv_obj_t *infoQrParent = lv_obj_get_parent(g_infoUi.webQr);
+    lv_coord_t infoQrSize = lv_obj_get_width(g_infoUi.webQr);
     if (infoQrSize < 32 && infoQrParent) {
       const lv_coord_t pw = lv_obj_get_width(infoQrParent);
       const lv_coord_t ph = lv_obj_get_height(infoQrParent);
       infoQrSize = ((pw < ph) ? pw : ph) - 4;
     }
     if (infoQrSize < 64) infoQrSize = 64;
-    char infoPayload[sizeof(g_lvglInfoLastQrPayload)];
-    char infoFallback[sizeof(g_lvglInfoLastQrPayload)] = "http://--:8080";
-    if (g_wifiSetupApActive) wifiBuildSetupPortalUrl(infoFallback, sizeof(infoFallback));
+    char infoPayload[sizeof(g_infoUi.lastQrPayload)];
+    char infoFallback[sizeof(g_infoUi.lastQrPayload)] = "http://--:8080";
+    if (g_wifiSt.setupApActive) wifiBuildSetupPortalUrl(infoFallback, sizeof(infoFallback));
     copyStringSafe(
       infoPayload,
       sizeof(infoPayload),
-      g_lvglInfoLastQrPayload[0] ? g_lvglInfoLastQrPayload : infoFallback
+      g_infoUi.lastQrPayload[0] ? g_infoUi.lastQrPayload : infoFallback
     );
-    lv_obj_del(g_lvglInfoWebQr);
+    lv_obj_del(g_infoUi.webQr);
     const lv_color_t infoQrDark = lv_color_hex(t.infoQrDark);
     const lv_color_t infoQrLight = lv_color_hex(t.infoQrLight);
-    g_lvglInfoWebQr = lv_qrcode_create(infoQrParent, infoQrSize, infoQrDark, infoQrLight);
-    lv_obj_align(g_lvglInfoWebQr, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(g_lvglInfoWebQr, infoQrLight, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(g_lvglInfoWebQr, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_lvglInfoWebQr, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(g_lvglInfoWebQr, lv_color_hex(t.infoHeaderBorder), LV_PART_MAIN);
-    lv_obj_set_style_border_opa(g_lvglInfoWebQr, LV_OPA_80, LV_PART_MAIN);
-    lv_qrcode_update(g_lvglInfoWebQr, infoPayload, strlen(infoPayload));
+    g_infoUi.webQr = lv_qrcode_create(infoQrParent, infoQrSize, infoQrDark, infoQrLight);
+    lv_obj_align(g_infoUi.webQr, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(g_infoUi.webQr, infoQrLight, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_infoUi.webQr, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_infoUi.webQr, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(g_infoUi.webQr, lv_color_hex(t.infoHeaderBorder), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(g_infoUi.webQr, LV_OPA_80, LV_PART_MAIN);
+    lv_qrcode_update(g_infoUi.webQr, infoPayload, strlen(infoPayload));
   }
 #endif
 
   for (uint8_t i = 0; i < 4; ++i) {
-    if (!g_lvglClockWiFiBars[i]) continue;
-    lv_obj_set_style_radius(g_lvglClockWiFiBars[i], wifiBarRadius, LV_PART_MAIN);
+    if (!g_clockUi.wifiBars[i]) continue;
+    lv_obj_set_style_radius(g_clockUi.wifiBars[i], wifiBarRadius, LV_PART_MAIN);
   }
   const uint32_t btnBorderHex = (lvglColorContrastLuma(t.auxSourceText, panelBg) >= 36u) ? t.auxSourceText : 0xEAF0FF;
   // ── Feed Deck theming (AUX + WIKI) ──────────────────────────────────────────
@@ -8477,31 +8524,31 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   lvglCenterClockSentenceLabel();
 
 #if SCREENSAVER_ENABLED
-  if (g_lvglScreenSaverRoot) lv_obj_set_style_bg_color(g_lvglScreenSaverRoot, lv_color_hex(t.screenBg), LV_PART_MAIN);
-  if (g_lvglScreenSaverSky) lv_obj_set_style_text_color(g_lvglScreenSaverSky, lv_color_hex(t.saverSky), 0);
-  if (g_lvglScreenSaverField) lv_obj_set_style_text_color(g_lvglScreenSaverField, lv_color_hex(t.saverField), 0);
-  if (g_lvglScreenSaverCow) lv_obj_set_style_text_color(g_lvglScreenSaverCow, lv_color_hex(t.saverCow), 0);
-  if (g_lvglScreenSaverBalloon) lv_obj_set_style_text_color(g_lvglScreenSaverBalloon, lv_color_hex(saverReadableText), 0);
-  if (g_lvglScreenSaverBalloonTail) lv_obj_set_style_text_color(g_lvglScreenSaverBalloonTail, lv_color_hex(saverReadableText), 0);
-  if (g_lvglScreenSaverFooter) lv_obj_set_style_text_color(g_lvglScreenSaverFooter, lv_color_hex(saverReadableText), 0);
+  if (g_saver.root) lv_obj_set_style_bg_color(g_saver.root, lv_color_hex(t.screenBg), LV_PART_MAIN);
+  if (g_saver.sky) lv_obj_set_style_text_color(g_saver.sky, lv_color_hex(t.saverSky), 0);
+  if (g_saver.field) lv_obj_set_style_text_color(g_saver.field, lv_color_hex(t.saverField), 0);
+  if (g_saver.cow) lv_obj_set_style_text_color(g_saver.cow, lv_color_hex(t.saverCow), 0);
+  if (g_saver.balloon) lv_obj_set_style_text_color(g_saver.balloon, lv_color_hex(saverReadableText), 0);
+  if (g_saver.balloonTail) lv_obj_set_style_text_color(g_saver.balloonTail, lv_color_hex(saverReadableText), 0);
+  if (g_saver.footer) lv_obj_set_style_text_color(g_saver.footer, lv_color_hex(saverReadableText), 0);
   for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
-      if (!g_lvglScreenSaverStarObj[r][s]) continue;
-      lv_obj_set_style_text_color(g_lvglScreenSaverStarObj[r][s], lv_color_hex(t.saverStarLow), 0);
+      if (!g_saver.starObj[r][s]) continue;
+      lv_obj_set_style_text_color(g_saver.starObj[r][s], lv_color_hex(t.saverStarLow), 0);
     }
   }
 #endif
 
-  g_lvglClockWiFiMask = 0xFFFF;
+  g_clockUi.wifiMask = 0xFFFF;
   lvglUpdateWiFiBars(true);
 
   if (!forceInvalidate) return;
   g_uiNeedsRedraw = true;
-  if (g_lvglInfoRoot) lv_obj_invalidate(g_lvglInfoRoot);
+  if (g_infoUi.root) lv_obj_invalidate(g_infoUi.root);
   if (g_lvglHomeRoot) lv_obj_invalidate(g_lvglHomeRoot);
   if (g_lvglAuxRoot) lv_obj_invalidate(g_lvglAuxRoot);
 #if SCREENSAVER_ENABLED
-  if (g_lvglScreenSaverRoot) lv_obj_invalidate(g_lvglScreenSaverRoot);
+  if (g_saver.root) lv_obj_invalidate(g_saver.root);
 #endif
 }
 #else
@@ -8535,19 +8582,19 @@ static void setUiPage(UiPageMode mode) {
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
   if (g_uiPageMode == UI_PAGE_DOOM && mode != UI_PAGE_DOOM) {
     if (g_lvglDoomRoot) lv_obj_add_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
-    g_doomTouchZone = DOOM_TOUCH_NONE;
-    g_doomNeutralPending = false;
+    g_doom.touchZone = DOOM_TOUCH_NONE;
+    g_doom.neutralPending = false;
   }
   if (mode == UI_PAGE_DOOM && g_uiPageMode != UI_PAGE_DOOM) {
     if (g_lvglDoomRoot) lv_obj_clear_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
-    g_doomTouchZone = DOOM_TOUCH_NONE;
+    g_doom.touchZone = DOOM_TOUCH_NONE;
 #if DB_HAS_PRBOOM_DONOR
-    g_doomLaunchRequested = doomPrboomIsRunning();
+    g_doom.launchRequested = doomPrboomIsRunning();
 #else
-    g_doomLaunchRequested = false;
+    g_doom.launchRequested = false;
 #endif
     doomRequestNeutralCalibrate();
-    g_doomFrameDirty = true;
+    g_doom.frameDirty = true;
   }
 #endif
   if (!uiPageIsFeedDeck(mode)) {
@@ -8600,22 +8647,22 @@ static void jumpToLastMainView() {
 }
 
 static void toggleClockMode() {
-  g_uiClockMode = UI_CLOCK_MODE_WORDCLOCK;
+  g_clock.mode = UI_CLOCK_MODE_WORDCLOCK;
   g_uiNeedsRedraw = true;
 }
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
 static void markUserInteraction(uint32_t nowMs) {
-  g_lastUserInteractionMs = nowMs;
+  g_saver.lastUserInteractionMs = nowMs;
 }
 
 static uint32_t lvglScreenSaverRandNext() {
-  g_lvglScreenSaverRand = (g_lvglScreenSaverRand * 1664525UL) + 1013904223UL;
-  return g_lvglScreenSaverRand;
+  g_saver.rand = (g_saver.rand * 1664525UL) + 1013904223UL;
+  return g_saver.rand;
 }
 
 static void lvglScreenSaverSetCowArt(int8_t dir) {
-  if (!g_lvglScreenSaverCow) return;
+  if (!g_saver.cow) return;
   static const char *kCowRight =
       " _(__)_        V\n"
       "'-e e -'__,--.__)\n"
@@ -8630,7 +8677,7 @@ static void lvglScreenSaverSetCowArt(int8_t dir) {
       "  |  .___\\ ./    \n"
       "   \\(_\\(_ |||    \n"
       "    )_\\)_\\)_\\\\";
-  lv_label_set_text(g_lvglScreenSaverCow, (dir >= 0) ? kCowLeft : kCowRight);
+  lv_label_set_text(g_saver.cow, (dir >= 0) ? kCowLeft : kCowRight);
 }
 
 static constexpr uint8_t kScreenSaverThoughtMaxLines = 4;
@@ -8733,43 +8780,43 @@ static void lvglScreenSaverWrapQuote(const char *src, char *dst, size_t dstSize,
 }
 
 static void lvglScreenSaverBuildFieldLine() {
-  const uint8_t cols = g_lvglScreenSaverCols;
+  const uint8_t cols = g_saver.cols;
   if (cols < 24 || cols > kSaverSkyColsMax) return;
   static const char kPattern[] = "~`~~^~";
   const uint8_t patLen = (uint8_t)(sizeof(kPattern) - 1U);
   for (uint8_t i = 0; i < cols; ++i) {
-    g_lvglScreenSaverFieldBuf[i] = kPattern[(uint8_t)((i + g_lvglScreenSaverFieldScroll) % patLen)];
+    g_saver.fieldBuf[i] = kPattern[(uint8_t)((i + g_saver.fieldScroll) % patLen)];
   }
   // Tiny ASCII tree drifts with the field to avoid static burn-in lines.
   if (cols > 14) {
-    uint8_t tx = (uint8_t)(3U + ((g_lvglScreenSaverFieldScroll / 2U) % (cols - 10U)));
-    g_lvglScreenSaverFieldBuf[tx] = '/';
-    g_lvglScreenSaverFieldBuf[tx + 1] = '^';
-    g_lvglScreenSaverFieldBuf[tx + 2] = '\\';
-    g_lvglScreenSaverFieldBuf[tx + 3] = '|';
+    uint8_t tx = (uint8_t)(3U + ((g_saver.fieldScroll / 2U) % (cols - 10U)));
+    g_saver.fieldBuf[tx] = '/';
+    g_saver.fieldBuf[tx + 1] = '^';
+    g_saver.fieldBuf[tx + 2] = '\\';
+    g_saver.fieldBuf[tx + 3] = '|';
   }
-  g_lvglScreenSaverFieldBuf[cols] = '\0';
-  if (g_lvglScreenSaverField) lv_label_set_text(g_lvglScreenSaverField, g_lvglScreenSaverFieldBuf);
+  g_saver.fieldBuf[cols] = '\0';
+  if (g_saver.field) lv_label_set_text(g_saver.field, g_saver.fieldBuf);
 }
 
 static void lvglScreenSaverUpdateField(uint32_t nowMs) {
-  if (!g_lvglScreenSaverField) return;
-  if (nowMs < g_lvglScreenSaverFieldNextMs) return;
-  g_lvglScreenSaverFieldNextMs = nowMs + 1400UL;
-  g_lvglScreenSaverFieldScroll = (uint8_t)(g_lvglScreenSaverFieldScroll + 1U);
+  if (!g_saver.field) return;
+  if (nowMs < g_saver.fieldNextMs) return;
+  g_saver.fieldNextMs = nowMs + 1400UL;
+  g_saver.fieldScroll = (uint8_t)(g_saver.fieldScroll + 1U);
   lvglScreenSaverBuildFieldLine();
 }
 
 static void lvglScreenSaverUpdateFooter(uint32_t nowMs) {
-  if (!g_lvglScreenSaverFooter) return;
-  if (nowMs >= g_lvglScreenSaverFooterJitterNextMs) {
-    g_lvglScreenSaverFooterJitterNextMs = nowMs + (18000UL + (lvglScreenSaverRandNext() % 9000UL));
-    g_lvglScreenSaverFooterJitterIdx = (uint8_t)((g_lvglScreenSaverFooterJitterIdx + 1U) % 4U);
+  if (!g_saver.footer) return;
+  if (nowMs >= g_saver.footerJitterNextMs) {
+    g_saver.footerJitterNextMs = nowMs + (18000UL + (lvglScreenSaverRandNext() % 9000UL));
+    g_saver.footerJitterIdx = (uint8_t)((g_saver.footerJitterIdx + 1U) % 4U);
   }
-  if (nowMs < g_lvglScreenSaverFooterNextMs) return;
-  g_lvglScreenSaverFooterNextMs = nowMs + 1000UL;
+  if (nowMs < g_saver.footerNextMs) return;
+  g_saver.footerNextMs = nowMs + 1000UL;
   char buf[32];
-  if (g_ntpSynced) {
+  if (g_clock.ntpSynced) {
     struct tm tmNow;
     if (getLocalTime(&tmNow, 20)) {
       snprintf(buf, sizeof(buf), "%02d:%02d  %02d/%02d",
@@ -8786,15 +8833,15 @@ static void lvglScreenSaverUpdateFooter(uint32_t nowMs) {
       {-10, -5},
       {-9, -3},
   };
-  lv_label_set_text(g_lvglScreenSaverFooter, buf);
-  lv_obj_align(g_lvglScreenSaverFooter, LV_ALIGN_BOTTOM_RIGHT,
-               kJitterXY[g_lvglScreenSaverFooterJitterIdx][0],
-               kJitterXY[g_lvglScreenSaverFooterJitterIdx][1]);
+  lv_label_set_text(g_saver.footer, buf);
+  lv_obj_align(g_saver.footer, LV_ALIGN_BOTTOM_RIGHT,
+               kJitterXY[g_saver.footerJitterIdx][0],
+               kJitterXY[g_saver.footerJitterIdx][1]);
 }
 
 static uint32_t lvglScreenSaverIdleTargetMs(uint32_t nowMs) {
 #if TEST_BATTERY
-  if (g_battHasSample && !batteryExternalPowerLikelyNow(nowMs)) {
+  if (g_batt.hasSample && !batteryExternalPowerLikelyNow(nowMs)) {
     return SCREENSAVER_IDLE_BATTERY_MS;
   }
   return SCREENSAVER_IDLE_USB_MS;
@@ -8808,33 +8855,33 @@ static void lvglScreenSaverInitStars() {
   const uint32_t nowMs = millis();
   for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
-      g_lvglScreenSaverStarX[r][s] = 0;
-      g_lvglScreenSaverStarLevel[r][s] = 0;
-      g_lvglScreenSaverStarDir[r][s] = 1;
-      g_lvglScreenSaverStarNextMs[r][s] = nowMs;
-      if (g_lvglScreenSaverStarObj[r][s]) lv_obj_add_flag(g_lvglScreenSaverStarObj[r][s], LV_OBJ_FLAG_HIDDEN);
+      g_saver.starX[r][s] = 0;
+      g_saver.starLevel[r][s] = 0;
+      g_saver.starDir[r][s] = 1;
+      g_saver.starNextMs[r][s] = nowMs;
+      if (g_saver.starObj[r][s]) lv_obj_add_flag(g_saver.starObj[r][s], LV_OBJ_FLAG_HIDDEN);
     }
   }
   const int16_t rowPitch = 12;
   const int16_t topY = 8;
-  for (uint8_t r = 0; r < g_lvglScreenSaverRows; ++r) {
-    const uint8_t seg = (uint8_t)(g_lvglScreenSaverCols / kSaverStarsPerRow);
+  for (uint8_t r = 0; r < g_saver.rows; ++r) {
+    const uint8_t seg = (uint8_t)(g_saver.cols / kSaverStarsPerRow);
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
       const uint8_t start = (uint8_t)(s * seg);
       const uint8_t span = (seg > 8) ? (seg - 4) : seg;
-      g_lvglScreenSaverStarX[r][s] = (uint8_t)(start + 2 + (lvglScreenSaverRandNext() % (span ? span : 1)));
+      g_saver.starX[r][s] = (uint8_t)(start + 2 + (lvglScreenSaverRandNext() % (span ? span : 1)));
       const bool startLit = (s == 0U) || ((lvglScreenSaverRandNext() % 100U) < 35U);
       if (startLit) {
-        g_lvglScreenSaverStarLevel[r][s] = (uint8_t)(1U + (lvglScreenSaverRandNext() % 2U));
-        g_lvglScreenSaverStarDir[r][s] = -1;
-        g_lvglScreenSaverStarNextMs[r][s] = nowMs + (420UL + (lvglScreenSaverRandNext() % 760UL));
+        g_saver.starLevel[r][s] = (uint8_t)(1U + (lvglScreenSaverRandNext() % 2U));
+        g_saver.starDir[r][s] = -1;
+        g_saver.starNextMs[r][s] = nowMs + (420UL + (lvglScreenSaverRandNext() % 760UL));
       } else {
-        g_lvglScreenSaverStarLevel[r][s] = 0;
-        g_lvglScreenSaverStarDir[r][s] = 1;
-        g_lvglScreenSaverStarNextMs[r][s] = nowMs + (3500UL + (lvglScreenSaverRandNext() % 8500UL));
+        g_saver.starLevel[r][s] = 0;
+        g_saver.starDir[r][s] = 1;
+        g_saver.starNextMs[r][s] = nowMs + (3500UL + (lvglScreenSaverRandNext() % 8500UL));
       }
-      if (g_lvglScreenSaverStarObj[r][s]) {
-        lv_obj_set_pos(g_lvglScreenSaverStarObj[r][s], 4 + ((int16_t)g_lvglScreenSaverStarX[r][s] * 8), topY + ((int16_t)r * rowPitch));
+      if (g_saver.starObj[r][s]) {
+        lv_obj_set_pos(g_saver.starObj[r][s], 4 + ((int16_t)g_saver.starX[r][s] * 8), topY + ((int16_t)r * rowPitch));
       }
     }
   }
@@ -8979,17 +9026,17 @@ static void toUpperAsciiInPlace(char *s) {
 }
 
 static void lvglScreenSaverSetBalloonText() {
-  if (!g_lvglScreenSaverBalloon) return;
+  if (!g_saver.balloon) return;
   const char *const *quotes = nullptr;
   uint8_t n = 0;
   lvglScreenSaverQuotePackForLang(&quotes, &n);
   if (!quotes || n == 0) return;
-  if (g_lvglScreenSaverBalloonIdx >= n) g_lvglScreenSaverBalloonIdx = 0;
+  if (g_saver.balloonIdx >= n) g_saver.balloonIdx = 0;
   if (n > 1U) {
-    g_lvglScreenSaverBalloonIdx =
-        (uint8_t)((g_lvglScreenSaverBalloonIdx + 1U + (lvglScreenSaverRandNext() % (n - 1U))) % n);
+    g_saver.balloonIdx =
+        (uint8_t)((g_saver.balloonIdx + 1U + (lvglScreenSaverRandNext() % (n - 1U))) % n);
   }
-  const char *quote = quotes[g_lvglScreenSaverBalloonIdx];
+  const char *quote = quotes[g_saver.balloonIdx];
   static char wrapped[256];
   uint8_t cols = lvglScreenSaverWrapCols();
   const lv_coord_t maxBalloonW = lvglScreenSaverBalloonMaxWidthPx();
@@ -9000,12 +9047,12 @@ static void lvglScreenSaverSetBalloonText() {
     --cols;
   }
   if (strcmp(g_wordClockLang, "l33t") == 0) toUpperAsciiInPlace(wrapped);
-  lv_label_set_text(g_lvglScreenSaverBalloon, wrapped);
-  lv_label_set_long_mode(g_lvglScreenSaverBalloon, LV_LABEL_LONG_CLIP);
-  lv_obj_set_size(g_lvglScreenSaverBalloon, lvglScreenSaverResolvedBalloonWidth(wrapped), LV_SIZE_CONTENT);
-  lv_obj_update_layout(g_lvglScreenSaverBalloon);
-  if (g_lvglScreenSaverBalloonTail) {
-    const int16_t bw = lv_obj_get_width(g_lvglScreenSaverBalloon);
+  lv_label_set_text(g_saver.balloon, wrapped);
+  lv_label_set_long_mode(g_saver.balloon, LV_LABEL_LONG_CLIP);
+  lv_obj_set_size(g_saver.balloon, lvglScreenSaverResolvedBalloonWidth(wrapped), LV_SIZE_CONTENT);
+  lv_obj_update_layout(g_saver.balloon);
+  if (g_saver.balloonTail) {
+    const int16_t bw = lv_obj_get_width(g_saver.balloon);
     int16_t dashes = bw / 6;
     if (dashes < 8) dashes = 8;
     if (dashes > 20) dashes = 20;
@@ -9016,55 +9063,55 @@ static void lvglScreenSaverSetBalloonText() {
       if ((i & 1) == 0 && (k + 1) < (int16_t)sizeof(ruleBuf)) ruleBuf[k++] = ' ';
     }
     ruleBuf[k] = '\0';
-    lv_label_set_text(g_lvglScreenSaverBalloonTail, ruleBuf);
+    lv_label_set_text(g_saver.balloonTail, ruleBuf);
   }
 }
 
 static void lvglScreenSaverUpdateBalloon(uint32_t nowMs) {
-  if (!g_lvglScreenSaverBalloon) return;
+  if (!g_saver.balloon) return;
   const uint32_t kCycleMs = 25000UL;   // 10s OFF + 15s ON
   const uint32_t kShowFromMs = 10000UL;
   const bool shouldShow = ((nowMs % kCycleMs) >= kShowFromMs);
-  if (!shouldShow && g_lvglScreenSaverBalloonVisible) {
-    g_lvglScreenSaverBalloonVisible = false;
-    lv_obj_add_flag(g_lvglScreenSaverBalloon, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglScreenSaverBalloonTail) lv_obj_add_flag(g_lvglScreenSaverBalloonTail, LV_OBJ_FLAG_HIDDEN);
-  } else if (shouldShow && !g_lvglScreenSaverBalloonVisible) {
-    g_lvglScreenSaverBalloonVisible = true;
+  if (!shouldShow && g_saver.balloonVisible) {
+    g_saver.balloonVisible = false;
+    lv_obj_add_flag(g_saver.balloon, LV_OBJ_FLAG_HIDDEN);
+    if (g_saver.balloonTail) lv_obj_add_flag(g_saver.balloonTail, LV_OBJ_FLAG_HIDDEN);
+  } else if (shouldShow && !g_saver.balloonVisible) {
+    g_saver.balloonVisible = true;
     lvglScreenSaverSetBalloonText();
-    lvglForceLabelVisible(g_lvglScreenSaverBalloon);
-    if (g_lvglScreenSaverBalloonTail) lvglForceLabelVisible(g_lvglScreenSaverBalloonTail);
+    lvglForceLabelVisible(g_saver.balloon);
+    if (g_saver.balloonTail) lvglForceLabelVisible(g_saver.balloonTail);
   }
 }
 
 static void lvglScreenSaverUpdateStars(uint32_t nowMs) {
-  if (!g_lvglScreenSaverRoot) return;
+  if (!g_saver.root) return;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  for (uint8_t r = 0; r < g_lvglScreenSaverRows; ++r) {
+  for (uint8_t r = 0; r < g_saver.rows; ++r) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
-      if (nowMs < g_lvglScreenSaverStarNextMs[r][s]) continue;
-      uint8_t &lvl = g_lvglScreenSaverStarLevel[r][s];
-      int8_t &dir = g_lvglScreenSaverStarDir[r][s];
+      if (nowMs < g_saver.starNextMs[r][s]) continue;
+      uint8_t &lvl = g_saver.starLevel[r][s];
+      int8_t &dir = g_saver.starDir[r][s];
       if (dir > 0) {
         if (lvl < 3) ++lvl;
         if (lvl >= 3) dir = -1;
-        g_lvglScreenSaverStarNextMs[r][s] = nowMs + 520UL;
+        g_saver.starNextMs[r][s] = nowMs + 520UL;
       } else {
         if (lvl > 0) --lvl;
         if (lvl == 0) {
           dir = 1;
-          g_lvglScreenSaverStarNextMs[r][s] = nowMs + (3500UL + (lvglScreenSaverRandNext() % 8500UL));
+          g_saver.starNextMs[r][s] = nowMs + (3500UL + (lvglScreenSaverRandNext() % 8500UL));
         } else {
-          g_lvglScreenSaverStarNextMs[r][s] = nowMs + 520UL;
+          g_saver.starNextMs[r][s] = nowMs + 520UL;
         }
       }
     }
   }
-  for (uint8_t r = 0; r < g_lvglScreenSaverRows; ++r) {
+  for (uint8_t r = 0; r < g_saver.rows; ++r) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
-      lv_obj_t *star = g_lvglScreenSaverStarObj[r][s];
+      lv_obj_t *star = g_saver.starObj[r][s];
       if (!star) continue;
-      const uint8_t lvl = g_lvglScreenSaverStarLevel[r][s];
+      const uint8_t lvl = g_saver.starLevel[r][s];
       if (lvl == 0) {
         lv_obj_add_flag(star, LV_OBJ_FLAG_HIDDEN);
       } else {
@@ -9081,86 +9128,86 @@ static void lvglScreenSaverUpdateStars(uint32_t nowMs) {
 
 static void lvglScreenSaverRespawnCow() {
   const int16_t h = canvasHeight();
-  g_lvglScreenSaverY = (h > 96) ? (h - 90) : 14;
-  if (g_lvglScreenSaverX < 16 || g_lvglScreenSaverX > (canvasWidth() - 112)) {
-    g_lvglScreenSaverX = (int16_t)(24 + (lvglScreenSaverRandNext() % 180U));
+  g_saver.y = (h > 96) ? (h - 90) : 14;
+  if (g_saver.x < 16 || g_saver.x > (canvasWidth() - 112)) {
+    g_saver.x = (int16_t)(24 + (lvglScreenSaverRandNext() % 180U));
   }
-  g_lvglScreenSaverColorIdx = (int8_t)((g_lvglScreenSaverColorIdx + 1) % 3);
-  if (g_lvglScreenSaverCow) {
+  g_saver.colorIdx = (int8_t)((g_saver.colorIdx + 1) % 3);
+  if (g_saver.cow) {
     const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-    (void)g_lvglScreenSaverColorIdx;
-    lv_obj_set_style_text_color(g_lvglScreenSaverCow, lv_color_hex(t.saverCow), 0);
-    lvglScreenSaverSetCowArt(g_lvglScreenSaverCowDir);
-    lv_obj_set_pos(g_lvglScreenSaverCow, g_lvglScreenSaverX, g_lvglScreenSaverY);
+    (void)g_saver.colorIdx;
+    lv_obj_set_style_text_color(g_saver.cow, lv_color_hex(t.saverCow), 0);
+    lvglScreenSaverSetCowArt(g_saver.cowDir);
+    lv_obj_set_pos(g_saver.cow, g_saver.x, g_saver.y);
   }
-  g_lvglScreenSaverCowStepsLeft = 0;
-  g_lvglScreenSaverCowDir = ((lvglScreenSaverRandNext() & 1U) == 0U) ? 1 : -1;
-  lvglScreenSaverSetCowArt(g_lvglScreenSaverCowDir);
-  g_lvglScreenSaverCowNextMoveMs = millis() + (1000UL + (lvglScreenSaverRandNext() % 5000UL));
-  g_lvglScreenSaverBalloonVisible = false;
-  g_lvglScreenSaverBalloonNextMs = millis() + 15000UL;
+  g_saver.cowStepsLeft = 0;
+  g_saver.cowDir = ((lvglScreenSaverRandNext() & 1U) == 0U) ? 1 : -1;
+  lvglScreenSaverSetCowArt(g_saver.cowDir);
+  g_saver.cowNextMoveMs = millis() + (1000UL + (lvglScreenSaverRandNext() % 5000UL));
+  g_saver.balloonVisible = false;
+  g_saver.balloonNextMs = millis() + 15000UL;
 }
 
 static void lvglSetScreenSaverActive(bool on) {
-  if (!g_lvglScreenSaverRoot || !g_lvglReady) return;
-  if (g_lvglScreenSaverActive == on) return;
-  g_lvglScreenSaverActive = on;
+  if (!g_saver.root || !g_lvglReady) return;
+  if (g_saver.active == on) return;
+  g_saver.active = on;
   if (on) {
-    lv_obj_clear_flag(g_lvglScreenSaverRoot, LV_OBJ_FLAG_HIDDEN);
-    g_lvglScreenSaverCols = (uint8_t)((canvasWidth() / 8) - 2);
-    if (g_lvglScreenSaverCols > kSaverSkyColsMax) g_lvglScreenSaverCols = kSaverSkyColsMax;
-    if (g_lvglScreenSaverCols < 36) g_lvglScreenSaverCols = 36;
-    g_lvglScreenSaverRows = (uint8_t)(((canvasHeight() - 68) / 12));
-    if (g_lvglScreenSaverRows > kSaverSkyRowsMax) g_lvglScreenSaverRows = kSaverSkyRowsMax;
-    if (g_lvglScreenSaverRows < 4) g_lvglScreenSaverRows = 4;
+    lv_obj_clear_flag(g_saver.root, LV_OBJ_FLAG_HIDDEN);
+    g_saver.cols = (uint8_t)((canvasWidth() / 8) - 2);
+    if (g_saver.cols > kSaverSkyColsMax) g_saver.cols = kSaverSkyColsMax;
+    if (g_saver.cols < 36) g_saver.cols = 36;
+    g_saver.rows = (uint8_t)(((canvasHeight() - 68) / 12));
+    if (g_saver.rows > kSaverSkyRowsMax) g_saver.rows = kSaverSkyRowsMax;
+    if (g_saver.rows < 4) g_saver.rows = 4;
     lvglScreenSaverInitStars();
-    g_lvglScreenSaverFieldScroll = (uint8_t)(lvglScreenSaverRandNext() & 0x0FU);
-    g_lvglScreenSaverFieldNextMs = millis() + 1200UL;
-    g_lvglScreenSaverFooterJitterIdx = (uint8_t)(lvglScreenSaverRandNext() % 4U);
-    g_lvglScreenSaverFooterJitterNextMs = millis() + 10000UL;
+    g_saver.fieldScroll = (uint8_t)(lvglScreenSaverRandNext() & 0x0FU);
+    g_saver.fieldNextMs = millis() + 1200UL;
+    g_saver.footerJitterIdx = (uint8_t)(lvglScreenSaverRandNext() % 4U);
+    g_saver.footerJitterNextMs = millis() + 10000UL;
     lvglScreenSaverBuildFieldLine();
     lvglScreenSaverUpdateStars(millis());
     lvglScreenSaverRespawnCow();
     lvglScreenSaverUpdateFooter(millis());
-    g_lvglScreenSaverLastStepMs = millis();
-    lv_obj_move_foreground(g_lvglScreenSaverRoot);
-    if (g_lvglScreenSaverFooter) lv_obj_clear_flag(g_lvglScreenSaverFooter, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglScreenSaverBalloon) lv_obj_add_flag(g_lvglScreenSaverBalloon, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglScreenSaverBalloonTail) lv_obj_add_flag(g_lvglScreenSaverBalloonTail, LV_OBJ_FLAG_HIDDEN);
+    g_saver.lastStepMs = millis();
+    lv_obj_move_foreground(g_saver.root);
+    if (g_saver.footer) lv_obj_clear_flag(g_saver.footer, LV_OBJ_FLAG_HIDDEN);
+    if (g_saver.balloon) lv_obj_add_flag(g_saver.balloon, LV_OBJ_FLAG_HIDDEN);
+    if (g_saver.balloonTail) lv_obj_add_flag(g_saver.balloonTail, LV_OBJ_FLAG_HIDDEN);
     Serial.println("[SCRNSVR] ON");
   } else {
-    lv_obj_add_flag(g_lvglScreenSaverRoot, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglScreenSaverFooter) lv_obj_add_flag(g_lvglScreenSaverFooter, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglScreenSaverBalloon) lv_obj_add_flag(g_lvglScreenSaverBalloon, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglScreenSaverBalloonTail) lv_obj_add_flag(g_lvglScreenSaverBalloonTail, LV_OBJ_FLAG_HIDDEN);
-    g_lvglScreenSaverWakeGuardUntilMs = millis() + 900UL;
+    lv_obj_add_flag(g_saver.root, LV_OBJ_FLAG_HIDDEN);
+    if (g_saver.footer) lv_obj_add_flag(g_saver.footer, LV_OBJ_FLAG_HIDDEN);
+    if (g_saver.balloon) lv_obj_add_flag(g_saver.balloon, LV_OBJ_FLAG_HIDDEN);
+    if (g_saver.balloonTail) lv_obj_add_flag(g_saver.balloonTail, LV_OBJ_FLAG_HIDDEN);
+    g_saver.wakeGuardUntilMs = millis() + 900UL;
     g_uiNeedsRedraw = true;
     Serial.println("[SCRNSVR] OFF");
   }
 }
 
 static void handleScreenSaverLoop(uint32_t nowMs) {
-  if (!g_lvglReady || !g_lvglScreenSaverRoot) return;
+  if (!g_lvglReady || !g_saver.root) return;
 #if TEST_TOUCH
   const bool rawTouch = isAnyTouchPresentRaw();
   if (rawTouch) {
-    if (g_touchRawPresenceCount < 6) ++g_touchRawPresenceCount;
+    if (g_touch.rawPresenceCount < 6) ++g_touch.rawPresenceCount;
   } else {
-    g_touchRawPresenceCount = 0;
+    g_touch.rawPresenceCount = 0;
   }
-  const bool touching = g_touchDown || (g_touchRawPresenceCount >= 2);
+  const bool touching = g_touch.down || (g_touch.rawPresenceCount >= 2);
 #else
   const bool rawTouch = false;
   const bool touching = false;
 #endif
-  if (!g_lvglScreenSaverActive && g_lastUserInteractionMs == 0) g_lastUserInteractionMs = nowMs;
+  if (!g_saver.active && g_saver.lastUserInteractionMs == 0) g_saver.lastUserInteractionMs = nowMs;
 
-  if (!g_lvglScreenSaverActive) {
-    if (nowMs < g_lvglScreenSaverWakeGuardUntilMs) return;
+  if (!g_saver.active) {
+    if (nowMs < g_saver.wakeGuardUntilMs) return;
     // Never activate screensaver while a QR modal overlay is open
     if (g_auxDeck.qrModalOpen || g_wikiDeck.qrModalOpen) return;
     const uint32_t idleTargetMs = lvglScreenSaverIdleTargetMs(nowMs);
-    if (!rawTouch && !touching && (nowMs - g_lastUserInteractionMs) >= idleTargetMs) {
+    if (!rawTouch && !touching && (nowMs - g_saver.lastUserInteractionMs) >= idleTargetMs) {
       lvglSetScreenSaverActive(true);
     }
     return;
@@ -9172,59 +9219,59 @@ static void handleScreenSaverLoop(uint32_t nowMs) {
     return;
   }
 #if TEST_IMU
-  if (g_lastShakeMs != 0 && (nowMs - g_lastShakeMs) < 1200UL) {
+  if (g_imu.lastShakeMs != 0 && (nowMs - g_imu.lastShakeMs) < 1200UL) {
     lvglSetScreenSaverActive(false);
     markUserInteraction(nowMs);
     return;
   }
 #endif
 
-  if ((nowMs - g_lvglScreenSaverLastStepMs) < SCREENSAVER_STEP_MS) return;
-  g_lvglScreenSaverLastStepMs = nowMs;
+  if ((nowMs - g_saver.lastStepMs) < SCREENSAVER_STEP_MS) return;
+  g_saver.lastStepMs = nowMs;
   lvglScreenSaverUpdateStars(nowMs);
   lvglScreenSaverUpdateField(nowMs);
   lvglScreenSaverUpdateBalloon(nowMs);
   lvglScreenSaverUpdateFooter(nowMs);
-  if (nowMs >= g_lvglScreenSaverCowNextMoveMs) {
+  if (nowMs >= g_saver.cowNextMoveMs) {
     bool dirChanged = false;
-    if (g_lvglScreenSaverCowStepsLeft == 0) {
-      g_lvglScreenSaverCowStepsLeft = (uint8_t)(2U + (lvglScreenSaverRandNext() % 5U));  // short walk burst
+    if (g_saver.cowStepsLeft == 0) {
+      g_saver.cowStepsLeft = (uint8_t)(2U + (lvglScreenSaverRandNext() % 5U));  // short walk burst
       if ((lvglScreenSaverRandNext() % 5U) == 0U) {
-        g_lvglScreenSaverCowDir = -g_lvglScreenSaverCowDir;
+        g_saver.cowDir = -g_saver.cowDir;
         dirChanged = true;
       }
     }
     const int16_t minX = 8;
     const int16_t maxX = canvasWidth() - 250;
-    int16_t nx = (int16_t)(g_lvglScreenSaverX + (g_lvglScreenSaverCowDir * 6));
+    int16_t nx = (int16_t)(g_saver.x + (g_saver.cowDir * 6));
     if (nx < minX) {
       nx = minX;
-      g_lvglScreenSaverCowDir = 1;
+      g_saver.cowDir = 1;
       dirChanged = true;
     } else if (nx > maxX) {
       nx = maxX;
-      g_lvglScreenSaverCowDir = -1;
+      g_saver.cowDir = -1;
       dirChanged = true;
     }
-    if (dirChanged) lvglScreenSaverSetCowArt(g_lvglScreenSaverCowDir);
-    g_lvglScreenSaverX = nx;
-    if (g_lvglScreenSaverCowStepsLeft > 0) --g_lvglScreenSaverCowStepsLeft;
-    g_lvglScreenSaverCowNextMoveMs = nowMs + ((g_lvglScreenSaverCowStepsLeft > 0) ? 180UL : (1000UL + (lvglScreenSaverRandNext() % 5000UL)));
+    if (dirChanged) lvglScreenSaverSetCowArt(g_saver.cowDir);
+    g_saver.x = nx;
+    if (g_saver.cowStepsLeft > 0) --g_saver.cowStepsLeft;
+    g_saver.cowNextMoveMs = nowMs + ((g_saver.cowStepsLeft > 0) ? 180UL : (1000UL + (lvglScreenSaverRandNext() % 5000UL)));
   }
-  if (g_lvglScreenSaverCow) {
-    lv_obj_set_pos(g_lvglScreenSaverCow, g_lvglScreenSaverX, g_lvglScreenSaverY);
+  if (g_saver.cow) {
+    lv_obj_set_pos(g_saver.cow, g_saver.x, g_saver.y);
   }
-  if (g_lvglScreenSaverBalloon && g_lvglScreenSaverBalloonVisible) {
-    const int16_t bw = lv_obj_get_width(g_lvglScreenSaverBalloon);
-    const int16_t bh = lv_obj_get_height(g_lvglScreenSaverBalloon);
-    int16_t bx = g_lvglScreenSaverX + ((g_lvglScreenSaverCowDir >= 0) ? 120 : -bw + 96);
+  if (g_saver.balloon && g_saver.balloonVisible) {
+    const int16_t bw = lv_obj_get_width(g_saver.balloon);
+    const int16_t bh = lv_obj_get_height(g_saver.balloon);
+    int16_t bx = g_saver.x + ((g_saver.cowDir >= 0) ? 120 : -bw + 96);
     const int16_t maxX = canvasWidth() - bw - 8;
     if (bx < 8) bx = 8;
     if (bx > maxX) bx = maxX;
-    const int16_t by = g_lvglScreenSaverY - bh - 10;
-    lv_obj_set_pos(g_lvglScreenSaverBalloon, bx, (by < 4) ? 4 : by);
-    if (g_lvglScreenSaverBalloonTail) {
-      lv_obj_set_pos(g_lvglScreenSaverBalloonTail, bx, lv_obj_get_y(g_lvglScreenSaverBalloon) + bh + 2);
+    const int16_t by = g_saver.y - bh - 10;
+    lv_obj_set_pos(g_saver.balloon, bx, (by < 4) ? 4 : by);
+    if (g_saver.balloonTail) {
+      lv_obj_set_pos(g_saver.balloonTail, bx, lv_obj_get_y(g_saver.balloon) + bh + 2);
     }
   }
 }
@@ -9244,28 +9291,28 @@ static bool initTouchInput() {
 
   // On this board wiring the touch controller is on ALT bus; prefer ALT when both ACK.
   if (errAlt == 0) {
-    g_touchReady = true;
-    g_touchUseAltBus = true;
+    g_touch.ready = true;
+    g_touch.useAltBus = true;
   } else if (errMain == 0) {
-    g_touchReady = true;
-    g_touchUseAltBus = false;
+    g_touch.ready = true;
+    g_touch.useAltBus = false;
   } else {
-    g_touchReady = false;
+    g_touch.ready = false;
   }
 
   Serial.printf("[TOUCH] probe addr=0x%02X main=%d alt=%d -> %s (%s)\n",
                 TOUCH_I2C_ADDR, errMain, errAlt,
-                g_touchReady ? "OK" : "FAIL",
-                g_touchReady ? (g_touchUseAltBus ? "ALT" : "MAIN") : "-");
-  return g_touchReady;
+                g_touch.ready ? "OK" : "FAIL",
+                g_touch.ready ? (g_touch.useAltBus ? "ALT" : "MAIN") : "-");
+  return g_touch.ready;
 }
 
 static bool readTouchLogicalPoint(int16_t &lx, int16_t &ly) {
-  if (!g_touchReady) return false;
+  if (!g_touch.ready) return false;
   static const uint8_t kReadCmd[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00};
   uint8_t data[8] = {0};
 
-  TwoWire &tb = g_touchUseAltBus ? I2C_ALT : I2C_MAIN;
+  TwoWire &tb = g_touch.useAltBus ? I2C_ALT : I2C_MAIN;
   tb.beginTransmission(TOUCH_I2C_ADDR);
   tb.write(kReadCmd, sizeof(kReadCmd));
   if (tb.endTransmission() != 0) return false;
@@ -9305,10 +9352,10 @@ static bool readTouchLogicalPoint(int16_t &lx, int16_t &ly) {
 }
 
 static bool isAnyTouchPresentRaw() {
-  if (!g_touchReady) return false;
+  if (!g_touch.ready) return false;
   static const uint8_t kReadCmd[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00};
   uint8_t data[8] = {0};
-  TwoWire &tb = g_touchUseAltBus ? I2C_ALT : I2C_MAIN;
+  TwoWire &tb = g_touch.useAltBus ? I2C_ALT : I2C_MAIN;
   tb.beginTransmission(TOUCH_I2C_ADDR);
   tb.write(kReadCmd, sizeof(kReadCmd));
   if (tb.endTransmission() != 0) return false;
@@ -9371,35 +9418,35 @@ static void handleFeedDeckButtonRelease(const TouchReleaseInfo &r) {
 #endif
     }
   }
-  g_touchAwaitRelease = true;
-  g_touchReleaseStartMs = 0;
+  g_touch.awaitRelease = true;
+  g_touch.releaseStartMs = 0;
 }
 
 // ── M6: Release handler — LVGL page drag commit/cancel ──
 
 static void handlePageDragRelease(const TouchReleaseInfo &r) {
-  g_touchPageDragging = false;
+  g_touch.pageDragging = false;
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-  g_lvglPageDragActive = false;
+  g_pageAnim.dragActive = false;
   if (uiPageIsFeedDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
     lvglApplyPageVisibility(true);
-    g_touchAwaitRelease = true;
-    g_touchReleaseStartMs = 0;
+    g_touch.awaitRelease = true;
+    g_touch.releaseStartMs = 0;
     Serial.printf("[TOUCH] drag ignored (qr-open) dx=%d dy=%d dur=%lums\n", r.dx, r.dy, (unsigned long)r.durMs);
     return;
   }
-  if (r.durMs <= 3000 && r.pageSwipe && ((millis() - g_lastSwipeToggleMs) >= 140)) {
+  if (r.durMs <= 3000 && r.pageSwipe && ((millis() - g_touch.lastSwipeToggleMs) >= 140)) {
     const int8_t dir = (r.dx < 0) ? 1 : -1;
     bool moved = stepUiPage(dir, false);
-    g_lastSwipeToggleMs = millis();
-    g_touchAwaitRelease = true;
-    g_touchReleaseStartMs = 0;
+    g_touch.lastSwipeToggleMs = millis();
+    g_touch.awaitRelease = true;
+    g_touch.releaseStartMs = 0;
     Serial.printf("[TOUCH] drag-swipe dx=%d dy=%d dur=%lums -> page=%s moved=%d\n",
                   r.dx, r.dy, (unsigned long)r.durMs, uiPageName(g_uiPageMode), moved ? 1 : 0);
   } else {
     lvglApplyPageVisibility(true);
-    g_touchAwaitRelease = true;
-    g_touchReleaseStartMs = 0;
+    g_touch.awaitRelease = true;
+    g_touch.releaseStartMs = 0;
     Serial.printf("[TOUCH] drag-cancel dx=%d dy=%d dur=%lums\n", r.dx, r.dy, (unsigned long)r.durMs);
   }
 #endif
@@ -9414,42 +9461,42 @@ static void handleDoomTouchRelease(const TouchReleaseInfo &r) {
     const int8_t doomOrd = uiPageOrdinal(UI_PAGE_DOOM);
     if (doomOrd > 0) doomExit = uiPageFromOrdinal(doomOrd - 1);
     setUiPage(doomExit);
-    g_lastSwipeToggleMs = millis();
-    g_touchAwaitRelease = true;
-    g_touchReleaseStartMs = 0;
+    g_touch.lastSwipeToggleMs = millis();
+    g_touch.awaitRelease = true;
+    g_touch.releaseStartMs = 0;
     Serial.printf("[DOOM][TOUCH] swipe-exit zone=%s dx=%d dy=%d dur=%lums -> %s\n",
                   doomTouchZoneName(r.doomTouchZone), r.dx, r.dy, (unsigned long)r.durMs, uiPageName(g_uiPageMode));
     return;
   }
   if (r.doomTouchZone == DOOM_TOUCH_LEFT || r.doomTouchZone == DOOM_TOUCH_RIGHT) {
-    bool doomLaunching = g_doomLaunchRequested;
+    bool doomLaunching = g_doom.launchRequested;
 #if DB_HAS_PRBOOM_DONOR
     doomLaunching = doomLaunching || doomPrboomIsRunning();
 #endif
     if (!doomLaunching && r.doomTouchZone == DOOM_TOUCH_RIGHT && r.isTap) {
-      g_doomLaunchRequested = true;
-      g_doomFrameDirty = true;
+      g_doom.launchRequested = true;
+      g_doom.frameDirty = true;
 #if DB_HAS_PRBOOM_DONOR
       doomPrboomEnsureStarted();
 #endif
       Serial.printf("[DOOM][TOUCH] zone=%s action=START tap=1 -> boot core\n",
                     doomTouchZoneName(r.doomTouchZone));
-      g_touchAwaitRelease = true;
-      g_touchReleaseStartMs = 0;
+      g_touch.awaitRelease = true;
+      g_touch.releaseStartMs = 0;
       return;
     }
     const char *action = (r.doomTouchZone == DOOM_TOUCH_LEFT) ? "USE" : "FIRE";
     Serial.printf("[DOOM][TOUCH] zone=%s action=%s tap=%d dx=%d dy=%d dur=%lums\n",
                   doomTouchZoneName(r.doomTouchZone), action, r.isTap ? 1 : 0, r.dx, r.dy, (unsigned long)r.durMs);
-    g_touchAwaitRelease = true;
-    g_touchReleaseStartMs = 0;
+    g_touch.awaitRelease = true;
+    g_touch.releaseStartMs = 0;
     return;
   }
   if (r.isTap) {
     doomRequestNeutralCalibrate();
-    g_touchAwaitRelease = true;
-    g_touchReleaseStartMs = 0;
-    Serial.printf("[DOOM][TOUCH] center-tap recalibrate x=%d y=%d\n", g_touchStartX, g_touchStartY);
+    g_touch.awaitRelease = true;
+    g_touch.releaseStartMs = 0;
+    Serial.printf("[DOOM][TOUCH] center-tap recalibrate x=%d y=%d\n", g_touch.startX, g_touch.startY);
   }
 }
 #endif
@@ -9463,9 +9510,9 @@ static void handleCarouselSwipe(const TouchReleaseInfo &r) {
     const int8_t doomOrd = uiPageOrdinal(UI_PAGE_DOOM);
     if (doomOrd > 0) doomExit = uiPageFromOrdinal(doomOrd - 1);
     setUiPage(doomExit);
-    g_lastSwipeToggleMs = millis();
-    g_touchAwaitRelease = true;
-    g_touchReleaseStartMs = 0;
+    g_touch.lastSwipeToggleMs = millis();
+    g_touch.awaitRelease = true;
+    g_touch.releaseStartMs = 0;
     Serial.printf("[TOUCH] doom-exit dx=%d dy=%d tap=%d -> %s\n", r.dx, r.dy, r.isTap ? 1 : 0, uiPageName(g_uiPageMode));
     return;
   }
@@ -9473,9 +9520,9 @@ static void handleCarouselSwipe(const TouchReleaseInfo &r) {
   if (r.pageSwipe) {
     const int8_t dir = (r.dx < 0) ? 1 : -1;
     bool moved = stepUiPage(dir, false);
-    g_lastSwipeToggleMs = millis();
-    g_touchAwaitRelease = true;
-    g_touchReleaseStartMs = 0;
+    g_touch.lastSwipeToggleMs = millis();
+    g_touch.awaitRelease = true;
+    g_touch.releaseStartMs = 0;
     const char *dirLabel = (r.dx < 0) ? "LEFT" : "RIGHT";
     Serial.printf("[TOUCH] swipe %s dx=%d dy=%d dur=%lums -> page=%s moved=%d\n",
                   dirLabel, r.dx, r.dy, (unsigned long)r.durMs, uiPageName(g_uiPageMode), moved ? 1 : 0);
@@ -9486,16 +9533,16 @@ static void handleCarouselSwipe(const TouchReleaseInfo &r) {
 
 static void handleFeedDeckTapRelease(const TouchReleaseInfo &r) {
   if (r.isTap && uiPageIsFeedDeck(g_uiPageMode) &&
-      (lvglFeedNewsContainsPoint(g_touchStartX, g_touchStartY) ||
-       lvglAuxHeroContainsPoint(g_touchStartX, g_touchStartY))) {
+      (lvglFeedNewsContainsPoint(g_touch.startX, g_touch.startY) ||
+       lvglAuxHeroContainsPoint(g_touch.startX, g_touch.startY))) {
 #if TEST_WIFI && RSS_ENABLED
     const bool moved = (g_uiPageMode == UI_PAGE_WIKI) ? wikiAdvanceToNextItem() : rssAdvanceToNextItem();
     RssState &content = (g_uiPageMode == UI_PAGE_WIKI) ? g_wiki : g_rss;
     const char *tag = (g_uiPageMode == UI_PAGE_WIKI) ? "wiki" : "rss";
     if (moved) {
       g_uiNeedsRedraw = true;
-      g_touchAwaitRelease = true;
-      g_touchReleaseStartMs = 0;
+      g_touch.awaitRelease = true;
+      g_touch.releaseStartMs = 0;
       Serial.printf("[TOUCH] aux-news-tap -> %s %u/%u\n", tag,
                     (unsigned)(content.currentIndex + 1), (unsigned)content.itemCount);
       return;
@@ -9506,10 +9553,10 @@ static void handleFeedDeckTapRelease(const TouchReleaseInfo &r) {
   if (r.isTap && uiPageIsFeedDeck(g_uiPageMode)) return;
   // HOME: tap left panel toggles clock mode.
   if (r.isTap && g_uiPageMode == UI_PAGE_HOME &&
-      g_touchStartX < (canvasWidth() - DISPLAY_WEATHER_PANEL_W)) {
+      g_touch.startX < (canvasWidth() - DISPLAY_WEATHER_PANEL_W)) {
     toggleClockMode();
     Serial.printf("[TOUCH] tap x=%d y=%d -> mode=%s\n",
-                  g_touchStartX, g_touchStartY, uiClockModeName(g_uiClockMode));
+                  g_touch.startX, g_touch.startY, uiClockModeName(g_clock.mode));
   }
 }
 
@@ -9524,58 +9571,58 @@ static void handleTouchSwipeInput() {
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
   if (touched) {
     markUserInteraction(now);
-    if (g_lvglScreenSaverActive) {
+    if (g_saver.active) {
       lvglSetScreenSaverActive(false);
-      g_touchDown = false; g_touchPageDragging = false;
-      g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
-      g_touchAwaitRelease = true; g_touchReleaseStartMs = 0;
+      g_touch.down = false; g_touch.pageDragging = false;
+      g_touch.auxBtnDown = TOUCH_AUX_BTN_NONE;
+      g_touch.awaitRelease = true; g_touch.releaseStartMs = 0;
       return;
     }
   }
 #endif
-  if (g_touchAwaitRelease) {
-    if (touched) { g_touchReleaseStartMs = 0; return; }
-    if (g_touchReleaseStartMs == 0) { g_touchReleaseStartMs = now; return; }
-    if ((now - g_touchReleaseStartMs) < 70) return;
-    g_touchAwaitRelease = false; g_touchReleaseStartMs = 0;
+  if (g_touch.awaitRelease) {
+    if (touched) { g_touch.releaseStartMs = 0; return; }
+    if (g_touch.releaseStartMs == 0) { g_touch.releaseStartMs = now; return; }
+    if ((now - g_touch.releaseStartMs) < 70) return;
+    g_touch.awaitRelease = false; g_touch.releaseStartMs = 0;
     return;
   }
 
   // ── Phase 2: Touch-down registration + drag tracking ──
   if (touched) {
-    g_touchMissCount = 0;
-    if (!g_touchDown) {
-      g_touchDown = true; g_touchStartX = x; g_touchStartY = y;
-      g_touchStartMs = now; g_touchPageDragging = false;
-      g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
+    g_touch.missCount = 0;
+    if (!g_touch.down) {
+      g_touch.down = true; g_touch.startX = x; g_touch.startY = y;
+      g_touch.startMs = now; g_touch.pageDragging = false;
+      g_touch.auxBtnDown = TOUCH_AUX_BTN_NONE;
       if (uiPageIsFeedDeck(g_uiPageMode)) {
-        if (lvglFeedQrButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_QR;
-        else if (lvglFeedRefreshButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_REFRESH;
-        else if (lvglFeedNextFeedButtonContainsPoint(x, y)) g_touchAuxBtnDown = TOUCH_AUX_BTN_NEXT;
+        if (lvglFeedQrButtonContainsPoint(x, y)) g_touch.auxBtnDown = TOUCH_AUX_BTN_QR;
+        else if (lvglFeedRefreshButtonContainsPoint(x, y)) g_touch.auxBtnDown = TOUCH_AUX_BTN_REFRESH;
+        else if (lvglFeedNextFeedButtonContainsPoint(x, y)) g_touch.auxBtnDown = TOUCH_AUX_BTN_NEXT;
       }
-      if (g_touchAuxBtnDown == TOUCH_AUX_BTN_QR) { lvglSetFeedQrButtonPressed(true); Serial.printf("[TOUCH] btn-down QR x=%d y=%d\n", x, y); }
-      else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_REFRESH) { lvglSetFeedRefreshButtonPressed(true); Serial.printf("[TOUCH] btn-down SKIP x=%d y=%d\n", x, y); }
-      else if (g_touchAuxBtnDown == TOUCH_AUX_BTN_NEXT) { lvglSetFeedNextFeedButtonPressed(true); Serial.printf("[TOUCH] btn-down NXT x=%d y=%d\n", x, y); }
+      if (g_touch.auxBtnDown == TOUCH_AUX_BTN_QR) { lvglSetFeedQrButtonPressed(true); Serial.printf("[TOUCH] btn-down QR x=%d y=%d\n", x, y); }
+      else if (g_touch.auxBtnDown == TOUCH_AUX_BTN_REFRESH) { lvglSetFeedRefreshButtonPressed(true); Serial.printf("[TOUCH] btn-down SKIP x=%d y=%d\n", x, y); }
+      else if (g_touch.auxBtnDown == TOUCH_AUX_BTN_NEXT) { lvglSetFeedNextFeedButtonPressed(true); Serial.printf("[TOUCH] btn-down NXT x=%d y=%d\n", x, y); }
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
       if (g_uiPageMode == UI_PAGE_DOOM) {
-        g_doomTouchZone = doomTouchZoneFromX(x); g_doomFrameDirty = true;
-        Serial.printf("[DOOM][TOUCH] down zone=%s x=%d y=%d\n", doomTouchZoneName(g_doomTouchZone), x, y);
+        g_doom.touchZone = doomTouchZoneFromX(x); g_doom.frameDirty = true;
+        Serial.printf("[DOOM][TOUCH] down zone=%s x=%d y=%d\n", doomTouchZoneName(g_doom.touchZone), x, y);
       }
 #endif
     }
-    g_touchLastX = x; g_touchLastY = y;
+    g_touch.lastX = x; g_touch.lastY = y;
 #if TEST_DISPLAY
     if (g_uiPageMode == UI_PAGE_DOOM) return;
 #endif
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
     if (g_lvglReady) {
-      if (g_touchAuxBtnDown != TOUCH_AUX_BTN_NONE) return;
-      const int16_t liveDx = g_touchLastX - g_touchStartX;
-      const int16_t liveDy = g_touchLastY - g_touchStartY;
+      if (g_touch.auxBtnDown != TOUCH_AUX_BTN_NONE) return;
+      const int16_t liveDx = g_touch.lastX - g_touch.startX;
+      const int16_t liveDy = g_touch.lastY - g_touch.startY;
       constexpr int16_t kDragStartPx = 5;
-      if (g_touchPageDragging) { lvglApplyPageDrag(liveDx); return; }
+      if (g_touch.pageDragging) { lvglApplyPageDrag(liveDx); return; }
       if (abs(liveDx) >= kDragStartPx && abs(liveDx) >= abs(liveDy)) {
-        g_touchPageDragging = true; lvglApplyPageDrag(liveDx); return;
+        g_touch.pageDragging = true; lvglApplyPageDrag(liveDx); return;
       }
     }
 #endif
@@ -9583,37 +9630,37 @@ static void handleTouchSwipeInput() {
   }
 
   // ── Miss counter (touch controller scan rate bridge) ──
-  if (g_touchDown) { if (++g_touchMissCount < 12) return; g_touchMissCount = 0; }
-  if (!g_touchDown) return;
-  g_touchDown = false;
+  if (g_touch.down) { if (++g_touch.missCount < 12) return; g_touch.missCount = 0; }
+  if (!g_touch.down) return;
+  g_touch.down = false;
 
   // ── Phase 3: Release — compute gesture + dispatch ──
   const TouchReleaseInfo r = {
-    .dx = (int16_t)(g_touchLastX - g_touchStartX),
-    .dy = (int16_t)(g_touchLastY - g_touchStartY),
-    .durMs = millis() - g_touchStartMs,
-    .horizontalIntent = (abs(g_touchLastX - g_touchStartX) >= abs(g_touchLastY - g_touchStartY)),
+    .dx = (int16_t)(g_touch.lastX - g_touch.startX),
+    .dy = (int16_t)(g_touch.lastY - g_touch.startY),
+    .durMs = millis() - g_touch.startMs,
+    .horizontalIntent = (abs(g_touch.lastX - g_touch.startX) >= abs(g_touch.lastY - g_touch.startY)),
     .pageSwipe = [&]() {
-      const int16_t adx = abs(g_touchLastX - g_touchStartX);
-      const int16_t ady = abs(g_touchLastY - g_touchStartY);
+      const int16_t adx = abs(g_touch.lastX - g_touch.startX);
+      const int16_t ady = abs(g_touch.lastY - g_touch.startY);
       const bool horiz = (adx >= ady);
-      const uint32_t dur = millis() - g_touchStartMs;
+      const uint32_t dur = millis() - g_touch.startMs;
       const bool fast = (dur <= 220) && (adx >= ((DISPLAY_TOUCH_SWIPE_MIN_PX / 2) + 2));
       return horiz && ((adx >= DISPLAY_TOUCH_SWIPE_MIN_PX) || fast);
     }(),
-    .isTap = ((millis() - g_touchStartMs) <= DISPLAY_TOUCH_TAP_MAX_MS &&
-              abs(g_touchLastX - g_touchStartX) <= DISPLAY_TOUCH_TAP_MAX_PX &&
-              abs(g_touchLastY - g_touchStartY) <= DISPLAY_TOUCH_TAP_MAX_PX),
-    .isBtnTap = ((millis() - g_touchStartMs) <= 1400 &&
-                 abs(g_touchLastX - g_touchStartX) <= 72 &&
-                 abs(g_touchLastY - g_touchStartY) <= 72),
-    .auxBtnDown = (uint8_t)g_touchAuxBtnDown,
-    .doomTouchZone = g_doomTouchZone,
+    .isTap = ((millis() - g_touch.startMs) <= DISPLAY_TOUCH_TAP_MAX_MS &&
+              abs(g_touch.lastX - g_touch.startX) <= DISPLAY_TOUCH_TAP_MAX_PX &&
+              abs(g_touch.lastY - g_touch.startY) <= DISPLAY_TOUCH_TAP_MAX_PX),
+    .isBtnTap = ((millis() - g_touch.startMs) <= 1400 &&
+                 abs(g_touch.lastX - g_touch.startX) <= 72 &&
+                 abs(g_touch.lastY - g_touch.startY) <= 72),
+    .auxBtnDown = (uint8_t)g_touch.auxBtnDown,
+    .doomTouchZone = g_doom.touchZone,
   };
-  g_touchAuxBtnDown = TOUCH_AUX_BTN_NONE;
-  g_doomTouchZone = DOOM_TOUCH_NONE;
+  g_touch.auxBtnDown = TOUCH_AUX_BTN_NONE;
+  g_doom.touchZone = DOOM_TOUCH_NONE;
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
-  if (r.doomTouchZone != DOOM_TOUCH_NONE) g_doomFrameDirty = true;
+  if (r.doomTouchZone != DOOM_TOUCH_NONE) g_doom.frameDirty = true;
 #endif
   if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_QR) lvglSetFeedQrButtonPressed(false);
   else if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_REFRESH) lvglSetFeedRefreshButtonPressed(false);
@@ -9621,17 +9668,17 @@ static void handleTouchSwipeInput() {
 
   // Dispatch by priority
   if ((TouchAuxButton)r.auxBtnDown != TOUCH_AUX_BTN_NONE) { handleFeedDeckButtonRelease(r); return; }
-  if (g_touchPageDragging) { handlePageDragRelease(r); return; }
+  if (g_touch.pageDragging) { handlePageDragRelease(r); return; }
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
   if (g_uiPageMode == UI_PAGE_DOOM) { handleDoomTouchRelease(r); return; }
 #endif
   if (r.durMs > 3000) return;
   if (uiPageIsFeedDeck(g_uiPageMode) && lvglFeedQrModalIsOpen()) {
     if (r.durMs <= 2500) { lvglSetFeedQrModalOpen(false); Serial.println("[TOUCH] qr-close-overlay"); }
-    g_touchAwaitRelease = true; g_touchReleaseStartMs = 0;
+    g_touch.awaitRelease = true; g_touch.releaseStartMs = 0;
     return;
   }
-  if ((millis() - g_lastSwipeToggleMs) < 140) return;
+  if ((millis() - g_touch.lastSwipeToggleMs) < 140) return;
   if (r.pageSwipe) { handleCarouselSwipe(r); return; }
   handleFeedDeckTapRelease(r);
 }
@@ -10502,21 +10549,21 @@ static void composeWordClockSentenceBellazio(const tm &timeinfo, char *out, size
   const size_t leadCount = sizeof(kBellazioLeads) / sizeof(kBellazioLeads[0]);
   const size_t closerCount = sizeof(kBellazioClosers) / sizeof(kBellazioClosers[0]);
   const uint32_t minuteKey = (uint32_t)((timeinfo.tm_yday * 1440) + (timeinfo.tm_hour * 60) + timeinfo.tm_min);
-  if (minuteKey != g_bellazioLastMinuteKey) {
+  if (minuteKey != g_clock.bellazioLastMinuteKey) {
     size_t nextLeadIdx = (size_t)(bellazioMixSeed(minuteKey ^ 0xA53C9E5Du) % (uint32_t)leadCount);
     size_t nextCloserIdx = (size_t)(bellazioMixSeed(minuteKey ^ 0x61C88647u) % (uint32_t)closerCount);
-    if (leadCount > 1 && nextLeadIdx == g_bellazioLastLeadIdx) {
+    if (leadCount > 1 && nextLeadIdx == g_clock.bellazioLastLeadIdx) {
       nextLeadIdx = (nextLeadIdx + 1 + (minuteKey % (leadCount - 1))) % leadCount;
     }
-    if (closerCount > 1 && nextCloserIdx == g_bellazioLastCloserIdx) {
+    if (closerCount > 1 && nextCloserIdx == g_clock.bellazioLastCloserIdx) {
       nextCloserIdx = (nextCloserIdx + 1 + (minuteKey % (closerCount - 1))) % closerCount;
     }
-    g_bellazioLastLeadIdx = (uint8_t)nextLeadIdx;
-    g_bellazioLastCloserIdx = (uint8_t)nextCloserIdx;
-    g_bellazioLastMinuteKey = minuteKey;
+    g_clock.bellazioLastLeadIdx = (uint8_t)nextLeadIdx;
+    g_clock.bellazioLastCloserIdx = (uint8_t)nextCloserIdx;
+    g_clock.bellazioLastMinuteKey = minuteKey;
   }
-  const char* lead = kBellazioLeads[g_bellazioLastLeadIdx % leadCount];
-  const BellazioCloser* closer = &kBellazioClosers[g_bellazioLastCloserIdx % closerCount];
+  const char* lead = kBellazioLeads[g_clock.bellazioLastLeadIdx % leadCount];
+  const BellazioCloser* closer = &kBellazioClosers[g_clock.bellazioLastCloserIdx % closerCount];
   const char* closerSep = bellazioCloserSeparator(closer->type);
 
   char timePhrase[72];
@@ -11001,9 +11048,9 @@ static uint8_t lvglCollectClockFonts(const lv_font_t **out, uint8_t cap) {
 }
 
 static void lvglApplyClockSentenceAutoFit(const char *text) {
-  if (!g_lvglClockL1 || !g_lvglClockBlock || !g_lvglClockHeader || !text) return;
-  const int16_t blockH = lv_obj_get_height(g_lvglClockBlock);
-  const int16_t headerH = lv_obj_get_height(g_lvglClockHeader);
+  if (!g_clockUi.l1 || !g_clockUi.block || !g_clockUi.header || !text) return;
+  const int16_t blockH = lv_obj_get_height(g_clockUi.block);
+  const int16_t headerH = lv_obj_get_height(g_clockUi.header);
   const int16_t maxTextH = (blockH - headerH) - 6;
   const lv_font_t *fonts[10];
   const uint8_t count = lvglCollectClockFonts(fonts, (uint8_t)(sizeof(fonts) / sizeof(fonts[0])));
@@ -11015,12 +11062,12 @@ static void lvglApplyClockSentenceAutoFit(const char *text) {
   for (uint8_t i = 0; i < count; ++i) {
     const lv_font_t *f = fonts[i];
     const lv_coord_t ls = lvglClockLineSpaceForFont(f);
-    lv_obj_set_style_text_font(g_lvglClockL1, f, 0);
-    lv_obj_set_style_text_line_space(g_lvglClockL1, ls, 0);
-    lv_label_set_text(g_lvglClockL1, text);
+    lv_obj_set_style_text_font(g_clockUi.l1, f, 0);
+    lv_obj_set_style_text_line_space(g_clockUi.l1, ls, 0);
+    lv_label_set_text(g_clockUi.l1, text);
     lvglCenterClockSentenceLabel();
-    lv_obj_update_layout(g_lvglClockL1);
-    const int16_t textH = lv_obj_get_height(g_lvglClockL1);
+    lv_obj_update_layout(g_clockUi.l1);
+    const int16_t textH = lv_obj_get_height(g_clockUi.l1);
     if (textH <= maxTextH) {
       chosen = f;
       chosenLineSpace = ls;
@@ -11028,9 +11075,9 @@ static void lvglApplyClockSentenceAutoFit(const char *text) {
     }
   }
 
-  lv_obj_set_style_text_font(g_lvglClockL1, chosen, 0);
-  lv_obj_set_style_text_line_space(g_lvglClockL1, chosenLineSpace, 0);
-  lv_label_set_text(g_lvglClockL1, text);
+  lv_obj_set_style_text_font(g_clockUi.l1, chosen, 0);
+  lv_obj_set_style_text_line_space(g_clockUi.l1, chosenLineSpace, 0);
+  lv_label_set_text(g_clockUi.l1, text);
   lvglCenterClockSentenceLabel();
 }
 
@@ -11178,23 +11225,23 @@ static void lvglBuildWrappedTitle(char *out, size_t outSize, const char *text,
 }
 
 static void lvglApplyThemeFonts() {
-  if (g_lvglInfoTitle) lv_obj_set_style_text_font(g_lvglInfoTitle, lvglFontSmall(), 0);
-  if (g_lvglInfoEndpoint) lv_obj_set_style_text_font(g_lvglInfoEndpoint, lvglFontSmall(), 0);
-  if (g_lvglInfoBodyLeft) lv_obj_set_style_text_font(g_lvglInfoBodyLeft, lvglFontInfoBody(), 0);
+  if (g_infoUi.title) lv_obj_set_style_text_font(g_infoUi.title, lvglFontSmall(), 0);
+  if (g_infoUi.endpoint) lv_obj_set_style_text_font(g_infoUi.endpoint, lvglFontSmall(), 0);
+  if (g_infoUi.bodyLeft) lv_obj_set_style_text_font(g_infoUi.bodyLeft, lvglFontInfoBody(), 0);
 
-  if (g_lvglClockDate) lv_obj_set_style_text_font(g_lvglClockDate, lvglFontSmall(), 0);
-  if (g_lvglClockL1) lv_obj_set_style_text_font(g_lvglClockL1, lvglFontClock(), 0);
-  if (g_lvglClockL2) lv_obj_set_style_text_font(g_lvglClockL2, lvglFontTitle(), 0);
-  if (g_lvglClockL3) lv_obj_set_style_text_font(g_lvglClockL3, lvglFontTitle(), 0);
-  if (g_lvglCity) lv_obj_set_style_text_font(g_lvglCity, lvglFontSmall(), 0);
-  if (g_lvglSun) lv_obj_set_style_text_font(g_lvglSun, lvglFontSmall(), 0);
-  if (g_lvglTemp) lv_obj_set_style_text_font(g_lvglTemp, lvglFontTemp(), 0);
-  if (g_lvglGlyph) lv_obj_set_style_text_font(g_lvglGlyph, lvglFontBig(), 0);
-  if (g_lvglDesc) lv_obj_set_style_text_font(g_lvglDesc, lvglFontMeta(), 0);
-  if (g_lvglHumidity) lv_obj_set_style_text_font(g_lvglHumidity, lvglFontMini(), 0);
-  if (g_lvglWind) lv_obj_set_style_text_font(g_lvglWind, lvglFontTiny(), 0);
-  if (g_lvglForecastNow) lv_obj_set_style_text_font(g_lvglForecastNow, lvglFontSmall(), 0);
-  if (g_lvglForecastTomorrow) lv_obj_set_style_text_font(g_lvglForecastTomorrow, lvglFontTiny(), 0);
+  if (g_clockUi.date) lv_obj_set_style_text_font(g_clockUi.date, lvglFontSmall(), 0);
+  if (g_clockUi.l1) lv_obj_set_style_text_font(g_clockUi.l1, lvglFontClock(), 0);
+  if (g_clockUi.l2) lv_obj_set_style_text_font(g_clockUi.l2, lvglFontTitle(), 0);
+  if (g_clockUi.l3) lv_obj_set_style_text_font(g_clockUi.l3, lvglFontTitle(), 0);
+  if (g_weatherUi.city) lv_obj_set_style_text_font(g_weatherUi.city, lvglFontSmall(), 0);
+  if (g_weatherUi.sun) lv_obj_set_style_text_font(g_weatherUi.sun, lvglFontSmall(), 0);
+  if (g_weatherUi.temp) lv_obj_set_style_text_font(g_weatherUi.temp, lvglFontTemp(), 0);
+  if (g_weatherUi.glyph) lv_obj_set_style_text_font(g_weatherUi.glyph, lvglFontBig(), 0);
+  if (g_weatherUi.desc) lv_obj_set_style_text_font(g_weatherUi.desc, lvglFontMeta(), 0);
+  if (g_weatherUi.humidity) lv_obj_set_style_text_font(g_weatherUi.humidity, lvglFontMini(), 0);
+  if (g_weatherUi.wind) lv_obj_set_style_text_font(g_weatherUi.wind, lvglFontTiny(), 0);
+  if (g_weatherUi.forecastNow) lv_obj_set_style_text_font(g_weatherUi.forecastNow, lvglFontSmall(), 0);
+  if (g_weatherUi.forecastTomorrow) lv_obj_set_style_text_font(g_weatherUi.forecastTomorrow, lvglFontTiny(), 0);
   if (g_nowPlayingUi.title) lv_obj_set_style_text_font(g_nowPlayingUi.title, lvglNowPlayingMetaFont(), 0);
   if (g_nowPlayingUi.status) lv_obj_set_style_text_font(g_nowPlayingUi.status, lvglNowPlayingMetaFont(), 0);
   if (g_nowPlayingUi.coverTop) lv_obj_set_style_text_font(g_nowPlayingUi.coverTop, lvglFontTiny(), 0);
@@ -11223,20 +11270,20 @@ static void lvglApplyThemeFonts() {
   }
 
 #if SCREENSAVER_ENABLED
-  if (g_lvglScreenSaverSky) lv_obj_set_style_text_font(g_lvglScreenSaverSky, lvglFontMono(), 0);
+  if (g_saver.sky) lv_obj_set_style_text_font(g_saver.sky, lvglFontMono(), 0);
   for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
-      if (!g_lvglScreenSaverStarObj[r][s]) continue;
-      lv_obj_set_style_text_font(g_lvglScreenSaverStarObj[r][s], lvglFontMonoTiny(), 0);
+      if (!g_saver.starObj[r][s]) continue;
+      lv_obj_set_style_text_font(g_saver.starObj[r][s], lvglFontMonoTiny(), 0);
     }
   }
-  if (g_lvglScreenSaverField) lv_obj_set_style_text_font(g_lvglScreenSaverField, lvglFontMonoTiny(), 0);
-  if (g_lvglScreenSaverCow) lv_obj_set_style_text_font(g_lvglScreenSaverCow, lvglFontMonoTiny(), 0);
-  if (g_lvglScreenSaverBalloon) lv_obj_set_style_text_font(g_lvglScreenSaverBalloon, lvglFontScreenSaverBalloonText(), 0);
-  if (g_lvglScreenSaverBalloonTail) lv_obj_set_style_text_font(g_lvglScreenSaverBalloonTail, lvglFontScreenSaverTail(), 0);
-  if (g_lvglScreenSaverFooter) lv_obj_set_style_text_font(g_lvglScreenSaverFooter, lvglFontScreenSaverFooterText(), 0);
+  if (g_saver.field) lv_obj_set_style_text_font(g_saver.field, lvglFontMonoTiny(), 0);
+  if (g_saver.cow) lv_obj_set_style_text_font(g_saver.cow, lvglFontMonoTiny(), 0);
+  if (g_saver.balloon) lv_obj_set_style_text_font(g_saver.balloon, lvglFontScreenSaverBalloonText(), 0);
+  if (g_saver.balloonTail) lv_obj_set_style_text_font(g_saver.balloonTail, lvglFontScreenSaverTail(), 0);
+  if (g_saver.footer) lv_obj_set_style_text_font(g_saver.footer, lvglFontScreenSaverFooterText(), 0);
 #endif
-  if (g_lvglClockL1) lvglApplyClockSentenceAutoFit(lv_label_get_text(g_lvglClockL1));
+  if (g_clockUi.l1) lvglApplyClockSentenceAutoFit(lv_label_get_text(g_clockUi.l1));
 }
 
 static const char* weatherGlyphText(int code, bool isDay) {
@@ -11283,21 +11330,21 @@ static void lvglIconFloatAnimCb(void *obj, int32_t v) {
 }
 
 static void lvglCenterClockSentenceLabel() {
-  if (!g_lvglClockL1 || !g_lvglClockBlock || !g_lvglClockHeader) return;
-  const int16_t blockW = lv_obj_get_width(g_lvglClockBlock);
-  const int16_t blockH = lv_obj_get_height(g_lvglClockBlock);
-  const int16_t headerH = lv_obj_get_height(g_lvglClockHeader);
+  if (!g_clockUi.l1 || !g_clockUi.block || !g_clockUi.header) return;
+  const int16_t blockW = lv_obj_get_width(g_clockUi.block);
+  const int16_t blockH = lv_obj_get_height(g_clockUi.block);
+  const int16_t headerH = lv_obj_get_height(g_clockUi.header);
   constexpr int16_t kSidePad = 8;
   const int16_t labelW = blockW - (kSidePad * 2);
   if (labelW < 24) return;
-  lv_obj_set_width(g_lvglClockL1, labelW);
-  lv_obj_set_x(g_lvglClockL1, kSidePad);
-  lv_obj_update_layout(g_lvglClockL1);
-  const int16_t textH = lv_obj_get_height(g_lvglClockL1);
+  lv_obj_set_width(g_clockUi.l1, labelW);
+  lv_obj_set_x(g_clockUi.l1, kSidePad);
+  lv_obj_update_layout(g_clockUi.l1);
+  const int16_t textH = lv_obj_get_height(g_clockUi.l1);
   const int16_t bodyH = blockH - headerH;
   int16_t y = headerH + ((bodyH - textH) / 2);
   if (y < (headerH + 2)) y = headerH + 2;
-  lv_obj_set_y(g_lvglClockL1, y);
+  lv_obj_set_y(g_clockUi.l1, y);
 }
 
 static void lvglForceLabelVisible(lv_obj_t *obj) {
@@ -11321,19 +11368,19 @@ static uint8_t wifiSignalBarsFromRssi(int rssiDbm) {
 static bool wifiIsReconnectingUiState() {
 #if TEST_WIFI || TEST_NTP
   const wl_status_t st = WiFi.status();
-  if (st == WL_CONNECTED && g_wifiConnected) return false;
+  if (st == WL_CONNECTED && g_wifiSt.connected) return false;
   if (st == WL_DISCONNECTED || st == WL_CONNECT_FAILED || st == WL_CONNECTION_LOST) return true;
   if (st == WL_IDLE_STATUS || st == WL_SCAN_COMPLETED || st == WL_NO_SSID_AVAIL) return true;
-  if (g_wifiReconnectAttemptActive) return true;
-  if (g_wifiEverConnected) return true;
+  if (g_wifiSt.reconnectAttemptActive) return true;
+  if (g_wifiSt.everConnected) return true;
   const uint32_t now = millis();
-  if (g_wifiLastDisconnectMs > 0 && (now - g_wifiLastDisconnectMs) < 20000UL) return true;
+  if (g_wifiSt.lastDisconnectMs > 0 && (now - g_wifiSt.lastDisconnectMs) < 20000UL) return true;
 #endif
   return false;
 }
 
 static void lvglUpdateWiFiBars(bool force) {
-  if (!g_lvglClockWiFiBars[0]) return;
+  if (!g_clockUi.wifiBars[0]) return;
 
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
   const lv_color_t kBarOff = lv_color_hex(t.wifiBarOff);
@@ -11344,7 +11391,7 @@ static void lvglUpdateWiFiBars(bool force) {
 
 #if TEST_WIFI || TEST_NTP
   const wl_status_t st = WiFi.status();
-  const bool connected = (st == WL_CONNECTED) && g_wifiConnected;
+  const bool connected = (st == WL_CONNECTED) && g_wifiSt.connected;
   if (connected) {
     uint8_t bars = wifiSignalBarsFromRssi(WiFi.RSSI());
     if (bars == 0) bars = 1;
@@ -11362,11 +11409,11 @@ static void lvglUpdateWiFiBars(bool force) {
 #endif
 
   const uint16_t styleKey = (uint16_t)mask | ((uint16_t)waveMask << 8);
-  if (!force && styleKey == g_lvglClockWiFiMask) return;
-  g_lvglClockWiFiMask = styleKey;
+  if (!force && styleKey == g_clockUi.wifiMask) return;
+  g_clockUi.wifiMask = styleKey;
 
   for (uint8_t i = 0; i < 4; ++i) {
-    lv_obj_t *bar = g_lvglClockWiFiBars[i];
+    lv_obj_t *bar = g_clockUi.wifiBars[i];
     if (!bar) continue;
     if (mask & (1U << i)) {
       lv_obj_set_style_bg_color(bar, kBarOn, LV_PART_MAIN);
@@ -11495,7 +11542,7 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
   const char *contentTag = isWiki ? "WIKI-DECK" : "RSS";
 #if TEST_WIFI && RSS_ENABLED
   const uint32_t now = millis();
-  if (g_wifiConnected && content.valid && content.itemCount > 1 && content.lastRotateMs != 0 &&
+  if (g_wifiSt.connected && content.valid && content.itemCount > 1 && content.lastRotateMs != 0 &&
       !d.qrModalOpen && (now - content.lastRotateMs) >= RSS_ROTATE_MS) {
     content.currentIndex = (uint8_t)((content.currentIndex + 1) % content.itemCount);
     content.lastRotateMs = now;
@@ -11522,7 +11569,7 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
   if (d.title) lv_label_set_text(d.title, isWiki ? "ScryBar Wiki" : "ScryBar RSS");
 
 #if TEST_WIFI && RSS_ENABLED
-  if (!g_wifiConnected) {
+  if (!g_wifiSt.connected) {
     strncpy(title3, activeUiStrings()->rssOffline, sizeof(title3) - 1); title3[sizeof(title3)-1] = '\0';
     if (!isWiki) { strncpy(whenLine, "--/-- --:--", sizeof(whenLine)-1); whenLine[sizeof(whenLine)-1] = '\0'; }
     snprintf(status, sizeof(status), "OFF");
@@ -11577,7 +11624,7 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
 #elif TEST_WIFI
   strncpy(title3, activeUiStrings()->rssDisabled, sizeof(title3)-1); title3[sizeof(title3)-1] = '\0';
   if (!isWiki) { strncpy(whenLine, "--/-- --:--", sizeof(whenLine)-1); whenLine[sizeof(whenLine)-1] = '\0'; }
-  snprintf(status, sizeof(status), g_wifiConnected ? "WiFi" : "OFF");
+  snprintf(status, sizeof(status), g_wifiSt.connected ? "WiFi" : "OFF");
   snprintf(meta, sizeof(meta), "Fetch --/-- --:--");
 #else
   {
@@ -11689,7 +11736,7 @@ static int32_t lvglCarouselPageX(UiPageMode mode, int8_t curOrd, int16_t w, lv_o
 }
 
 static bool lvglApplyPageDrag(int16_t dragDx) {
-  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot || !g_lvglNowPlayingRoot) return false;
+  if (!g_infoUi.root || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot || !g_lvglNowPlayingRoot) return false;
   if (g_uiPageMode == UI_PAGE_DOOM) return false;
 
   int32_t dx = dragDx;
@@ -11703,16 +11750,16 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   // Edge damping when dragging past first/last page.
   if ((cur == 0 && dx > 0) || (cur == maxOrd && dx < 0)) dx /= 3;
 
-  lv_anim_del(g_lvglInfoRoot, lvglSetObjXAnim);
+  lv_anim_del(g_infoUi.root, lvglSetObjXAnim);
   lv_anim_del(g_lvglHomeRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglWikiRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglNowPlayingRoot, lvglSetObjXAnim);
-  g_lvglPageAnimUntilMs = 0;
-  g_lvglPageDragActive = true;
+  g_pageAnim.untilMs = 0;
+  g_pageAnim.dragActive = true;
 
   struct { UiPageMode mode; lv_obj_t *root; } pages[] = {
-    {UI_PAGE_INFO,        g_lvglInfoRoot},
+    {UI_PAGE_INFO,        g_infoUi.root},
     {UI_PAGE_HOME,        g_lvglHomeRoot},
     {UI_PAGE_AUX,         g_lvglAuxRoot},
     {UI_PAGE_WIKI,        g_lvglWikiRoot},
@@ -11741,7 +11788,7 @@ static void lvglStartSlideAnim(lv_obj_t *obj, int32_t fromX, int32_t toX, uint16
 }
 
 static void lvglApplyPageVisibility(bool animate) {
-  if (!g_lvglInfoRoot || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot || !g_lvglNowPlayingRoot) return;
+  if (!g_infoUi.root || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot || !g_lvglNowPlayingRoot) return;
 
   if (g_lvglDoomRoot) {
     if (g_uiPageMode == UI_PAGE_DOOM) lv_obj_clear_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
@@ -11749,13 +11796,13 @@ static void lvglApplyPageVisibility(bool animate) {
   }
 
   if (g_uiPageMode == UI_PAGE_DOOM) {
-    lv_obj_add_flag(g_lvglInfoRoot, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_infoUi.root, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_lvglHomeRoot, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_lvglAuxRoot, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_HIDDEN);
-    g_lvglPageDragActive = false;
-    g_lvglPageAnimUntilMs = 0;
+    g_pageAnim.dragActive = false;
+    g_pageAnim.untilMs = 0;
     return;
   }
 
@@ -11767,7 +11814,7 @@ static void lvglApplyPageVisibility(bool animate) {
   // Build dynamic target positions using live ordinals (skip disabled pages).
   struct PageSlot { lv_obj_t *root; UiPageMode mode; int32_t targetX; };
   PageSlot slots[] = {
-    {g_lvglInfoRoot,       UI_PAGE_INFO,        0},
+    {g_infoUi.root,       UI_PAGE_INFO,        0},
     {g_lvglHomeRoot,       UI_PAGE_HOME,        0},
     {g_lvglAuxRoot,        UI_PAGE_AUX,         0},
     {g_lvglWikiRoot,       UI_PAGE_WIKI,        0},
@@ -11779,8 +11826,8 @@ static void lvglApplyPageVisibility(bool animate) {
   }
 
   if (!animate) {
-    if (g_lvglPageDragActive) return;
-    if (now < g_lvglPageAnimUntilMs) return;
+    if (g_pageAnim.dragActive) return;
+    if (now < g_pageAnim.untilMs) return;
     // Only update positions if they actually changed — avoids constant LVGL invalidation.
     bool allOk = true;
     for (size_t i = 0; i < kSlotCount; ++i) {
@@ -11795,7 +11842,7 @@ static void lvglApplyPageVisibility(bool animate) {
       lv_obj_set_pos(slots[i].root, (lv_coord_t)slots[i].targetX, 0);
       if (abs(slots[i].targetX) >= w) lv_obj_add_flag(slots[i].root, LV_OBJ_FLAG_HIDDEN);
     }
-    g_lvglPageDragActive = false;
+    g_pageAnim.dragActive = false;
     return;
   }
 
@@ -11805,8 +11852,8 @@ static void lvglApplyPageVisibility(bool animate) {
     lv_obj_clear_flag(slots[i].root, LV_OBJ_FLAG_HIDDEN);
     lvglStartSlideAnim(slots[i].root, lv_obj_get_x(slots[i].root), slots[i].targetX, kSlideMs);
   }
-  g_lvglPageDragActive = false;
-  g_lvglPageAnimUntilMs = now + kSlideMs + 30;
+  g_pageAnim.dragActive = false;
+  g_pageAnim.untilMs = now + kSlideMs + 30;
 }
 
 static void formatDateIt(const tm &timeinfo, char *out, size_t outLen) {
@@ -12001,7 +12048,7 @@ static void formatCityLabelFull(const char *src, char *out, size_t outLen) {
 }
 
 static void lvglUpdateCityTicker(const char *rawCity, bool force) {
-  if (!g_lvglCity) return;
+  if (!g_weatherUi.city) return;
 
   char shortCity[32];
   char fullCity[48];
@@ -12009,57 +12056,57 @@ static void lvglUpdateCityTicker(const char *rawCity, bool force) {
   formatCityLabelFull(rawCity, fullCity, sizeof(fullCity));
 
   const uint32_t now = millis();
-  const bool cityChanged = strncmp(g_lvglCityRawLast, rawCity ? rawCity : "", sizeof(g_lvglCityRawLast) - 1) != 0;
+  const bool cityChanged = strncmp(g_weatherUi.cityRawLast, rawCity ? rawCity : "", sizeof(g_weatherUi.cityRawLast) - 1) != 0;
   if (cityChanged) {
-    copyStringSafe(g_lvglCityRawLast, sizeof(g_lvglCityRawLast), rawCity ? rawCity : "");
-    g_lvglCityTickerScroll = false;
-    g_lvglCityTickerEndMs = 0;
-    g_lvglCityTickerNextMs = now + 10000UL;
+    copyStringSafe(g_weatherUi.cityRawLast, sizeof(g_weatherUi.cityRawLast), rawCity ? rawCity : "");
+    g_weatherUi.cityTickerScroll = false;
+    g_weatherUi.cityTickerEndMs = 0;
+    g_weatherUi.cityTickerNextMs = now + 10000UL;
     force = true;
   }
 
-  if (g_lvglCityTickerScroll) {
-    if (now >= g_lvglCityTickerEndMs) {
-      lv_label_set_long_mode(g_lvglCity, LV_LABEL_LONG_DOT);
-      lv_label_set_text(g_lvglCity, shortCity);
-      lvglForceLabelVisible(g_lvglCity);
-      g_lvglCityTickerScroll = false;
-      g_lvglCityTickerNextMs = now + 10000UL;
+  if (g_weatherUi.cityTickerScroll) {
+    if (now >= g_weatherUi.cityTickerEndMs) {
+      lv_label_set_long_mode(g_weatherUi.city, LV_LABEL_LONG_DOT);
+      lv_label_set_text(g_weatherUi.city, shortCity);
+      lvglForceLabelVisible(g_weatherUi.city);
+      g_weatherUi.cityTickerScroll = false;
+      g_weatherUi.cityTickerNextMs = now + 10000UL;
       return;
     }
     if (force) {
-      lv_label_set_long_mode(g_lvglCity, LV_LABEL_LONG_SCROLL_CIRCULAR);
-      lv_label_set_text(g_lvglCity, fullCity);
-      lvglForceLabelVisible(g_lvglCity);
+      lv_label_set_long_mode(g_weatherUi.city, LV_LABEL_LONG_SCROLL_CIRCULAR);
+      lv_label_set_text(g_weatherUi.city, fullCity);
+      lvglForceLabelVisible(g_weatherUi.city);
     }
     return;
   }
 
   if (force) {
-    lv_label_set_long_mode(g_lvglCity, LV_LABEL_LONG_DOT);
-    lv_label_set_text(g_lvglCity, shortCity);
-    lvglForceLabelVisible(g_lvglCity);
+    lv_label_set_long_mode(g_weatherUi.city, LV_LABEL_LONG_DOT);
+    lv_label_set_text(g_weatherUi.city, shortCity);
+    lvglForceLabelVisible(g_weatherUi.city);
   }
 
-  if (now < g_lvglCityTickerNextMs) return;
+  if (now < g_weatherUi.cityTickerNextMs) return;
   if (strcmp(fullCity, shortCity) == 0) {
-    g_lvglCityTickerNextMs = now + 10000UL;
+    g_weatherUi.cityTickerNextMs = now + 10000UL;
     return;
   }
 
-  lv_label_set_long_mode(g_lvglCity, LV_LABEL_LONG_SCROLL_CIRCULAR);
-  lv_label_set_text(g_lvglCity, fullCity);
-  lvglForceLabelVisible(g_lvglCity);
+  lv_label_set_long_mode(g_weatherUi.city, LV_LABEL_LONG_SCROLL_CIRCULAR);
+  lv_label_set_text(g_weatherUi.city, fullCity);
+  lvglForceLabelVisible(g_weatherUi.city);
 
   uint32_t showMs = 2600UL + (uint32_t)strlen(fullCity) * 220UL;
   if (showMs > 6500UL) showMs = 6500UL;
-  g_lvglCityTickerScroll = true;
-  g_lvglCityTickerEndMs = now + showMs;
+  g_weatherUi.cityTickerScroll = true;
+  g_weatherUi.cityTickerEndMs = now + showMs;
 }
 
 static void lvglUpdateInfoPanel(bool force) {
   (void)force;
-  if (!g_lvglInfoTitle || !g_lvglInfoEndpoint || !g_lvglInfoBodyLeft || !g_lvglInfoBodyRight) return;
+  if (!g_infoUi.title || !g_infoUi.endpoint || !g_infoUi.bodyLeft || !g_infoUi.bodyRight) return;
 
   char ipBuf[32] = "--";
   char macBuf[20] = "--";
@@ -12073,19 +12120,19 @@ static void lvglUpdateInfoPanel(bool force) {
 
 #if TEST_WIFI
   const wl_status_t st = WiFi.status();
-  const bool wifiOk = (st == WL_CONNECTED) && g_wifiConnected;
-  const bool setupApOk = g_wifiSetupApActive;
+  const bool wifiOk = (st == WL_CONNECTED) && g_wifiSt.connected;
+  const bool setupApOk = g_wifiSt.setupApActive;
   snprintf(wifiBuf, sizeof(wifiBuf), "%s", wlStatusToStr(st));
   if (wifiOk) {
     snprintf(ipBuf, sizeof(ipBuf), "%s", WiFi.localIP().toString().c_str());
     snprintf(macBuf, sizeof(macBuf), "%s", WiFi.macAddress().c_str());
     snprintf(wifiBuf, sizeof(wifiBuf), "OK %ddBm", WiFi.RSSI());
     copyStringSafe(ssidBuf, sizeof(ssidBuf), WiFi.SSID().c_str());
-  } else if (g_lastWifiDiscReason >= 0) {
-    snprintf(wifiBuf, sizeof(wifiBuf), "DISC %d", g_lastWifiDiscReason);
+  } else if (g_wifiSt.lastDiscReason >= 0) {
+    snprintf(wifiBuf, sizeof(wifiBuf), "DISC %d", g_wifiSt.lastDiscReason);
   }
 #if WEB_CONFIG_ENABLED
-  if (wifiOk && g_webConfigServerStarted) {
+  if (wifiOk && g_webCfg.serverStarted) {
     snprintf(webUrlBuf, sizeof(webUrlBuf), "http://%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
     snprintf(endpointBuf, sizeof(endpointBuf), "%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
   } else if (setupApOk) {
@@ -12095,19 +12142,19 @@ static void lvglUpdateInfoPanel(bool force) {
     snprintf(ipBuf, sizeof(ipBuf), "%s", apIp.toString().c_str());
     snprintf(endpointBuf, sizeof(endpointBuf), "%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
     snprintf(wifiBuf, sizeof(wifiBuf), "AP SETUP");
-    if (g_wifiSetupApSsid[0]) copyStringSafe(ssidBuf, sizeof(ssidBuf), g_wifiSetupApSsid);
+    if (g_wifiSt.setupApSsid[0]) copyStringSafe(ssidBuf, sizeof(ssidBuf), g_wifiSt.setupApSsid);
   }
 #endif
 #endif
 
 #if TEST_BATTERY
-  if (g_battHasSample) {
+  if (g_batt.hasSample) {
     char barBuf[16];
-    batteryBarsForPercent(g_battPercent, barBuf, sizeof(barBuf));
-    const char *levelColor = batteryLevelColorHex(g_battPercent);
-    snprintf(pwrBuf, sizeof(pwrBuf), "%s %d%%", batteryPowerModeText(), g_battPercent);
+    batteryBarsForPercent(g_batt.percent, barBuf, sizeof(barBuf));
+    const char *levelColor = batteryLevelColorHex(g_batt.percent);
+    snprintf(pwrBuf, sizeof(pwrBuf), "%s %d%%", batteryPowerModeText(), g_batt.percent);
     snprintf(pwrSourceBuf, sizeof(pwrSourceBuf), "%s", batteryPowerSourceText(millis()));
-    if (g_battChargingLikely) {
+    if (g_batt.chargingLikely) {
       snprintf(battVizBuf, sizeof(battVizBuf), "#%s %s +CHG#", levelColor, barBuf);
     } else {
       snprintf(battVizBuf, sizeof(battVizBuf), "#%s %s#", levelColor, barBuf);
@@ -12125,7 +12172,7 @@ static void lvglUpdateInfoPanel(bool force) {
 
   char ntpBuf[16] = "OFF";
 #if TEST_NTP
-  snprintf(ntpBuf, sizeof(ntpBuf), "%s", g_ntpSynced ? "SYNCED" : "WAIT");
+  snprintf(ntpBuf, sizeof(ntpBuf), "%s", g_clock.ntpSynced ? "SYNCED" : "WAIT");
 #endif
 
   if (strcmp(endpointBuf, "--:8080") == 0) {
@@ -12153,26 +12200,26 @@ static void lvglUpdateInfoPanel(bool force) {
 
   char infoTitleBuf[48];
   snprintf(infoTitleBuf, sizeof(infoTitleBuf), "ScryBar Stats  %s", FW_BUILD_TAG);
-  lv_label_set_text(g_lvglInfoTitle, infoTitleBuf);
-  lv_label_set_text(g_lvglInfoEndpoint, endpointBuf);
-  lv_label_set_text(g_lvglInfoBodyLeft, leftCol);
+  lv_label_set_text(g_infoUi.title, infoTitleBuf);
+  lv_label_set_text(g_infoUi.endpoint, endpointBuf);
+  lv_label_set_text(g_infoUi.bodyLeft, leftCol);
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
-  if (g_lvglInfoWebQr) {
-    if (strncmp(g_lvglInfoLastQrPayload, webUrlBuf, sizeof(g_lvglInfoLastQrPayload) - 1) != 0) {
-      copyStringSafe(g_lvglInfoLastQrPayload, sizeof(g_lvglInfoLastQrPayload), webUrlBuf);
-      lv_qrcode_update(g_lvglInfoWebQr, g_lvglInfoLastQrPayload, strlen(g_lvglInfoLastQrPayload));
+  if (g_infoUi.webQr) {
+    if (strncmp(g_infoUi.lastQrPayload, webUrlBuf, sizeof(g_infoUi.lastQrPayload) - 1) != 0) {
+      copyStringSafe(g_infoUi.lastQrPayload, sizeof(g_infoUi.lastQrPayload), webUrlBuf);
+      lv_qrcode_update(g_infoUi.webQr, g_infoUi.lastQrPayload, strlen(g_infoUi.lastQrPayload));
     }
-    lv_obj_invalidate(g_lvglInfoWebQr);
+    lv_obj_invalidate(g_infoUi.webQr);
   }
 #endif
-  lvglForceLabelVisible(g_lvglInfoTitle);
-  lvglForceLabelVisible(g_lvglInfoEndpoint);
-  lvglForceLabelVisible(g_lvglInfoBodyLeft);
+  lvglForceLabelVisible(g_infoUi.title);
+  lvglForceLabelVisible(g_infoUi.endpoint);
+  lvglForceLabelVisible(g_infoUi.bodyLeft);
 }
 
 static void lvglDisplayFlushCb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
   (void)drv;
-  if (!g_canvasBuf) {
+  if (!g_dispHw.canvasBuf) {
     lv_disp_flush_ready(drv);
     return;
   }
@@ -12198,7 +12245,7 @@ static void lvglDisplayFlushCb(lv_disp_drv_t *drv, const lv_area_t *area, lv_col
     const int32_t over = (area->x1 + ex) - (cW - 1);
     if (over > 0) ex -= over;
     if (sx <= ex) {
-      uint16_t *dst = &g_canvasBuf[(size_t)y * (size_t)DB_CANVAS_W + (size_t)dstX];
+      uint16_t *dst = &g_dispHw.canvasBuf[(size_t)y * (size_t)DB_CANVAS_W + (size_t)dstX];
       for (int32_t x = sx; x <= ex; ++x) {
 #if LV_COLOR_DEPTH == 16
         dst[x - sx] = src[x].full;
@@ -12210,7 +12257,7 @@ static void lvglDisplayFlushCb(lv_disp_drv_t *drv, const lv_area_t *area, lv_col
     src += w;
   }
 
-  g_canvasDirty = true;
+  g_dispHw.canvasDirty = true;
   lv_disp_flush_ready(drv);
 }
 
@@ -12726,8 +12773,8 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
     // Show companion setup instructions instead of fake track data
     snprintf(placeholderTitle, sizeof(placeholderTitle), "Launch ScryBar Companion");
     const String ip = WiFi.localIP().toString();
-    if (g_scrybarMdnsHost[0] && ip.length() > 1) {
-      snprintf(placeholderArtist, sizeof(placeholderArtist), "%s / %s.local", ip.c_str(), g_scrybarMdnsHost);
+    if (g_webCfg.mdnsHost[0] && ip.length() > 1) {
+      snprintf(placeholderArtist, sizeof(placeholderArtist), "%s / %s.local", ip.c_str(), g_webCfg.mdnsHost);
     } else if (ip.length() > 1) {
       snprintf(placeholderArtist, sizeof(placeholderArtist), "%s:8080", ip.c_str());
     } else {
@@ -12883,66 +12930,66 @@ static void initLvglInfoPanel(lv_obj_t* scr) {
   const lv_color_t kInfoBg = lv_color_hex(theme.infoBg);
   const lv_color_t kInfoHeaderBg = lv_color_hex(theme.infoHeaderBg);
 
-  g_lvglInfoRoot = lvglCreatePageRoot(scr, cW, cH);
+  g_infoUi.root = lvglCreatePageRoot(scr, cW, cH);
 
-  g_lvglInfoCard = lv_obj_create(g_lvglInfoRoot);
-  lv_obj_set_size(g_lvglInfoCard, cW, cH);
-  lv_obj_set_pos(g_lvglInfoCard, 0, 0);
-  lv_obj_set_style_radius(g_lvglInfoCard, kInfoRadius, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_lvglInfoCard, kInfoBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglInfoCard, kInfoBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglInfoCard, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglInfoCard, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglInfoCard, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglInfoCard, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglInfoCard, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglInfoCard, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglInfoCard, LV_SCROLLBAR_MODE_OFF);
+  g_infoUi.card = lv_obj_create(g_infoUi.root);
+  lv_obj_set_size(g_infoUi.card, cW, cH);
+  lv_obj_set_pos(g_infoUi.card, 0, 0);
+  lv_obj_set_style_radius(g_infoUi.card, kInfoRadius, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_infoUi.card, kInfoBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_infoUi.card, kInfoBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_infoUi.card, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_infoUi.card, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_infoUi.card, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_infoUi.card, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_infoUi.card, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_infoUi.card, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(g_infoUi.card, LV_SCROLLBAR_MODE_OFF);
 
   constexpr int16_t infoHeaderH = 30;
-  g_lvglInfoHeader = lv_obj_create(g_lvglInfoCard);
-  lv_obj_set_size(g_lvglInfoHeader, cW, infoHeaderH);
-  lv_obj_set_pos(g_lvglInfoHeader, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglInfoHeader, kInfoHeaderBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglInfoHeader, kInfoHeaderBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglInfoHeader, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglInfoHeader, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglInfoHeader, kInfoRadius, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_lvglInfoHeader, lv_color_hex(theme.infoHeaderBorder), LV_PART_MAIN);
-  lv_obj_set_style_border_opa(g_lvglInfoHeader, LV_OPA_60, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglInfoHeader, 1, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglInfoHeader, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglInfoHeader, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglInfoHeader, LV_SCROLLBAR_MODE_OFF);
-  g_lvglInfoHeaderFill = lv_obj_create(g_lvglInfoHeader);
-  lv_obj_set_size(g_lvglInfoHeaderFill, cW, 10);
-  lv_obj_set_pos(g_lvglInfoHeaderFill, 0, infoHeaderH - 10);
-  lv_obj_set_style_bg_color(g_lvglInfoHeaderFill, kInfoHeaderBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglInfoHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglInfoHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglInfoHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglInfoHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglInfoHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglInfoHeaderFill, LV_SCROLLBAR_MODE_OFF);
+  g_infoUi.header = lv_obj_create(g_infoUi.card);
+  lv_obj_set_size(g_infoUi.header, cW, infoHeaderH);
+  lv_obj_set_pos(g_infoUi.header, 0, 0);
+  lv_obj_set_style_bg_color(g_infoUi.header, kInfoHeaderBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_infoUi.header, kInfoHeaderBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_infoUi.header, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_infoUi.header, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_infoUi.header, kInfoRadius, LV_PART_MAIN);
+  lv_obj_set_style_border_color(g_infoUi.header, lv_color_hex(theme.infoHeaderBorder), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(g_infoUi.header, LV_OPA_60, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_infoUi.header, 1, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_infoUi.header, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_infoUi.header, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(g_infoUi.header, LV_SCROLLBAR_MODE_OFF);
+  g_infoUi.headerFill = lv_obj_create(g_infoUi.header);
+  lv_obj_set_size(g_infoUi.headerFill, cW, 10);
+  lv_obj_set_pos(g_infoUi.headerFill, 0, infoHeaderH - 10);
+  lv_obj_set_style_bg_color(g_infoUi.headerFill, kInfoHeaderBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_infoUi.headerFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_infoUi.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_infoUi.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_infoUi.headerFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_infoUi.headerFill, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(g_infoUi.headerFill, LV_SCROLLBAR_MODE_OFF);
 
-  g_lvglInfoTitle = lv_label_create(g_lvglInfoHeader);
-  lv_obj_set_style_text_font(g_lvglInfoTitle, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglInfoTitle, lv_color_hex(theme.infoText), 0);
-  lv_label_set_long_mode(g_lvglInfoTitle, LV_LABEL_LONG_CLIP);
-  lv_obj_set_width(g_lvglInfoTitle, cW * 3 / 5);
-  lv_obj_align(g_lvglInfoTitle, LV_ALIGN_LEFT_MID, 12, -1);
-  lv_label_set_text(g_lvglInfoTitle, "ScryBar Stats  " FW_BUILD_TAG);
-  lvglForceLabelVisible(g_lvglInfoTitle);
+  g_infoUi.title = lv_label_create(g_infoUi.header);
+  lv_obj_set_style_text_font(g_infoUi.title, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_infoUi.title, lv_color_hex(theme.infoText), 0);
+  lv_label_set_long_mode(g_infoUi.title, LV_LABEL_LONG_CLIP);
+  lv_obj_set_width(g_infoUi.title, cW * 3 / 5);
+  lv_obj_align(g_infoUi.title, LV_ALIGN_LEFT_MID, 12, -1);
+  lv_label_set_text(g_infoUi.title, "ScryBar Stats  " FW_BUILD_TAG);
+  lvglForceLabelVisible(g_infoUi.title);
 
-  g_lvglInfoEndpoint = lv_label_create(g_lvglInfoHeader);
-  lv_obj_set_style_text_font(g_lvglInfoEndpoint, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglInfoEndpoint, lv_color_hex(theme.infoText), 0);
-  lv_label_set_long_mode(g_lvglInfoEndpoint, LV_LABEL_LONG_DOT);
-  lv_obj_set_size(g_lvglInfoEndpoint, (cW / 2) - 16, 20);
-  lv_obj_align(g_lvglInfoEndpoint, LV_ALIGN_RIGHT_MID, -10, -1);
-  lv_obj_set_style_text_align(g_lvglInfoEndpoint, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_label_set_text(g_lvglInfoEndpoint, "--:8080");
-  lvglForceLabelVisible(g_lvglInfoEndpoint);
+  g_infoUi.endpoint = lv_label_create(g_infoUi.header);
+  lv_obj_set_style_text_font(g_infoUi.endpoint, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_infoUi.endpoint, lv_color_hex(theme.infoText), 0);
+  lv_label_set_long_mode(g_infoUi.endpoint, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(g_infoUi.endpoint, (cW / 2) - 16, 20);
+  lv_obj_align(g_infoUi.endpoint, LV_ALIGN_RIGHT_MID, -10, -1);
+  lv_obj_set_style_text_align(g_infoUi.endpoint, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_label_set_text(g_infoUi.endpoint, "--:8080");
+  lvglForceLabelVisible(g_infoUi.endpoint);
 
   const int16_t infoColsY = infoHeaderH + 4;
   const int16_t infoColsH = cH - infoColsY - 4;
@@ -12951,7 +12998,7 @@ static void initLvglInfoPanel(lv_obj_t* scr) {
   const int16_t infoQrAreaW = infoQrSize + infoQrPad * 2;
   const int16_t infoTextColW = cW - infoQrAreaW - 16;
 
-  lv_obj_t *infoColLeft = lv_obj_create(g_lvglInfoCard);
+  lv_obj_t *infoColLeft = lv_obj_create(g_infoUi.card);
   lv_obj_set_size(infoColLeft, infoTextColW, infoColsH);
   lv_obj_set_pos(infoColLeft, 8, infoColsY);
   lv_obj_set_style_bg_color(infoColLeft, lv_color_hex(0x000000), LV_PART_MAIN);
@@ -12963,7 +13010,7 @@ static void initLvglInfoPanel(lv_obj_t* scr) {
   lv_obj_clear_flag(infoColLeft, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(infoColLeft, LV_SCROLLBAR_MODE_OFF);
 
-  lv_obj_t *infoColRight = lv_obj_create(g_lvglInfoCard);
+  lv_obj_t *infoColRight = lv_obj_create(g_infoUi.card);
   lv_obj_set_size(infoColRight, infoQrAreaW, infoColsH);
   lv_obj_set_pos(infoColRight, cW - infoQrAreaW - 8, infoColsY);
   lv_obj_set_style_bg_color(infoColRight, lv_color_hex(0x000000), LV_PART_MAIN);
@@ -12975,35 +13022,35 @@ static void initLvglInfoPanel(lv_obj_t* scr) {
   lv_obj_clear_flag(infoColRight, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(infoColRight, LV_SCROLLBAR_MODE_OFF);
 
-  g_lvglInfoBodyLeft = lv_label_create(infoColLeft);
-  lv_obj_set_style_text_font(g_lvglInfoBodyLeft, lvglFontInfoBody(), 0);
-  lv_obj_set_style_text_color(g_lvglInfoBodyLeft, lv_color_hex(theme.infoText), 0);
-  lv_obj_set_style_text_line_space(g_lvglInfoBodyLeft, 1, 0);
-  lv_label_set_recolor(g_lvglInfoBodyLeft, true);
-  lv_label_set_long_mode(g_lvglInfoBodyLeft, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(g_lvglInfoBodyLeft, infoTextColW - 8, infoColsH - 8);
-  lv_obj_set_pos(g_lvglInfoBodyLeft, 4, 4);
-  lv_obj_set_style_text_align(g_lvglInfoBodyLeft, LV_TEXT_ALIGN_LEFT, 0);
-  lv_label_set_text(g_lvglInfoBodyLeft, "...");
-  lvglForceLabelVisible(g_lvglInfoBodyLeft);
+  g_infoUi.bodyLeft = lv_label_create(infoColLeft);
+  lv_obj_set_style_text_font(g_infoUi.bodyLeft, lvglFontInfoBody(), 0);
+  lv_obj_set_style_text_color(g_infoUi.bodyLeft, lv_color_hex(theme.infoText), 0);
+  lv_obj_set_style_text_line_space(g_infoUi.bodyLeft, 1, 0);
+  lv_label_set_recolor(g_infoUi.bodyLeft, true);
+  lv_label_set_long_mode(g_infoUi.bodyLeft, LV_LABEL_LONG_WRAP);
+  lv_obj_set_size(g_infoUi.bodyLeft, infoTextColW - 8, infoColsH - 8);
+  lv_obj_set_pos(g_infoUi.bodyLeft, 4, 4);
+  lv_obj_set_style_text_align(g_infoUi.bodyLeft, LV_TEXT_ALIGN_LEFT, 0);
+  lv_label_set_text(g_infoUi.bodyLeft, "...");
+  lvglForceLabelVisible(g_infoUi.bodyLeft);
 
   // Right column is QR-only; keep the body label as a hidden placeholder
-  g_lvglInfoBodyRight = lv_label_create(infoColRight);
-  lv_obj_add_flag(g_lvglInfoBodyRight, LV_OBJ_FLAG_HIDDEN);
-  lv_label_set_text(g_lvglInfoBodyRight, "");
+  g_infoUi.bodyRight = lv_label_create(infoColRight);
+  lv_obj_add_flag(g_infoUi.bodyRight, LV_OBJ_FLAG_HIDDEN);
+  lv_label_set_text(g_infoUi.bodyRight, "");
 
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   // QR: centred in the right column
   const lv_color_t infoQrDark = lv_color_hex(theme.infoQrDark);
   const lv_color_t infoQrLight = lv_color_hex(theme.infoQrLight);
-  g_lvglInfoWebQr = lv_qrcode_create(infoColRight, infoQrSize, infoQrDark, infoQrLight);
-  lv_obj_align(g_lvglInfoWebQr, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglInfoWebQr, infoQrLight, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglInfoWebQr, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglInfoWebQr, 1, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_lvglInfoWebQr, lv_color_hex(theme.infoHeaderBorder), LV_PART_MAIN);
-  lv_obj_set_style_border_opa(g_lvglInfoWebQr, LV_OPA_80, LV_PART_MAIN);
-  lv_qrcode_update(g_lvglInfoWebQr, "http://--:8080", strlen("http://--:8080"));
+  g_infoUi.webQr = lv_qrcode_create(infoColRight, infoQrSize, infoQrDark, infoQrLight);
+  lv_obj_align(g_infoUi.webQr, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_set_style_bg_color(g_infoUi.webQr, infoQrLight, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_infoUi.webQr, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_infoUi.webQr, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(g_infoUi.webQr, lv_color_hex(theme.infoHeaderBorder), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(g_infoUi.webQr, LV_OPA_80, LV_PART_MAIN);
+  lv_qrcode_update(g_infoUi.webQr, "http://--:8080", strlen("http://--:8080"));
 #endif
 }
 
@@ -13034,42 +13081,42 @@ static void initLvglClockPanel(lv_obj_t* homeRoot) {
   lv_obj_set_style_pad_all(left, 0, LV_PART_MAIN);
   lv_obj_clear_flag(left, LV_OBJ_FLAG_SCROLLABLE);
 
-  g_lvglClockBlock = lv_obj_create(left);
-  lv_obj_set_size(g_lvglClockBlock, clockBlockW, clockBlockH);
-  lv_obj_set_pos(g_lvglClockBlock, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglClockBlock, kPanelBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglClockBlock, kPanelBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglClockBlock, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglClockBlock, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglClockBlock, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglClockBlock, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglClockBlock, false, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglClockBlock, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglClockBlock, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglClockBlock, LV_OBJ_FLAG_SCROLLABLE);
+  g_clockUi.block = lv_obj_create(left);
+  lv_obj_set_size(g_clockUi.block, clockBlockW, clockBlockH);
+  lv_obj_set_pos(g_clockUi.block, 0, 0);
+  lv_obj_set_style_bg_color(g_clockUi.block, kPanelBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_clockUi.block, kPanelBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_clockUi.block, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_clockUi.block, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_clockUi.block, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_clockUi.block, kCardRadius, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_clockUi.block, false, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_clockUi.block, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_clockUi.block, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_clockUi.block, LV_OBJ_FLAG_SCROLLABLE);
 
-  g_lvglClockHeader = lv_obj_create(g_lvglClockBlock);
-  lv_obj_set_size(g_lvglClockHeader, clockBlockW, clockHeaderH);
-  lv_obj_set_pos(g_lvglClockHeader, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglClockHeader, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglClockHeader, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglClockHeader, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglClockHeader, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglClockHeader, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglClockHeader, false, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglClockHeader, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglClockHeader, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglClockHeader, LV_OBJ_FLAG_SCROLLABLE);
+  g_clockUi.header = lv_obj_create(g_clockUi.block);
+  lv_obj_set_size(g_clockUi.header, clockBlockW, clockHeaderH);
+  lv_obj_set_pos(g_clockUi.header, 0, 0);
+  lv_obj_set_style_bg_color(g_clockUi.header, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_clockUi.header, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_clockUi.header, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_clockUi.header, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_clockUi.header, kCardRadius, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_clockUi.header, false, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_clockUi.header, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_clockUi.header, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_clockUi.header, LV_OBJ_FLAG_SCROLLABLE);
 
-  g_lvglClockHeaderFill = lv_obj_create(g_lvglClockHeader);
-  lv_obj_set_size(g_lvglClockHeaderFill, clockBlockW, 10);
-  lv_obj_set_pos(g_lvglClockHeaderFill, 0, clockHeaderH - 10);
-  lv_obj_set_style_bg_color(g_lvglClockHeaderFill, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglClockHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglClockHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglClockHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglClockHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglClockHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
+  g_clockUi.headerFill = lv_obj_create(g_clockUi.header);
+  lv_obj_set_size(g_clockUi.headerFill, clockBlockW, 10);
+  lv_obj_set_pos(g_clockUi.headerFill, 0, clockHeaderH - 10);
+  lv_obj_set_style_bg_color(g_clockUi.headerFill, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_clockUi.headerFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_clockUi.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_clockUi.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_clockUi.headerFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_clockUi.headerFill, LV_OBJ_FLAG_SCROLLABLE);
 
   constexpr int16_t kWifiBarW = 4;
   constexpr int16_t kWifiBarGap = 3;
@@ -13079,65 +13126,65 @@ static void initLvglClockPanel(lv_obj_t* homeRoot) {
   const int16_t clockWiFiBaseY = clockHeaderH - 6;
   const int16_t clockWiFiHeights[4] = {5, 8, 11, 14};
   for (uint8_t i = 0; i < 4; ++i) {
-    g_lvglClockWiFiBars[i] = lv_obj_create(g_lvglClockHeader);
-    lv_obj_set_size(g_lvglClockWiFiBars[i], kWifiBarW, clockWiFiHeights[i]);
-    lv_obj_set_pos(g_lvglClockWiFiBars[i],
+    g_clockUi.wifiBars[i] = lv_obj_create(g_clockUi.header);
+    lv_obj_set_size(g_clockUi.wifiBars[i], kWifiBarW, clockWiFiHeights[i]);
+    lv_obj_set_pos(g_clockUi.wifiBars[i],
                    clockWiFiStartX + (int16_t)i * (kWifiBarW + kWifiBarGap),
                    clockWiFiBaseY - clockWiFiHeights[i]);
-    lv_obj_set_style_bg_color(g_lvglClockWiFiBars[i], lv_color_hex(theme.wifiBarOff), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(g_lvglClockWiFiBars[i], (lv_opa_t)190, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_lvglClockWiFiBars[i], 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(g_lvglClockWiFiBars[i], 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(g_lvglClockWiFiBars[i], kWifiBarRadius, LV_PART_MAIN);
-    lv_obj_clear_flag(g_lvglClockWiFiBars[i], LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(g_clockUi.wifiBars[i], lv_color_hex(theme.wifiBarOff), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_clockUi.wifiBars[i], (lv_opa_t)190, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_clockUi.wifiBars[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(g_clockUi.wifiBars[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_clockUi.wifiBars[i], kWifiBarRadius, LV_PART_MAIN);
+    lv_obj_clear_flag(g_clockUi.wifiBars[i], LV_OBJ_FLAG_SCROLLABLE);
   }
 
-  g_lvglClockDate = lv_label_create(g_lvglClockHeader);
-  lv_obj_set_style_text_font(g_lvglClockDate, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglClockDate, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_bg_opa(g_lvglClockDate, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_label_set_long_mode(g_lvglClockDate, LV_LABEL_LONG_DOT);
+  g_clockUi.date = lv_label_create(g_clockUi.header);
+  lv_obj_set_style_text_font(g_clockUi.date, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_clockUi.date, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_bg_opa(g_clockUi.date, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_label_set_long_mode(g_clockUi.date, LV_LABEL_LONG_DOT);
   const int16_t clockDateW = (clockWiFiStartX > 28) ? (clockWiFiStartX - 20) : (clockBlockW - 24);
-  lv_obj_set_width(g_lvglClockDate, clockDateW);
-  lv_obj_align(g_lvglClockDate, LV_ALIGN_LEFT_MID, 12, -1);
-  lv_label_set_text(g_lvglClockDate, "...");
-  lvglForceLabelVisible(g_lvglClockDate);
+  lv_obj_set_width(g_clockUi.date, clockDateW);
+  lv_obj_align(g_clockUi.date, LV_ALIGN_LEFT_MID, 12, -1);
+  lv_label_set_text(g_clockUi.date, "...");
+  lvglForceLabelVisible(g_clockUi.date);
 
-  g_lvglClockL1 = lv_label_create(g_lvglClockBlock);
-  g_lvglClockL2 = lv_label_create(g_lvglClockBlock);
-  g_lvglClockL3 = lv_label_create(g_lvglClockBlock);
-  lv_obj_set_style_text_font(g_lvglClockL1, lvglFontClock(), 0);
-  lv_obj_set_style_text_font(g_lvglClockL2, lvglFontTitle(), 0);
-  lv_obj_set_style_text_font(g_lvglClockL3, lvglFontTitle(), 0);
-  lv_obj_set_style_text_color(g_lvglClockL1, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_color(g_lvglClockL2, lv_color_hex(0xEAF0FF), 0);
-  lv_obj_set_style_text_color(g_lvglClockL3, lv_color_hex(0xD8E3FF), 0);
-  lv_obj_set_style_text_line_space(g_lvglClockL1, 4, 0);
-  lv_obj_set_style_text_line_space(g_lvglClockL2, 2, 0);
-  lv_obj_set_style_text_line_space(g_lvglClockL3, 2, 0);
-  lv_obj_set_style_text_align(g_lvglClockL1, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_bg_opa(g_lvglClockL1, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglClockL1, 0, LV_PART_MAIN);
-  lv_label_set_long_mode(g_lvglClockL1, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(g_lvglClockL1, clockBlockW - 16);
-  lv_obj_set_pos(g_lvglClockL1, 8, 38);
+  g_clockUi.l1 = lv_label_create(g_clockUi.block);
+  g_clockUi.l2 = lv_label_create(g_clockUi.block);
+  g_clockUi.l3 = lv_label_create(g_clockUi.block);
+  lv_obj_set_style_text_font(g_clockUi.l1, lvglFontClock(), 0);
+  lv_obj_set_style_text_font(g_clockUi.l2, lvglFontTitle(), 0);
+  lv_obj_set_style_text_font(g_clockUi.l3, lvglFontTitle(), 0);
+  lv_obj_set_style_text_color(g_clockUi.l1, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_text_color(g_clockUi.l2, lv_color_hex(0xEAF0FF), 0);
+  lv_obj_set_style_text_color(g_clockUi.l3, lv_color_hex(0xD8E3FF), 0);
+  lv_obj_set_style_text_line_space(g_clockUi.l1, 4, 0);
+  lv_obj_set_style_text_line_space(g_clockUi.l2, 2, 0);
+  lv_obj_set_style_text_line_space(g_clockUi.l3, 2, 0);
+  lv_obj_set_style_text_align(g_clockUi.l1, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_style_bg_opa(g_clockUi.l1, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_clockUi.l1, 0, LV_PART_MAIN);
+  lv_label_set_long_mode(g_clockUi.l1, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(g_clockUi.l1, clockBlockW - 16);
+  lv_obj_set_pos(g_clockUi.l1, 8, 38);
   lvglApplyClockSentenceAutoFit("Clock...");
-  lvglForceLabelVisible(g_lvglClockL1);
-  lv_obj_add_flag(g_lvglClockL2, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_add_flag(g_lvglClockL3, LV_OBJ_FLAG_HIDDEN);
-  lv_label_set_text(g_lvglClockL2, "");
-  lv_label_set_text(g_lvglClockL3, "");
+  lvglForceLabelVisible(g_clockUi.l1);
+  lv_obj_add_flag(g_clockUi.l2, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_flag(g_clockUi.l3, LV_OBJ_FLAG_HIDDEN);
+  lv_label_set_text(g_clockUi.l2, "");
+  lv_label_set_text(g_clockUi.l3, "");
 
-  g_lvglClockDivider = lv_obj_create(g_lvglClockBlock);
-  lv_obj_set_size(g_lvglClockDivider, clockBlockW - (innerPad * 2), 1);
-  lv_obj_set_pos(g_lvglClockDivider, innerPad, cH - 58);
-  lv_obj_set_style_bg_color(g_lvglClockDivider, lv_color_hex(0x9FB5EE), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglClockDivider, LV_OPA_0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglClockDivider, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglClockDivider, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglClockDivider, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglClockDivider, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_flag(g_lvglClockDivider, LV_OBJ_FLAG_HIDDEN);
+  g_clockUi.divider = lv_obj_create(g_clockUi.block);
+  lv_obj_set_size(g_clockUi.divider, clockBlockW - (innerPad * 2), 1);
+  lv_obj_set_pos(g_clockUi.divider, innerPad, cH - 58);
+  lv_obj_set_style_bg_color(g_clockUi.divider, lv_color_hex(0x9FB5EE), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_clockUi.divider, LV_OPA_0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_clockUi.divider, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_clockUi.divider, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_clockUi.divider, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_clockUi.divider, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(g_clockUi.divider, LV_OBJ_FLAG_HIDDEN);
 }
 
 // HOME page — weather body: temp, icon, glyph, separator, description,
@@ -13167,30 +13214,30 @@ static void initLvglWeatherBodyWidgets() {
   const lv_color_t kWeatherForecastText = lv_color_hex(weatherForecastTextHex);
   const lv_color_t kWeatherGlyphOnline = lv_color_hex(weatherGlyphOnlineHex);
 
-  g_lvglTemp = lv_label_create(g_lvglWeatherBody);
-  lv_obj_set_style_text_font(g_lvglTemp, lvglFontTemp(), 0);
-  lv_obj_set_style_text_color(g_lvglTemp, kWeatherTextDark, 0);
-  lv_obj_set_width(g_lvglTemp, weatherTopTextW);
-  lv_obj_align(g_lvglTemp, LV_ALIGN_TOP_LEFT, 12, 8);
-  lv_label_set_text(g_lvglTemp, "--\xC2\xB0, --%");
-  lvglForceLabelVisible(g_lvglTemp);
+  g_weatherUi.temp = lv_label_create(g_weatherUi.body);
+  lv_obj_set_style_text_font(g_weatherUi.temp, lvglFontTemp(), 0);
+  lv_obj_set_style_text_color(g_weatherUi.temp, kWeatherTextDark, 0);
+  lv_obj_set_width(g_weatherUi.temp, weatherTopTextW);
+  lv_obj_align(g_weatherUi.temp, LV_ALIGN_TOP_LEFT, 12, 8);
+  lv_label_set_text(g_weatherUi.temp, "--\xC2\xB0, --%");
+  lvglForceLabelVisible(g_weatherUi.temp);
 
-  g_lvglIcon = lv_img_create(g_lvglWeatherBody);
+  g_weatherUi.icon = lv_img_create(g_weatherUi.body);
   constexpr uint16_t kMainIconZoom = 336;  // ~63px rendered from 48px source
   const int16_t mainIconPx = (int16_t)(((int32_t)weatherIconW * kMainIconZoom + 128) / 256);
   const int16_t mainIconY = ((weatherBodyH - mainIconPx) / 2) + 2;  // lower icon a bit for vertical centering
-  lv_obj_align(g_lvglIcon, LV_ALIGN_TOP_RIGHT, -21, mainIconY);     // move icon 7px right
+  lv_obj_align(g_weatherUi.icon, LV_ALIGN_TOP_RIGHT, -21, mainIconY);     // move icon 7px right
   const lv_img_dsc_t *bootIcon = weatherImageFromCode(2, true);
   if (bootIcon) {
-    lv_img_set_src(g_lvglIcon, bootIcon);
-    lv_obj_clear_flag(g_lvglIcon, LV_OBJ_FLAG_HIDDEN);
+    lv_img_set_src(g_weatherUi.icon, bootIcon);
+    lv_obj_clear_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
   } else {
-    lv_obj_add_flag(g_lvglIcon, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
   }
-  lv_img_set_zoom(g_lvglIcon, kMainIconZoom);
+  lv_img_set_zoom(g_weatherUi.icon, kMainIconZoom);
   lv_anim_t a;
   lv_anim_init(&a);
-  lv_anim_set_var(&a, g_lvglIcon);
+  lv_anim_set_var(&a, g_weatherUi.icon);
   lv_anim_set_values(&a, -2, 2);
   lv_anim_set_time(&a, 2600);
   lv_anim_set_playback_time(&a, 2600);
@@ -13198,102 +13245,102 @@ static void initLvglWeatherBodyWidgets() {
   lv_anim_set_exec_cb(&a, lvglIconFloatAnimCb);
   lv_anim_start(&a);
 
-  g_lvglGlyph = lv_label_create(g_lvglWeatherBody);
-  lv_obj_set_style_text_font(g_lvglGlyph, lvglFontBig(), 0);
-  lv_obj_set_style_text_color(g_lvglGlyph, kWeatherGlyphOnline, 0);
-  lv_obj_align(g_lvglGlyph, LV_ALIGN_TOP_LEFT, 12, 4);
-  lv_label_set_text(g_lvglGlyph, "*");
-  lv_obj_add_flag(g_lvglGlyph, LV_OBJ_FLAG_HIDDEN);
+  g_weatherUi.glyph = lv_label_create(g_weatherUi.body);
+  lv_obj_set_style_text_font(g_weatherUi.glyph, lvglFontBig(), 0);
+  lv_obj_set_style_text_color(g_weatherUi.glyph, kWeatherGlyphOnline, 0);
+  lv_obj_align(g_weatherUi.glyph, LV_ALIGN_TOP_LEFT, 12, 4);
+  lv_label_set_text(g_weatherUi.glyph, "*");
+  lv_obj_add_flag(g_weatherUi.glyph, LV_OBJ_FLAG_HIDDEN);
 
-  g_lvglWeatherSep = lv_obj_create(g_lvglWeatherBody);
+  g_weatherUi.sep = lv_obj_create(g_weatherUi.body);
   const int16_t weatherSepW = weatherTopTextW - 26;  // leave extra space near large icon
-  lv_obj_set_size(g_lvglWeatherSep, weatherSepW, 1);
-  lv_obj_set_pos(g_lvglWeatherSep, 12, 44);
-  lv_obj_set_style_bg_color(g_lvglWeatherSep, kWeatherTextMid, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglWeatherSep, LV_OPA_70, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglWeatherSep, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglWeatherSep, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglWeatherSep, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglWeatherSep, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_size(g_weatherUi.sep, weatherSepW, 1);
+  lv_obj_set_pos(g_weatherUi.sep, 12, 44);
+  lv_obj_set_style_bg_color(g_weatherUi.sep, kWeatherTextMid, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_weatherUi.sep, LV_OPA_70, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_weatherUi.sep, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_weatherUi.sep, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_weatherUi.sep, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_weatherUi.sep, LV_OBJ_FLAG_SCROLLABLE);
 
-  g_lvglDesc = lv_label_create(g_lvglWeatherBody);
-  lv_obj_set_style_text_font(g_lvglDesc, lvglFontMeta(), 0);
-  lv_obj_set_style_text_color(g_lvglDesc, kWeatherTextDark, 0);
-  lv_obj_set_style_anim_speed(g_lvglDesc, 28, 0);
-  lv_label_set_long_mode(g_lvglDesc, LV_LABEL_LONG_SCROLL_CIRCULAR);
-  lv_obj_set_width(g_lvglDesc, weatherTopTextW - 10);
-  lv_obj_align(g_lvglDesc, LV_ALIGN_TOP_LEFT, 12, 50);
-  lv_label_set_text(g_lvglDesc, "Meteo in arrivo");
-  lvglForceLabelVisible(g_lvglDesc);
+  g_weatherUi.desc = lv_label_create(g_weatherUi.body);
+  lv_obj_set_style_text_font(g_weatherUi.desc, lvglFontMeta(), 0);
+  lv_obj_set_style_text_color(g_weatherUi.desc, kWeatherTextDark, 0);
+  lv_obj_set_style_anim_speed(g_weatherUi.desc, 28, 0);
+  lv_label_set_long_mode(g_weatherUi.desc, LV_LABEL_LONG_SCROLL_CIRCULAR);
+  lv_obj_set_width(g_weatherUi.desc, weatherTopTextW - 10);
+  lv_obj_align(g_weatherUi.desc, LV_ALIGN_TOP_LEFT, 12, 50);
+  lv_label_set_text(g_weatherUi.desc, "Meteo in arrivo");
+  lvglForceLabelVisible(g_weatherUi.desc);
 
-  g_lvglHumidity = lv_label_create(g_lvglWeatherBody);
-  lv_obj_set_style_text_font(g_lvglHumidity, lvglFontMini(), 0);
-  lv_obj_set_style_text_color(g_lvglHumidity, kWeatherTextDark, 0);
-  lv_obj_set_width(g_lvglHumidity, weatherTopTextW);
-  lv_obj_align(g_lvglHumidity, LV_ALIGN_TOP_LEFT, 12, 77);
-  lv_label_set_text(g_lvglHumidity, activeUiStrings()->windNa);
-  lvglForceLabelVisible(g_lvglHumidity);
+  g_weatherUi.humidity = lv_label_create(g_weatherUi.body);
+  lv_obj_set_style_text_font(g_weatherUi.humidity, lvglFontMini(), 0);
+  lv_obj_set_style_text_color(g_weatherUi.humidity, kWeatherTextDark, 0);
+  lv_obj_set_width(g_weatherUi.humidity, weatherTopTextW);
+  lv_obj_align(g_weatherUi.humidity, LV_ALIGN_TOP_LEFT, 12, 77);
+  lv_label_set_text(g_weatherUi.humidity, activeUiStrings()->windNa);
+  lvglForceLabelVisible(g_weatherUi.humidity);
 
-  g_lvglWind = lv_label_create(g_lvglWeatherBody);
-  lv_obj_set_style_text_font(g_lvglWind, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglWind, kWeatherTextMid, 0);
-  lv_obj_set_width(g_lvglWind, weatherTextW);
-  lv_obj_align(g_lvglWind, LV_ALIGN_TOP_LEFT, 12, 90);
-  lv_label_set_text(g_lvglWind, "");
-  lv_obj_add_flag(g_lvglWind, LV_OBJ_FLAG_HIDDEN);
+  g_weatherUi.wind = lv_label_create(g_weatherUi.body);
+  lv_obj_set_style_text_font(g_weatherUi.wind, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_weatherUi.wind, kWeatherTextMid, 0);
+  lv_obj_set_width(g_weatherUi.wind, weatherTextW);
+  lv_obj_align(g_weatherUi.wind, LV_ALIGN_TOP_LEFT, 12, 90);
+  lv_label_set_text(g_weatherUi.wind, "");
+  lv_obj_add_flag(g_weatherUi.wind, LV_OBJ_FLAG_HIDDEN);
 
   constexpr int16_t forecastBarH = 34;
   const int16_t forecastBarY = weatherCardH - forecastBarH;
-  g_lvglForecastBar = lv_obj_create(g_lvglWeatherCard);
-  lv_obj_set_size(g_lvglForecastBar, weatherCardW, forecastBarH);
-  lv_obj_set_pos(g_lvglForecastBar, 0, forecastBarY);
-  lv_obj_set_style_bg_color(g_lvglForecastBar, kWeatherCardBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglForecastBar, kWeatherCardBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglForecastBar, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglForecastBar, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglForecastBar, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglForecastBar, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglForecastBar, 0, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglForecastBar, false, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglForecastBar, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglForecastBar, LV_OBJ_FLAG_SCROLLABLE);
-  g_lvglForecastBarFill = lv_obj_create(g_lvglForecastBar);
-  lv_obj_set_size(g_lvglForecastBarFill, weatherCardW, 10);
-  lv_obj_set_pos(g_lvglForecastBarFill, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglForecastBarFill, kWeatherCardBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglForecastBarFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglForecastBarFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglForecastBarFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglForecastBarFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglForecastBarFill, LV_OBJ_FLAG_SCROLLABLE);
+  g_weatherUi.forecastBar = lv_obj_create(g_weatherUi.card);
+  lv_obj_set_size(g_weatherUi.forecastBar, weatherCardW, forecastBarH);
+  lv_obj_set_pos(g_weatherUi.forecastBar, 0, forecastBarY);
+  lv_obj_set_style_bg_color(g_weatherUi.forecastBar, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_weatherUi.forecastBar, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_weatherUi.forecastBar, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_weatherUi.forecastBar, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_weatherUi.forecastBar, kCardRadius, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_weatherUi.forecastBar, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_weatherUi.forecastBar, 0, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_weatherUi.forecastBar, false, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_weatherUi.forecastBar, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_weatherUi.forecastBar, LV_OBJ_FLAG_SCROLLABLE);
+  g_weatherUi.forecastBarFill = lv_obj_create(g_weatherUi.forecastBar);
+  lv_obj_set_size(g_weatherUi.forecastBarFill, weatherCardW, 10);
+  lv_obj_set_pos(g_weatherUi.forecastBarFill, 0, 0);
+  lv_obj_set_style_bg_color(g_weatherUi.forecastBarFill, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_weatherUi.forecastBarFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_weatherUi.forecastBarFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_weatherUi.forecastBarFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_weatherUi.forecastBarFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_weatherUi.forecastBarFill, LV_OBJ_FLAG_SCROLLABLE);
 
-  g_lvglForecastIcon = lv_img_create(g_lvglForecastBar);
-  lv_obj_set_pos(g_lvglForecastIcon, 5, -11);  // keep center while growing icon (+6px)
+  g_weatherUi.forecastIcon = lv_img_create(g_weatherUi.forecastBar);
+  lv_obj_set_pos(g_weatherUi.forecastIcon, 5, -11);  // keep center while growing icon (+6px)
   if (bootIcon) {
-    lv_img_set_src(g_lvglForecastIcon, bootIcon);
-    lv_obj_clear_flag(g_lvglForecastIcon, LV_OBJ_FLAG_HIDDEN);
+    lv_img_set_src(g_weatherUi.forecastIcon, bootIcon);
+    lv_obj_clear_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
   } else {
-    lv_obj_add_flag(g_lvglForecastIcon, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
   }
-  lv_img_set_zoom(g_lvglForecastIcon, 123);  // ~23px rendered from 48px source
+  lv_img_set_zoom(g_weatherUi.forecastIcon, 123);  // ~23px rendered from 48px source
 
-  g_lvglForecastNow = lv_label_create(g_lvglForecastBar);
-  lv_obj_set_style_text_font(g_lvglForecastNow, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglForecastNow, kWeatherForecastText, 0);
-  lv_obj_set_width(g_lvglForecastNow, weatherCardW - 65);
-  lv_obj_set_pos(g_lvglForecastNow, 52, 6);
-  lv_label_set_long_mode(g_lvglForecastNow, LV_LABEL_LONG_DOT);
-  lv_label_set_text(g_lvglForecastNow, activeUiStrings()->forecastNa);
-  lvglForceLabelVisible(g_lvglForecastNow);
+  g_weatherUi.forecastNow = lv_label_create(g_weatherUi.forecastBar);
+  lv_obj_set_style_text_font(g_weatherUi.forecastNow, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_weatherUi.forecastNow, kWeatherForecastText, 0);
+  lv_obj_set_width(g_weatherUi.forecastNow, weatherCardW - 65);
+  lv_obj_set_pos(g_weatherUi.forecastNow, 52, 6);
+  lv_label_set_long_mode(g_weatherUi.forecastNow, LV_LABEL_LONG_DOT);
+  lv_label_set_text(g_weatherUi.forecastNow, activeUiStrings()->forecastNa);
+  lvglForceLabelVisible(g_weatherUi.forecastNow);
 
-  g_lvglForecastTomorrow = lv_label_create(g_lvglWeatherBody);
-  lv_obj_set_style_text_font(g_lvglForecastTomorrow, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglForecastTomorrow, kWeatherTextMid, 0);
-  lv_label_set_long_mode(g_lvglForecastTomorrow, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(g_lvglForecastTomorrow, weatherTextW);
-  lv_obj_align(g_lvglForecastTomorrow, LV_ALIGN_TOP_LEFT, 12, 102);
-  lv_label_set_text(g_lvglForecastTomorrow, "");
-  lv_obj_add_flag(g_lvglForecastTomorrow, LV_OBJ_FLAG_HIDDEN);
+  g_weatherUi.forecastTomorrow = lv_label_create(g_weatherUi.body);
+  lv_obj_set_style_text_font(g_weatherUi.forecastTomorrow, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_weatherUi.forecastTomorrow, kWeatherTextMid, 0);
+  lv_label_set_long_mode(g_weatherUi.forecastTomorrow, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(g_weatherUi.forecastTomorrow, weatherTextW);
+  lv_obj_align(g_weatherUi.forecastTomorrow, LV_ALIGN_TOP_LEFT, 12, 102);
+  lv_label_set_text(g_weatherUi.forecastTomorrow, "");
+  lv_obj_add_flag(g_weatherUi.forecastTomorrow, LV_OBJ_FLAG_HIDDEN);
 }
 
 // HOME page — weather card: header, current conditions, icon, forecast bar.
@@ -13337,42 +13384,42 @@ static void initLvglWeatherPanel(lv_obj_t* homeRoot) {
   lv_obj_set_style_pad_all(right, 0, LV_PART_MAIN);
   lv_obj_clear_flag(right, LV_OBJ_FLAG_SCROLLABLE);
 
-  g_lvglWeatherCard = lv_obj_create(right);
-  lv_obj_set_size(g_lvglWeatherCard, weatherCardW, weatherCardH);
-  lv_obj_set_pos(g_lvglWeatherCard, outerPadX, outerPadY);
-  lv_obj_set_style_radius(g_lvglWeatherCard, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_lvglWeatherCard, kWeatherCardBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglWeatherCard, kWeatherCardBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglWeatherCard, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglWeatherCard, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglWeatherCard, 0, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglWeatherCard, false, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglWeatherCard, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglWeatherCard, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglWeatherCard, LV_OBJ_FLAG_SCROLLABLE);
+  g_weatherUi.card = lv_obj_create(right);
+  lv_obj_set_size(g_weatherUi.card, weatherCardW, weatherCardH);
+  lv_obj_set_pos(g_weatherUi.card, outerPadX, outerPadY);
+  lv_obj_set_style_radius(g_weatherUi.card, kCardRadius, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_weatherUi.card, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_weatherUi.card, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_weatherUi.card, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_weatherUi.card, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_weatherUi.card, 0, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_weatherUi.card, false, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_weatherUi.card, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_weatherUi.card, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_weatherUi.card, LV_OBJ_FLAG_SCROLLABLE);
 
-  g_lvglWeatherHeader = lv_obj_create(g_lvglWeatherCard);
-  lv_obj_set_size(g_lvglWeatherHeader, weatherCardW, weatherHeaderH);
-  lv_obj_set_pos(g_lvglWeatherHeader, 0, 0);
-  lv_obj_set_style_bg_color(g_lvglWeatherHeader, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_lvglWeatherHeader, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_dir(g_lvglWeatherHeader, LV_GRAD_DIR_NONE, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglWeatherHeader, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglWeatherHeader, kCardRadius, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglWeatherHeader, false, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglWeatherHeader, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglWeatherHeader, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglWeatherHeader, LV_OBJ_FLAG_SCROLLABLE);
-  g_lvglWeatherHeaderFill = lv_obj_create(g_lvglWeatherHeader);
-  lv_obj_set_size(g_lvglWeatherHeaderFill, weatherCardW, 10);
-  lv_obj_set_pos(g_lvglWeatherHeaderFill, 0, weatherHeaderH - 10);
-  lv_obj_set_style_bg_color(g_lvglWeatherHeaderFill, kHeaderBlue, LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglWeatherHeaderFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglWeatherHeaderFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglWeatherHeaderFill, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_t *headerDivider = lv_obj_create(g_lvglWeatherCard);
+  g_weatherUi.header = lv_obj_create(g_weatherUi.card);
+  lv_obj_set_size(g_weatherUi.header, weatherCardW, weatherHeaderH);
+  lv_obj_set_pos(g_weatherUi.header, 0, 0);
+  lv_obj_set_style_bg_color(g_weatherUi.header, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_weatherUi.header, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_dir(g_weatherUi.header, LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_weatherUi.header, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_weatherUi.header, kCardRadius, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_weatherUi.header, false, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_weatherUi.header, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_weatherUi.header, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_weatherUi.header, LV_OBJ_FLAG_SCROLLABLE);
+  g_weatherUi.headerFill = lv_obj_create(g_weatherUi.header);
+  lv_obj_set_size(g_weatherUi.headerFill, weatherCardW, 10);
+  lv_obj_set_pos(g_weatherUi.headerFill, 0, weatherHeaderH - 10);
+  lv_obj_set_style_bg_color(g_weatherUi.headerFill, kHeaderBlue, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_weatherUi.headerFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_weatherUi.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_weatherUi.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_weatherUi.headerFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_weatherUi.headerFill, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_t *headerDivider = lv_obj_create(g_weatherUi.card);
   lv_obj_set_size(headerDivider, weatherCardW - 16, 2);
   lv_obj_set_pos(headerDivider, 8, weatherHeaderH - 1);
   lv_obj_set_style_bg_color(headerDivider, lv_color_hex(0x90A3DE), LV_PART_MAIN);
@@ -13383,36 +13430,36 @@ static void initLvglWeatherPanel(lv_obj_t* homeRoot) {
   lv_obj_clear_flag(headerDivider, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(headerDivider, LV_OBJ_FLAG_HIDDEN);
 
-  g_lvglWeatherBody = lv_obj_create(g_lvglWeatherCard);
-  lv_obj_set_size(g_lvglWeatherBody, weatherCardW, weatherCardH - weatherHeaderH);
-  lv_obj_set_pos(g_lvglWeatherBody, 0, weatherHeaderH);
-  lv_obj_set_style_bg_opa(g_lvglWeatherBody, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_radius(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_clip_corner(g_lvglWeatherBody, false, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_left(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_right(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_top(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_bottom(g_lvglWeatherBody, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglWeatherBody, LV_OBJ_FLAG_SCROLLABLE);
+  g_weatherUi.body = lv_obj_create(g_weatherUi.card);
+  lv_obj_set_size(g_weatherUi.body, weatherCardW, weatherCardH - weatherHeaderH);
+  lv_obj_set_pos(g_weatherUi.body, 0, weatherHeaderH);
+  lv_obj_set_style_bg_opa(g_weatherUi.body, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_weatherUi.body, 0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_weatherUi.body, 0, LV_PART_MAIN);
+  lv_obj_set_style_clip_corner(g_weatherUi.body, false, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_weatherUi.body, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_left(g_weatherUi.body, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_right(g_weatherUi.body, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_top(g_weatherUi.body, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_bottom(g_weatherUi.body, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_weatherUi.body, LV_OBJ_FLAG_SCROLLABLE);
 
-  g_lvglCity = lv_label_create(g_lvglWeatherHeader);
-  lv_obj_set_style_text_font(g_lvglCity, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglCity, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_width(g_lvglCity, weatherCardW - 112);
-  lv_label_set_long_mode(g_lvglCity, LV_LABEL_LONG_DOT);
-  lv_obj_align(g_lvglCity, LV_ALIGN_LEFT_MID, 12, -1);
-  lv_label_set_text(g_lvglCity, "Luino");
-  lvglForceLabelVisible(g_lvglCity);
+  g_weatherUi.city = lv_label_create(g_weatherUi.header);
+  lv_obj_set_style_text_font(g_weatherUi.city, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_weatherUi.city, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_width(g_weatherUi.city, weatherCardW - 112);
+  lv_label_set_long_mode(g_weatherUi.city, LV_LABEL_LONG_DOT);
+  lv_obj_align(g_weatherUi.city, LV_ALIGN_LEFT_MID, 12, -1);
+  lv_label_set_text(g_weatherUi.city, "Luino");
+  lvglForceLabelVisible(g_weatherUi.city);
 
-  g_lvglSun = lv_label_create(g_lvglWeatherHeader);
-  lv_obj_set_style_text_font(g_lvglSun, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(g_lvglSun, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_opa(g_lvglSun, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_align(g_lvglSun, LV_ALIGN_RIGHT_MID, -10, 0);
-  lv_label_set_text(g_lvglSun, "--:-- | --:--");
-  lvglForceLabelVisible(g_lvglSun);
+  g_weatherUi.sun = lv_label_create(g_weatherUi.header);
+  lv_obj_set_style_text_font(g_weatherUi.sun, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_weatherUi.sun, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_text_opa(g_weatherUi.sun, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_align(g_weatherUi.sun, LV_ALIGN_RIGHT_MID, -10, 0);
+  lv_label_set_text(g_weatherUi.sun, "--:-- | --:--");
+  lvglForceLabelVisible(g_weatherUi.sun);
 
   initLvglWeatherBodyWidgets();
 }
@@ -13425,89 +13472,89 @@ static void initLvglScreensaverUi(lv_obj_t* scr) {
   const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
   const uint32_t saverReadableText = lvglResolvedSaverReadableText(theme);
 
-  g_lvglScreenSaverRoot = lv_obj_create(scr);
-  lv_obj_set_size(g_lvglScreenSaverRoot, cW, cH);
-  lv_obj_set_pos(g_lvglScreenSaverRoot, 0, 0);
-  lv_obj_set_style_radius(g_lvglScreenSaverRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_lvglScreenSaverRoot, lv_color_hex(theme.screenBg), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_lvglScreenSaverRoot, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_lvglScreenSaverRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_shadow_width(g_lvglScreenSaverRoot, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_lvglScreenSaverRoot, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_lvglScreenSaverRoot, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(g_lvglScreenSaverRoot, LV_SCROLLBAR_MODE_OFF);
-  lv_obj_add_flag(g_lvglScreenSaverRoot, LV_OBJ_FLAG_HIDDEN);
+  g_saver.root = lv_obj_create(scr);
+  lv_obj_set_size(g_saver.root, cW, cH);
+  lv_obj_set_pos(g_saver.root, 0, 0);
+  lv_obj_set_style_radius(g_saver.root, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_saver.root, lv_color_hex(theme.screenBg), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_saver.root, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_saver.root, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(g_saver.root, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_saver.root, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_saver.root, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(g_saver.root, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_add_flag(g_saver.root, LV_OBJ_FLAG_HIDDEN);
 
-  g_lvglScreenSaverSky = lv_label_create(g_lvglScreenSaverRoot);
-  lv_obj_set_style_text_font(g_lvglScreenSaverSky, lvglFontMono(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverSky, lv_color_hex(theme.saverSky), 0);
-  lv_label_set_long_mode(g_lvglScreenSaverSky, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(g_lvglScreenSaverSky, cW - 8, cH - 68);
-  lv_obj_set_pos(g_lvglScreenSaverSky, 4, 4);
-  lv_label_set_text(g_lvglScreenSaverSky, "");
-  lvglForceLabelVisible(g_lvglScreenSaverSky);
-  lv_obj_add_flag(g_lvglScreenSaverSky, LV_OBJ_FLAG_HIDDEN);
+  g_saver.sky = lv_label_create(g_saver.root);
+  lv_obj_set_style_text_font(g_saver.sky, lvglFontMono(), 0);
+  lv_obj_set_style_text_color(g_saver.sky, lv_color_hex(theme.saverSky), 0);
+  lv_label_set_long_mode(g_saver.sky, LV_LABEL_LONG_WRAP);
+  lv_obj_set_size(g_saver.sky, cW - 8, cH - 68);
+  lv_obj_set_pos(g_saver.sky, 4, 4);
+  lv_label_set_text(g_saver.sky, "");
+  lvglForceLabelVisible(g_saver.sky);
+  lv_obj_add_flag(g_saver.sky, LV_OBJ_FLAG_HIDDEN);
 
   for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
-      g_lvglScreenSaverStarObj[r][s] = lv_label_create(g_lvglScreenSaverRoot);
-      lv_obj_set_style_text_font(g_lvglScreenSaverStarObj[r][s], lvglFontMonoTiny(), 0);
-      lv_obj_set_style_text_color(g_lvglScreenSaverStarObj[r][s], lv_color_hex(theme.saverStarLow), 0);
-      lv_label_set_text(g_lvglScreenSaverStarObj[r][s], ".");
-      lv_obj_set_pos(g_lvglScreenSaverStarObj[r][s], 8, 8);
-      lv_obj_add_flag(g_lvglScreenSaverStarObj[r][s], LV_OBJ_FLAG_HIDDEN);
-      lvglForceLabelVisible(g_lvglScreenSaverStarObj[r][s]);
+      g_saver.starObj[r][s] = lv_label_create(g_saver.root);
+      lv_obj_set_style_text_font(g_saver.starObj[r][s], lvglFontMonoTiny(), 0);
+      lv_obj_set_style_text_color(g_saver.starObj[r][s], lv_color_hex(theme.saverStarLow), 0);
+      lv_label_set_text(g_saver.starObj[r][s], ".");
+      lv_obj_set_pos(g_saver.starObj[r][s], 8, 8);
+      lv_obj_add_flag(g_saver.starObj[r][s], LV_OBJ_FLAG_HIDDEN);
+      lvglForceLabelVisible(g_saver.starObj[r][s]);
     }
   }
 
-  g_lvglScreenSaverField = lv_label_create(g_lvglScreenSaverRoot);
-  lv_obj_set_style_text_font(g_lvglScreenSaverField, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverField, lv_color_hex(theme.saverField), 0);
-  lv_label_set_long_mode(g_lvglScreenSaverField, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(g_lvglScreenSaverField, cW - 8, 12);
-  lv_obj_set_pos(g_lvglScreenSaverField, 4, cH - 24);
-  lv_label_set_text(g_lvglScreenSaverField, "");
-  lvglForceLabelVisible(g_lvglScreenSaverField);
+  g_saver.field = lv_label_create(g_saver.root);
+  lv_obj_set_style_text_font(g_saver.field, lvglFontMonoTiny(), 0);
+  lv_obj_set_style_text_color(g_saver.field, lv_color_hex(theme.saverField), 0);
+  lv_label_set_long_mode(g_saver.field, LV_LABEL_LONG_WRAP);
+  lv_obj_set_size(g_saver.field, cW - 8, 12);
+  lv_obj_set_pos(g_saver.field, 4, cH - 24);
+  lv_label_set_text(g_saver.field, "");
+  lvglForceLabelVisible(g_saver.field);
 
-  g_lvglScreenSaverCow = lv_label_create(g_lvglScreenSaverRoot);
-  lv_obj_set_style_text_font(g_lvglScreenSaverCow, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverCow, lv_color_hex(theme.saverCow), 0);
-  lv_obj_set_style_text_letter_space(g_lvglScreenSaverCow, 0, 0);
-  lv_obj_set_style_text_line_space(g_lvglScreenSaverCow, 0, 0);
+  g_saver.cow = lv_label_create(g_saver.root);
+  lv_obj_set_style_text_font(g_saver.cow, lvglFontMonoTiny(), 0);
+  lv_obj_set_style_text_color(g_saver.cow, lv_color_hex(theme.saverCow), 0);
+  lv_obj_set_style_text_letter_space(g_saver.cow, 0, 0);
+  lv_obj_set_style_text_line_space(g_saver.cow, 0, 0);
   lvglScreenSaverSetCowArt(1);
-  lv_obj_set_pos(g_lvglScreenSaverCow, 20, cH - 90);
-  lvglForceLabelVisible(g_lvglScreenSaverCow);
+  lv_obj_set_pos(g_saver.cow, 20, cH - 90);
+  lvglForceLabelVisible(g_saver.cow);
 
-  g_lvglScreenSaverBalloon = lv_label_create(g_lvglScreenSaverRoot);
-  lv_obj_set_style_text_font(g_lvglScreenSaverBalloon, lvglFontScreenSaverBalloonText(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverBalloon, lv_color_hex(saverReadableText), 0);
-  lv_obj_set_style_bg_opa(g_lvglScreenSaverBalloon, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_border_width(g_lvglScreenSaverBalloon, 0, 0);
-  lv_obj_set_style_pad_hor(g_lvglScreenSaverBalloon, 0, 0);
-  lv_obj_set_style_pad_ver(g_lvglScreenSaverBalloon, 0, 0);
-  lv_obj_set_style_text_letter_space(g_lvglScreenSaverBalloon, 0, 0);
-  lv_obj_set_style_text_line_space(g_lvglScreenSaverBalloon, 0, 0);
-  lv_label_set_long_mode(g_lvglScreenSaverBalloon, LV_LABEL_LONG_CLIP);
-  lv_obj_set_size(g_lvglScreenSaverBalloon, (cW * 56) / 100, LV_SIZE_CONTENT);
-  lv_obj_set_pos(g_lvglScreenSaverBalloon, 166, cH - 126);
-  lv_label_set_text(g_lvglScreenSaverBalloon, "");
-  lvglForceLabelVisible(g_lvglScreenSaverBalloon);
-  lv_obj_add_flag(g_lvglScreenSaverBalloon, LV_OBJ_FLAG_HIDDEN);
+  g_saver.balloon = lv_label_create(g_saver.root);
+  lv_obj_set_style_text_font(g_saver.balloon, lvglFontScreenSaverBalloonText(), 0);
+  lv_obj_set_style_text_color(g_saver.balloon, lv_color_hex(saverReadableText), 0);
+  lv_obj_set_style_bg_opa(g_saver.balloon, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(g_saver.balloon, 0, 0);
+  lv_obj_set_style_pad_hor(g_saver.balloon, 0, 0);
+  lv_obj_set_style_pad_ver(g_saver.balloon, 0, 0);
+  lv_obj_set_style_text_letter_space(g_saver.balloon, 0, 0);
+  lv_obj_set_style_text_line_space(g_saver.balloon, 0, 0);
+  lv_label_set_long_mode(g_saver.balloon, LV_LABEL_LONG_CLIP);
+  lv_obj_set_size(g_saver.balloon, (cW * 56) / 100, LV_SIZE_CONTENT);
+  lv_obj_set_pos(g_saver.balloon, 166, cH - 126);
+  lv_label_set_text(g_saver.balloon, "");
+  lvglForceLabelVisible(g_saver.balloon);
+  lv_obj_add_flag(g_saver.balloon, LV_OBJ_FLAG_HIDDEN);
 
-  g_lvglScreenSaverBalloonTail = lv_label_create(g_lvglScreenSaverRoot);
-  lv_obj_set_style_text_font(g_lvglScreenSaverBalloonTail, lvglFontScreenSaverTail(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverBalloonTail, lv_color_hex(saverReadableText), 0);
-  lv_label_set_text(g_lvglScreenSaverBalloonTail, "- - - - -");
-  lv_obj_set_pos(g_lvglScreenSaverBalloonTail, 200, cH - 64);
-  lvglForceLabelVisible(g_lvglScreenSaverBalloonTail);
-  lv_obj_add_flag(g_lvglScreenSaverBalloonTail, LV_OBJ_FLAG_HIDDEN);
+  g_saver.balloonTail = lv_label_create(g_saver.root);
+  lv_obj_set_style_text_font(g_saver.balloonTail, lvglFontScreenSaverTail(), 0);
+  lv_obj_set_style_text_color(g_saver.balloonTail, lv_color_hex(saverReadableText), 0);
+  lv_label_set_text(g_saver.balloonTail, "- - - - -");
+  lv_obj_set_pos(g_saver.balloonTail, 200, cH - 64);
+  lvglForceLabelVisible(g_saver.balloonTail);
+  lv_obj_add_flag(g_saver.balloonTail, LV_OBJ_FLAG_HIDDEN);
 
-  g_lvglScreenSaverFooter = lv_label_create(g_lvglScreenSaverRoot);
-  lv_obj_set_style_text_font(g_lvglScreenSaverFooter, lvglFontScreenSaverFooterText(), 0);
-  lv_obj_set_style_text_color(g_lvglScreenSaverFooter, lv_color_hex(saverReadableText), 0);
-  lv_label_set_text(g_lvglScreenSaverFooter, "--:--  --/--");
-  lv_obj_align(g_lvglScreenSaverFooter, LV_ALIGN_BOTTOM_RIGHT, -10, -4);
-  lvglForceLabelVisible(g_lvglScreenSaverFooter);
+  g_saver.footer = lv_label_create(g_saver.root);
+  lv_obj_set_style_text_font(g_saver.footer, lvglFontScreenSaverFooterText(), 0);
+  lv_obj_set_style_text_color(g_saver.footer, lv_color_hex(saverReadableText), 0);
+  lv_label_set_text(g_saver.footer, "--:--  --/--");
+  lv_obj_align(g_saver.footer, LV_ALIGN_BOTTOM_RIGHT, -10, -4);
+  lvglForceLabelVisible(g_saver.footer);
 }
 #endif
 
@@ -13586,22 +13633,22 @@ static bool initLvglUi() {
   g_lvglReady = true;
   g_lvglLastTickMs = millis();
 #if SCREENSAVER_ENABLED
-  g_lastUserInteractionMs = millis();
+  g_saver.lastUserInteractionMs = millis();
 #endif
-  g_lvglClockWiFiMask = 0xFFFF;
+  g_clockUi.wifiMask = 0xFFFF;
   lvglApplyThemeStyles(true);
   Serial.printf("[LVGL] widgets date=%p clock=%p city=%p temp=%p desc=%p hum=%p sun=%p wind=%p f0=%p f1=%p\n",
-                (void*)g_lvglClockDate,
-                (void*)g_lvglClockL1,
-                (void*)g_lvglCity,
-                (void*)g_lvglIcon,
-                (void*)g_lvglTemp,
-                (void*)g_lvglDesc,
-                (void*)g_lvglHumidity,
-                (void*)g_lvglSun,
-                (void*)g_lvglWind,
-                (void*)g_lvglForecastNow,
-                (void*)g_lvglForecastTomorrow);
+                (void*)g_clockUi.date,
+                (void*)g_clockUi.l1,
+                (void*)g_weatherUi.city,
+                (void*)g_weatherUi.icon,
+                (void*)g_weatherUi.temp,
+                (void*)g_weatherUi.desc,
+                (void*)g_weatherUi.humidity,
+                (void*)g_weatherUi.sun,
+                (void*)g_weatherUi.wind,
+                (void*)g_weatherUi.forecastNow,
+                (void*)g_weatherUi.forecastTomorrow);
   const int16_t weatherW = (DISPLAY_WEATHER_PANEL_W > (cW / 2)) ? (cW / 3) : DISPLAY_WEATHER_PANEL_W;
   const int16_t leftW = cW - weatherW - 10;
   Serial.printf("[LVGL] init ok ui=%dx%d split=%d/%d color_depth=%d color_size=%u icons=%s\n",
@@ -13610,9 +13657,9 @@ static bool initLvglUi() {
 }
 
 static void updateLvglUi(bool force) {
-  if (!g_lvglReady || !g_ntpSynced) return;
+  if (!g_lvglReady || !g_clock.ntpSynced) return;
 #if SCREENSAVER_ENABLED
-  if (g_lvglScreenSaverActive) return;
+  if (g_saver.active) return;
 #endif
   const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
   const uint32_t weatherBg = lvglResolvedWeatherBg(theme);
@@ -13628,7 +13675,7 @@ static void updateLvglUi(bool force) {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo, 50)) return;
   const int dateKey = ((timeinfo.tm_year + 1900) * 10000) + ((timeinfo.tm_mon + 1) * 100) + timeinfo.tm_mday;
-  if (!force && !g_uiNeedsRedraw && timeinfo.tm_sec == g_lastClockSecond && dateKey == g_lastDateKey) return;
+  if (!force && !g_uiNeedsRedraw && timeinfo.tm_sec == g_clock.lastSecond && dateKey == g_clock.lastDateKey) return;
 
   lvglApplyPageVisibility(false);
   lvglUpdateWiFiBars(force);
@@ -13638,29 +13685,29 @@ static void updateLvglUi(bool force) {
   }
   if (g_uiPageMode == UI_PAGE_INFO) {
     lvglUpdateInfoPanel(force);
-    g_lastClockSecond = timeinfo.tm_sec;
-    g_lastDateKey = dateKey;
+    g_clock.lastSecond = timeinfo.tm_sec;
+    g_clock.lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
     return;
   }
   if (g_uiPageMode == UI_PAGE_AUX) {
     lvglUpdateFeedDeck(g_auxDeck, g_rss, false, force);
-    g_lastClockSecond = timeinfo.tm_sec;
-    g_lastDateKey = dateKey;
+    g_clock.lastSecond = timeinfo.tm_sec;
+    g_clock.lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
     return;
   }
   if (g_uiPageMode == UI_PAGE_WIKI) {
     lvglUpdateFeedDeck(g_wikiDeck, g_wiki, true, force);
-    g_lastClockSecond = timeinfo.tm_sec;
-    g_lastDateKey = dateKey;
+    g_clock.lastSecond = timeinfo.tm_sec;
+    g_clock.lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
     return;
   }
   if (g_uiPageMode == UI_PAGE_NOW_PLAYING) {
     lvglUpdateNowPlayingUi(g_nowPlayingUi, force);
-    g_lastClockSecond = timeinfo.tm_sec;
-    g_lastDateKey = dateKey;
+    g_clock.lastSecond = timeinfo.tm_sec;
+    g_clock.lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
     return;
   }
@@ -13671,13 +13718,13 @@ static void updateLvglUi(bool force) {
     sentence[0] = (char)toupper((unsigned char)sentence[0]);
   }
   lvglApplyClockSentenceAutoFit(sentence);
-  lvglForceLabelVisible(g_lvglClockL1);
-  lv_label_set_text(g_lvglClockL2, "");
-  lv_label_set_text(g_lvglClockL3, "");
+  lvglForceLabelVisible(g_clockUi.l1);
+  lv_label_set_text(g_clockUi.l2, "");
+  lv_label_set_text(g_clockUi.l3, "");
   formatDateActive(timeinfo, d1, sizeof(d1));
   sanitizeAsciiBuffer(d1, sizeof(d1));
-  lv_label_set_text(g_lvglClockDate, d1);
-  lvglForceLabelVisible(g_lvglClockDate);
+  lv_label_set_text(g_clockUi.date, d1);
+  lvglForceLabelVisible(g_clockUi.date);
 #if TEST_WIFI
   lvglUpdateCityTicker(runtimeWeatherCityLabel(), force);
 #else
@@ -13688,42 +13735,42 @@ static void updateLvglUi(bool force) {
   if (g_weather.valid) {
     char temp[24];
     snprintf(temp, sizeof(temp), "%d%s, %d%%", (int)lroundf(g_weather.tempC), utf8Degree(), g_weather.humidity);
-    lv_label_set_text(g_lvglTemp, temp);
-    lvglForceLabelVisible(g_lvglTemp);
+    lv_label_set_text(g_weatherUi.temp, temp);
+    lvglForceLabelVisible(g_weatherUi.temp);
 
     const lv_img_dsc_t *iconDsc = weatherImageFromCode(g_weather.weatherCode, g_weather.isDay);
-    if (iconDsc && g_lvglIcon) {
-      lv_img_set_src(g_lvglIcon, iconDsc);
-      lv_obj_clear_flag(g_lvglIcon, LV_OBJ_FLAG_HIDDEN);
-      if (g_lvglGlyph) lv_obj_add_flag(g_lvglGlyph, LV_OBJ_FLAG_HIDDEN);
-    } else if (g_lvglGlyph) {
-      if (g_lvglIcon) lv_obj_add_flag(g_lvglIcon, LV_OBJ_FLAG_HIDDEN);
-      lv_label_set_text(g_lvglGlyph, weatherGlyphText(g_weather.weatherCode, g_weather.isDay));
-      lvglForceLabelVisible(g_lvglGlyph);
+    if (iconDsc && g_weatherUi.icon) {
+      lv_img_set_src(g_weatherUi.icon, iconDsc);
+      lv_obj_clear_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
+      if (g_weatherUi.glyph) lv_obj_add_flag(g_weatherUi.glyph, LV_OBJ_FLAG_HIDDEN);
+    } else if (g_weatherUi.glyph) {
+      if (g_weatherUi.icon) lv_obj_add_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
+      lv_label_set_text(g_weatherUi.glyph, weatherGlyphText(g_weather.weatherCode, g_weather.isDay));
+      lvglForceLabelVisible(g_weatherUi.glyph);
     }
-    lv_label_set_text(g_lvglDesc, weatherCodeUiLabel(g_weather.weatherCode));
-    lvglForceLabelVisible(g_lvglDesc);
+    lv_label_set_text(g_weatherUi.desc, weatherCodeUiLabel(g_weather.weatherCode));
+    lvglForceLabelVisible(g_weatherUi.desc);
 
     char wind[28];
     snprintf(wind, sizeof(wind), activeUiStrings()->windFmt, g_weather.windKmh);
-    lv_label_set_text(g_lvglHumidity, wind);
-    lvglForceLabelVisible(g_lvglHumidity);
+    lv_label_set_text(g_weatherUi.humidity, wind);
+    lvglForceLabelVisible(g_weatherUi.humidity);
 
     char sun[40];
     snprintf(sun, sizeof(sun), "%s / %s", g_weather.sunrise, g_weather.sunset);
-    lv_label_set_text(g_lvglSun, sun);
-    lvglForceLabelVisible(g_lvglSun);
+    lv_label_set_text(g_weatherUi.sun, sun);
+    lvglForceLabelVisible(g_weatherUi.sun);
 
     const int fIdx = g_weather.nextValid[1] ? 1 : (g_weather.nextValid[0] ? 0 : -1);
     const int fCode = (fIdx >= 0) ? g_weather.nextCode[fIdx] : g_weather.weatherCode;
     const bool fIsDay = g_weather.isDay;
     const lv_img_dsc_t *fIconDsc = weatherForecastImageFromCode(fCode, fIsDay);
-    if (g_lvglForecastIcon) {
+    if (g_weatherUi.forecastIcon) {
       if (fIconDsc) {
-        lv_img_set_src(g_lvglForecastIcon, fIconDsc);
-        lv_obj_clear_flag(g_lvglForecastIcon, LV_OBJ_FLAG_HIDDEN);
+        lv_img_set_src(g_weatherUi.forecastIcon, fIconDsc);
+        lv_obj_clear_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
       } else {
-        lv_obj_add_flag(g_lvglForecastIcon, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
       }
     }
 
@@ -13735,85 +13782,85 @@ static void updateLvglUi(bool force) {
     } else {
       snprintf(forecast, sizeof(forecast), "%s", activeUiStrings()->forecastNa);
     }
-    lv_label_set_text(g_lvglForecastNow, forecast);
-    lvglForceLabelVisible(g_lvglForecastNow);
+    lv_label_set_text(g_weatherUi.forecastNow, forecast);
+    lvglForceLabelVisible(g_weatherUi.forecastNow);
 
-    lv_obj_add_flag(g_lvglForecastTomorrow, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(g_lvglWind, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglGlyph) lv_obj_set_style_text_color(g_lvglGlyph, lv_color_hex(weatherGlyphOnline), 0);
+    lv_obj_add_flag(g_weatherUi.forecastTomorrow, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_weatherUi.wind, LV_OBJ_FLAG_HIDDEN);
+    if (g_weatherUi.glyph) lv_obj_set_style_text_color(g_weatherUi.glyph, lv_color_hex(weatherGlyphOnline), 0);
   } else {
-    lv_label_set_text(g_lvglTemp, "--\xC2\xB0, --%");
-    lvglForceLabelVisible(g_lvglTemp);
-    lv_label_set_text(g_lvglDesc, activeUiStrings()->weatherOffline);
-    lvglForceLabelVisible(g_lvglDesc);
-    lv_label_set_text(g_lvglHumidity, activeUiStrings()->windNa);
-    lvglForceLabelVisible(g_lvglHumidity);
-    lv_label_set_text(g_lvglSun, "--:-- / --:--");
-    lvglForceLabelVisible(g_lvglSun);
+    lv_label_set_text(g_weatherUi.temp, "--\xC2\xB0, --%");
+    lvglForceLabelVisible(g_weatherUi.temp);
+    lv_label_set_text(g_weatherUi.desc, activeUiStrings()->weatherOffline);
+    lvglForceLabelVisible(g_weatherUi.desc);
+    lv_label_set_text(g_weatherUi.humidity, activeUiStrings()->windNa);
+    lvglForceLabelVisible(g_weatherUi.humidity);
+    lv_label_set_text(g_weatherUi.sun, "--:-- / --:--");
+    lvglForceLabelVisible(g_weatherUi.sun);
 
-    lv_label_set_text(g_lvglForecastNow, activeUiStrings()->forecastNa);
-    lvglForceLabelVisible(g_lvglForecastNow);
+    lv_label_set_text(g_weatherUi.forecastNow, activeUiStrings()->forecastNa);
+    lvglForceLabelVisible(g_weatherUi.forecastNow);
 
     const lv_img_dsc_t *iconDsc = weatherImageFromCode(2, true);
-    if (iconDsc && g_lvglIcon) {
-      lv_img_set_src(g_lvglIcon, iconDsc);
-      lv_obj_clear_flag(g_lvglIcon, LV_OBJ_FLAG_HIDDEN);
-      if (g_lvglGlyph) lv_obj_add_flag(g_lvglGlyph, LV_OBJ_FLAG_HIDDEN);
-    } else if (g_lvglGlyph) {
-      if (g_lvglIcon) lv_obj_add_flag(g_lvglIcon, LV_OBJ_FLAG_HIDDEN);
-      lv_label_set_text(g_lvglGlyph, LV_SYMBOL_REFRESH);
-      lvglForceLabelVisible(g_lvglGlyph);
+    if (iconDsc && g_weatherUi.icon) {
+      lv_img_set_src(g_weatherUi.icon, iconDsc);
+      lv_obj_clear_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
+      if (g_weatherUi.glyph) lv_obj_add_flag(g_weatherUi.glyph, LV_OBJ_FLAG_HIDDEN);
+    } else if (g_weatherUi.glyph) {
+      if (g_weatherUi.icon) lv_obj_add_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
+      lv_label_set_text(g_weatherUi.glyph, LV_SYMBOL_REFRESH);
+      lvglForceLabelVisible(g_weatherUi.glyph);
     }
     const lv_img_dsc_t *fIconDsc = weatherForecastImageFromCode(2, true);
-    if (g_lvglForecastIcon) {
+    if (g_weatherUi.forecastIcon) {
       if (fIconDsc) {
-        lv_img_set_src(g_lvglForecastIcon, fIconDsc);
-        lv_obj_clear_flag(g_lvglForecastIcon, LV_OBJ_FLAG_HIDDEN);
+        lv_img_set_src(g_weatherUi.forecastIcon, fIconDsc);
+        lv_obj_clear_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
       } else {
-        lv_obj_add_flag(g_lvglForecastIcon, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
       }
     }
-    lv_obj_add_flag(g_lvglForecastTomorrow, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(g_lvglWind, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglGlyph) lv_obj_set_style_text_color(g_lvglGlyph, lv_color_hex(weatherGlyphOffline), 0);
+    lv_obj_add_flag(g_weatherUi.forecastTomorrow, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_weatherUi.wind, LV_OBJ_FLAG_HIDDEN);
+    if (g_weatherUi.glyph) lv_obj_set_style_text_color(g_weatherUi.glyph, lv_color_hex(weatherGlyphOffline), 0);
   }
 #else
-  lv_label_set_text(g_lvglTemp, "--\xC2\xB0, --%");
-  lvglForceLabelVisible(g_lvglTemp);
-  lv_label_set_text(g_lvglDesc, activeUiStrings()->wifiOff);
-  lvglForceLabelVisible(g_lvglDesc);
-  lv_label_set_text(g_lvglHumidity, activeUiStrings()->windNa);
-  lvglForceLabelVisible(g_lvglHumidity);
-  lv_label_set_text(g_lvglSun, "--:-- / --:--");
-  lvglForceLabelVisible(g_lvglSun);
-  lv_label_set_text(g_lvglForecastNow, activeUiStrings()->forecastNa);
-  lvglForceLabelVisible(g_lvglForecastNow);
+  lv_label_set_text(g_weatherUi.temp, "--\xC2\xB0, --%");
+  lvglForceLabelVisible(g_weatherUi.temp);
+  lv_label_set_text(g_weatherUi.desc, activeUiStrings()->wifiOff);
+  lvglForceLabelVisible(g_weatherUi.desc);
+  lv_label_set_text(g_weatherUi.humidity, activeUiStrings()->windNa);
+  lvglForceLabelVisible(g_weatherUi.humidity);
+  lv_label_set_text(g_weatherUi.sun, "--:-- / --:--");
+  lvglForceLabelVisible(g_weatherUi.sun);
+  lv_label_set_text(g_weatherUi.forecastNow, activeUiStrings()->forecastNa);
+  lvglForceLabelVisible(g_weatherUi.forecastNow);
 
   const lv_img_dsc_t *iconDsc = weatherImageFromCode(2, true);
-  if (iconDsc && g_lvglIcon) {
-    lv_img_set_src(g_lvglIcon, iconDsc);
-    lv_obj_clear_flag(g_lvglIcon, LV_OBJ_FLAG_HIDDEN);
-    if (g_lvglGlyph) lv_obj_add_flag(g_lvglGlyph, LV_OBJ_FLAG_HIDDEN);
-  } else if (g_lvglGlyph) {
-    if (g_lvglIcon) lv_obj_add_flag(g_lvglIcon, LV_OBJ_FLAG_HIDDEN);
-    lv_label_set_text(g_lvglGlyph, LV_SYMBOL_WIFI);
-    lvglForceLabelVisible(g_lvglGlyph);
+  if (iconDsc && g_weatherUi.icon) {
+    lv_img_set_src(g_weatherUi.icon, iconDsc);
+    lv_obj_clear_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
+    if (g_weatherUi.glyph) lv_obj_add_flag(g_weatherUi.glyph, LV_OBJ_FLAG_HIDDEN);
+  } else if (g_weatherUi.glyph) {
+    if (g_weatherUi.icon) lv_obj_add_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(g_weatherUi.glyph, LV_SYMBOL_WIFI);
+    lvglForceLabelVisible(g_weatherUi.glyph);
   }
   const lv_img_dsc_t *fIconDsc = weatherForecastImageFromCode(2, true);
-  if (g_lvglForecastIcon) {
+  if (g_weatherUi.forecastIcon) {
     if (fIconDsc) {
-      lv_img_set_src(g_lvglForecastIcon, fIconDsc);
-      lv_obj_clear_flag(g_lvglForecastIcon, LV_OBJ_FLAG_HIDDEN);
+      lv_img_set_src(g_weatherUi.forecastIcon, fIconDsc);
+      lv_obj_clear_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
     } else {
-      lv_obj_add_flag(g_lvglForecastIcon, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
     }
   }
-  lv_obj_add_flag(g_lvglForecastTomorrow, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_add_flag(g_lvglWind, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_flag(g_weatherUi.forecastTomorrow, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_flag(g_weatherUi.wind, LV_OBJ_FLAG_HIDDEN);
 #endif
 
-  g_lastClockSecond = timeinfo.tm_sec;
-  g_lastDateKey = dateKey;
+  g_clock.lastSecond = timeinfo.tm_sec;
+  g_clock.lastDateKey = dateKey;
   g_uiNeedsRedraw = false;
 
   // No manual invalidation needed — lv_label_set_text / lv_img_set_src
@@ -13824,15 +13871,15 @@ static void runLvglLoop() {
   if (!g_lvglReady) return;
   const uint32_t now = millis();
   // Cap LVGL handler cadence to reduce frame thrash on this panel pipeline.
-  if (g_lvglLastRunMs != 0 && (now - g_lvglLastRunMs) < 12) return;
-  g_lvglLastRunMs = now;
+  if (g_pageAnim.lastRunMs != 0 && (now - g_pageAnim.lastRunMs) < 12) return;
+  g_pageAnim.lastRunMs = now;
   uint32_t elapsed = now - g_lvglLastTickMs;
   if (elapsed > 50) elapsed = 50;
   if (elapsed == 0) elapsed = 1;
   g_lvglLastTickMs = now;
   lv_tick_inc(elapsed);
   if (g_uiPageMode == UI_PAGE_DOOM) {
-    g_canvasDirty = false;
+    g_dispHw.canvasDirty = false;
     return;
   }
   lvglApplyPageVisibility(false);
@@ -13840,27 +13887,27 @@ static void runLvglLoop() {
 
   const uint32_t t0 = micros();
   lv_timer_handler();
-  if (g_canvasDirty) {
+  if (g_dispHw.canvasDirty) {
     dispFlush();
-    g_canvasDirty = false;
+    g_dispHw.canvasDirty = false;
   }
   const uint32_t dt = micros() - t0;
-  g_perfLvglFrameCount++;
-  g_perfLvglTotalUs += dt;
-  if (dt > g_perfLvglMaxUs) g_perfLvglMaxUs = dt;
+  g_perf.lvglFrameCount++;
+  g_perf.lvglTotalUs += dt;
+  if (dt > g_perf.lvglMaxUs) g_perf.lvglMaxUs = dt;
 }
 #endif
 
 static void updateDisplayClock(bool force) {
   if (g_uiPageMode == UI_PAGE_DOOM) return; // direct view owns the display
-  if (!g_ntpSynced) return;
+  if (!g_clock.ntpSynced) return;
   if (!initDisplay()) return;
 
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo, 50)) return;
 
   const int dateKey = ((timeinfo.tm_year + 1900) * 10000) + ((timeinfo.tm_mon + 1) * 100) + timeinfo.tm_mday;
-  if (!force && !g_uiNeedsRedraw && timeinfo.tm_sec == g_lastClockSecond && dateKey == g_lastDateKey) return;
+  if (!force && !g_uiNeedsRedraw && timeinfo.tm_sec == g_clock.lastSecond && dateKey == g_clock.lastDateKey) return;
 
   setBacklightPercent(100);
   const int16_t canvasW = canvasWidth();
@@ -13869,14 +13916,14 @@ static void updateDisplayClock(bool force) {
   const int16_t leftW = canvasW - weatherW - 2;
   const int16_t weatherX = leftW + 2;
 
-  if (force || !g_clockStaticDrawn) {
+  if (force || !g_clock.staticDrawn) {
     fillRectCanvas(0, 0, canvasW, canvasH, DB_COLOR_BLACK);
     Serial.printf("[CLOCK] canvas=%dx%d mode=%s left=%d weather=%d\n",
                   canvasW, canvasH,
-                  uiClockModeName(g_uiClockMode),
+                  uiClockModeName(g_clock.mode),
                   leftW, weatherW);
-    g_clockStaticDrawn = true;
-    g_lastDateKey = -1;
+    g_clock.staticDrawn = true;
+    g_clock.lastDateKey = -1;
   }
 
   drawWordClockInRect(0, 0, leftW, canvasH, timeinfo);
@@ -13886,10 +13933,10 @@ static void updateDisplayClock(bool force) {
   dispFlush();
 #endif
 
-  g_lastDateKey = dateKey;
+  g_clock.lastDateKey = dateKey;
   g_uiNeedsRedraw = false;
 
-  g_lastClockSecond = timeinfo.tm_sec;
+  g_clock.lastSecond = timeinfo.tm_sec;
 }
 #else
 static void updateDisplayClock(bool force) {
@@ -14079,7 +14126,7 @@ static void runDisplayTest() {
 
 #if TEST_DISPLAY && DISPLAY_BACKEND_ESP_LCD
 static bool emitSnapshotOverSerial() {
-  if (!g_canvasBuf) {
+  if (!g_dispHw.canvasBuf) {
     Serial.println("[SNAP][ERR] canvas non pronto");
     return false;
   }
@@ -14104,7 +14151,7 @@ static bool emitSnapshotOverSerial() {
                 ts, (unsigned long)w, (unsigned long)h, (unsigned long)bytes, snapFmt);
   Serial.flush();
 
-  const uint8_t *src = reinterpret_cast<const uint8_t *>(g_canvasBuf);
+  const uint8_t *src = reinterpret_cast<const uint8_t *>(g_dispHw.canvasBuf);
   size_t sent = 0;
   while (sent < bytes) {
     const size_t chunk = ((bytes - sent) > 1024U) ? 1024U : (bytes - sent);
@@ -14262,9 +14309,9 @@ static void cmdSaverStat(const String &args) {
   const uint32_t now = millis();
   const uint32_t idleTargetMs = lvglScreenSaverIdleTargetMs(now);
   Serial.printf("[SCRNSVR] active=%d idle_ms=%lu last_input_ago=%lu\n",
-                g_lvglScreenSaverActive ? 1 : 0,
+                g_saver.active ? 1 : 0,
                 (unsigned long)idleTargetMs,
-                (unsigned long)(now - g_lastUserInteractionMs));
+                (unsigned long)(now - g_saver.lastUserInteractionMs));
 }
 #endif
 
@@ -14272,14 +14319,14 @@ static void cmdPwrStat(const String &args) {
   const int rawVal = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
   Serial.printf("[PWR] stat pin=%d raw=%d pressed=%d hold_ms=%lu\n",
                 PWR_BUTTON_PIN, rawVal, isPwrButtonPressed() ? 1 : 0,
-                g_pwrButtonDown ? (unsigned long)(millis() - g_pwrButtonDownMs) : 0UL);
+                g_pwrBtn.down ? (unsigned long)(millis() - g_pwrBtn.downMs) : 0UL);
 }
 
 static void cmdNavStat(const String &args) {
   const int rawVal = gpio_get_level((gpio_num_t)NAV_FIRST_BUTTON_PIN);
   Serial.printf("[NAV] stat pin=%d raw=%d pressed=%d hold_ms=%lu\n",
                 NAV_FIRST_BUTTON_PIN, rawVal, isNavFirstButtonPressed() ? 1 : 0,
-                g_navFirstButtonDown ? (unsigned long)(millis() - g_navFirstButtonDownMs) : 0UL);
+                g_navBtn.down ? (unsigned long)(millis() - g_navBtn.downMs) : 0UL);
 }
 
 static void cmdPwrOff(const String &args) {
@@ -14295,8 +14342,8 @@ static void cmdPwrOffHard(const String &args) {
 static void cmdBatStat(const String &args) {
 #if TEST_BATTERY
   sampleBatteryNow(millis(), true);
-  if (g_battHasSample) {
-    Serial.printf("[BATT] stat raw=%d vbat=%.3fV soc=%d%%\n", g_battRaw, g_battVoltage, g_battPercent);
+  if (g_batt.hasSample) {
+    Serial.printf("[BATT] stat raw=%d vbat=%.3fV soc=%d%%\n", g_batt.raw, g_batt.voltage, g_batt.percent);
   } else {
     Serial.println("[BATT] stat unavailable");
   }
@@ -14309,13 +14356,13 @@ static void cmdWebCfg(const String &args) {
 #if TEST_WIFI
   ensureRuntimeNetConfig();
 #if WEB_CONFIG_ENABLED
-  if (g_wifiConnected && g_webConfigServerStarted) {
+  if (g_wifiSt.connected && g_webCfg.serverStarted) {
     Serial.printf("[WEB] url=http://%s:%u\n", WiFi.localIP().toString().c_str(), (unsigned)WEB_CONFIG_PORT);
-  } else if (g_wifiConnected) {
+  } else if (g_wifiSt.connected) {
     Serial.printf("[WEB] WiFi OK, server not started yet (port=%u)\n", (unsigned)WEB_CONFIG_PORT);
-  } else if (g_wifiSetupApActive) {
+  } else if (g_wifiSt.setupApActive) {
     Serial.printf("[WEB] setup-ap ssid='%s' url=http://%s:%u\n",
-                  g_wifiSetupApSsid, WiFi.softAPIP().toString().c_str(), (unsigned)WEB_CONFIG_PORT);
+                  g_wifiSt.setupApSsid, WiFi.softAPIP().toString().c_str(), (unsigned)WEB_CONFIG_PORT);
   } else {
     Serial.println("[WEB] WiFi non connesso");
   }
@@ -14341,7 +14388,7 @@ static void cmdWebCfg(const String &args) {
                 (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? 1 : 0);
   Serial.printf("[WEB] lang='%s'\n", g_wordClockLang);
   Serial.printf("[WEB] wifi_setup_mode='%s' setup_ap=%d runtime_known=%u\n",
-                g_wifiSetupMode, g_wifiSetupApActive ? 1 : 0, (unsigned)g_wifiRuntimeCredCount);
+                g_wifiSt.setupMode, g_wifiSt.setupApActive ? 1 : 0, (unsigned)g_wifiSt.runtimeCredCount);
 #else
   Serial.println("[WEB] config UI disabled (WEB_CONFIG_ENABLED=0)");
 #endif
@@ -14353,8 +14400,8 @@ static void cmdWebCfg(const String &args) {
 static void cmdWifiDirect(const String &args) {
   if (args.length() == 0) {
     Serial.printf("[WIFI][DIRECT] mode='%s' ap_active=%d ap_ssid='%s' ap_ip=%s\n",
-                  g_wifiSetupMode, g_wifiSetupApActive ? 1 : 0,
-                  g_wifiSetupApSsid[0] ? g_wifiSetupApSsid : "-",
+                  g_wifiSt.setupMode, g_wifiSt.setupApActive ? 1 : 0,
+                  g_wifiSt.setupApSsid[0] ? g_wifiSt.setupApSsid : "-",
                   WiFi.softAPIP().toString().c_str());
     return;
   }
@@ -14365,12 +14412,12 @@ static void cmdWifiDirect(const String &args) {
     Serial.println("[WIFI][DIRECT][ERR] usa: WIFIDIRECT off|auto|on");
     return;
   }
-  copyStringSafe(g_wifiSetupMode, sizeof(g_wifiSetupMode), mode.c_str());
+  copyStringSafe(g_wifiSt.setupMode, sizeof(g_wifiSt.setupMode), mode.c_str());
   normalizeWifiSetupMode();
   ensureRuntimeNetConfig();
   (void)saveRuntimeNetConfigToNvs();
   wifiHandleSetupModeLoop(millis());
-  Serial.printf("[WIFI][DIRECT] mode set -> '%s'\n", g_wifiSetupMode);
+  Serial.printf("[WIFI][DIRECT] mode set -> '%s'\n", g_wifiSt.setupMode);
 }
 
 static void cmdRssDiag(const String &args) {
@@ -14574,27 +14621,27 @@ static bool imuShouldBeActiveForUi() {
 
 static void imuResetDoomTiltState() {
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
-  g_doomLastTiltSampleMs = 0;
-  g_doomTiltFilterReady = false;
+  g_doom.lastTiltSampleMs = 0;
+  g_doom.tiltFilterReady = false;
 #endif
 }
 
 static void setImuSensorsActive(bool active) {
-  if (!g_imuReady) return;
-  if (g_imuSensorsActive == active) return;
+  if (!g_imu.ready) return;
+  if (g_imu.sensorsActive == active) return;
   if (active) {
     g_qmi.enableAccelerometer();
     g_qmi.enableGyroscope();
-    g_lastAccelMag = 1.0f;
-    g_lastImuPrintMs = millis();
+    g_imu.lastAccelMag = 1.0f;
+    g_imu.lastPrintMs = millis();
     imuResetDoomTiltState();
   } else {
     g_qmi.disableGyroscope();
     g_qmi.disableAccelerometer();
-    g_lastShakeMs = 0;
+    g_imu.lastShakeMs = 0;
     imuResetDoomTiltState();
   }
-  g_imuSensorsActive = active;
+  g_imu.sensorsActive = active;
 }
 
 static void syncImuActiveForUi() {
@@ -14611,24 +14658,24 @@ static void runImuInitTest() {
   I2C_MAIN.setClock(400000);
 
   const uint8_t imuCandidates[] = {0x6B, 0x6A};
-  g_imuReady = false;
+  g_imu.ready = false;
 
   for (uint8_t i = 0; i < (sizeof(imuCandidates) / sizeof(imuCandidates[0])); ++i) {
     const uint8_t addr = imuCandidates[i];
     if (g_qmi.begin(I2C_MAIN, addr, I2C_SDA_PIN, I2C_SCL_PIN)) {
-      g_imuReady = true;
-      g_imuAddr = addr;
+      g_imu.ready = true;
+      g_imu.addr = addr;
       break;
     }
   }
 
-  if (!g_imuReady) {
+  if (!g_imu.ready) {
     Serial.println("[FAIL] QMI8658 init fallita su 0x6B/0x6A.");
     Serial.println("[HINT] Verifica I2C MAIN (SDA=47, SCL=48) e alimentazione sensori.");
     return;
   }
 
-  Serial.printf("[OK] QMI8658 trovato su 0x%02X, chipId=0x%02X\n", g_imuAddr, g_qmi.getChipID());
+  Serial.printf("[OK] QMI8658 trovato su 0x%02X, chipId=0x%02X\n", g_imu.addr, g_qmi.getChipID());
 
   const bool accSelfTest = g_qmi.selfTestAccel();
   const bool gyrSelfTest = g_qmi.selfTestGyro();
@@ -14643,10 +14690,10 @@ static void runImuInitTest() {
   g_qmi.enableAccelerometer();
   g_qmi.enableGyroscope();
 
-  g_lastAccelMag = 1.0f;
-  g_lastShakeMs = 0;
-  g_lastImuPrintMs = millis();
-  g_imuSensorsActive = true;
+  g_imu.lastAccelMag = 1.0f;
+  g_imu.lastShakeMs = 0;
+  g_imu.lastPrintMs = millis();
+  g_imu.sensorsActive = true;
   setImuSensorsActive(false);
 
   Serial.printf("[CFG] shake_jerk=%.2fg, shake_gyro=%.1f dps, debounce=%u ms\n",
@@ -14655,8 +14702,8 @@ static void runImuInitTest() {
 }
 
 static void runImuLoop() {
-  if (!g_imuReady) return;
-  if (!g_imuSensorsActive) return;
+  if (!g_imu.ready) return;
+  if (!g_imu.sensorsActive) return;
   if (!g_qmi.getDataReady()) return;
 
   float ax = 0.0f, ay = 0.0f, az = 0.0f;
@@ -14672,124 +14719,124 @@ static void runImuLoop() {
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
   const uint32_t sampleNow = millis();
   float dt = 0.0f;
-  if (g_doomLastTiltSampleMs != 0 && sampleNow > g_doomLastTiltSampleMs) {
-    dt = (float)(sampleNow - g_doomLastTiltSampleMs) / 1000.0f;
+  if (g_doom.lastTiltSampleMs != 0 && sampleNow > g_doom.lastTiltSampleMs) {
+    dt = (float)(sampleNow - g_doom.lastTiltSampleMs) / 1000.0f;
     if (dt > 0.05f) dt = 0.05f;
   }
-  g_doomLastTiltSampleMs = sampleNow;
+  g_doom.lastTiltSampleMs = sampleNow;
 
   const float moveAccelDeg = atan2f(ay, az) * kDoomRadToDeg;
   const float turnAccelDeg = atan2f(-ax, sqrtf((ay * ay) + (az * az))) * kDoomRadToDeg;
 
-  if (!g_doomTiltFilterReady || dt <= 0.0f) {
-    g_doomMoveTiltDeg = moveAccelDeg;
-    g_doomTurnTiltDeg = turnAccelDeg;
-    g_doomTiltFilterReady = true;
+  if (!g_doom.tiltFilterReady || dt <= 0.0f) {
+    g_doom.moveTiltDeg = moveAccelDeg;
+    g_doom.turnTiltDeg = turnAccelDeg;
+    g_doom.tiltFilterReady = true;
   } else {
-    g_doomMoveTiltDeg = (kDoomTiltComplementaryAlpha * (g_doomMoveTiltDeg + (gx * dt))) +
+    g_doom.moveTiltDeg = (kDoomTiltComplementaryAlpha * (g_doom.moveTiltDeg + (gx * dt))) +
                         ((1.0f - kDoomTiltComplementaryAlpha) * moveAccelDeg);
-    g_doomTurnTiltDeg = (kDoomTiltComplementaryAlpha * (g_doomTurnTiltDeg + (gy * dt))) +
+    g_doom.turnTiltDeg = (kDoomTiltComplementaryAlpha * (g_doom.turnTiltDeg + (gy * dt))) +
                         ((1.0f - kDoomTiltComplementaryAlpha) * turnAccelDeg);
   }
 
-  const bool touchBusy = g_touchDown || g_touchAwaitRelease;
-  if (g_doomNeutralPending) {
+  const bool touchBusy = g_touch.down || g_touch.awaitRelease;
+  if (g_doom.neutralPending) {
     const bool canSampleNeutral =
-        g_doomTiltFilterReady &&
-        sampleNow >= g_doomNeutralArmAtMs &&
+        g_doom.tiltFilterReady &&
+        sampleNow >= g_doom.neutralArmAtMs &&
         !touchBusy &&
         gyroPeak <= kDoomNeutralCaptureGyroMaxDps;
     if (!canSampleNeutral) {
-      g_doomNeutralStableSinceMs = 0;
-      g_doomNeutralStableSamples = 0;
-      g_doomNeutralAccumMoveDeg = 0.0f;
-      g_doomNeutralAccumTurnDeg = 0.0f;
+      g_doom.neutralStableSinceMs = 0;
+      g_doom.neutralStableSamples = 0;
+      g_doom.neutralAccumMoveDeg = 0.0f;
+      g_doom.neutralAccumTurnDeg = 0.0f;
     } else {
-      if (g_doomNeutralStableSinceMs == 0) {
-        g_doomNeutralStableSinceMs = sampleNow;
-        g_doomNeutralStableSamples = 0;
-        g_doomNeutralAccumMoveDeg = 0.0f;
-        g_doomNeutralAccumTurnDeg = 0.0f;
+      if (g_doom.neutralStableSinceMs == 0) {
+        g_doom.neutralStableSinceMs = sampleNow;
+        g_doom.neutralStableSamples = 0;
+        g_doom.neutralAccumMoveDeg = 0.0f;
+        g_doom.neutralAccumTurnDeg = 0.0f;
       }
-      g_doomNeutralAccumMoveDeg += g_doomMoveTiltDeg;
-      g_doomNeutralAccumTurnDeg += g_doomTurnTiltDeg;
-      if (g_doomNeutralStableSamples < UINT16_MAX) ++g_doomNeutralStableSamples;
+      g_doom.neutralAccumMoveDeg += g_doom.moveTiltDeg;
+      g_doom.neutralAccumTurnDeg += g_doom.turnTiltDeg;
+      if (g_doom.neutralStableSamples < UINT16_MAX) ++g_doom.neutralStableSamples;
 
-      if ((sampleNow - g_doomNeutralStableSinceMs) >= kDoomNeutralStableWindowMs &&
-          g_doomNeutralStableSamples >= kDoomNeutralStableMinSamples) {
-        const float sampleCount = (float)g_doomNeutralStableSamples;
-        g_doomNeutralMoveTiltDeg = g_doomNeutralAccumMoveDeg / sampleCount;
-        g_doomNeutralTurnTiltDeg = g_doomNeutralAccumTurnDeg / sampleCount;
-        g_doomNeutralPending = false;
-        g_doomNeutralReady = true;
-        g_doomAxisFilterReady = false;
-        g_doomMoveDeltaFilteredDeg = 0.0f;
-        g_doomTurnDeltaFilteredDeg = 0.0f;
-        g_doomMoveBin = 0;
-        g_doomTurnBin = 0;
-        g_doomFrameDirty = true;
+      if ((sampleNow - g_doom.neutralStableSinceMs) >= kDoomNeutralStableWindowMs &&
+          g_doom.neutralStableSamples >= kDoomNeutralStableMinSamples) {
+        const float sampleCount = (float)g_doom.neutralStableSamples;
+        g_doom.neutralMoveTiltDeg = g_doom.neutralAccumMoveDeg / sampleCount;
+        g_doom.neutralTurnTiltDeg = g_doom.neutralAccumTurnDeg / sampleCount;
+        g_doom.neutralPending = false;
+        g_doom.neutralReady = true;
+        g_doom.axisFilterReady = false;
+        g_doom.moveDeltaFilteredDeg = 0.0f;
+        g_doom.turnDeltaFilteredDeg = 0.0f;
+        g_doom.moveBin = 0;
+        g_doom.turnBin = 0;
+        g_doom.frameDirty = true;
         Serial.printf("[DOOM][IMU] neutral move=%.1f turn=%.1f samples=%u\n",
-                      g_doomNeutralMoveTiltDeg,
-                      g_doomNeutralTurnTiltDeg,
-                      (unsigned)g_doomNeutralStableSamples);
+                      g_doom.neutralMoveTiltDeg,
+                      g_doom.neutralTurnTiltDeg,
+                      (unsigned)g_doom.neutralStableSamples);
       }
     }
   }
 
   int8_t moveBin = 0;
   int8_t turnBin = 0;
-  if (g_doomNeutralReady) {
-    const float moveDeltaDegRaw = (g_doomMoveTiltDeg - g_doomNeutralMoveTiltDeg) * (float)kDoomMoveTiltSign;
-    const float turnDeltaDegRaw = (g_doomTurnTiltDeg - g_doomNeutralTurnTiltDeg) * (float)kDoomTurnTiltSign;
-    if (!g_doomAxisFilterReady) {
-      g_doomMoveDeltaFilteredDeg = moveDeltaDegRaw;
-      g_doomTurnDeltaFilteredDeg = turnDeltaDegRaw;
-      g_doomAxisFilterReady = true;
+  if (g_doom.neutralReady) {
+    const float moveDeltaDegRaw = (g_doom.moveTiltDeg - g_doom.neutralMoveTiltDeg) * (float)kDoomMoveTiltSign;
+    const float turnDeltaDegRaw = (g_doom.turnTiltDeg - g_doom.neutralTurnTiltDeg) * (float)kDoomTurnTiltSign;
+    if (!g_doom.axisFilterReady) {
+      g_doom.moveDeltaFilteredDeg = moveDeltaDegRaw;
+      g_doom.turnDeltaFilteredDeg = turnDeltaDegRaw;
+      g_doom.axisFilterReady = true;
     } else {
-      g_doomMoveDeltaFilteredDeg += (moveDeltaDegRaw - g_doomMoveDeltaFilteredDeg) * kDoomAxisResponseAlpha;
-      g_doomTurnDeltaFilteredDeg += (turnDeltaDegRaw - g_doomTurnDeltaFilteredDeg) * kDoomAxisResponseAlpha;
+      g_doom.moveDeltaFilteredDeg += (moveDeltaDegRaw - g_doom.moveDeltaFilteredDeg) * kDoomAxisResponseAlpha;
+      g_doom.turnDeltaFilteredDeg += (turnDeltaDegRaw - g_doom.turnDeltaFilteredDeg) * kDoomAxisResponseAlpha;
     }
-    moveBin = doomQuantizeAxis(g_doomMoveDeltaFilteredDeg, kDoomMoveEngageDeg, kDoomMoveReleaseDeg,
-                               kDoomMoveBinDeg, g_doomMoveBin, kDoomMoveBinMin, kDoomMoveBinMax);
-    turnBin = doomQuantizeAxis(g_doomTurnDeltaFilteredDeg, kDoomTurnEngageDeg, kDoomTurnReleaseDeg,
-                               kDoomTurnBinDeg, g_doomTurnBin, kDoomTurnBinMin, kDoomTurnBinMax);
+    moveBin = doomQuantizeAxis(g_doom.moveDeltaFilteredDeg, kDoomMoveEngageDeg, kDoomMoveReleaseDeg,
+                               kDoomMoveBinDeg, g_doom.moveBin, kDoomMoveBinMin, kDoomMoveBinMax);
+    turnBin = doomQuantizeAxis(g_doom.turnDeltaFilteredDeg, kDoomTurnEngageDeg, kDoomTurnReleaseDeg,
+                               kDoomTurnBinDeg, g_doom.turnBin, kDoomTurnBinMin, kDoomTurnBinMax);
   } else {
-    g_doomAxisFilterReady = false;
-    g_doomMoveDeltaFilteredDeg = 0.0f;
-    g_doomTurnDeltaFilteredDeg = 0.0f;
+    g_doom.axisFilterReady = false;
+    g_doom.moveDeltaFilteredDeg = 0.0f;
+    g_doom.turnDeltaFilteredDeg = 0.0f;
   }
-  if (moveBin != g_doomMoveBin || turnBin != g_doomTurnBin) {
-    g_doomMoveBin = moveBin;
-    g_doomTurnBin = turnBin;
+  if (moveBin != g_doom.moveBin || turnBin != g_doom.turnBin) {
+    g_doom.moveBin = moveBin;
+    g_doom.turnBin = turnBin;
     if (g_uiPageMode == UI_PAGE_DOOM) {
-      g_doomFrameDirty = true;
+      g_doom.frameDirty = true;
 #if IMU_VERBOSE_SERIAL
       Serial.printf("[DOOM][IMU] move=%d turn=%d tilt=(%.1f,%.1f) neutral=(%.1f,%.1f)\n",
-                    (int)g_doomMoveBin,
-                    (int)g_doomTurnBin,
-                    g_doomMoveTiltDeg,
-                    g_doomTurnTiltDeg,
-                    g_doomNeutralMoveTiltDeg,
-                    g_doomNeutralTurnTiltDeg);
+                    (int)g_doom.moveBin,
+                    (int)g_doom.turnBin,
+                    g_doom.moveTiltDeg,
+                    g_doom.turnTiltDeg,
+                    g_doom.neutralMoveTiltDeg,
+                    g_doom.neutralTurnTiltDeg);
 #endif
     }
   }
 #endif
 
   const float accMag = sqrtf((ax * ax) + (ay * ay) + (az * az));
-  const float jerk = fabsf(accMag - g_lastAccelMag);
-  g_lastAccelMag = accMag;
+  const float jerk = fabsf(accMag - g_imu.lastAccelMag);
+  g_imu.lastAccelMag = accMag;
 
   const uint32_t now = millis();
   const bool shake = (jerk >= IMU_SHAKE_JERK_G) || (gyroPeak >= IMU_SHAKE_GYRO_DPS);
-  if (shake && ((now - g_lastShakeMs) >= IMU_SHAKE_DEBOUNCE_MS)) {
-    g_lastShakeMs = now;
+  if (shake && ((now - g_imu.lastShakeMs) >= IMU_SHAKE_DEBOUNCE_MS)) {
+    g_imu.lastShakeMs = now;
     Serial.printf("[SHAKE] jerk=%.2fg gyro_peak=%.1f dps\n", jerk, gyroPeak);
   }
 
 #if IMU_VERBOSE_SERIAL
-  if ((now - g_lastImuPrintMs) >= IMU_PRINT_INTERVAL_MS) {
-    g_lastImuPrintMs = now;
+  if ((now - g_imu.lastPrintMs) >= IMU_PRINT_INTERVAL_MS) {
+    g_imu.lastPrintMs = now;
     Serial.printf("[IMU] acc=(%.2f,%.2f,%.2f)g gyro=(%.1f,%.1f,%.1f)dps mag=%.2f jerk=%.2f\n",
                   ax, ay, az, gx, gy, gz, accMag, jerk);
   }
@@ -14928,9 +14975,9 @@ void loop() {
 #endif
   applyEnergyPolicy(now, false);
 #if TEST_NTP
-  if (!g_ntpSynced && wifiIsConnectedNow()) {
-    if (g_lastNtpAttemptMs == 0 || (now - g_lastNtpAttemptMs) >= 10000UL) {
-      g_lastNtpAttemptMs = now;
+  if (!g_clock.ntpSynced && wifiIsConnectedNow()) {
+    if (g_wifiSt.lastNtpAttemptMs == 0 || (now - g_wifiSt.lastNtpAttemptMs) >= 10000UL) {
+      g_wifiSt.lastNtpAttemptMs = now;
       runNtpTimeTest();
     }
   }

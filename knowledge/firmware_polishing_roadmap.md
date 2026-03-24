@@ -208,27 +208,37 @@ Separated gesture classification from per-page action handling:
 
 ---
 
-### M7 — Global state grouping (249 `g_` -> structs)
+### M7 — Global state grouping (244 `g_` -> structs)
 
-**Status: TODO**
+**Status: DONE (2026-03-24)**
 
-Group related globals into structs:
+Grouped 209 individual globals into 16 structs via automated Python transform (`tools/m7_rename_globals.py`):
 
-```c
-struct DisplayState { ... };      // 112 display/LVGL vars
-struct WifiState { ... };         // 28 WiFi vars
-struct BatteryState { ... };      // 12 battery vars
-struct ButtonState { ... };       // 11 button vars
-struct FeedState { ... };         // RSS/Wiki state
-struct NowPlayingState { ... };   // Now Playing state
-```
+| Struct | Instance | Fields absorbed |
+|---|---|---|
+| `BatteryState` | `g_batt` | 14 (battery + energy saver) |
+| `PwrButtonState` | `g_pwrBtn` | 7 |
+| `NavButtonState` | `g_navBtn` | 4 |
+| `WifiState` | `g_wifiSt` | 28 |
+| `TouchState` | `g_touch` | 15 |
+| `DoomState` | `g_doom` | 24 |
+| `ImuState` | `g_imu` | 6 |
+| `ClockState` | `g_clock` | 8 |
+| `ScreensaverState` | `g_saver` | 34 |
+| `PerfCounters` | `g_perf` | 7 |
+| `WebConfigState` | `g_webCfg` | 10 |
+| `LvglClockUi` | `g_clockUi` | 10 |
+| `LvglWeatherUi` | `g_weatherUi` | 22 |
+| `LvglInfoUi` | `g_infoUi` | 10 |
+| `DisplayHwState` | `g_dispHw` | 7 |
+| `LvglPageAnimState` | `g_pageAnim` | 3 |
 
-**Verification:**
-1. Full compile + upload
-2. All features functional
-3. Serial: `BATSTAT`, `PWRSTAT`, `WEBCFG` — correct output
+**Results:**
+- `g_` globals: **244 → 51** (16 struct instances + 35 truly independent)
+- Lines: 14,993 → 15,040 (+47 for struct definitions)
+- Clean compile, 42% flash / 63% RAM (unchanged)
 
-**Measurable:** `g_` count drops from 249 to <80 (struct instances + truly independent globals).
+**Verification:** compile --clean ✓ | upload ✓ | WEBCFG ✓ | BATSTAT ✓ | PWRSTAT ✓ | swipe nav all pages ✓ | DOOM controls ✓ | energy saver ✓
 
 ---
 
@@ -297,16 +307,17 @@ Track each completed milestone here with date, r-number, and commit hash.
 | 2026-03-23 | — | 7110baf | M5 | applyRuntimeConfigFromRequest 372→~45 lines, per-concern parsers |
 | 2026-03-23 | — | 48f239d | M6 | handleTouchSwipeInput 346→31 lines, per-page touch handlers |
 | 2026-03-24 | — | 728aaad | M3+ | Fixed scrybar-default theme, flat layout, mobile tightening, DOOM fix |
+| 2026-03-24 | — | — | M7 | 244 g_ globals → 51 (16 structs absorbing 209 vars), +47 lines |
 ```
 
-### Current Metrics Snapshot (post-M6, 2026-03-24)
+### Current Metrics Snapshot (post-M7, 2026-03-24)
 
 | Metric | Baseline (r199) | Current |
 |---|---|---|
-| **Total sketch lines** | 15,762 | 14,993 |
+| **Total sketch lines** | 15,762 | 15,040 |
 | **Functions >200 lines** | 10 | 5 |
 | **Largest function** | `initLvglUi()` 714 | `lvglApplyThemeStyles()` 295 |
-| **`g_` prefixed globals** | 249 | ~224 (partial struct grouping) |
+| **`g_` prefixed globals** | 249 | **51** (16 struct instances + 35 independent) |
 
 **Remaining functions >200 lines:**
 
