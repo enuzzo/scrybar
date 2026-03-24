@@ -3908,14 +3908,13 @@ static bool ensureWebQrBuffers() {
 // ── M3 PROGMEM: static CSS (vibemilk DS subset + component classes) ──
 static const char kWebCssCore[] PROGMEM = R"rawliteral(
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--font-family:var(--font-main);--text-primary:var(--txt);--text-secondary:var(--txt2);--text-tertiary:var(--txt3);--accent-primary:var(--acc1);--accent-secondary:var(--acc2);--bg-input:var(--bg-deep);--bg-elevated:var(--bg-surface);--stroke:var(--line);--stroke-soft:var(--line-soft);--shadow-sm:0 2px 8px rgba(0,0,0,.25);--shadow-md:0 4px 16px rgba(0,0,0,.3);--r-sm:8px;--r-md:12px;--r-lg:14px;--focus-ring:0 0 0 3px rgba(57,184,255,.18)}
+:root{--font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace;--text-primary:#fff;--text-secondary:#A3AED0;--text-tertiary:#707EAE;--accent-primary:#7551FF;--accent-secondary:#39B8FF;--bg-deepest:#070D2D;--bg-surface:#111C44;--bg-input:#0B1437;--bg-elevated:#111C44;--stroke:rgba(255,255,255,.11);--stroke-soft:rgba(255,255,255,.07);--okbg:rgba(1,181,116,.14);--shadow-sm:0 2px 8px rgba(0,0,0,.25);--shadow-md:0 4px 16px rgba(0,0,0,.3);--r-sm:8px;--r-md:12px;--r-lg:14px;--focus-ring:0 0 0 3px rgba(57,184,255,.18)}
 body{font-family:var(--font-family);font-size:14px;font-weight:400;line-height:1.5;color:var(--text-secondary);background:var(--bg-deepest);-webkit-font-smoothing:antialiased}
 a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(57,184,255,.24);color:var(--text-primary)}
 .vm-wrap{max-width:780px;margin:0 auto;padding:20px 16px 32px}
-.vm-card{background:var(--bg-surface);border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:12px}
+.vm-card{background:var(--bg-surface);border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:12px}.vm-card--muted{background:var(--bg-deepest);border-color:var(--stroke-soft)}
 .vm-card__hd{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-primary)}
 .vm-card__hd .vm-badge{margin-left:auto;text-transform:none;letter-spacing:0}
-.vm-card--inner{background:0;border:0;border-radius:0;padding:10px 0 0}
 .vm-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:var(--font-family);font-weight:600;border:0;cursor:pointer;transition:all .15s ease;white-space:nowrap;font-size:13px;height:40px;padding:0 18px;border-radius:var(--r-sm)}
 .vm-btn--sm{height:34px;padding:0 12px;font-size:12px;border-radius:6px}
 .vm-btn--primary{background:var(--accent-primary);color:#fff}.vm-btn--primary:hover{filter:brightness(1.15);box-shadow:var(--shadow-sm)}
@@ -3936,14 +3935,12 @@ a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(5
 .vm-toast-fixed{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(94vw,680px);z-index:9999;box-shadow:var(--shadow-md)}
 .msg{margin:0 0 12px;padding:10px 12px;border-radius:var(--r-md);border:1px solid rgba(1,181,116,.45);background:var(--okbg);color:#c9fce9;font-weight:600}
 .panel{background:transparent;border:0;padding:0}
-.hero{background:0;border:0;border-radius:0;padding:0;margin-bottom:14px}
-.hero-top-card{border:1px solid var(--stroke-soft);border-radius:var(--r-lg);padding:14px;background:var(--bg-surface)}
+.hero{padding:0 0 14px;margin-bottom:14px;border-bottom:1px solid var(--stroke-soft)}
 .hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}.hero-left{min-width:290px;flex:1 1 560px}
 .logo{height:56px;display:block;object-fit:contain}.hero-right{display:grid;gap:8px;justify-items:end}
 .release-box{display:inline-flex;gap:14px;padding:0;border:0;background:0;font:600 11px var(--font-mono)}
 .release-box .k{color:var(--accent-secondary);text-transform:uppercase;letter-spacing:.08em}.release-box .v{color:var(--text-primary);letter-spacing:.01em}
-.hero-copy{margin-top:10px;border:0;border-radius:0;padding:0;background:0}
-.lede{margin:0;color:var(--text-secondary);font-size:13px;line-height:1.46}
+.lede{margin:10px 0 0;color:var(--text-secondary);font-size:13px;line-height:1.46}
 .vm-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .vm-views{display:grid;gap:0}
 .vm-view{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border:0;border-bottom:1px solid var(--stroke-soft);border-radius:0;background:0}
@@ -3970,7 +3967,7 @@ a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(5
 .vm-api-note{margin-top:12px;padding:6px 0;border-radius:0;background:0;border:0;font-size:12px;color:var(--text-tertiary)}.vm-api-note code{color:var(--text-secondary)}
 #wifi_new_password{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:.02em}
 .geo-status{margin:2px 0 8px;color:var(--text-tertiary);font-size:12px;min-height:16px}
-@media(max-width:768px){.vm-grid{grid-template-columns:1fr}.vm-rss-composer{grid-template-columns:1fr}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions{flex-direction:column}.vm-actions .vm-btn{width:100%;justify-content:center}.logo{height:48px}}
+@media(max-width:768px){.vm-wrap{padding:12px 10px 24px}.vm-card{padding:14px 12px}.vm-grid{grid-template-columns:1fr;gap:8px}.vm-rss-composer{grid-template-columns:1fr;gap:8px}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions{flex-direction:column}.vm-actions .vm-btn{width:100%;justify-content:center}.logo{height:40px}}
 small{color:var(--text-tertiary)}code{color:var(--text-secondary)}
 )rawliteral";
 
@@ -4006,19 +4003,18 @@ if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssRes
 
 // ── M3: sub-functions for buildWebConfigPage decomposition ──
 
-static void buildWebCssBlock(String &html, const UiThemeDefinition &theme) {
-  appendWebThemeCssVars(html, theme.web);
+static void buildWebCssBlock(String &html) {
   html += FPSTR(kWebCssCore);
 }
 
 static void buildWebHeroSection(String &html, const char *statusMsg) {
-  html += F("<section class='hero'><div class='hero-top-card'><div class='hero-top'><div class='hero-left'><img class='logo' alt='Netmilk Studio' src='");
+  html += F("<section class='hero'><div class='hero-top'><div class='hero-left'><img class='logo' alt='Netmilk Studio' src='");
   appendHtmlEscaped(html, runtimeLogoUrl());
   html += F("'></div><div class='hero-right'><div class='release-box'><span><span class='k'>release</span> <span class='v'>");
   appendHtmlEscaped(html, FW_RELEASE_DATE);
   html += F("</span></span><span><span class='k'>version</span> <span class='v'>");
   appendHtmlEscaped(html, FW_BUILD_TAG);
-  html += F("</span></span></div></div></div><div class='hero-copy'><p class='lede'>\xE2\x9C\xA8 <b>ScryBar</b> is a mass of sensors, pixels, and unresolved ambition, pretending to be furniture.<br>Time, weather, news, and a talking oracle. Everything you could faster check on your phone, but won't.<br>Overengineered with pride by <b>enuzzo</b>, stealing billable hours at <b>Netmilk Studio</b>. Reflashed at 2 AM with no regrets.<br><em>Your desk knows things now.</em></p></div></section>");
+  html += F("</span></span></div></div></div><p class='lede'>\xE2\x9C\xA8 <b>ScryBar</b> is a mass of sensors, pixels, and unresolved ambition, pretending to be furniture.<br>Time, weather, news, and a talking oracle. Everything you could faster check on your phone, but won't.<br>Overengineered with pride by <b>enuzzo</b>, stealing billable hours at <b>Netmilk Studio</b>. Reflashed at 2 AM with no regrets.<br><em>Your desk knows things now.</em></p></section>");
   html += F("<section class='panel'>");
   if (statusMsg && statusMsg[0]) {
     html += F("<p class='vm-alert vm-toast-fixed'>");
@@ -4053,7 +4049,7 @@ static void buildWebViewToggles(String &html) {
       false;
 #endif
   const bool doomViewOn = doomFeatureAvailable && ((g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) != 0);
-  html += F("<div class='vm-card'><h2>Views</h2><div class='vm-card--inner'><div class='vm-views'>");
+  html += F("<div class='vm-card'><h2>Views</h2><div class='vm-views'>");
   html += F("<label class='vm-view'><input id='view_info_cb' type='checkbox'");
   if (infoViewOn) html += F(" checked");
   html += F("><span class='vm-view__copy'><strong>Info</strong><small>Word clock and ambient status page.</small></span></label>");
@@ -4067,7 +4063,7 @@ static void buildWebViewToggles(String &html) {
   html += F("<label class='vm-view'><input id='view_now_playing_cb' type='checkbox'");
   if (nowPlayingViewOn) html += F(" checked");
   html += F("><span class='vm-view__copy'><strong>Now Playing</strong><small>Live track info from macOS companion app.</small></span></label>");
-  html += F("<label class='view-card");
+  html += F("<label class='vm-view");
   if (!doomFeatureAvailable) html += F(" disabled");
   html += F("'><input id='view_doom_cb' type='checkbox'");
   if (doomViewOn) html += F(" checked");
@@ -4076,7 +4072,7 @@ static void buildWebViewToggles(String &html) {
   if (doomFeatureAvailable) html += F("Swipe-reachable game page with gyro + touch controls.");
   else html += F("Not available in this firmware build.");
   html += F("</small></span></label>");
-  html += F("</div><p class='vm-help'>Swipe navigation only includes enabled pages.</p><div id='view_hidden_inputs' class='hidden'></div></div></div>");
+  html += F("</div><p class='vm-help'>Swipe navigation only includes enabled pages.</p><div id='view_hidden_inputs' class='hidden'></div></div>");
 }
 
 #if TEST_WIFI
@@ -4114,7 +4110,7 @@ static void buildWebWifiSection(String &html) {
   html += F(">Always on</option>");
   html += F("</select>");
   html += F("<p class='vm-help'>Auto mode cycles known SSIDs first, then starts setup AP if disconnected too long. ScryBar supports <b>2.4 GHz only</b> (5 GHz is ignored).</p>");
-  html += F("<div class='vm-card--inner'><div class='vm-label'>PROVISION NEW NETWORK (2.4 GHZ)</div><div class='vm-grid'><div><button id='wifi_scan_btn' class='vm-btn vm-btn--sm vm-btn--secondary' type='button'>Scan networks</button><p id='wifi_scan_status' class='rss-status'></p><div class='vm-label'>SCAN RESULTS</div><select class='vm-select' id='wifi_scan_results'><option value=''>Press scan first...</option></select></div><div><div class='vm-label'>SSID</div><input class='vm-input' id='wifi_new_ssid' name='wifi_new_ssid' maxlength='32' placeholder='MyPhone Hotspot'><div class='vm-label'>PASSWORD</div><div class='vm-secret'><input class='vm-input' id='wifi_new_password' name='wifi_new_password' maxlength='64' type='password' placeholder='Leave empty if open network'><button id='wifi_pwd_toggle' class='vm-btn vm-btn--sm vm-btn--secondary' type='button' aria-label='Show password' title='Show password'>Show</button></div></div></div>");
+  html += F("<div class='vm-label' style='margin-top:14px'>PROVISION NEW NETWORK (2.4 GHZ)</div><div class='vm-grid'><div><button id='wifi_scan_btn' class='vm-btn vm-btn--sm vm-btn--secondary' type='button'>Scan networks</button><p id='wifi_scan_status' class='rss-status'></p><div class='vm-label'>SCAN RESULTS</div><select class='vm-select' id='wifi_scan_results'><option value=''>Press scan first...</option></select></div><div><div class='vm-label'>SSID</div><input class='vm-input' id='wifi_new_ssid' name='wifi_new_ssid' maxlength='32' placeholder='MyPhone Hotspot'><div class='vm-label'>PASSWORD</div><div class='vm-secret'><input class='vm-input' id='wifi_new_password' name='wifi_new_password' maxlength='64' type='password' placeholder='Leave empty if open network'><button id='wifi_pwd_toggle' class='vm-btn vm-btn--sm vm-btn--secondary' type='button' aria-label='Show password' title='Show password'>Show</button></div></div></div>");
   if (g_wifiSetupApActive) {
     html += F("<p class='vm-help'>Setup AP active: <code>");
     appendHtmlEscaped(html, g_wifiSetupApSsid);
@@ -4215,14 +4211,14 @@ static void buildWebRssBuilder(String &html) {
   html += F("<div class='vm-card'><h2>&#x1F4E1; RSS Feed Builder <span id='rss_count_pill' class='vm-badge vm-badge--info'>RSS feeds ");
   html += configuredFeeds;
   html += F("/5</span></h2><p class='vm-help'>One composer for name, URL and max posts. Press + to add to the list (max 5 feeds).</p>");
-  html += F("<div class='vm-card--inner'><div class='vm-rss-composer'><div><div class='vm-label'>FRIENDLY NAME</div><input class='vm-input' id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='vm-label'>FEED URL</div><input class='vm-input' id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='vm-label'>MAX POSTS</div><input class='vm-input' id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='vm-btn vm-btn--primary' type='button'>+ Add</button><button id='rss_reset' class='vm-btn vm-btn--secondary' type='button'>Reset</button></div><p id='rss_status' class='rss-status'></p></div>");
+  html += F("<div class='vm-rss-composer'><div><div class='vm-label'>FRIENDLY NAME</div><input class='vm-input' id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='vm-label'>FEED URL</div><input class='vm-input' id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='vm-label'>MAX POSTS</div><input class='vm-input' id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='vm-btn vm-btn--primary' type='button'>+ Add</button><button id='rss_reset' class='vm-btn vm-btn--secondary' type='button'>Reset</button></div><p id='rss_status' class='rss-status'></p>");
   html += F("<div id='rss_list' class='vm-rss-list'></div><p id='rss_empty' class='rss-empty'>No feeds configured.</p><div id='rss_hidden_inputs' class='hidden'></div></div>");
   html += F("<div class='vm-actions'><button class='vm-btn vm-btn--primary' type='submit'>Save Config</button><button class='vm-btn vm-btn--secondary' type='submit' formaction='/reload' formmethod='post'>Force Reload</button></div>");
 }
 
 static void buildWebSystemInfo(String &html) {
   char siBuf[48];
-  html += F("<div class='vm-card'><h2>&#x2699; System Info</h2><div class='vm-grid'>");
+  html += F("<div class='vm-card vm-card--muted'><h2>&#x2699; System Info</h2><div class='vm-grid'>");
   // Network card
   html += F("<div><div class='vm-label'>NETWORK</div>");
 #if TEST_WIFI
@@ -4310,7 +4306,6 @@ static void buildWebJsBlock(String &html) {
 
 static String buildWebConfigPage(const char *statusMsg) {
   ensureRuntimeNetConfig();
-  const UiThemeDefinition &themeDef = activeUiTheme();
 
   String html;
   html.reserve(22000);
@@ -4320,13 +4315,11 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("<title>ScryBar Control Surface</title>");
   html += F("<link rel='preconnect' href='https://fonts.googleapis.com'>");
   html += F("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>");
-  html += F("<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Chakra+Petch:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap' media='print' onload=\"this.media='all'\">");
-  html += F("<noscript><link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Chakra+Petch:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap' rel='stylesheet'></noscript>");
+  html += F("<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap' media='print' onload=\"this.media='all'\">");
+  html += F("<noscript><link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap' rel='stylesheet'></noscript>");
   html += F("<style>");
-  buildWebCssBlock(html, themeDef);
-  html += F("</style></head><body data-theme='");
-  appendHtmlEscaped(html, themeDef.id);
-  html += F("'><main class='vm-wrap'>");
+  buildWebCssBlock(html);
+  html += F("</style></head><body><main class='vm-wrap'>");
   // ── Body: hero + form sections ──
   buildWebHeroSection(html, statusMsg);
   html += F("<form id='cfg_form' method='post' action='/config'>");

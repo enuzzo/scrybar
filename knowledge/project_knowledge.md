@@ -493,13 +493,13 @@ Discard touch frames where:
 
 **Design system:** Vibemilk DS v3 subset (Netmilk Studio's token-driven CSS). All CSS uses `vm-*` prefixed classes. No external CSS framework, no Font Awesome, no animations.
 
-**CSS bridge pattern:** Firmware injects simple tokens (`--txt`, `--acc1`, `--bg-deep`, etc.) via `appendWebThemeCssVars()` from `UiThemeWebTokens`. A `:root{}` block aliases them to vibemilk standard names (`--text-primary`, `--accent-primary`, `--bg-input`, etc.). Component classes (`vm-card`, `vm-btn`, `vm-input`, `vm-select`, `vm-label`, `vm-badge`) reference only bridged names.
+**Fixed theme:** Web config page is always rendered with scrybar-default styling. CSS `:root{}` block in `kWebCssCore` contains hardcoded token values (no bridge layer, no runtime injection). Component classes (`vm-card`, `vm-btn`, `vm-input`, `vm-select`, `vm-label`, `vm-badge`) reference final variable names directly. Theme selector dropdown still exists in the form (drives the ESP32 display theme), but does not change web page styling.
 
 **Layout rules (r198+):**
-- **One visible container per section.** Each config section is a single `vm-card`. Internal groupings (`vm-card--inner`) are transparent — zero border, zero background, padding-top only as spacer.
+- **One visible container per section.** Each config section is a single `vm-card`. No `vm-card--inner` wrappers — content sits directly inside the card.
 - **No box-in-box nesting.** View items use `border-bottom` separators, not individual bordered cards. RSS rows use left accent bar + bottom separator. System Info columns are plain `<div>` inside `vm-grid`, not inner cards.
-- **Flat hero.** Release metadata is inline-flex (no bordered box). Lede text flows directly in the card (no inner bordered panel).
-- Single responsive breakpoint at 768px.
+- **Flat hero.** Logo + release row + lede text flow directly in `section.hero` (no `hero-top-card` wrapper, no `hero-copy` wrapper). Hero has a subtle bottom border as separator.
+- Single responsive breakpoint at 768px. Mobile tightens padding: `vm-wrap` 12px/10px, `vm-card` 14px/12px, grid gap 8px.
 - `vm-actions` (Save/Reload buttons) have 40px bottom margin to visually separate from System Info.
 
 **Emoji in HTML:** Always use HTML numeric entities (`&#x1F3A8;`, `&#x1F310;`, etc.) — never raw UTF-8 emoji in `F()` strings. Raw multi-byte emoji risk double-encoding through the Arduino toolchain, producing mojibake/tofu on mobile browsers.
@@ -509,9 +509,10 @@ Discard touch frames where:
 **Zero CDN dependencies** for functionality. Google Fonts is the only external resource and is loaded with `display=swap` for graceful degradation.
 
 **Key functions:**
-- `appendWebThemeCssVars(String&, const UiThemeWebTokens&)` — injects CSS custom properties from theme struct (~line 3882)
-- `buildWebConfigPage()` — generates complete inline HTML page (~line 3944, ~420 lines)
+- `buildWebConfigPage()` — generates complete inline HTML page (hardcoded scrybar-default CSS, no runtime theme injection)
+- `buildWebCssBlock(String&)` — emits `kWebCssCore` PROGMEM (single call, no parameters)
 - `runtimeLogoUrl()` — returns user-configured or default logo URL for hero
+- `appendWebThemeCssVars(String&, const UiThemeWebTokens&)` — retained for design system use, not called by web config page
 
 **Output budget:** ~20KB target (was ~35KB pre-vibemilk). No keyframe animations, no backdrop-filter, no FX grid divs.
 
@@ -569,7 +570,7 @@ For deterministic theme captures:
 - Prefer non-variable font sources for deterministic LVGL conversion.
 - If Wiki hero image appears missing on first draw, stay on WIKI briefly: visible-item progressive preload now fills summary/thumb/icon without requiring page changes.
 - **Web UI emoji:** Never put raw multi-byte emoji (🎨🌐📖 etc.) in Arduino `F()` strings — they get double-encoded through the toolchain (each UTF-8 byte re-encoded as UTF-8, producing 8 bytes of mojibake). Use HTML numeric entities instead: `&#x1F3A8;` for 🎨, `&#x1F310;` for 🌐, etc.
-- **Web UI box nesting:** Never wrap form content in bordered inner containers. One `vm-card` per section is the visual boundary — everything inside must be transparent layout. See "Web UI — Architecture & Rules" for the full pattern.
+- **Web UI box nesting:** Never wrap form content in inner containers (`vm-card--inner` was removed). One `vm-card` per section is the visual boundary — content sits directly inside, no wrapper divs. See "Web UI — Architecture & Rules" for the full pattern.
 - **MediaRemote artist field:** macOS MediaRemote only exposes the primary artist, not collaborators. "Rihanna, Kanye West, Paul McCartney" shows as just "Rihanna". This is a system-level limitation, not a companion bug.
 - **Now Playing LVGL labels:** Use `LV_LABEL_LONG_DOT` for single-line truncation (artist). Title uses `LV_LABEL_LONG_WRAP` with max 2 lines + manual clipping. LVGL 8 has no native multi-line ellipsis.
 

@@ -28,11 +28,11 @@ Entry format:
 
 ---
 
-## 2026-03-23 - Web UI: Single Fixed Theme (TODO, next session)
+## 2026-03-24 - Web UI: Fixed scrybar-default Theme + Flat Layout
 
-- Context: The web config UI supports runtime theme switching across 5 visual themes. However some elements don't render well across all themes, and maintaining per-theme visual parity on the web UI is high-effort for a config tool. Themes should only change the physical bar display.
-- Decision: **PLANNED for next session.** Freeze the web UI to a single fixed theme (dark, neutral, well-designed). Remove `data-theme` switching from web builder. Simplify CSS (one set of variables, remove bridge tokens→vibemilk). Fix web UI usability issues identified during testing.
-- Impact/Tradeoffs: Simpler `buildWebCssBlock()`, less PROGMEM, fewer visual bugs. Users can still switch display themes — only the web config page is fixed.
+- Context: The web config UI used a CSS bridge layer (`appendWebThemeCssVars` → `--txt`/`--acc1` intermediaries → vibemilk aliases) so the page restyled with every display theme switch. Maintaining per-theme visual parity was high-effort for a config tool. Hero section used a card-in-card pattern (`hero-top-card` inside `hero`). `vm-card--inner` wrappers added unnecessary DOM depth. Mobile padding wasted ~50px horizontal space on 375px screens.
+- Decision: (1) Replaced CSS bridge with hardcoded scrybar-default tokens directly in `:root{}` — one set of variable names, zero indirection. (2) Removed `data-theme` from `<body>`, removed `appendWebThemeCssVars` call from web builder path. (3) Flattened hero: removed `hero-top-card` and `hero-copy` wrappers, logo/release/lede flow directly in `section.hero`. (4) Removed all `vm-card--inner` wrappers from Views, WiFi, RSS builders. (5) Tightened mobile CSS: `vm-wrap` 12px/10px, `vm-card` 14px/12px, grid gap 8px, logo 40px. (6) Simplified Google Fonts load to Montserrat only (other theme fonts no longer needed). Theme selector dropdown stays in the form — it still drives the ESP32 display theme.
+- Impact/Tradeoffs: Simpler `buildWebCssBlock()` (one line), less PROGMEM (~1.2KB saved from bridge removal + font URL), fewer visual bugs, better mobile density. `UiThemeWebTokens` struct and `appendWebThemeCssVars()` remain in codebase for design system use but are no longer called by the embedded page.
 
 ---
 
