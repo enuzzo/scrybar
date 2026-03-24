@@ -150,6 +150,39 @@ swift build
 
 Bump `CURRENT_PROJECT_VERSION` in `project.yml` for every release.
 
+### Companion DMG Export (CLI)
+
+Build Release + create drag-to-install DMG without Xcode GUI:
+
+```bash
+cd companion/mac/ScryBarCompanion
+
+# 1. Build Release (ad-hoc signed)
+xcodebuild -project ScryBarCompanion.xcodeproj \
+  -scheme ScryBarCompanion -configuration Release \
+  -derivedDataPath build \
+  CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO
+
+# 2. Create DMG with Applications symlink
+APP=build/Build/Products/Release/ScryBarCompanion.app
+STAGING=/tmp/scrybar-dmg-staging
+rm -rf "$STAGING" && mkdir -p "$STAGING"
+cp -R "$APP" "$STAGING/"
+ln -s /Applications "$STAGING/Applications"
+hdiutil create -volname "ScryBar Companion" \
+  -srcfolder "$STAGING" -ov -format UDZO \
+  ../ScryBarCompanion-<VERSION>.dmg
+rm -rf "$STAGING"
+```
+
+Output lands in `companion/mac/ScryBarCompanion-<VERSION>.dmg`.
+
+Signing notes:
+
+- Ad-hoc signing (`-`) is sufficient for local/GitHub distribution.
+- First launch on another Mac triggers Gatekeeper: right-click → Open, or System Settings → Privacy & Security → "Open Anyway".
+- To eliminate Gatekeeper warnings: sign with a Developer ID Application certificate ($99/yr Apple Developer Program) + notarize via `xcrun notarytool submit`.
+
 Wi-Fi preference behavior:
 
 - `wifi_pref_ssid=""` means automatic rotation across known credentials.
