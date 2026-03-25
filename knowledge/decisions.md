@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-03-25 - Unified Typeface: Funnel Display + RSS Favicons (r215)
+
+- Context: Each theme had its own font (Space Mono for cyberpunk, Delius Unicase for toxic candy, built-in Montserrat for default). Different font metrics caused recurring layout bugs (text clipping, inconsistent line counts). RSS source badges were text-only ("NYT", "BBC") with no visual brand identity.
+- Decision: (1) Replace all per-theme fonts with Funnel Display (Google Fonts, SIL OFL, condensed display face) as the single typeface across all themes. 12 sizes generated (12-38px), ASCII range with Montserrat fallback. (2) Add favicon system: Google Favicon API (`/s2/favicons?domain=X&sz=32`) → pngle streaming PNG decode → RGB565 PSRAM cache (8 slots, 2KB each). Alpha-blended onto white bg. Prefetched after RSS fetch. (3) Header text y-offset +2px for optical centering with new font metrics. (4) Remove INFO header border stroke.
+- Impact/Tradeoffs: 26 font functions (240 lines, theme dispatch) → 21 one-liners. 19 old font files removed, 12 new. Flash -300KB (42%→41%). +10KB from pngle lib. RSS now shows 4 lines (was 3). Favicon cache uses ~16KB PSRAM. DOOM HUD loses monospace aesthetic but gains layout consistency. Zero per-theme font bugs going forward.
+
+---
+
 ## 2026-03-25 - M10: Final Polish — Zero Functions >200 Lines
 
 - Context: Two functions remained over the 150-line target: `updateLvglUi()` (210 lines) with a ~130-line weather display block containing 3× identical icon/glyph toggle patterns and 2× identical offline placeholder blocks; `loadRuntimeNetConfigFromNvs()` (202 lines) with inline RSS feed loop (39 lines) and language migration logic (32 lines). Hardcoded WMO code `2` appeared 4× as offline fallback icon.

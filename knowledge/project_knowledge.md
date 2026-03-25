@@ -238,25 +238,23 @@ Important behavior rule:
 
 ## Font System (Web + LVGL)
 
-### Theme typography map
+### Display typeface (LVGL)
 
-- `scrybar-default`
-  - Main UI font: Montserrat (LVGL built-ins + web stack)
-  - Monospace utility font: Space Mono stack
-- `cyberpunk-2077`
-  - Main + mono: Space Mono terminal style
-  - LVGL custom font family: `scry_font_space_mono_*`
-- `toxic-candy`
-  - Main UI font: Delius Unicase (web), Chakra fallback
-  - Mono: Space Mono stack
-  - LVGL custom font family: `scry_font_delius_unicase_*`
-- `tokyo-transit`
-  - Main UI font: Chakra Petch (web), Space Mono fallback
-  - Mono: Space Mono stack
-  - LVGL custom font family: `scry_font_space_mono_*`
-- `minimal-brutalist-mono`
-  - Main + mono web font: IBM Plex Mono stack
-  - LVGL custom font family: `scry_font_space_mono_*` (embedded fallback)
+**Funnel Display** (Google Fonts, SIL OFL) — unified across ALL themes since r215.
+- Condensed display face, optimized for narrow 640×172 display
+- 12 sizes generated: 12, 14, 16, 18, 20, 22, 23, 24, 25, 30, 32, 38 px
+- ASCII range (0x20-0x7E) with `--lv-fallback lv_font_montserrat_XX` for extended chars
+- Source TTF: `assets/fonts/FunnelDisplay-Regular.ttf` (24KB)
+- Generated files: `src/fonts/scry_font_funnel_display_*.c`
+- No per-theme font dispatch — all `lvglFont*()` functions are simple one-liners
+
+### Web UI typography (per-theme, unchanged)
+
+- `scrybar-default`: Montserrat web stack
+- `cyberpunk-2077`: Space Mono terminal style
+- `toxic-candy`: Delius Unicase (web), Chakra fallback
+- `tokyo-transit`: Chakra Petch (web), Space Mono fallback
+- `minimal-brutalist-mono`: IBM Plex Mono stack
 
 Web Wi-Fi provisioning input policy:
 
@@ -304,7 +302,7 @@ Reference:
 
 Clock line `g_lvglClockL1` uses runtime auto-fit:
 
-- Collect candidate font list per active theme (largest to smallest)
+- Collect Funnel Display font cascade (38→32→30→24→22→20→18 px)
 - Apply candidate, measure label height against available clock body space
 - Select largest fitting font and re-center
 
@@ -576,6 +574,18 @@ Discard touch frames where:
 - Currently unused after ANSI viewer removal (r183). Available for future features.
 - `FFat.begin(false)` is called at boot (no format-on-fail) for readiness.
 
+## RSS Favicon System (r215+)
+
+- Source: Google Favicon API — `https://www.google.com/s2/favicons?domain={host}&sz=32`
+- Decode: `pngle` library (streaming PNG decoder, ~10KB flash)
+- Output: RGB565 in PSRAM, alpha-blended onto white background
+- Cache: 8 slots × 2KB = 16KB PSRAM; LRU eviction when full
+- Prefetch: triggered after each RSS fetch; skips already-cached hosts
+- Display: `lv_img` inside source badge panel; hides text badge when favicon available
+- Fallback: text badge ("NYT", "BBC", etc.) shown if favicon download fails
+- GOTCHA: `LV_COLOR_16_SWAP=1` — store RGB565 big-endian (high byte first)
+- GOTCHA: PNG transparent pixels must be alpha-blended (not ignored) — favicon PNGs have non-zero RGB in transparent areas
+
 ## RSS/WIKI Data Pipeline Notes
 
 - Text sanitization:
@@ -788,14 +798,16 @@ Only needed when adding/regenerating custom LVGL fonts:
 npm install -g lv_font_conv
 ```
 
-Usage example (Space Mono, 16px):
+Usage example (Funnel Display, 20px):
 ```bash
 lv_font_conv \
-  --font assets/fonts/SpaceMono-Regular.ttf \
-  --size 16 --bpp 4 --no-compress \
+  --font assets/fonts/FunnelDisplay-Regular.ttf \
+  --size 20 --bpp 4 --no-compress \
   --range 0x20-0x7E \
-  --format lvgl -o src/fonts/scry_font_space_mono_16.c \
-  --force-include lv_conf.h
+  --lv-fallback lv_font_montserrat_20 \
+  --lv-font-name scry_font_funnel_display_20 \
+  --format lvgl -o src/fonts/scry_font_funnel_display_20.c \
+  --lv-include lvgl.h
 ```
 
 ### 8. git (standard macOS git or Homebrew)

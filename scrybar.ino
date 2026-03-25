@@ -46,6 +46,7 @@
 #if TEST_WIFI
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <pngle.h>
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
@@ -75,24 +76,19 @@
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
 #include <lvgl.h>
-LV_FONT_DECLARE(scry_font_space_mono_16);
-LV_FONT_DECLARE(scry_font_space_mono_18);
-LV_FONT_DECLARE(scry_font_space_mono_12);
-LV_FONT_DECLARE(scry_font_space_mono_20);
-LV_FONT_DECLARE(scry_font_space_mono_24);
-LV_FONT_DECLARE(scry_font_space_mono_28);
-LV_FONT_DECLARE(scry_font_space_mono_32);
-LV_FONT_DECLARE(scry_font_delius_unicase_12);
-LV_FONT_DECLARE(scry_font_delius_unicase_16);
-LV_FONT_DECLARE(scry_font_delius_unicase_18);
-LV_FONT_DECLARE(scry_font_delius_unicase_20);
-LV_FONT_DECLARE(scry_font_delius_unicase_24);
-LV_FONT_DECLARE(scry_font_delius_unicase_28);
-LV_FONT_DECLARE(scry_font_delius_unicase_32);
-LV_FONT_DECLARE(scry_font_montserrat_semibold_22);
-LV_FONT_DECLARE(scry_font_montserrat_semibold_23);
-LV_FONT_DECLARE(scry_font_montserrat_semibold_25);
-LV_FONT_DECLARE(scry_font_montserrat_medium_23);
+// Funnel Display — unified typeface across all themes
+LV_FONT_DECLARE(scry_font_funnel_display_12);
+LV_FONT_DECLARE(scry_font_funnel_display_14);
+LV_FONT_DECLARE(scry_font_funnel_display_16);
+LV_FONT_DECLARE(scry_font_funnel_display_18);
+LV_FONT_DECLARE(scry_font_funnel_display_20);
+LV_FONT_DECLARE(scry_font_funnel_display_22);
+LV_FONT_DECLARE(scry_font_funnel_display_23);
+LV_FONT_DECLARE(scry_font_funnel_display_24);
+LV_FONT_DECLARE(scry_font_funnel_display_25);
+LV_FONT_DECLARE(scry_font_funnel_display_30);
+LV_FONT_DECLARE(scry_font_funnel_display_32);
+LV_FONT_DECLARE(scry_font_funnel_display_38);
 #if __has_include("assets/weather_icons_min/generated/weather_icons_lvgl_min.h")
 #include "assets/weather_icons_min/generated/weather_icons_lvgl_min.h"
 #define DB_HAS_LVGL_WEATHER_MIN_IMAGES 1
@@ -888,6 +884,7 @@ struct FeedDeckUi {
   lv_obj_t *nextFeedBtnText = nullptr;
   lv_obj_t *sourceBadge  = nullptr;
   lv_obj_t *sourceBadgeText = nullptr;
+  lv_obj_t *sourceBadgeImg = nullptr;  // favicon lv_img (shown over text when available)
   lv_obj_t *sourceSite   = nullptr;
   lv_obj_t *news         = nullptr;
   lv_obj_t *meta         = nullptr;
@@ -2347,7 +2344,7 @@ static void doomDrawBandOverlay() {
 
   const uint16_t leftFrame = leftActive ? greenMid : frameDim;
   doomDrawRectOutline(2, 2, lw - 6, bh - 4, leftFrame);
-  doomDrawFontText(8, 6, "MOVE", &scry_font_space_mono_12, textMuted);
+  doomDrawFontText(8, 6, "MOVE", &scry_font_funnel_display_12, textMuted);
 
   // ── Vertical tilt meter (large) ───────────────────────────────────────
   const int16_t vmW = 36, vmH = 100;
@@ -2381,7 +2378,7 @@ static void doomDrawBandOverlay() {
   }
 
   doomDrawFontText(vmX + vmW + 6, vmCY - 8, moveBuf,
-                   &scry_font_space_mono_16, readoutCol);
+                   &scry_font_funnel_display_16, readoutCol);
 
   // ── Divider + USE button ──────────────────────────────────────────────
   const int16_t btnH = 30, btnM = 10, btnY = bh - btnH - 6;
@@ -2396,7 +2393,7 @@ static void doomDrawBandOverlay() {
     doomDrawRectOutline(btnM, btnY, bw, btnH, bord);
     doomFillRect(btnM + 1, btnY + 1,        bw - 2, 2, glow);
     doomFillRect(btnM + 1, btnY + btnH - 3, bw - 2, 2, shadowCol);
-    doomDrawFontTextCentered(lcx - 2, btnY + 5, "USE", &scry_font_space_mono_20, txt);
+    doomDrawFontTextCentered(lcx - 2, btnY + 5, "USE", &scry_font_funnel_display_20, txt);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -2405,7 +2402,7 @@ static void doomDrawBandOverlay() {
 
   const uint16_t rightFrame = rightActive ? redMid : frameDim;
   doomDrawRectOutline(rx + 4, 2, rw - 6, bh - 4, rightFrame);
-  doomDrawFontText(rx + 8, 6, "TURN", &scry_font_space_mono_12, textMuted);
+  doomDrawFontText(rx + 8, 6, "TURN", &scry_font_funnel_display_12, textMuted);
 
   // ── Horizontal tilt meter (large) ─────────────────────────────────────
   const int16_t hmW = rw - 28, hmH = 26;
@@ -2435,10 +2432,10 @@ static void doomDrawBandOverlay() {
       doomFillRect(hmCX + 2,    hmY + 4, span, hmH - 8, fillC);
   }
 
-  doomDrawFontText(hmX + 3,        hmY + 7, "<", &scry_font_space_mono_12, textMuted);
-  doomDrawFontText(hmX + hmW - 11, hmY + 7, ">", &scry_font_space_mono_12, textMuted);
+  doomDrawFontText(hmX + 3,        hmY + 7, "<", &scry_font_funnel_display_12, textMuted);
+  doomDrawFontText(hmX + hmW - 11, hmY + 7, ">", &scry_font_funnel_display_12, textMuted);
   doomDrawFontTextCentered(rcx, hmY + hmH + 5, turnBuf,
-                           &scry_font_space_mono_16, readoutCol);
+                           &scry_font_funnel_display_16, readoutCol);
 
   // ── Status badge (pre-game) ───────────────────────────────────────────
 #if DB_HAS_PRBOOM_DONOR
@@ -2453,7 +2450,7 @@ static void doomDrawBandOverlay() {
                         g_doom.launchRequested ? textAmber : redHi);
     doomFillRect(bdX + 1, bdY + 1, bdW - 2, 1, lv_color_make(36, 26, 10).full);
     doomDrawFontTextCentered(rcx, bdY + 4, promptBuf,
-                             &scry_font_space_mono_16, textAmber);
+                             &scry_font_funnel_display_16, textAmber);
   }
 #endif
 
@@ -2469,7 +2466,7 @@ static void doomDrawBandOverlay() {
     doomDrawRectOutline(rx + btnM + 2, btnY, bw, btnH, bord);
     doomFillRect(rx + btnM + 3, btnY + 1,        bw - 2, 2, glow);
     doomFillRect(rx + btnM + 3, btnY + btnH - 3, bw - 2, 2, shadowCol);
-    doomDrawFontTextCentered(rcx, btnY + 5, "FIRE", &scry_font_space_mono_20, txt);
+    doomDrawFontTextCentered(rcx, btnY + 5, "FIRE", &scry_font_funnel_display_20, txt);
   }
 }
 
@@ -6586,6 +6583,181 @@ static void buildRssSiteShortName(const char *host, char *out, size_t outLen) {
   }
 }
 
+// ── Favicon cache — Google Favicon API → RGB565 via pngle ────────────────────
+static constexpr uint8_t  kFaviconCacheSlots = 8;
+static constexpr uint16_t kFaviconSize       = 32;  // 32×32 px from Google API
+static constexpr size_t   kFaviconBytes      = kFaviconSize * kFaviconSize * 2;  // RGB565
+
+struct FaviconCacheEntry {
+  char     host[64]       = {0};
+  uint8_t *rgb565         = nullptr;  // PSRAM-allocated, kFaviconBytes
+  lv_img_dsc_t imgDsc     = {};
+  bool     valid          = false;
+};
+static FaviconCacheEntry g_faviconCache[kFaviconCacheSlots];
+
+/// pngle user context for streaming decode into RGB565 buffer.
+struct PngleRgb565Ctx {
+  uint8_t *buf;
+  uint16_t bufW;   // output buffer width (kFaviconSize)
+  uint16_t bufH;   // output buffer height (kFaviconSize)
+  int16_t  offX;   // centering offset — set after PNG header parsed
+  int16_t  offY;
+  bool     inited; // true after init callback sets offsets
+};
+
+static void pngleOnInit(pngle_t *pngle, uint32_t imgW, uint32_t imgH) {
+  auto *ctx = (PngleRgb565Ctx *)pngle_get_user_data(pngle);
+  if (!ctx) return;
+  ctx->offX = (int16_t)((ctx->bufW > imgW) ? (ctx->bufW - imgW) / 2 : 0);
+  ctx->offY = (int16_t)((ctx->bufH > imgH) ? (ctx->bufH - imgH) / 2 : 0);
+  ctx->inited = true;
+  Serial.printf("[FAV] png %ux%u → offset +%d,+%d in %ux%u\n",
+                imgW, imgH, ctx->offX, ctx->offY, ctx->bufW, ctx->bufH);
+}
+
+static void pngleOnDraw(pngle_t *pngle, uint32_t x, uint32_t y,
+                         uint32_t w, uint32_t h,
+                         const uint8_t rgba[4]) {
+  auto *ctx = (PngleRgb565Ctx *)pngle_get_user_data(pngle);
+  if (!ctx || !ctx->buf) return;
+  const uint32_t dx = x + (uint32_t)ctx->offX;
+  const uint32_t dy = y + (uint32_t)ctx->offY;
+  if (dx >= ctx->bufW || dy >= ctx->bufH) return;
+  const uint8_t a = rgba[3];
+  if (a == 0) return;  // fully transparent → leave as background
+  // Alpha-blend onto white background (favicons are designed for light bg)
+  uint8_t r = rgba[0], g = rgba[1], b = rgba[2];
+  if (a < 255) {
+    r = (uint8_t)((r * a + 255 * (255 - a)) / 255);
+    g = (uint8_t)((g * a + 255 * (255 - a)) / 255);
+    b = (uint8_t)((b * a + 255 * (255 - a)) / 255);
+  }
+  const uint16_t rgb565 = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+  const size_t off = ((size_t)dy * ctx->bufW + dx) * 2;
+  // LV_COLOR_16_SWAP=1 → store big-endian (high byte first)
+  ctx->buf[off]     = (uint8_t)(rgb565 >> 8);
+  ctx->buf[off + 1] = (uint8_t)(rgb565 & 0xFF);
+}
+
+/// Find or allocate a cache slot for `host`.  Returns slot index.
+static uint8_t faviconCacheSlot(const char *host) {
+  // Check existing
+  for (uint8_t i = 0; i < kFaviconCacheSlots; ++i) {
+    if (g_faviconCache[i].valid && strcmp(g_faviconCache[i].host, host) == 0) return i;
+  }
+  // Find empty
+  for (uint8_t i = 0; i < kFaviconCacheSlots; ++i) {
+    if (!g_faviconCache[i].valid) return i;
+  }
+  // Evict oldest (slot 0) and shift
+  if (g_faviconCache[0].rgb565) heap_caps_free(g_faviconCache[0].rgb565);
+  memmove(&g_faviconCache[0], &g_faviconCache[1], sizeof(FaviconCacheEntry) * (kFaviconCacheSlots - 1));
+  auto &last = g_faviconCache[kFaviconCacheSlots - 1];
+  last = FaviconCacheEntry{};
+  return kFaviconCacheSlots - 1;
+}
+
+/// Download favicon from Google API, decode PNG → RGB565, cache in PSRAM.
+/// Returns pointer to lv_img_dsc_t on success, nullptr on failure.
+static const lv_img_dsc_t *faviconFetchAndCache(const char *host) {
+  if (!host || !host[0]) return nullptr;
+
+  // Already cached?
+  for (uint8_t i = 0; i < kFaviconCacheSlots; ++i) {
+    if (g_faviconCache[i].valid && strcmp(g_faviconCache[i].host, host) == 0) {
+      return &g_faviconCache[i].imgDsc;
+    }
+  }
+
+  // Build Google Favicon API URL
+  char url[192];
+  snprintf(url, sizeof(url),
+           "https://www.google.com/s2/favicons?domain=%s&sz=%u", host, kFaviconSize);
+  Serial.printf("[FAV] fetch %s\n", url);
+
+  // Allocate RGB565 buffer in PSRAM, fill white (default bg for transparent pixels)
+  uint8_t *rgb565Buf = (uint8_t *)heap_caps_malloc(kFaviconBytes, MALLOC_CAP_SPIRAM);
+  if (!rgb565Buf) {
+    Serial.println("[FAV] PSRAM alloc failed");
+    return nullptr;
+  }
+  // White in RGB565 big-endian (LV_COLOR_16_SWAP=1): 0xFFFF
+  memset(rgb565Buf, 0xFF, kFaviconBytes);
+
+  // HTTP GET
+  ScopedPsramTls psramTls;
+  WiFiClientSecure tls;
+  tls.setInsecure();
+  tls.setHandshakeTimeout(5);
+  HTTPClient http;
+  http.setConnectTimeout(5000);
+  http.setTimeout(5000);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  if (!http.begin(tls, url)) {
+    Serial.println("[FAV] http begin fail");
+    heap_caps_free(rgb565Buf);
+    return nullptr;
+  }
+  int code = http.GET();
+  if (code != 200) {
+    Serial.printf("[FAV] http %d\n", code);
+    http.end();
+    heap_caps_free(rgb565Buf);
+    return nullptr;
+  }
+
+  // Stream-decode PNG via pngle
+  PngleRgb565Ctx ctx = { rgb565Buf, kFaviconSize, kFaviconSize, 0, 0, false };
+  pngle_t *pngle = pngle_new();
+  if (!pngle) {
+    http.end();
+    heap_caps_free(rgb565Buf);
+    return nullptr;
+  }
+  pngle_set_user_data(pngle, &ctx);
+  pngle_set_init_callback(pngle, pngleOnInit);
+  pngle_set_draw_callback(pngle, pngleOnDraw);
+
+  WiFiClient *stream = http.getStreamPtr();
+  uint8_t chunk[256];
+  bool decodeOk = true;
+  while (http.connected() && stream->available()) {
+    int n = stream->readBytes(chunk, sizeof(chunk));
+    if (n <= 0) break;
+    if (pngle_feed(pngle, chunk, n) < 0) {
+      Serial.printf("[FAV] pngle error: %s\n", pngle_error(pngle));
+      decodeOk = false;
+      break;
+    }
+  }
+  pngle_destroy(pngle);
+  http.end();
+
+  if (!decodeOk) {
+    heap_caps_free(rgb565Buf);
+    return nullptr;
+  }
+
+  // Store in cache
+  uint8_t slot = faviconCacheSlot(host);
+  auto &entry = g_faviconCache[slot];
+  if (entry.rgb565 && entry.rgb565 != rgb565Buf) heap_caps_free(entry.rgb565);
+  entry.valid = true;
+  copyStringSafe(entry.host, sizeof(entry.host), host);
+  entry.rgb565 = rgb565Buf;
+  entry.imgDsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+  entry.imgDsc.header.always_zero = 0;
+  entry.imgDsc.header.reserved = 0;
+  entry.imgDsc.header.w = kFaviconSize;
+  entry.imgDsc.header.h = kFaviconSize;
+  entry.imgDsc.data_size = kFaviconBytes;
+  entry.imgDsc.data = rgb565Buf;
+
+  Serial.printf("[FAV] cached slot %u host=%s\n", slot, host);
+  return &entry.imgDsc;
+}
+
 static void buildRssSiteBadge(const char *siteShort, char *out, size_t outLen) {
   if (!out || outLen == 0) return;
   out[0] = '\0';
@@ -6837,6 +7009,33 @@ static bool updateRssFromFeed(bool force) {
                 (unsigned)feedsTried,
                 (unsigned)g_rss.itemCount,
                 g_rss.items[0].title);
+
+  // Prefetch favicons for unique hosts in this batch
+  {
+    char seenHosts[kFaviconCacheSlots][64];
+    uint8_t seenCount = 0;
+    for (uint8_t i = 0; i < count && seenCount < kFaviconCacheSlots; ++i) {
+      char host[96];
+      rssResolveSourceHost(parseBuf[i], host, sizeof(host));
+      if (!host[0]) continue;
+      // Skip if already seen or already cached
+      bool dup = false;
+      for (uint8_t s = 0; s < seenCount; ++s) {
+        if (strcmp(seenHosts[s], host) == 0) { dup = true; break; }
+      }
+      if (dup) continue;
+      for (uint8_t s = 0; s < kFaviconCacheSlots; ++s) {
+        if (g_faviconCache[s].valid && strcmp(g_faviconCache[s].host, host) == 0) { dup = true; break; }
+      }
+      if (dup) continue;
+      copyStringSafe(seenHosts[seenCount], sizeof(seenHosts[seenCount]), host);
+      ++seenCount;
+      faviconFetchAndCache(host);
+      pumpWebUiDuringIo();
+    }
+    if (seenCount) Serial.printf("[FAV] prefetched %u new favicons\n", (unsigned)seenCount);
+  }
+
   return true;
 }
 
@@ -10762,248 +10961,31 @@ static void drawWeatherPanel(int16_t ox, int16_t oy, int16_t ow, int16_t oh, con
 }
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && DISPLAY_BACKEND_ESP_LCD
-static const lv_font_t* lvglFontTerminal() {
-  return &scry_font_space_mono_16;
-}
+// ---------- Unified Funnel Display font accessors ----------
+// All themes share the same typeface. Only size varies by semantic role.
 
-static const lv_font_t* lvglFontTerminalTiny() {
-  return &scry_font_space_mono_12;
-}
+static const lv_font_t* lvglFontTitle()    { return &scry_font_funnel_display_30; }
+static const lv_font_t* lvglFontBody()     { return &scry_font_funnel_display_24; }
+static const lv_font_t* lvglFontSmall()    { return &scry_font_funnel_display_18; }
+static const lv_font_t* lvglFontTiny()     { return &scry_font_funnel_display_14; }
+static const lv_font_t* lvglFontMini()     { return &scry_font_funnel_display_16; }
+static const lv_font_t* lvglFontMono()     { return &scry_font_funnel_display_16; }
+static const lv_font_t* lvglFontMonoTiny() { return &scry_font_funnel_display_12; }
+static const lv_font_t* lvglFontMeta()     { return &scry_font_funnel_display_20; }
+static const lv_font_t* lvglFontInfoBody() { return &scry_font_funnel_display_16; }
+static const lv_font_t* lvglFontRssNews()  { return &scry_font_funnel_display_22; }
+static const lv_font_t* lvglFontClock()    { return &scry_font_funnel_display_38; }
+static const lv_font_t* lvglFontBig()      { return &scry_font_funnel_display_32; }
+static const lv_font_t* lvglFontTemp()     { return &scry_font_funnel_display_24; }
 
-static const lv_font_t* lvglFontToxicTiny() {
-  return &scry_font_delius_unicase_12;
-}
+static const lv_font_t* lvglFontScreenSaverBalloonText() { return &scry_font_funnel_display_18; }
+static const lv_font_t* lvglFontScreenSaverFooterText()  { return &scry_font_funnel_display_24; }
+static const lv_font_t* lvglFontScreenSaverTail()        { return &scry_font_funnel_display_16; }
 
-static const lv_font_t* lvglFontToxicSmall() {
-  return &scry_font_delius_unicase_16;
-}
-
-static const lv_font_t* lvglFontToxicBody() {
-  return &scry_font_delius_unicase_20;
-}
-
-static const lv_font_t* lvglFontToxicTitle() {
-  return &scry_font_delius_unicase_24;
-}
-
-static const lv_font_t* lvglFontToxicBig() {
-  return &scry_font_delius_unicase_28;
-}
-
-static const lv_font_t* lvglFontToxicClock() {
-  return &scry_font_delius_unicase_28;
-}
-
-static const lv_font_t* lvglFontTitle() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicTitle();
-#if defined(LV_FONT_MONTSERRAT_30) && LV_FONT_MONTSERRAT_30
-  return &lv_font_montserrat_30;
-#elif defined(LV_FONT_MONTSERRAT_28) && LV_FONT_MONTSERRAT_28
-  return &lv_font_montserrat_28;
-#else
-  return LV_FONT_DEFAULT;
-#endif
-}
-
-static const lv_font_t* lvglFontBody() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicBody();
-#if defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
-  return &lv_font_montserrat_24;
-#elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
-  return &lv_font_montserrat_22;
-#elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
-  return &lv_font_montserrat_20;
-#else
-  return LV_FONT_DEFAULT;
-#endif
-}
-
-static const lv_font_t* lvglFontSmall() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicSmall();
-#if defined(LV_FONT_MONTSERRAT_18) && LV_FONT_MONTSERRAT_18
-  return &lv_font_montserrat_18;
-#elif defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
-  return &lv_font_montserrat_16;
-#else
-  return LV_FONT_DEFAULT;
-#endif
-}
-
-static const lv_font_t* lvglFontTiny() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminalTiny();
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicTiny();
-#if defined(LV_FONT_MONTSERRAT_14) && LV_FONT_MONTSERRAT_14
-  return &lv_font_montserrat_14;
-#else
-  return lvglFontSmall();
-#endif
-}
-
-static const lv_font_t* lvglFontMini() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicSmall();
-#if defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
-  return &lv_font_montserrat_16;
-#else
-  return lvglFontTiny();
-#endif
-}
-
-static const lv_font_t* lvglFontMono() {
-  return lvglFontTerminal();
-}
-
-static const lv_font_t* lvglFontMonoTiny() {
-  return lvglFontTerminalTiny();
-}
-
-static const lv_font_t* lvglFontScreenSaverBalloonText() {
-  if (lvglThemeIsToxicCandy()) return &scry_font_delius_unicase_18;
-  return &scry_font_space_mono_18;
-}
-
-static const lv_font_t* lvglFontScreenSaverFooterText() {
-  if (lvglThemeIsToxicCandy()) return &scry_font_delius_unicase_24;
-  return &scry_font_space_mono_24;
-}
-
-static const lv_font_t* lvglFontScreenSaverTail() {
-  if (lvglThemeIsToxicCandy()) return &scry_font_delius_unicase_16;
-  return &scry_font_space_mono_16;
-}
-
-static const lv_font_t* lvglFontInfoBody() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminalTiny();
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicSmall();
-#if defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
-  return &lv_font_montserrat_16;
-#elif defined(LV_FONT_MONTSERRAT_14) && LV_FONT_MONTSERRAT_14
-  return &lv_font_montserrat_14;
-#else
-  return lvglFontSmall();
-#endif
-}
-
-static const lv_font_t* lvglFontMeta() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicBody();
-#if defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
-  return &lv_font_montserrat_20;
-#else
-  return lvglFontSmall();
-#endif
-}
-
-static const lv_font_t* lvglFontRssNews() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicBody();
-#if defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
-  return &lv_font_montserrat_22;
-#elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
-  return &lv_font_montserrat_20;
-#elif defined(LV_FONT_MONTSERRAT_18) && LV_FONT_MONTSERRAT_18
-  return &lv_font_montserrat_18;
-#else
-  return lvglFontSmall();
-#endif
-}
-
-static const lv_font_t* lvglFontClock() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return &scry_font_space_mono_32;
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicClock();
-#if defined(LV_FONT_MONTSERRAT_38) && LV_FONT_MONTSERRAT_38
-  return &lv_font_montserrat_38;
-#elif defined(LV_FONT_MONTSERRAT_36) && LV_FONT_MONTSERRAT_36
-  return &lv_font_montserrat_36;
-#elif defined(LV_FONT_MONTSERRAT_32) && LV_FONT_MONTSERRAT_32
-  return &lv_font_montserrat_32;
-#elif defined(LV_FONT_MONTSERRAT_30) && LV_FONT_MONTSERRAT_30
-  return &lv_font_montserrat_30;
-#elif defined(LV_FONT_MONTSERRAT_28) && LV_FONT_MONTSERRAT_28
-  return &lv_font_montserrat_28;
-#elif defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
-  return &lv_font_montserrat_24;
-#elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
-  return &lv_font_montserrat_22;
-#else
-  return lvglFontMeta();
-#endif
-}
-
-static const lv_font_t* lvglFontBig() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicBig();
-#if defined(LV_FONT_MONTSERRAT_32) && LV_FONT_MONTSERRAT_32
-  return &lv_font_montserrat_32;
-#elif defined(LV_FONT_MONTSERRAT_30) && LV_FONT_MONTSERRAT_30
-  return &lv_font_montserrat_30;
-#else
-  return lvglFontTitle();
-#endif
-}
-
-static const lv_font_t* lvglNowPlayingTitleFont() {
-#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-  return &scry_font_montserrat_semibold_25;
-#elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
-  return &lv_font_montserrat_22;
-#elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
-  return &lv_font_montserrat_20;
-#else
-  return lvglFontMeta();
-#endif
-}
-
-static const lv_font_t* lvglNowPlayingBodyFont() {
-#if defined(LV_FONT_MONTSERRAT_18) && LV_FONT_MONTSERRAT_18
-  return &lv_font_montserrat_18;
-#elif defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
-  return &lv_font_montserrat_16;
-#elif defined(LV_FONT_MONTSERRAT_14) && LV_FONT_MONTSERRAT_14
-  return &lv_font_montserrat_14;
-#else
-  return lvglFontBody();
-#endif
-}
-
-static const lv_font_t* lvglNowPlayingArtistFont() {
-#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
-  return &scry_font_montserrat_medium_23;
-#elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
-  return &lv_font_montserrat_22;
-#elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
-  return &lv_font_montserrat_20;
-#else
-  return lvglFontMeta();
-#endif
-}
-
-static const lv_font_t* lvglNowPlayingMetaFont() {
-#if defined(LV_FONT_MONTSERRAT_16) && LV_FONT_MONTSERRAT_16
-  return &lv_font_montserrat_16;
-#elif defined(LV_FONT_MONTSERRAT_14) && LV_FONT_MONTSERRAT_14
-  return &lv_font_montserrat_14;
-#else
-  return lvglFontTiny();
-#endif
-}
-
-static const lv_font_t* lvglFontTemp() {
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) return lvglFontTerminal();
-  if (lvglThemeIsToxicCandy()) return lvglFontToxicTitle();
-#if defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
-  return &lv_font_montserrat_24;
-#elif defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
-  return &lv_font_montserrat_22;
-#elif defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
-  return &lv_font_montserrat_20;
-#else
-  return lvglFontTitle();
-#endif
-}
+static const lv_font_t* lvglNowPlayingTitleFont()  { return &scry_font_funnel_display_25; }
+static const lv_font_t* lvglNowPlayingBodyFont()   { return &scry_font_funnel_display_18; }
+static const lv_font_t* lvglNowPlayingArtistFont() { return &scry_font_funnel_display_23; }
+static const lv_font_t* lvglNowPlayingMetaFont()   { return &scry_font_funnel_display_16; }
 
 static lv_coord_t lvglClockLineSpaceForFont(const lv_font_t *font) {
   if (!font) return 2;
@@ -11017,48 +10999,13 @@ static lv_coord_t lvglClockLineSpaceForFont(const lv_font_t *font) {
 static uint8_t lvglCollectClockFonts(const lv_font_t **out, uint8_t cap) {
   if (!out || cap == 0) return 0;
   uint8_t n = 0;
-  if (lvglThemeIsCyberpunk() || lvglThemeIsTokyoTransit() || lvglThemeIsMinimalBrutalistMono()) {
-    out[n++] = &scry_font_space_mono_32;
-    if (n < cap) out[n++] = &scry_font_space_mono_28;
-    if (n < cap) out[n++] = &scry_font_space_mono_24;
-    if (n < cap) out[n++] = &scry_font_space_mono_20;
-    if (n < cap) out[n++] = &scry_font_space_mono_16;
-    if (n < cap) out[n++] = &scry_font_space_mono_12;
-    return n;
-  }
-  if (lvglThemeIsToxicCandy()) {
-    out[n++] = &scry_font_delius_unicase_28;
-    if (n < cap) out[n++] = &scry_font_delius_unicase_24;
-    if (n < cap) out[n++] = &scry_font_delius_unicase_20;
-    if (n < cap) out[n++] = &scry_font_delius_unicase_16;
-    if (n < cap) out[n++] = &scry_font_delius_unicase_12;
-    return n;
-  }
-#if defined(LV_FONT_MONTSERRAT_38) && LV_FONT_MONTSERRAT_38
-  out[n++] = &lv_font_montserrat_38;
-#endif
-#if defined(LV_FONT_MONTSERRAT_36) && LV_FONT_MONTSERRAT_36
-  if (n < cap) out[n++] = &lv_font_montserrat_36;
-#endif
-#if defined(LV_FONT_MONTSERRAT_32) && LV_FONT_MONTSERRAT_32
-  if (n < cap) out[n++] = &lv_font_montserrat_32;
-#endif
-#if defined(LV_FONT_MONTSERRAT_30) && LV_FONT_MONTSERRAT_30
-  if (n < cap) out[n++] = &lv_font_montserrat_30;
-#endif
-#if defined(LV_FONT_MONTSERRAT_28) && LV_FONT_MONTSERRAT_28
-  if (n < cap) out[n++] = &lv_font_montserrat_28;
-#endif
-#if defined(LV_FONT_MONTSERRAT_24) && LV_FONT_MONTSERRAT_24
-  if (n < cap) out[n++] = &lv_font_montserrat_24;
-#endif
-#if defined(LV_FONT_MONTSERRAT_22) && LV_FONT_MONTSERRAT_22
-  if (n < cap) out[n++] = &lv_font_montserrat_22;
-#endif
-#if defined(LV_FONT_MONTSERRAT_20) && LV_FONT_MONTSERRAT_20
-  if (n < cap) out[n++] = &lv_font_montserrat_20;
-#endif
-  if (n == 0) out[n++] = lvglFontMeta();
+  out[n++] = &scry_font_funnel_display_38;
+  if (n < cap) out[n++] = &scry_font_funnel_display_32;
+  if (n < cap) out[n++] = &scry_font_funnel_display_30;
+  if (n < cap) out[n++] = &scry_font_funnel_display_24;
+  if (n < cap) out[n++] = &scry_font_funnel_display_22;
+  if (n < cap) out[n++] = &scry_font_funnel_display_20;
+  if (n < cap) out[n++] = &scry_font_funnel_display_18;
   return n;
 }
 
@@ -11677,6 +11624,27 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
     lvglForceLabelVisible(d.sourceBadgeText);
   }
   if (d.sourceBadge) lv_obj_set_style_bg_color(d.sourceBadge, lv_color_hex(siteColorHex), LV_PART_MAIN);
+  // Show cached favicon image over text badge (if available)
+  if (d.sourceBadgeImg) {
+    const lv_img_dsc_t *fav = nullptr;
+    for (uint8_t i = 0; i < kFaviconCacheSlots; ++i) {
+      if (g_faviconCache[i].valid && strcmp(g_faviconCache[i].host, siteHost) == 0) {
+        fav = &g_faviconCache[i].imgDsc;
+        break;
+      }
+    }
+    if (fav) {
+      lv_img_set_src(d.sourceBadgeImg, fav);
+      lv_obj_clear_flag(d.sourceBadgeImg, LV_OBJ_FLAG_HIDDEN);
+      if (d.sourceBadgeText) lv_obj_add_flag(d.sourceBadgeText, LV_OBJ_FLAG_HIDDEN);
+      // Hide badge background — favicon fills the space
+      if (d.sourceBadge) lv_obj_set_style_bg_opa(d.sourceBadge, LV_OPA_TRANSP, 0);
+    } else {
+      lv_obj_add_flag(d.sourceBadgeImg, LV_OBJ_FLAG_HIDDEN);
+      if (d.sourceBadgeText) lv_obj_clear_flag(d.sourceBadgeText, LV_OBJ_FLAG_HIDDEN);
+      if (d.sourceBadge) lv_obj_set_style_bg_opa(d.sourceBadge, LV_OPA_COVER, 0);
+    }
+  }
   if (d.status) { lv_label_set_text(d.status, status); lvglForceLabelVisible(d.status); }
   if (d.meta)   { lv_label_set_text(d.meta, meta);     lvglForceLabelVisible(d.meta); }
 
@@ -12301,25 +12269,17 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   d.header = lvglCreatePanel(d.card, cardW, kDeckHeaderH, 0, 0, kHeaderBlue, kCardRadius);
   d.headerFill = lvglCreatePanel(d.header, cardW, 10, 0, kDeckHeaderH - 10, kHeaderBlue, 0);
 
+  // Right sidebar: favicon (top) + 3 buttons stacked vertically
   const int16_t btnW = 44;
   const int16_t btnH = 26;
-  const int16_t btnGap = 6;
-  const int16_t qrBtnX      = cardW - btnW - 8;
-  const int16_t qrBtnY      = cardH - btnH - 8;
-  const int16_t refreshBtnX = qrBtnX - btnW - btnGap;
-  const int16_t nextFeedBtnX = refreshBtnX - btnW - btnGap;
-
-  d.nextFeedBtn = lvglCreateDeckButton(d.card, btnW, btnH, nextFeedBtnX, qrBtnY,
-                                        0x7B63FF, kButtonRadius, "NXT", 0xF7F2FF, d.nextFeedBtnText);
-  d.refreshBtn  = lvglCreateDeckButton(d.card, btnW, btnH, refreshBtnX, qrBtnY,
-                                        0x6FD8FF, kButtonRadius, "SKIP", 0x113063, d.refreshBtnText);
-  d.qrBtn       = lvglCreateDeckButton(d.card, btnW, btnH, qrBtnX, qrBtnY,
-                                        0xFFD34D, kButtonRadius, "QR", 0x1E2F63, d.qrBtnText);
+  const int16_t sidebarX   = cardW - btnW - 5;
+  const int16_t sidebarTop = kDeckHeaderH + 4;
+  const int16_t sidebarGap = 4;
 
   d.title = lv_label_create(d.header);
   lv_obj_set_style_text_font(d.title, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(d.title, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_align(d.title, LV_ALIGN_LEFT_MID, 12, -1);
+  lv_obj_align(d.title, LV_ALIGN_LEFT_MID, 12, 2);
   lv_label_set_text(d.title, isWiki ? "ScryBar Wiki" : "ScryBar RSS");
   lvglForceLabelVisible(d.title);
 
@@ -12331,57 +12291,62 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   d.status = lv_label_create(d.header);
   lv_obj_set_style_text_font(d.status, lvglFontTiny(), 0);
   lv_obj_set_style_text_color(d.status, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_align(d.status, LV_ALIGN_RIGHT_MID, -5, 0);
+  lv_obj_align(d.status, LV_ALIGN_RIGHT_MID, -5, 2);
   lv_label_set_text(d.status, "SYNC");
   lvglForceLabelVisible(d.status);
 
-  const int16_t leftPaneX      = 8;
-  const int16_t leftPaneW      = cardW - (leftPaneX * 2);
-  const int16_t sourceRowY     = kDeckHeaderH + 6;
-  const int16_t sourceTextY    = kDeckHeaderH + 15;
-  const int16_t sourceGap      = 2;
+  // ── Right sidebar: favicon badge at top, then 3 buttons ──
   const int16_t sourceBadgeSize = 35;
-  const int16_t sourceRightEdge = cardW - 5;
-  const int16_t sourceIconX =
-      ((sourceRightEdge - sourceBadgeSize) < leftPaneX) ? leftPaneX : (sourceRightEdge - sourceBadgeSize);
-  const int16_t sourceSiteX = leftPaneX;
-  const int16_t sourceTextTotalW = sourceIconX - sourceSiteX - sourceGap;
-  int16_t sourceSiteW = sourceTextTotalW;
-  if (sourceSiteW < 40) sourceSiteW = 40;
+  int16_t sideY = sidebarTop;
 
-  d.sourceBadge = lvglCreatePanel(d.card, sourceBadgeSize, sourceBadgeSize,
-                                   sourceIconX, sourceRowY, lv_color_hex(0x2B468E), kBadgeRadius);
-
+  d.sourceBadge = lvglCreatePanel(d.card, btnW, sourceBadgeSize,
+                                   sidebarX, sideY, lv_color_hex(0x2B468E), kBadgeRadius);
   d.sourceBadgeText = lv_label_create(d.sourceBadge);
   lv_obj_set_style_text_font(d.sourceBadgeText, lvglFontTiny(), 0);
   lv_obj_set_style_text_color(d.sourceBadgeText, lv_color_hex(0xFFFFFF), 0);
   lv_label_set_text(d.sourceBadgeText, isWiki ? "W" : "WEB");
   lv_obj_center(d.sourceBadgeText);
   lvglForceLabelVisible(d.sourceBadgeText);
-  // Hide the source badge on Wiki view — it's redundant (always "W")
-  if (isWiki) {
-    lv_obj_add_flag(d.sourceBadge, LV_OBJ_FLAG_HIDDEN);
-  }
+  d.sourceBadgeImg = lv_img_create(d.sourceBadge);
+  lv_obj_set_size(d.sourceBadgeImg, kFaviconSize, kFaviconSize);
+  lv_obj_center(d.sourceBadgeImg);
+  lv_obj_add_flag(d.sourceBadgeImg, LV_OBJ_FLAG_HIDDEN);
+  if (isWiki) lv_obj_add_flag(d.sourceBadge, LV_OBJ_FLAG_HIDDEN);
+  sideY += sourceBadgeSize + sidebarGap;
+
+  d.nextFeedBtn = lvglCreateDeckButton(d.card, btnW, btnH, sidebarX, sideY,
+                                        0x7B63FF, kButtonRadius, "NXT", 0xF7F2FF, d.nextFeedBtnText);
+  sideY += btnH + sidebarGap;
+  d.refreshBtn  = lvglCreateDeckButton(d.card, btnW, btnH, sidebarX, sideY,
+                                        0x6FD8FF, kButtonRadius, "SKIP", 0x113063, d.refreshBtnText);
+  sideY += btnH + sidebarGap;
+  d.qrBtn       = lvglCreateDeckButton(d.card, btnW, btnH, sidebarX, sideY,
+                                        0xFFD34D, kButtonRadius, "QR", 0x1E2F63, d.qrBtnText);
+
+  // ── Left pane: source label + news text (full height) ──
+  const int16_t leftPaneX = 8;
+  const int16_t leftPaneW = sidebarX - leftPaneX - 6;  // gap before sidebar
+  const int16_t sourceTextY = kDeckHeaderH + 6;
 
   d.sourceSite = lv_label_create(d.card);
   lv_obj_set_style_text_font(d.sourceSite, lvglFontMeta(), 0);
   lv_obj_set_style_text_color(d.sourceSite, lv_color_hex(0xEAF0FF), 0);
   lv_label_set_long_mode(d.sourceSite, LV_LABEL_LONG_DOT);
-  lv_obj_set_size(d.sourceSite, sourceSiteW, 26);
-  lv_obj_set_pos(d.sourceSite, sourceSiteX, sourceTextY);
+  lv_obj_set_size(d.sourceSite, leftPaneW, 26);
+  lv_obj_set_pos(d.sourceSite, leftPaneX, sourceTextY);
   lv_obj_set_style_text_align(d.sourceSite, LV_TEXT_ALIGN_LEFT, 0);
   lv_label_set_text(d.sourceSite, isWiki ? "Wiki  --/-- --:--" : "RSS  --/-- --:--");
   lvglForceLabelVisible(d.sourceSite);
+
+  const int16_t newsY = sourceTextY + 26;
+  int16_t newsH = cardH - newsY - 4;
+  if (newsH < 44) newsH = 44;
 
   d.news = lv_label_create(d.card);
   lv_obj_set_style_text_font(d.news, lvglFontRssNews(), 0);
   lv_obj_set_style_text_color(d.news, lv_color_hex(0xEAF0FF), 0);
   lv_obj_set_style_text_line_space(d.news, 3, 0);
-  lv_label_set_long_mode(d.news, LV_LABEL_LONG_WRAP);
-  const int16_t newsY      = sourceRowY + sourceBadgeSize - 1;
-  const int16_t newsBottom = qrBtnY - 14;
-  int16_t newsH = newsBottom - newsY;
-  if (newsH < 44) newsH = 44;
+  lv_label_set_long_mode(d.news, LV_LABEL_LONG_DOT);
   lv_obj_set_size(d.news, leftPaneW, newsH);
   lv_obj_set_pos(d.news, leftPaneX, newsY);
   lv_obj_set_style_text_align(d.news, LV_TEXT_ALIGN_LEFT, 0);
@@ -12393,7 +12358,7 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   lv_obj_set_style_text_color(d.meta, lv_color_hex(0xAFC2F5), 0);
   lv_label_set_long_mode(d.meta, LV_LABEL_LONG_DOT);
   lv_obj_set_size(d.meta, cardW - 316, 22);
-  lv_obj_set_pos(d.meta, 188, 4);
+  lv_obj_align(d.meta, LV_ALIGN_CENTER, 0, 1);
   lv_label_set_text(d.meta, "Fetch --/-- --:--");
   lvglForceLabelVisible(d.meta);
 
@@ -12471,17 +12436,17 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   ui.title = lv_label_create(ui.header);
   lv_obj_set_style_text_font(ui.title, lvglNowPlayingMetaFont(), 0);
   lv_obj_set_style_text_color(ui.title, lv_color_hex(0xFFF5F8), 0);
-  lv_obj_align(ui.title, LV_ALIGN_LEFT_MID, 8, -1);
+  lv_obj_align(ui.title, LV_ALIGN_LEFT_MID, 8, 2);
   lv_label_set_text(ui.title, "Now Playing");
   lvglForceLabelVisible(ui.title);
 
   ui.statusDot = lvglCreatePanel(ui.header, 8, 8, 0, 0, lv_color_hex(0x7CFF9D), LV_RADIUS_CIRCLE);
-  lv_obj_align(ui.statusDot, LV_ALIGN_RIGHT_MID, -10, -1);
+  lv_obj_align(ui.statusDot, LV_ALIGN_RIGHT_MID, -10, 2);
 
   ui.status = lv_label_create(ui.header);
   lv_obj_set_style_text_font(ui.status, lvglNowPlayingMetaFont(), 0);
   lv_obj_set_style_text_color(ui.status, lv_color_hex(0xB8F7D4), 0);
-  lv_obj_align(ui.status, LV_ALIGN_RIGHT_MID, -26, -1);
+  lv_obj_align(ui.status, LV_ALIGN_RIGHT_MID, -26, 2);
   lv_label_set_text(ui.status, "IN SYNC");
   lvglForceLabelVisible(ui.status);
 
@@ -12489,7 +12454,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_style_text_font(ui.headerTime, lvglNowPlayingMetaFont(), 0);
   lv_obj_set_style_text_color(ui.headerTime, lv_color_hex(0xFFF5F8), 0);
   lv_obj_set_style_text_opa(ui.headerTime, LV_OPA_70, 0);
-  lv_obj_align(ui.headerTime, LV_ALIGN_RIGHT_MID, -100, -1);
+  lv_obj_align(ui.headerTime, LV_ALIGN_RIGHT_MID, -100, 2);
   lv_label_set_text(ui.headerTime, "");
   lvglForceLabelVisible(ui.headerTime);
 
@@ -12801,9 +12766,7 @@ static void initLvglInfoPanel(lv_obj_t* scr) {
   lv_obj_set_style_bg_grad_dir(g_infoUi.header, LV_GRAD_DIR_NONE, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_infoUi.header, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_radius(g_infoUi.header, kInfoRadius, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_infoUi.header, lv_color_hex(theme.infoHeaderBorder), LV_PART_MAIN);
-  lv_obj_set_style_border_opa(g_infoUi.header, LV_OPA_60, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_infoUi.header, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_infoUi.header, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_infoUi.header, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_infoUi.header, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(g_infoUi.header, LV_SCROLLBAR_MODE_OFF);
@@ -12823,7 +12786,7 @@ static void initLvglInfoPanel(lv_obj_t* scr) {
   lv_obj_set_style_text_color(g_infoUi.title, lv_color_hex(theme.infoText), 0);
   lv_label_set_long_mode(g_infoUi.title, LV_LABEL_LONG_CLIP);
   lv_obj_set_width(g_infoUi.title, cW * 3 / 5);
-  lv_obj_align(g_infoUi.title, LV_ALIGN_LEFT_MID, 12, -1);
+  lv_obj_align(g_infoUi.title, LV_ALIGN_LEFT_MID, 12, 2);
   lv_label_set_text(g_infoUi.title, "ScryBar Stats  " FW_BUILD_TAG);
   lvglForceLabelVisible(g_infoUi.title);
 
@@ -12832,7 +12795,7 @@ static void initLvglInfoPanel(lv_obj_t* scr) {
   lv_obj_set_style_text_color(g_infoUi.endpoint, lv_color_hex(theme.infoText), 0);
   lv_label_set_long_mode(g_infoUi.endpoint, LV_LABEL_LONG_DOT);
   lv_obj_set_size(g_infoUi.endpoint, (cW / 2) - 16, 20);
-  lv_obj_align(g_infoUi.endpoint, LV_ALIGN_RIGHT_MID, -10, -1);
+  lv_obj_align(g_infoUi.endpoint, LV_ALIGN_RIGHT_MID, -10, 2);
   lv_obj_set_style_text_align(g_infoUi.endpoint, LV_TEXT_ALIGN_RIGHT, 0);
   lv_label_set_text(g_infoUi.endpoint, "--:8080");
   lvglForceLabelVisible(g_infoUi.endpoint);
@@ -12992,7 +12955,7 @@ static void initLvglClockPanel(lv_obj_t* homeRoot) {
   lv_label_set_long_mode(g_clockUi.date, LV_LABEL_LONG_DOT);
   const int16_t clockDateW = (clockWiFiStartX > 28) ? (clockWiFiStartX - 20) : (clockBlockW - 24);
   lv_obj_set_width(g_clockUi.date, clockDateW);
-  lv_obj_align(g_clockUi.date, LV_ALIGN_LEFT_MID, 12, -1);
+  lv_obj_align(g_clockUi.date, LV_ALIGN_LEFT_MID, 12, 2);
   lv_label_set_text(g_clockUi.date, "...");
   lvglForceLabelVisible(g_clockUi.date);
 
@@ -13295,7 +13258,7 @@ static void initLvglWeatherPanel(lv_obj_t* homeRoot) {
   lv_obj_set_style_text_color(g_weatherUi.city, lv_color_hex(0xFFFFFF), 0);
   lv_obj_set_width(g_weatherUi.city, weatherCardW - 112);
   lv_label_set_long_mode(g_weatherUi.city, LV_LABEL_LONG_DOT);
-  lv_obj_align(g_weatherUi.city, LV_ALIGN_LEFT_MID, 12, -1);
+  lv_obj_align(g_weatherUi.city, LV_ALIGN_LEFT_MID, 12, 2);
   lv_label_set_text(g_weatherUi.city, "Luino");
   lvglForceLabelVisible(g_weatherUi.city);
 
@@ -13303,7 +13266,7 @@ static void initLvglWeatherPanel(lv_obj_t* homeRoot) {
   lv_obj_set_style_text_font(g_weatherUi.sun, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_weatherUi.sun, lv_color_hex(0xFFFFFF), 0);
   lv_obj_set_style_text_opa(g_weatherUi.sun, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_align(g_weatherUi.sun, LV_ALIGN_RIGHT_MID, -10, 0);
+  lv_obj_align(g_weatherUi.sun, LV_ALIGN_RIGHT_MID, -10, 2);
   lv_label_set_text(g_weatherUi.sun, "--:-- | --:--");
   lvglForceLabelVisible(g_weatherUi.sun);
 
