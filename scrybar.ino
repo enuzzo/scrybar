@@ -3515,6 +3515,83 @@ static uint8_t runtimeRssConfiguredFeedCount() {
   return runtimeRssConfiguredFeedCountNoEnsure();
 }
 
+// ---------- NVS load helpers (M10 extraction) ----------
+
+/// Load RSS feed slots from NVS (legacy single-URL key + multi-slot loop).
+static void nvsLoadRssFeeds(Preferences &prefs, bool &loadedAny) {
+  // Legacy key compatibility (single feed URL).
+  if (prefs.isKey("rss_url")) {
+    const String rss = prefs.getString("rss_url", "");
+    if (rss.length() > 0 && startsWithHttp(rss.c_str())) {
+      copyStringSafe(g_runtimeNetConfig.rssFeeds[0].url, sizeof(g_runtimeNetConfig.rssFeeds[0].url), rss.c_str());
+      loadedAny = true;
+    }
+  }
+  for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
+    char key[16];
+    buildRssNvsKey(key, sizeof(key), i, "name");
+    if (prefs.isKey(key)) {
+      const String name = prefs.getString(key, "");
+      if (name.length() > 0) {
+        copyStringSafe(g_runtimeNetConfig.rssFeeds[i].name, sizeof(g_runtimeNetConfig.rssFeeds[i].name), name.c_str());
+      }
+      loadedAny = true;
+    }
+    buildRssNvsKey(key, sizeof(key), i, "url");
+    if (prefs.isKey(key)) {
+      const String url = prefs.getString(key, "");
+      if (url.length() > 0 && startsWithHttp(url.c_str())) {
+        copyStringSafe(g_runtimeNetConfig.rssFeeds[i].url, sizeof(g_runtimeNetConfig.rssFeeds[i].url), url.c_str());
+      } else {
+        g_runtimeNetConfig.rssFeeds[i].url[0] = '\0';
+      }
+      loadedAny = true;
+    }
+    buildRssNvsKey(key, sizeof(key), i, "max");
+    if (prefs.isKey(key)) {
+      const uint8_t maxItems = prefs.getUChar(key, RSS_DEFAULT_FEED_ITEMS);
+      g_runtimeNetConfig.rssFeeds[i].maxItems = clampRssFeedMaxItems(maxItems);
+      loadedAny = true;
+    }
+  }
+}
+
+/// Load system language from NVS with legacy migration (genz→bellazio, bellazi→bellazio).
+static void nvsLoadLanguageConfig(Preferences &prefs, bool &langNeedsPersist) {
+  if (!prefs.isKey("wc_lang")) return;
+  String lang = prefs.getString("wc_lang", WORD_CLOCK_LANG_DEFAULT);
+  lang.trim();
+  lang.toLowerCase();
+  String langLower(lang);
+  langLower.toLowerCase();
+  const bool legacyAlias =
+      (langLower.length() == 4) &&
+      (langLower.charAt(0) == 'g') &&
+      (langLower.charAt(1) == 'e') &&
+      (langLower.charAt(2) == 'n') &&
+      (langLower.charAt(3) == 'z');
+  if (legacyAlias) {
+    lang = "bellazio";
+    langNeedsPersist = true;
+    Serial.println("[CFG][NVS] wc_lang legacy alias -> 'bellazio'");
+  }
+  if (lang.equalsIgnoreCase("bellazi")) {
+    lang = "bellazio";
+    langNeedsPersist = true;
+    Serial.println("[CFG][NVS] wc_lang legacy 'bellazi' -> 'bellazio'");
+  }
+  bool valid = isValidLangCode(lang);
+  if (valid && lang.length() > 0 && lang.length() < sizeof(g_wordClockLang)) {
+    strncpy(g_wordClockLang, lang.c_str(), sizeof(g_wordClockLang) - 1);
+    g_wordClockLang[sizeof(g_wordClockLang) - 1] = '\0';
+  } else if (lang.length() > 0) {
+    Serial.printf("[CFG][NVS] wc_lang invalid '%s', fallback '%s'\n", lang.c_str(), WORD_CLOCK_LANG_DEFAULT);
+    copyStringSafe(g_wordClockLang, sizeof(g_wordClockLang), WORD_CLOCK_LANG_DEFAULT);
+  }
+}
+
+// ---------- Main NVS loader ----------
+
 static void loadRuntimeNetConfigFromNvs() {
   if (g_runtimeNetConfigNvsLoaded) return;
   g_runtimeNetConfigNvsLoaded = true;
@@ -3549,45 +3626,7 @@ static void loadRuntimeNetConfigFromNvs() {
     }
   }
 
-  // Legacy key compatibility (single feed URL).
-  if (prefs.isKey("rss_url")) {
-    const String rss = prefs.getString("rss_url", "");
-    if (rss.length() > 0 && startsWithHttp(rss.c_str())) {
-      copyStringSafe(g_runtimeNetConfig.rssFeeds[0].url, sizeof(g_runtimeNetConfig.rssFeeds[0].url), rss.c_str());
-      loadedAny = true;
-    }
-  }
-
-  for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
-    char key[16];
-
-    buildRssNvsKey(key, sizeof(key), i, "name");
-    if (prefs.isKey(key)) {
-      const String name = prefs.getString(key, "");
-      if (name.length() > 0) {
-        copyStringSafe(g_runtimeNetConfig.rssFeeds[i].name, sizeof(g_runtimeNetConfig.rssFeeds[i].name), name.c_str());
-      }
-      loadedAny = true;
-    }
-
-    buildRssNvsKey(key, sizeof(key), i, "url");
-    if (prefs.isKey(key)) {
-      const String url = prefs.getString(key, "");
-      if (url.length() > 0 && startsWithHttp(url.c_str())) {
-        copyStringSafe(g_runtimeNetConfig.rssFeeds[i].url, sizeof(g_runtimeNetConfig.rssFeeds[i].url), url.c_str());
-      } else {
-        g_runtimeNetConfig.rssFeeds[i].url[0] = '\0';
-      }
-      loadedAny = true;
-    }
-
-    buildRssNvsKey(key, sizeof(key), i, "max");
-    if (prefs.isKey(key)) {
-      const uint8_t maxItems = prefs.getUChar(key, RSS_DEFAULT_FEED_ITEMS);
-      g_runtimeNetConfig.rssFeeds[i].maxItems = clampRssFeedMaxItems(maxItems);
-      loadedAny = true;
-    }
-  }
+  nvsLoadRssFeeds(prefs, loadedAny);
 
   if (prefs.isKey("logo_url")) {
     const String logo = prefs.getString("logo_url", "");
@@ -3614,39 +3653,7 @@ static void loadRuntimeNetConfigFromNvs() {
     }
   }
   loadRuntimeWiFiCredentialsFromPrefs(prefs, loadedAny);
-  if (prefs.isKey("wc_lang")) {
-    String lang = prefs.getString("wc_lang", WORD_CLOCK_LANG_DEFAULT);
-    lang.trim();
-    lang.toLowerCase();
-    String langLower(lang);
-    langLower.toLowerCase();
-    const bool legacyAlias =
-        (langLower.length() == 4) &&
-        (langLower.charAt(0) == 'g') &&
-        (langLower.charAt(1) == 'e') &&
-        (langLower.charAt(2) == 'n') &&
-        (langLower.charAt(3) == 'z');
-    if (legacyAlias) {
-      // Backward compatibility: old alias before rename to Bellazio.
-      lang = "bellazio";
-      langNeedsPersist = true;
-      Serial.println("[CFG][NVS] wc_lang legacy alias -> 'bellazio'");
-    }
-    if (lang.equalsIgnoreCase("bellazi")) {
-      // Backward compatibility: old truncated value caused by 8-byte lang buffer.
-      lang = "bellazio";
-      langNeedsPersist = true;
-      Serial.println("[CFG][NVS] wc_lang legacy 'bellazi' -> 'bellazio'");
-    }
-    bool valid = isValidLangCode(lang);
-    if (valid && lang.length() > 0 && lang.length() < sizeof(g_wordClockLang)) {
-      strncpy(g_wordClockLang, lang.c_str(), sizeof(g_wordClockLang) - 1);
-      g_wordClockLang[sizeof(g_wordClockLang) - 1] = '\0';
-    } else if (lang.length() > 0) {
-      Serial.printf("[CFG][NVS] wc_lang invalid '%s', fallback '%s'\n", lang.c_str(), WORD_CLOCK_LANG_DEFAULT);
-      copyStringSafe(g_wordClockLang, sizeof(g_wordClockLang), WORD_CLOCK_LANG_DEFAULT);
-    }
-  }
+  nvsLoadLanguageConfig(prefs, langNeedsPersist);
   if (prefs.isKey("ui_theme")) {
     const String theme = prefs.getString("ui_theme", "");
     if (theme.length() > 0 && theme.length() < sizeof(g_runtimeNetConfig.uiTheme)) {
@@ -13495,6 +13502,110 @@ static bool initLvglUi() {
   return true;
 }
 
+// ---------- Weather display helpers (M10 extraction) ----------
+
+static constexpr int kWmoFallbackCode = 2;  // "Partly cloudy" — generic icon when data unavailable
+
+/// Show current-weather icon (bitmap preferred) or glyph fallback.
+static void lvglShowWeatherMainIcon(int code, bool isDay, const char* glyphFallback) {
+  const lv_img_dsc_t *iconDsc = weatherImageFromCode(code, isDay);
+  if (iconDsc && g_weatherUi.icon) {
+    lv_img_set_src(g_weatherUi.icon, iconDsc);
+    lv_obj_clear_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
+    if (g_weatherUi.glyph) lv_obj_add_flag(g_weatherUi.glyph, LV_OBJ_FLAG_HIDDEN);
+  } else if (g_weatherUi.glyph) {
+    if (g_weatherUi.icon) lv_obj_add_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(g_weatherUi.glyph, glyphFallback);
+    lvglForceLabelVisible(g_weatherUi.glyph);
+  }
+}
+
+/// Show forecast icon (bitmap only, no glyph fallback).
+static void lvglShowWeatherForecastIcon(int code, bool isDay) {
+  if (!g_weatherUi.forecastIcon) return;
+  const lv_img_dsc_t *fIconDsc = weatherForecastImageFromCode(code, isDay);
+  if (fIconDsc) {
+    lv_img_set_src(g_weatherUi.forecastIcon, fIconDsc);
+    lv_obj_clear_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_obj_add_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+/// Set all weather labels to offline/placeholder state.
+static void lvglSetWeatherOfflineLabels(const char* descText, const char* glyphFallback,
+                                        uint32_t glyphColor, bool setGlyphColor) {
+  lv_label_set_text(g_weatherUi.temp, "--\xC2\xB0, --%");
+  lvglForceLabelVisible(g_weatherUi.temp);
+  lv_label_set_text(g_weatherUi.desc, descText);
+  lvglForceLabelVisible(g_weatherUi.desc);
+  lv_label_set_text(g_weatherUi.humidity, activeUiStrings()->windNa);
+  lvglForceLabelVisible(g_weatherUi.humidity);
+  lv_label_set_text(g_weatherUi.sun, "--:-- / --:--");
+  lvglForceLabelVisible(g_weatherUi.sun);
+  lv_label_set_text(g_weatherUi.forecastNow, activeUiStrings()->forecastNa);
+  lvglForceLabelVisible(g_weatherUi.forecastNow);
+  lvglShowWeatherMainIcon(kWmoFallbackCode, true, glyphFallback);
+  lvglShowWeatherForecastIcon(kWmoFallbackCode, true);
+  lv_obj_add_flag(g_weatherUi.forecastTomorrow, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_flag(g_weatherUi.wind, LV_OBJ_FLAG_HIDDEN);
+  if (setGlyphColor && g_weatherUi.glyph)
+    lv_obj_set_style_text_color(g_weatherUi.glyph, lv_color_hex(glyphColor), 0);
+}
+
+/// Update weather widgets on HOME page (live data or offline placeholders).
+static void lvglUpdateWeatherDisplay(uint32_t weatherGlyphOnline, uint32_t weatherGlyphOffline) {
+#if TEST_WIFI
+  if (g_weather.valid) {
+    char temp[24];
+    snprintf(temp, sizeof(temp), "%d%s, %d%%", (int)lroundf(g_weather.tempC), utf8Degree(), g_weather.humidity);
+    lv_label_set_text(g_weatherUi.temp, temp);
+    lvglForceLabelVisible(g_weatherUi.temp);
+
+    lvglShowWeatherMainIcon(g_weather.weatherCode, g_weather.isDay,
+                            weatherGlyphText(g_weather.weatherCode, g_weather.isDay));
+    lv_label_set_text(g_weatherUi.desc, weatherCodeUiLabel(g_weather.weatherCode));
+    lvglForceLabelVisible(g_weatherUi.desc);
+
+    char wind[28];
+    snprintf(wind, sizeof(wind), activeUiStrings()->windFmt, g_weather.windKmh);
+    lv_label_set_text(g_weatherUi.humidity, wind);
+    lvglForceLabelVisible(g_weatherUi.humidity);
+
+    char sun[40];
+    snprintf(sun, sizeof(sun), "%s / %s", g_weather.sunrise, g_weather.sunset);
+    lv_label_set_text(g_weatherUi.sun, sun);
+    lvglForceLabelVisible(g_weatherUi.sun);
+
+    const int fIdx = g_weather.nextValid[1] ? 1 : (g_weather.nextValid[0] ? 0 : -1);
+    const int fCode = (fIdx >= 0) ? g_weather.nextCode[fIdx] : g_weather.weatherCode;
+    lvglShowWeatherForecastIcon(fCode, g_weather.isDay);
+
+    char forecast[64];
+    if (fIdx == 1) {
+      snprintf(forecast, sizeof(forecast), activeUiStrings()->forecast3h, weatherCodeShort(fCode));
+    } else if (fIdx == 0) {
+      snprintf(forecast, sizeof(forecast), activeUiStrings()->forecastNow, weatherCodeShort(fCode));
+    } else {
+      snprintf(forecast, sizeof(forecast), "%s", activeUiStrings()->forecastNa);
+    }
+    lv_label_set_text(g_weatherUi.forecastNow, forecast);
+    lvglForceLabelVisible(g_weatherUi.forecastNow);
+
+    lv_obj_add_flag(g_weatherUi.forecastTomorrow, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_weatherUi.wind, LV_OBJ_FLAG_HIDDEN);
+    if (g_weatherUi.glyph) lv_obj_set_style_text_color(g_weatherUi.glyph, lv_color_hex(weatherGlyphOnline), 0);
+  } else {
+    lvglSetWeatherOfflineLabels(activeUiStrings()->weatherOffline, LV_SYMBOL_REFRESH,
+                                weatherGlyphOffline, true);
+  }
+#else
+  lvglSetWeatherOfflineLabels(activeUiStrings()->wifiOff, LV_SYMBOL_WIFI, 0, false);
+#endif
+}
+
+// ---------- Main UI update orchestrator ----------
+
 static void updateLvglUi(bool force) {
   if (!g_lvglReady || !g_clock.ntpSynced) return;
 #if SCREENSAVER_ENABLED
@@ -13506,11 +13617,6 @@ static void updateLvglUi(bool force) {
   const uint32_t weatherSecondary = lvglResolvedWeatherSecondary(theme, weatherBg, weatherPrimary);
   const uint32_t weatherGlyphOnline = lvglResolvedWeatherGlyphOnline(theme, weatherBg, weatherPrimary);
   const uint32_t weatherGlyphOffline = lvglResolvedWeatherGlyphOffline(theme, weatherBg, weatherSecondary);
-  (void)weatherBg;
-  (void)weatherPrimary;
-  (void)weatherSecondary;
-  (void)weatherGlyphOnline;
-  (void)weatherGlyphOffline;
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo, 50)) return;
   const int dateKey = ((timeinfo.tm_year + 1900) * 10000) + ((timeinfo.tm_mon + 1) * 100) + timeinfo.tm_mday;
@@ -13570,133 +13676,7 @@ static void updateLvglUi(bool force) {
   lvglUpdateCityTicker(WEATHER_CITY_LABEL, force);
 #endif
 
-#if TEST_WIFI
-  if (g_weather.valid) {
-    char temp[24];
-    snprintf(temp, sizeof(temp), "%d%s, %d%%", (int)lroundf(g_weather.tempC), utf8Degree(), g_weather.humidity);
-    lv_label_set_text(g_weatherUi.temp, temp);
-    lvglForceLabelVisible(g_weatherUi.temp);
-
-    const lv_img_dsc_t *iconDsc = weatherImageFromCode(g_weather.weatherCode, g_weather.isDay);
-    if (iconDsc && g_weatherUi.icon) {
-      lv_img_set_src(g_weatherUi.icon, iconDsc);
-      lv_obj_clear_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
-      if (g_weatherUi.glyph) lv_obj_add_flag(g_weatherUi.glyph, LV_OBJ_FLAG_HIDDEN);
-    } else if (g_weatherUi.glyph) {
-      if (g_weatherUi.icon) lv_obj_add_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
-      lv_label_set_text(g_weatherUi.glyph, weatherGlyphText(g_weather.weatherCode, g_weather.isDay));
-      lvglForceLabelVisible(g_weatherUi.glyph);
-    }
-    lv_label_set_text(g_weatherUi.desc, weatherCodeUiLabel(g_weather.weatherCode));
-    lvglForceLabelVisible(g_weatherUi.desc);
-
-    char wind[28];
-    snprintf(wind, sizeof(wind), activeUiStrings()->windFmt, g_weather.windKmh);
-    lv_label_set_text(g_weatherUi.humidity, wind);
-    lvglForceLabelVisible(g_weatherUi.humidity);
-
-    char sun[40];
-    snprintf(sun, sizeof(sun), "%s / %s", g_weather.sunrise, g_weather.sunset);
-    lv_label_set_text(g_weatherUi.sun, sun);
-    lvglForceLabelVisible(g_weatherUi.sun);
-
-    const int fIdx = g_weather.nextValid[1] ? 1 : (g_weather.nextValid[0] ? 0 : -1);
-    const int fCode = (fIdx >= 0) ? g_weather.nextCode[fIdx] : g_weather.weatherCode;
-    const bool fIsDay = g_weather.isDay;
-    const lv_img_dsc_t *fIconDsc = weatherForecastImageFromCode(fCode, fIsDay);
-    if (g_weatherUi.forecastIcon) {
-      if (fIconDsc) {
-        lv_img_set_src(g_weatherUi.forecastIcon, fIconDsc);
-        lv_obj_clear_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
-      } else {
-        lv_obj_add_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
-      }
-    }
-
-    char forecast[64];
-    if (fIdx == 1) {
-      snprintf(forecast, sizeof(forecast), activeUiStrings()->forecast3h, weatherCodeShort(fCode));
-    } else if (fIdx == 0) {
-      snprintf(forecast, sizeof(forecast), activeUiStrings()->forecastNow, weatherCodeShort(fCode));
-    } else {
-      snprintf(forecast, sizeof(forecast), "%s", activeUiStrings()->forecastNa);
-    }
-    lv_label_set_text(g_weatherUi.forecastNow, forecast);
-    lvglForceLabelVisible(g_weatherUi.forecastNow);
-
-    lv_obj_add_flag(g_weatherUi.forecastTomorrow, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(g_weatherUi.wind, LV_OBJ_FLAG_HIDDEN);
-    if (g_weatherUi.glyph) lv_obj_set_style_text_color(g_weatherUi.glyph, lv_color_hex(weatherGlyphOnline), 0);
-  } else {
-    lv_label_set_text(g_weatherUi.temp, "--\xC2\xB0, --%");
-    lvglForceLabelVisible(g_weatherUi.temp);
-    lv_label_set_text(g_weatherUi.desc, activeUiStrings()->weatherOffline);
-    lvglForceLabelVisible(g_weatherUi.desc);
-    lv_label_set_text(g_weatherUi.humidity, activeUiStrings()->windNa);
-    lvglForceLabelVisible(g_weatherUi.humidity);
-    lv_label_set_text(g_weatherUi.sun, "--:-- / --:--");
-    lvglForceLabelVisible(g_weatherUi.sun);
-
-    lv_label_set_text(g_weatherUi.forecastNow, activeUiStrings()->forecastNa);
-    lvglForceLabelVisible(g_weatherUi.forecastNow);
-
-    const lv_img_dsc_t *iconDsc = weatherImageFromCode(2, true);
-    if (iconDsc && g_weatherUi.icon) {
-      lv_img_set_src(g_weatherUi.icon, iconDsc);
-      lv_obj_clear_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
-      if (g_weatherUi.glyph) lv_obj_add_flag(g_weatherUi.glyph, LV_OBJ_FLAG_HIDDEN);
-    } else if (g_weatherUi.glyph) {
-      if (g_weatherUi.icon) lv_obj_add_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
-      lv_label_set_text(g_weatherUi.glyph, LV_SYMBOL_REFRESH);
-      lvglForceLabelVisible(g_weatherUi.glyph);
-    }
-    const lv_img_dsc_t *fIconDsc = weatherForecastImageFromCode(2, true);
-    if (g_weatherUi.forecastIcon) {
-      if (fIconDsc) {
-        lv_img_set_src(g_weatherUi.forecastIcon, fIconDsc);
-        lv_obj_clear_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
-      } else {
-        lv_obj_add_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
-      }
-    }
-    lv_obj_add_flag(g_weatherUi.forecastTomorrow, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(g_weatherUi.wind, LV_OBJ_FLAG_HIDDEN);
-    if (g_weatherUi.glyph) lv_obj_set_style_text_color(g_weatherUi.glyph, lv_color_hex(weatherGlyphOffline), 0);
-  }
-#else
-  lv_label_set_text(g_weatherUi.temp, "--\xC2\xB0, --%");
-  lvglForceLabelVisible(g_weatherUi.temp);
-  lv_label_set_text(g_weatherUi.desc, activeUiStrings()->wifiOff);
-  lvglForceLabelVisible(g_weatherUi.desc);
-  lv_label_set_text(g_weatherUi.humidity, activeUiStrings()->windNa);
-  lvglForceLabelVisible(g_weatherUi.humidity);
-  lv_label_set_text(g_weatherUi.sun, "--:-- / --:--");
-  lvglForceLabelVisible(g_weatherUi.sun);
-  lv_label_set_text(g_weatherUi.forecastNow, activeUiStrings()->forecastNa);
-  lvglForceLabelVisible(g_weatherUi.forecastNow);
-
-  const lv_img_dsc_t *iconDsc = weatherImageFromCode(2, true);
-  if (iconDsc && g_weatherUi.icon) {
-    lv_img_set_src(g_weatherUi.icon, iconDsc);
-    lv_obj_clear_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
-    if (g_weatherUi.glyph) lv_obj_add_flag(g_weatherUi.glyph, LV_OBJ_FLAG_HIDDEN);
-  } else if (g_weatherUi.glyph) {
-    if (g_weatherUi.icon) lv_obj_add_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
-    lv_label_set_text(g_weatherUi.glyph, LV_SYMBOL_WIFI);
-    lvglForceLabelVisible(g_weatherUi.glyph);
-  }
-  const lv_img_dsc_t *fIconDsc = weatherForecastImageFromCode(2, true);
-  if (g_weatherUi.forecastIcon) {
-    if (fIconDsc) {
-      lv_img_set_src(g_weatherUi.forecastIcon, fIconDsc);
-      lv_obj_clear_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_add_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
-    }
-  }
-  lv_obj_add_flag(g_weatherUi.forecastTomorrow, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_add_flag(g_weatherUi.wind, LV_OBJ_FLAG_HIDDEN);
-#endif
+  lvglUpdateWeatherDisplay(weatherGlyphOnline, weatherGlyphOffline);
 
   g_clock.lastSecond = timeinfo.tm_sec;
   g_clock.lastDateKey = dateKey;

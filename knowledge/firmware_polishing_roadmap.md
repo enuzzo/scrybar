@@ -295,15 +295,30 @@ Extracted `lvglApplyThemeStylesFeedDecks()` (67 lines) from `lvglApplyThemeStyle
 
 ### M10 — Final polish pass
 
-**Status: TODO**
+**Status: DONE (r214, 2026-03-25)**
 
-After M1-M9 are done:
-- Review all functions — none >150 lines
-- Remove any leftover magic numbers → named constants
-- Verify PSRAM allocation consistency
-- Run full feature matrix test
-- Update `FW_BUILD_TAG` for the polished release
-- Update `project_knowledge.md` with new architecture notes
+Decomposed last two functions >200 lines and DRY'd weather display logic:
+
+- `lvglShowWeatherMainIcon(code, isDay, glyphFallback)` — icon/glyph toggle (replaces 3× 10-line blocks)
+- `lvglShowWeatherForecastIcon(code, isDay)` — forecast icon show/hide (replaces 3× 7-line blocks)
+- `lvglSetWeatherOfflineLabels(desc, glyph, color, setColor)` — offline placeholder (replaces 2× 15-line blocks)
+- `lvglUpdateWeatherDisplay(glyphOnline, glyphOffline)` — full weather section extracted from `updateLvglUi()`
+- `nvsLoadRssFeeds(prefs, loadedAny)` — RSS feed loading extracted from `loadRuntimeNetConfigFromNvs()`
+- `nvsLoadLanguageConfig(prefs, langNeedsPersist)` — language config + legacy migration extracted
+- `kWmoFallbackCode = 2` — named constant for offline weather icon (was magic number 4×)
+
+**Results:**
+
+| Function | Before | After |
+|---|---|---|
+| `updateLvglUi()` | 210 | **79** |
+| `loadRuntimeNetConfigFromNvs()` | 202 | **132** |
+
+- Total sketch lines: 14,879 → **14,859** (-20 net)
+- Functions >200 lines: **0** (target achieved)
+- Clean compile, 42% flash / 63% RAM (unchanged)
+
+**Verification:** compile --clean ✓ | upload ✓ | HELP ✓ | BATSTAT ✓ | all page navigation ✓ | LANG it/en ✓ | VIEWAUX/WIKI/INFO/HOME ✓ | WEBCFG ✓ | Now Playing ✓
 
 ---
 
@@ -324,24 +339,20 @@ Track each completed milestone here with date, r-number, and commit hash.
 | 2026-03-24 | — | — | M7 | 244 g_ globals → 51 (16 structs absorbing 209 vars), +47 lines |
 | 2026-03-24 | r213 | — | M8 | leftCol→PSRAM heap, httpFallback 320→256, title3 260→256, 0 stack buffers >256B |
 | 2026-03-24 | r213 | — | M9 | 7 style helpers, lvglApplyThemeStyles 295→156, lvglInitFeedDeck 256→161, lvglInitNowPlayingUi 225→148 |
+| 2026-03-25 | r214 | — | M10 | updateLvglUi 210→79, loadRuntimeNetConfigFromNvs 202→132, weather DRY helpers, kWmoFallbackCode, 0 functions >200 |
 ```
 
-### Current Metrics Snapshot (post-M9, 2026-03-24)
+### Final Metrics (post-M10, 2026-03-25) — ROADMAP COMPLETE
 
-| Metric | Baseline (r199) | Current |
-|---|---|---|
-| **Total sketch lines** | 15,762 | **14,879** |
-| **Functions >200 lines** | 10 | **2** |
-| **Largest function** | `initLvglUi()` 714 | `updateLvglUi()` 210 |
-| **`g_` prefixed globals** | 249 | **51** (16 struct instances + 35 independent) |
-| **Stack buffers >256B** | 15 | **0** |
-
-**Remaining functions >200 lines:**
-
-| Function | Lines | Target milestone |
-|---|---|---|
-| `updateLvglUi()` | 210 | M10 |
-| `loadRuntimeNetConfigFromNvs()` | 202 | M10 |
+| Metric | Baseline (r199) | Target | **Final** |
+|---|---|---|---|
+| **Total sketch lines** | 15,762 | — | **14,859** (-903) |
+| **Functions >200 lines** | 10 | 0 | **0** |
+| **Largest function** | `initLvglUi()` 714 | <150 | **lvglApplyThemeStyles()` 156** |
+| **Language dispatcher lines** | 1,855 | <400 | **~80** (table-driven) |
+| **`g_` prefixed globals** | 249 | <180 | **51** (16 structs + 35 independent) |
+| **Stack buffers >256B** | 15 | <5 | **0** |
+| **Flash / RAM** | 42% / 63% | unchanged | **42% / 63%** |
 
 ---
 

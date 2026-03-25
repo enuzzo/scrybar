@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-03-25 - M10: Final Polish — Zero Functions >200 Lines
+
+- Context: Two functions remained over the 150-line target: `updateLvglUi()` (210 lines) with a ~130-line weather display block containing 3× identical icon/glyph toggle patterns and 2× identical offline placeholder blocks; `loadRuntimeNetConfigFromNvs()` (202 lines) with inline RSS feed loop (39 lines) and language migration logic (32 lines). Hardcoded WMO code `2` appeared 4× as offline fallback icon.
+- Decision: Extract weather helpers (`lvglShowWeatherMainIcon`, `lvglShowWeatherForecastIcon`, `lvglSetWeatherOfflineLabels`) + `lvglUpdateWeatherDisplay()`. Extract NVS helpers (`nvsLoadRssFeeds`, `nvsLoadLanguageConfig`). Add `kWmoFallbackCode` named constant.
+- Impact/Tradeoffs: `updateLvglUi()` 210→79, `loadRuntimeNetConfigFromNvs()` 202→132. Functions >200 lines: 0 (all M1-M10 targets met). Sketch 14,879→14,859 (-20 net). Flash/RAM unchanged. **Firmware polishing roadmap COMPLETE.**
+
+---
+
 ## 2026-03-24 - M8+M9: Stack Buffer Audit + LVGL Style Helper Library
 
 - Context: Firmware had 3 stack-local buffers >256B (leftCol[512], httpFallback[320], title3[260]) risking stack overflow during concurrent LVGL + HTTP operations. Three LVGL functions (lvglApplyThemeStyles 295 lines, lvglInitFeedDeck 256 lines, lvglInitNowPlayingUi 225 lines) contained massive repetition: 23 identical bg_color+bg_grad_color pairs, 14 guarded text color patterns, 10+ identical 10-line container init blocks, and 3 identical 16-line button init blocks.

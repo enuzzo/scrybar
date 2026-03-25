@@ -419,6 +419,26 @@ Shared helper functions that eliminate repeated LVGL boilerplate across all `ini
 
 `lvglApplyThemeStyles()` (156 lines) delegates feed deck theming to `lvglApplyThemeStylesFeedDecks()` (67 lines).
 
+### Weather Display Helpers (M10, r214)
+
+Weather icon/label update extracted from `updateLvglUi()`:
+
+| Helper | Purpose |
+|---|---|
+| `lvglShowWeatherMainIcon(code, isDay, glyphFallback)` | Show bitmap icon or glyph fallback for current weather |
+| `lvglShowWeatherForecastIcon(code, isDay)` | Show/hide forecast bitmap icon |
+| `lvglSetWeatherOfflineLabels(desc, glyph, color, setColor)` | Set all weather labels to offline/placeholder state |
+| `lvglUpdateWeatherDisplay(glyphOnline, glyphOffline)` | Full weather section (online + offline branches) |
+
+`kWmoFallbackCode = 2` ("partly cloudy") — named constant for offline weather icon fallback.
+
+### NVS Load Helpers (M10, r214)
+
+| Helper | Purpose |
+|---|---|
+| `nvsLoadRssFeeds(prefs, loadedAny)` | Legacy single-URL key + multi-slot feed loop |
+| `nvsLoadLanguageConfig(prefs, langNeedsPersist)` | Language load + genz→bellazio + bellazi→bellazio migration |
+
 **When creating new LVGL containers:** Use `lvglCreatePanel()` as the default starting point. Override individual properties (gradient, opacity, border) after the call. Only use raw `lv_obj_create()` if the panel pattern doesn't fit.
 
 ## Language Dispatch Architecture (M2, r201)
