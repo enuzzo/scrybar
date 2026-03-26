@@ -34,7 +34,7 @@ documents/
 assets/weather_icons/
 assets/weather_icons_min/
 assets/icy_tools-master/
-screenshots/
+# screenshots/ — now tracked for README + landing page
 
 # OS / editor files
 .DS_Store
