@@ -12358,7 +12358,7 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   lv_obj_set_style_text_color(d.meta, lv_color_hex(0xAFC2F5), 0);
   lv_label_set_long_mode(d.meta, LV_LABEL_LONG_DOT);
   lv_obj_set_size(d.meta, cardW - 316, 22);
-  lv_obj_align(d.meta, LV_ALIGN_CENTER, 0, 1);
+  lv_obj_align(d.meta, LV_ALIGN_CENTER, 0, 4);
   lv_label_set_text(d.meta, "Fetch --/-- --:--");
   lvglForceLabelVisible(d.meta);
 
