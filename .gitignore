@@ -34,7 +34,9 @@ documents/
 assets/weather_icons/
 assets/weather_icons_min/
 assets/icy_tools-master/
-# screenshots/ — now tracked for README + landing page
+# Root screenshots/ is debug dumps — not for repo
+# assets/screenshots/ is the curated set for README + landing page
+screenshots/
 
 # OS / editor files
 .DS_Store
