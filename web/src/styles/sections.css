@@ -269,6 +269,138 @@
   transition: color 0.45s ease;
 }
 
+/* ============ VIEW SHOWCASE ============ */
+.views-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.view-card {
+  cursor: pointer;
+}
+
+.view-screen {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 14px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.view-card:hover .view-screen {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.view-screen img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.view-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.view-card p {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  line-height: 1.55;
+}
+
+/* Lightbox */
+.view-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.view-lightbox.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.view-lightbox__inner {
+  position: relative;
+  max-width: 90vw;
+  max-height: 80vh;
+}
+
+.view-lightbox__inner img {
+  max-width: 90vw;
+  max-height: 75vh;
+  border-radius: 12px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  display: block;
+}
+
+.view-lightbox__caption {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: -0.01em;
+}
+
+.view-lightbox__close {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 20px;
+  line-height: 34px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  z-index: 10000;
+}
+
+.view-lightbox__close:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.view-lightbox__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 20px;
+  line-height: 38px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.view-lightbox__nav:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.view-lightbox__nav--prev { left: -60px; }
+.view-lightbox__nav--next { right: -60px; }
+
 /* ============ FLASH ============ */
 .flash-cards {
   display: grid;
@@ -520,6 +652,11 @@ esp-web-install-button [slot="activate"] {
   .features-grid {
     grid-template-columns: 1fr;
   }
+  .views-grid {
+    grid-template-columns: 1fr;
+  }
+  .view-lightbox__nav--prev { left: 8px; }
+  .view-lightbox__nav--next { right: 8px; }
   .flash-cards {
     grid-template-columns: 1fr;
   }

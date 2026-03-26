@@ -1,0 +1,102 @@
+---
+import imgRss from '../assets/screenshots/aux_rss.png';
+import imgWiki from '../assets/screenshots/wiki_stream.png';
+import imgNowPlaying from '../assets/screenshots/now_playing.png';
+import imgDoom from '../assets/screenshots/doom_bunker_console.png';
+import imgInfo from '../assets/screenshots/info_panel.png';
+
+const views = [
+  { id: 'rss',  src: imgRss,        label: 'RSS Feeds',    desc: 'Live news with favicons, QR codes for mobile reading. Up to 5 configurable feeds.' },
+  { id: 'wiki', src: imgWiki,       label: 'Wikipedia',     desc: 'Featured articles, On This Day, random discoveries. Swipe through knowledge.' },
+  { id: 'np',   src: imgNowPlaying, label: 'Now Playing',   desc: 'Album art, progress bar, artist detection. Pushed live from macOS companion.' },
+  { id: 'doom', src: imgDoom,       label: 'DOOM',          desc: 'Real id Tech 1 engine. Tilt to move, tap to shoot. Full HUD overlay.' },
+];
+---
+<section id="views">
+  <div class="container">
+    <span class="section-label">Views</span>
+    <h2>Five swipes, five worlds</h2>
+    <p class="section-sub">
+      Every view is one gesture away. Swipe left or right to switch
+      between clock, news, knowledge, music, and mayhem.
+    </p>
+
+    <div class="views-grid">
+      {views.map((v, i) => (
+        <div class="view-card" data-view-index={i}>
+          <div class="view-screen">
+            <img
+              src={v.src.src}
+              alt={`ScryBar ${v.label} view`}
+              width={v.src.width}
+              height={v.src.height}
+              loading="lazy"
+            />
+          </div>
+          <h3>{v.label}</h3>
+          <p>{v.desc}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- Lightbox -->
+<div class="view-lightbox" id="js-view-lightbox">
+  <div class="view-lightbox__inner">
+    <button class="view-lightbox__close" id="js-lb-close">&times;</button>
+    <button class="view-lightbox__nav view-lightbox__nav--prev" id="js-lb-prev">&lsaquo;</button>
+    <button class="view-lightbox__nav view-lightbox__nav--next" id="js-lb-next">&rsaquo;</button>
+    <img id="js-lb-img" src="" alt="" />
+    <div class="view-lightbox__caption" id="js-lb-caption"></div>
+  </div>
+</div>
+
+<script define:vars={{ views: views.map(v => ({ src: v.src.src, label: v.label })) }}>
+  const lb = document.getElementById('js-view-lightbox');
+  const lbImg = document.getElementById('js-lb-img');
+  const lbCaption = document.getElementById('js-lb-caption');
+  let currentIdx = 0;
+
+  function openLightbox(idx) {
+    currentIdx = idx;
+    lbImg.src = views[idx].src;
+    lbImg.alt = views[idx].label;
+    lbCaption.textContent = views[idx].label;
+    lb.classList.add('open');
+  }
+
+  function closeLightbox() {
+    lb.classList.remove('open');
+  }
+
+  function navigate(dir) {
+    currentIdx = (currentIdx + dir + views.length) % views.length;
+    lbImg.src = views[currentIdx].src;
+    lbImg.alt = views[currentIdx].label;
+    lbCaption.textContent = views[currentIdx].label;
+  }
+
+  // Card click → open
+  document.querySelectorAll('.view-card[data-view-index]').forEach((card) => {
+    card.addEventListener('click', () => {
+      openLightbox(parseInt(card.dataset.viewIndex, 10));
+    });
+  });
+
+  // Close buttons
+  document.getElementById('js-lb-close').addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
+  lb.addEventListener('click', (e) => { if (e.target === lb) closeLightbox(); });
+
+  // Nav
+  document.getElementById('js-lb-prev').addEventListener('click', (e) => { e.stopPropagation(); navigate(-1); });
+  document.getElementById('js-lb-next').addEventListener('click', (e) => { e.stopPropagation(); navigate(1); });
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') navigate(-1);
+    if (e.key === 'ArrowRight') navigate(1);
+  });
+</script>
