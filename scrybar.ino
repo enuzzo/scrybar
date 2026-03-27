@@ -573,6 +573,70 @@ static const UiThemeDefinition kUiThemes[] = {
       0xF2F2F2, 0xFF3B30, 0xF2F2F2, 0x2A2A2A, 0x8A8A8A, 0xCFCFCF, 0xFFFFFF,
     },
   },
+  // ── Mint Protocol (LIGHT — first light theme, Vibemilk DS v3) ──
+  {
+    "mint-protocol",
+    "Mint Protocol",
+    {
+      "'Encode Sans Semi Expanded','Montserrat',-apple-system,BlinkMacSystemFont,sans-serif",
+      "'IBM Plex Mono','Space Mono','SF Mono','Fira Code',monospace",
+      "#DBE8DB", "#E7F0E7", "#F5F8F3",
+      "rgba(88,133,92,.12)", "rgba(88,133,92,.06)",
+      "#15311B", "#28432D", "#58855C", "#58855C", "#ADEBB3",
+      "rgba(93,190,106,.16)", "rgba(219,232,219,0.72)",
+      "rgba(88,133,92,0.16)", "rgba(88,133,92,.22)",
+      "rgba(169,162,217,.28)", "rgba(245,248,243,.68)",
+      "rgba(88,133,92,.30)", "rgba(219,232,219,.82)",
+      "#58855C", "#15311B",
+      "rgba(88,133,92,0.10)", "rgba(169,162,217,0.10)",
+      "rgba(173,235,179,0.18)", "rgba(215,163,186,0.08)",
+      "rgba(88,133,92,0.20)", "rgba(169,162,217,0.18)",
+      "rgba(215,163,186,0.16)",
+      "rgba(88,133,92,0.12)", "rgba(169,162,217,0.12)",
+      "#EEF4ED", "#28432D",
+    },
+    {
+      // LIGHT: screenBg darker mint → white cards float on top
+      0xDBE8DB, 0xFFFFFF, 0x58855C, 0xF7FBF7, 0xDBE8DB, 0xEEF7EF, 0x15311B, 0x28432D,
+      0x28432D, 0x718A75, 0x58855C, 0x15311B, 0xFFFFFF, 0x58855C, 0x456A49, 0x15311B,
+      0x15311B, 0xF5F8F3, 0x15311B, 0x58855C, 0x456A49, 0x718A75, 0x58855C, 0xF7FBF7, 0xDBE8DB, 0xCFDECF,
+      0x15311B, 0x15311B, 0xADEBB3, 0xCDF5D0, 0x15311B, 0x58855C, 0x456A49, 0xF7FBF7,
+      0x15311B, 0xF5F8F3, 0x718A75, 0xDBE8DB, 0x58855C, 0x5DBE6A, 0xE7F0E7, 0xDBE8DB,
+      0x58855C, 0xADEBB3, 0x15311B, 0x58855C, 0x718A75, 0xA9A2D9, 0xD7A3BA,
+    },
+  },
+  // ── Cathode Ray (DARK — phosphor green CRT, Vibemilk DS v3) ──
+  {
+    "cathode-ray",
+    "Cathode Ray",
+    {
+      "'Space Mono','Monaco','Menlo','Consolas','Liberation Mono',monospace",
+      "'Space Mono','Monaco','Menlo','Consolas','Liberation Mono',monospace",
+      "#0A0A08", "#0D120A", "#141C10",
+      "rgba(51,255,51,.18)", "rgba(255,170,0,.10)",
+      "#33FF33", "#22AA22", "#447744", "#33FF33", "#FFAA00",
+      "rgba(51,255,51,.14)", "rgba(10,10,8,0.92)",
+      "rgba(51,255,51,0.22)", "rgba(51,255,51,.30)",
+      "rgba(255,170,0,.22)", "rgba(10,10,8,.52)",
+      "rgba(51,255,51,.38)", "rgba(10,10,8,.82)",
+      "#FFAA00", "#33FF33",
+      "rgba(51,255,51,0.22)", "rgba(255,170,0,0.14)",
+      "rgba(51,255,51,0.20)", "rgba(255,170,0,0.10)",
+      "rgba(255,170,0,0.45)", "rgba(51,255,51,0.35)",
+      "rgba(51,255,51,0.40)",
+      "rgba(51,255,51,0.20)", "rgba(255,170,0,0.14)",
+      "#141C10", "#33FF33",
+    },
+    {
+      // DARK CRT: phosphor green #33FF33 + amber #FFAA00 on near-black
+      0x0A0A08, 0x141C10, 0x1E2A1A, 0x33FF33, 0x22AA22, 0xE0F5D0, 0x0A0A08, 0x2D5A2D,
+      0x141C10, 0x447744, 0x33FF33, 0x0A0A08, 0x0A0A08, 0x1E2A1A, 0x33FF33, 0x33FF33,
+      0x33FF33, 0x0A0A08, 0x33FF33, 0x22AA22, 0xFFAA00, 0x447744, 0x1E2A1A, 0x33FF33, 0x33FF33, 0x66FF66,
+      0x0A0A08, 0x0A0A08, 0xFFAA00, 0xFFCC44, 0x0A0A08, 0x1E2A1A, 0x243220, 0x33FF33,
+      0x0A0A08, 0x33FF33, 0x447744, 0x141C10, 0x33FF33, 0xFFAA00, 0x0A0A08, 0x0D120A,
+      0x33FF33, 0xFFAA00, 0x33FF33, 0x22AA22, 0x2D5A2D, 0x447744, 0xFFAA00,
+    },
+  },
 };
 static constexpr size_t UI_THEME_COUNT = sizeof(kUiThemes) / sizeof(kUiThemes[0]);
 static uint8_t g_uiThemeIndex = 0;
@@ -8081,11 +8145,20 @@ static bool lvglThemeIsMinimalBrutalistMono() {
   return strcmp(activeUiThemeId(), "minimal-brutalist-mono") == 0;
 }
 
+static bool lvglThemeIsCathodeRay() {
+  return strcmp(activeUiThemeId(), "cathode-ray") == 0;
+}
+
 static uint16_t lvglColorLuma(uint32_t rgb) {
   const uint16_t r = (uint16_t)((rgb >> 16) & 0xFFu);
   const uint16_t g = (uint16_t)((rgb >> 8) & 0xFFu);
   const uint16_t b = (uint16_t)(rgb & 0xFFu);
   return (uint16_t)((299u * r + 587u * g + 114u * b) / 1000u);
+}
+
+/// Derive light/dark from screenBg luma — zero-config, works for any theme.
+static bool lvglThemeIsLight() {
+  return lvglColorLuma(activeUiTheme().lvgl.screenBg) >= 128u;
 }
 
 static uint16_t lvglColorContrastLuma(uint32_t fg, uint32_t bg) {
@@ -8392,6 +8465,8 @@ static uint32_t lvglResolvedAuxButtonText(uint32_t preferred, uint32_t bg) {
 }
 
 static uint32_t lvglResolvedSaverReadableText(const UiThemeLvglTokens &t) {
+  const bool light = lvglColorLuma(t.screenBg) >= 128u;
+  const uint32_t fallback = light ? 0x111111 : 0xFFFFFF;
   const uint32_t bg = t.screenBg;
   const uint32_t candidates[] = {
       t.saverBalloon,
@@ -8399,21 +8474,20 @@ static uint32_t lvglResolvedSaverReadableText(const UiThemeLvglTokens &t) {
       t.infoText,
       t.auxSourceText,
       t.headerText,
-      0xFFFFFF,
+      fallback,
   };
-  uint32_t best = 0xFFFFFF;
+  uint32_t best = fallback;
   uint16_t bestScore = 0;
   for (size_t i = 0; i < (sizeof(candidates) / sizeof(candidates[0])); ++i) {
     const uint32_t c = candidates[i];
     if (c == t.saverCow) continue;
-    if (lvglColorLuma(c) < 145u) continue;
     const uint16_t score = lvglColorContrastLuma(c, bg);
     if (score > bestScore) {
       bestScore = score;
       best = c;
     }
   }
-  if (bestScore < 95u) return 0xFFFFFF;
+  if (bestScore < 95u) return fallback;
   return best;
 }
 
@@ -8563,12 +8637,14 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   const bool cyberpunk = lvglThemeIsCyberpunk();
   const bool tokyo = lvglThemeIsTokyoTransit();
   const bool minimal = lvglThemeIsMinimalBrutalistMono();
-  const lv_coord_t cardRadius = minimal ? 0 : 10;
-  const lv_coord_t infoRadius = minimal ? 0 : 8;
-  const lv_coord_t buttonRadius = minimal ? 0 : 4;
-  const lv_coord_t badgeRadius = minimal ? 0 : 6;
-  const lv_coord_t wifiBarRadius = minimal ? 0 : 1;
-  const bool headerBordered = cyberpunk || minimal;
+  const bool cathode = lvglThemeIsCathodeRay();
+  const bool sharpCorners = minimal || cathode;
+  const lv_coord_t cardRadius = sharpCorners ? 0 : 10;
+  const lv_coord_t infoRadius = sharpCorners ? 0 : 8;
+  const lv_coord_t buttonRadius = sharpCorners ? 0 : 4;
+  const lv_coord_t badgeRadius = sharpCorners ? 0 : 6;
+  const lv_coord_t wifiBarRadius = sharpCorners ? 0 : 1;
+  const bool headerBordered = cyberpunk || minimal || cathode;
   const uint32_t panelBg = lvglResolvedPanelBg(t);
   const uint32_t headerBg = lvglResolvedHeaderBg(t);
   const uint32_t headerText = lvglResolvedHeaderText(t);
@@ -8583,18 +8659,17 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   const uint32_t weatherGlyphOnline = lvglResolvedWeatherGlyphOnline(t, weatherBg, weatherTextPrimary);
   const uint32_t weatherGlyphOffline = lvglResolvedWeatherGlyphOffline(t, weatherBg, weatherTextSecondary);
   const uint32_t saverReadableText = lvglResolvedSaverReadableText(t);
-  uint32_t clockLine1 = cyberpunk ? t.infoText : t.headerText;
+  const bool light = lvglThemeIsLight();
+  uint32_t clockLine1 = cyberpunk ? t.infoText : (light ? t.infoText : t.headerText);
   uint32_t clockLine2 = t.infoText;
-  uint32_t clockLine3 = cyberpunk ? t.auxMeta : headerMeta;
-  uint32_t clockDivider = t.divider;
+  uint32_t clockLine3 = cyberpunk ? t.auxMeta : (light ? t.auxSourceText : headerMeta);
+  uint32_t clockDivider = light ? t.auxSourceText : t.divider;
   if (tokyo) {
-    // Tokyo transit clock copy sits on dark panel, so keep it bright and neon-accented.
     clockLine1 = t.auxSourceText;
     clockLine2 = t.infoText;
     clockLine3 = t.auxWhenText;
     clockDivider = t.auxSourceText;
   } else if (minimal) {
-    // Brutalist mono keeps high contrast on dark clock panel with a single red accent.
     clockLine1 = t.infoText;
     clockLine2 = t.infoText;
     clockLine3 = t.auxMeta;
@@ -10992,7 +11067,7 @@ static const lv_font_t* lvglFontMonoTiny() { return &scry_font_funnel_display_12
 static const lv_font_t* lvglFontMeta()     { return &scry_font_funnel_display_20; }
 static const lv_font_t* lvglFontInfoBody() { return &scry_font_funnel_display_16; }
 static const lv_font_t* lvglFontRssNews()  { return &scry_font_funnel_display_22; }
-static const lv_font_t* lvglFontClock()    { return &scry_font_funnel_display_38; }
+static const lv_font_t* lvglFontClock()    { return &scry_font_funnel_display_32; }
 static const lv_font_t* lvglFontBig()      { return &scry_font_funnel_display_32; }
 static const lv_font_t* lvglFontTemp()     { return &scry_font_funnel_display_24; }
 
@@ -11017,8 +11092,7 @@ static lv_coord_t lvglClockLineSpaceForFont(const lv_font_t *font) {
 static uint8_t lvglCollectClockFonts(const lv_font_t **out, uint8_t cap) {
   if (!out || cap == 0) return 0;
   uint8_t n = 0;
-  out[n++] = &scry_font_funnel_display_38;
-  if (n < cap) out[n++] = &scry_font_funnel_display_32;
+  out[n++] = &scry_font_funnel_display_32;
   if (n < cap) out[n++] = &scry_font_funnel_display_30;
   if (n < cap) out[n++] = &scry_font_funnel_display_24;
   if (n < cap) out[n++] = &scry_font_funnel_display_22;
@@ -12297,7 +12371,10 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
 
   d.title = lv_label_create(d.header);
   lv_obj_set_style_text_font(d.title, lvglFontSmall(), 0);
-  lv_obj_set_style_text_color(d.title, lv_color_hex(0xFFFFFF), 0);
+  {
+    const uint32_t hdrTxt = activeUiTheme().lvgl.headerText;
+    lv_obj_set_style_text_color(d.title, lv_color_hex(hdrTxt), 0);
+  }
   lv_obj_align(d.title, LV_ALIGN_LEFT_MID, 12, 2);
   lv_label_set_text(d.title, isWiki ? "ScryBar Wiki" : "ScryBar RSS");
   lvglForceLabelVisible(d.title);
@@ -12309,7 +12386,7 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
 
   d.status = lv_label_create(d.header);
   lv_obj_set_style_text_font(d.status, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(d.status, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_text_color(d.status, lv_color_hex(activeUiTheme().lvgl.headerText), 0);
   lv_obj_align(d.status, LV_ALIGN_RIGHT_MID, -5, 2);
   lv_label_set_text(d.status, "SYNC");
   lvglForceLabelVisible(d.status);
@@ -12319,10 +12396,10 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   int16_t sideY = sidebarTop;
 
   d.sourceBadge = lvglCreatePanel(d.card, btnW, sourceBadgeSize,
-                                   sidebarX, sideY, lv_color_hex(0x2B468E), kBadgeRadius);
+                                   sidebarX, sideY, lv_color_hex(activeUiTheme().lvgl.auxBadgeBg), kBadgeRadius);
   d.sourceBadgeText = lv_label_create(d.sourceBadge);
   lv_obj_set_style_text_font(d.sourceBadgeText, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(d.sourceBadgeText, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_text_color(d.sourceBadgeText, lv_color_hex(activeUiTheme().lvgl.auxBadgeText), 0);
   lv_label_set_text(d.sourceBadgeText, isWiki ? "W" : "WEB");
   lv_obj_center(d.sourceBadgeText);
   lvglForceLabelVisible(d.sourceBadgeText);
@@ -12384,7 +12461,7 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   // ── QR overlay: full-height QR flush left, hint right ──
   const int16_t qrOverlayH = cardH;
-  d.qrOverlay = lvglCreatePanel(d.card, cardW, qrOverlayH, 0, 0, lv_color_hex(0x000000), 0);
+  d.qrOverlay = lvglCreatePanel(d.card, cardW, qrOverlayH, 0, 0, lv_color_hex(activeUiTheme().lvgl.screenBg), 0);
   lv_obj_set_style_layout(d.qrOverlay, 0, 0);
   lv_obj_add_flag(d.qrOverlay, LV_OBJ_FLAG_HIDDEN);
 
@@ -12449,12 +12526,12 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   ui.header = lvglCreatePanel(ui.card, cW, headerH, 0, 0, lv_color_hex(0x140C23), 0);
   lv_obj_set_style_bg_opa(ui.header, LV_OPA_40, LV_PART_MAIN);
 
-  ui.headerFill = lvglCreatePanel(ui.header, cW, 1, 0, headerH - 1, lv_color_hex(0xFFFFFF), 0);
+  ui.headerFill = lvglCreatePanel(ui.header, cW, 1, 0, headerH - 1, lv_color_hex(activeUiTheme().lvgl.divider), 0);
   lv_obj_set_style_bg_opa(ui.headerFill, LV_OPA_20, LV_PART_MAIN);
 
   ui.title = lv_label_create(ui.header);
   lv_obj_set_style_text_font(ui.title, lvglNowPlayingMetaFont(), 0);
-  lv_obj_set_style_text_color(ui.title, lv_color_hex(0xFFF5F8), 0);
+  lv_obj_set_style_text_color(ui.title, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
   lv_obj_align(ui.title, LV_ALIGN_LEFT_MID, 8, 2);
   lv_label_set_text(ui.title, "Now Playing");
   lvglForceLabelVisible(ui.title);
@@ -12471,7 +12548,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
 
   ui.headerTime = lv_label_create(ui.header);
   lv_obj_set_style_text_font(ui.headerTime, lvglNowPlayingMetaFont(), 0);
-  lv_obj_set_style_text_color(ui.headerTime, lv_color_hex(0xFFF5F8), 0);
+  lv_obj_set_style_text_color(ui.headerTime, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
   lv_obj_set_style_text_opa(ui.headerTime, LV_OPA_70, 0);
   lv_obj_align(ui.headerTime, LV_ALIGN_RIGHT_MID, -100, 2);
   lv_label_set_text(ui.headerTime, "");
@@ -12513,7 +12590,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
 
   ui.track = lv_label_create(ui.card);
   lv_obj_set_style_text_font(ui.track, lvglNowPlayingTitleFont(), 0);
-  lv_obj_set_style_text_color(ui.track, lv_color_hex(0xFFFFFF), 0);
+  lv_obj_set_style_text_color(ui.track, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
   lv_obj_set_style_text_line_space(ui.track, 0, 0);
   lv_label_set_long_mode(ui.track, LV_LABEL_LONG_WRAP);
   lv_obj_set_size(ui.track, textW, 60);
@@ -12551,27 +12628,30 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
 
   ui.progressElapsed = lv_label_create(ui.card);
   lv_obj_set_style_text_font(ui.progressElapsed, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(ui.progressElapsed, lv_color_hex(0xFFF5F8), 0);
+  lv_obj_set_style_text_color(ui.progressElapsed, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
   lv_obj_set_pos(ui.progressElapsed, contentX, cH - 18);
   lv_label_set_text(ui.progressElapsed, "0:00 / 0:00");
   lv_obj_add_flag(ui.progressElapsed, LV_OBJ_FLAG_HIDDEN);
 
   ui.progressRemaining = lv_label_create(ui.card);
   lv_obj_set_style_text_font(ui.progressRemaining, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(ui.progressRemaining, lv_color_hex(0xFFF5F8), 0);
+  lv_obj_set_style_text_color(ui.progressRemaining, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
   lv_obj_align(ui.progressRemaining, LV_ALIGN_TOP_RIGHT, -18, cH - 18);
   lv_label_set_text(ui.progressRemaining, "0% left");
   lv_obj_add_flag(ui.progressRemaining, LV_OBJ_FLAG_HIDDEN);
 
-  ui.progressRail = lvglCreatePanel(ui.card, textW, 5, contentX, cH - 16,
-                                     lv_color_hex(0x2A203A), LV_RADIUS_CIRCLE);
-  lv_obj_set_style_border_width(ui.progressRail, 1, LV_PART_MAIN);
-  lv_obj_set_style_border_color(ui.progressRail, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_border_opa(ui.progressRail, LV_OPA_30, LV_PART_MAIN);
-  lv_obj_add_flag(ui.progressRail, LV_OBJ_FLAG_HIDDEN);
+  {
+    const auto &th = activeUiTheme().lvgl;
+    ui.progressRail = lvglCreatePanel(ui.card, textW, 5, contentX, cH - 16,
+                                       lv_color_hex(th.panelBg), LV_RADIUS_CIRCLE);
+    lv_obj_set_style_border_width(ui.progressRail, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(ui.progressRail, lv_color_hex(th.divider), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(ui.progressRail, LV_OPA_30, LV_PART_MAIN);
+    lv_obj_add_flag(ui.progressRail, LV_OBJ_FLAG_HIDDEN);
 
-  ui.progressFill = lvglCreatePanel(ui.progressRail, 1, 5, 0, 0,
-                                     lv_color_hex(0xFFD86F), LV_RADIUS_CIRCLE);
+    ui.progressFill = lvglCreatePanel(ui.progressRail, 1, 5, 0, 0,
+                                       lv_color_hex(th.auxSourceText), LV_RADIUS_CIRCLE);
+  }
   lv_obj_add_flag(ui.progressFill, LV_OBJ_FLAG_HIDDEN);
 
   // Control buttons (prev/pause/next) removed — decorative only, no event
@@ -12829,7 +12909,7 @@ static void initLvglInfoPanel(lv_obj_t* scr) {
   lv_obj_t *infoColLeft = lv_obj_create(g_infoUi.card);
   lv_obj_set_size(infoColLeft, infoTextColW, infoColsH);
   lv_obj_set_pos(infoColLeft, 8, infoColsY);
-  lv_obj_set_style_bg_color(infoColLeft, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(infoColLeft, lv_color_hex(theme.infoBg), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(infoColLeft, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(infoColLeft, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(infoColLeft, 0, LV_PART_MAIN);
@@ -12841,7 +12921,7 @@ static void initLvglInfoPanel(lv_obj_t* scr) {
   lv_obj_t *infoColRight = lv_obj_create(g_infoUi.card);
   lv_obj_set_size(infoColRight, infoQrAreaW, infoColsH);
   lv_obj_set_pos(infoColRight, cW - infoQrAreaW - 8, infoColsY);
-  lv_obj_set_style_bg_color(infoColRight, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(infoColRight, lv_color_hex(theme.infoBg), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(infoColRight, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(infoColRight, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(infoColRight, 0, LV_PART_MAIN);
@@ -12984,9 +13064,12 @@ static void initLvglClockPanel(lv_obj_t* homeRoot) {
   lv_obj_set_style_text_font(g_clockUi.l1, lvglFontClock(), 0);
   lv_obj_set_style_text_font(g_clockUi.l2, lvglFontTitle(), 0);
   lv_obj_set_style_text_font(g_clockUi.l3, lvglFontTitle(), 0);
-  lv_obj_set_style_text_color(g_clockUi.l1, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_color(g_clockUi.l2, lv_color_hex(0xEAF0FF), 0);
-  lv_obj_set_style_text_color(g_clockUi.l3, lv_color_hex(0xD8E3FF), 0);
+  {
+    const auto &th = activeUiTheme().lvgl;
+    lv_obj_set_style_text_color(g_clockUi.l1, lv_color_hex(th.auxText), 0);
+    lv_obj_set_style_text_color(g_clockUi.l2, lv_color_hex(th.auxMeta), 0);
+    lv_obj_set_style_text_color(g_clockUi.l3, lv_color_hex(th.auxMeta), 0);
+  }
   lv_obj_set_style_text_line_space(g_clockUi.l1, 4, 0);
   lv_obj_set_style_text_line_space(g_clockUi.l2, 2, 0);
   lv_obj_set_style_text_line_space(g_clockUi.l3, 2, 0);

@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-03-27 - Two New Themes: Mint Protocol + Cathode Ray (r217)
+
+- Context: ScryBar had 5 themes, all dark or high-contrast. No light theme existed. A phosphor-green CRT aesthetic was requested. Weather card on Mint Protocol was invisible (screenBg #DBE8DB vs panelBg #FFFFFF — luma gap too small). Light/dark detection was hardcoded per-theme.
+- Decision: (1) Add `mint-protocol` (LIGHT — sage green, screenBg #DBE8DB, weatherCardBg #EEF7EF tinted to separate from panelBg). (2) Add `cathode-ray` (DARK — phosphor #33FF33 + amber #FFAA00 on near-black #0A0A08, sharp corners via `lvglThemeIsCathodeRay()`). (3) Replace per-theme light/dark flag with `lvglColorLuma(screenBg) >= 128` auto-detection — zero-config, works for any future theme. (4) Extend landing page: CSS vars in `tokens.css`, pills in `ThemeSelector.astro`.
+- Impact/Tradeoffs: 7 themes total. Light theme now available. Luma-based detection means new themes need no boilerplate flag. GOTCHA: pure white weatherCardBg on Mint is visually indistinguishable from panelBg — always tint slightly. GOTCHA: Cathode Ray `--text-muted` must stay dark (#2D5A2D), not light green, or it's unreadable on near-black.
+
+---
+
 ## 2026-03-27 - Favicon LRU Cache + CI Full-Site Deployment (r216)
 
 - Context: Favicon cache used FIFO eviction (`memmove` shifting all entries when slot 0 was evicted), which could invalidate `lv_img_dsc_t` pointers LVGL was actively referencing. Wiki deck had no favicon prefetch. Three dead preprocessor constants (`RSS_FAVICON_CACHE_SIZE`, `RSS_FAVICON_MAX_BYTES`, `RSS_FAVICON_RETRY_MS`) were defined but never used. CI workflow was missing `pngle` and `GFX Library for Arduino` libs (added in r215), and deployed only the standalone flasher page instead of the full Astro landing page.

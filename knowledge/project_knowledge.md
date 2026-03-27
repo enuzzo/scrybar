@@ -219,6 +219,8 @@ Current theme ids:
 - `toxic-candy`
 - `tokyo-transit`
 - `minimal-brutalist-mono`
+- `mint-protocol` *(LIGHT — sage green, Vibemilk DS v3, added r217)*
+- `cathode-ray` *(DARK — phosphor green #33FF33 + amber #FFAA00 on near-black, CRT aesthetic, added r217)*
 
 Theme switch inputs:
 
@@ -232,9 +234,14 @@ Where tokens are applied:
 - Embedded web control surface CSS vars (`appendWebThemeCssVars`)
 - Standalone design system (`assets/scrybar_design_system/`, HTML `data-theme` selector)
 
-Important behavior rule:
+Important behavior rules:
 
 - Weather panel is forced to light-background/dark-text fallback when needed, to preserve readability of transparent weather icons across themes.
+- Light/dark detection: `lvglColorLuma(screenBg) >= 128` — automatic from palette, no per-theme flag needed.
+- Sharp corners: enabled for `minimal-brutalist-mono` and `cathode-ray` via `lvglThemeIsCathodeRay()` helper + luma check; all other themes use rounded corners.
+- **GOTCHA (Mint Protocol)**: `screenBg=#DBE8DB` (luma 220) and `panelBg=#FFFFFF` (luma 255) are close but distinguishable. `weatherCardBg=#EEF7EF` (tinted) instead of pure white — without the tint, the weather card was invisible against the near-white bg.
+- **GOTCHA (Cathode Ray)**: phosphor green `#33FF33` is extremely saturated — web CSS `--text-muted` must stay at `#2D5A2D` (dark) not a light green, or it washes out on near-black bg.
+- **Adding a new theme**: add `UiThemeDefinition` entry to `kUiThemes[]` in `scrybar.ino`, CSS vars block in `web/src/styles/tokens.css`, pill in `web/src/components/ThemeSelector.astro`. No other files need touching.
 
 ## Font System (Web + LVGL)
 
