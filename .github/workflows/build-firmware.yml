@@ -1,4 +1,4 @@
-name: Build Firmware & Deploy Flasher
+name: Build Firmware & Deploy Site
 
 on:
   push:
@@ -20,6 +20,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ── Node.js / Astro landing page ─────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build Astro landing page
+        working-directory: web
+        env:
+          PAGES_SITE: https://enuzzo.github.io
+          PAGES_BASE: /scrybar
+        run: |
+          npm ci
+          npm run build
+
+      # ── Arduino / firmware ───────────────────────────────────────────
       - name: Install arduino-cli
         uses: arduino/setup-arduino-cli@v2
 
@@ -30,7 +45,11 @@ jobs:
             https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@3.1.1
-          arduino-cli lib install "ArduinoJson@7.3.0" "lvgl@8.4.0"
+          arduino-cli lib install \
+            "ArduinoJson@7.3.0" \
+            "lvgl@8.4.0" \
+            "GFX Library for Arduino@1.6.4" \
+            "pngle@1.1.0"
 
       - name: Prepare secrets
         run: cp .github/ci-secrets.h secrets.h
@@ -65,43 +84,40 @@ jobs:
             echo "tag=dev-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
+      # ── Assemble site: Astro output + firmware binaries ──────────────
       - name: Assemble site
         run: |
-          mkdir -p _site/firmware/full _site/firmware/lite
+          SITE=web/dist
+          mkdir -p "$SITE/firmware/full" "$SITE/firmware/lite"
 
-          # Static files from repo
-          cp docs/flasher/index.html _site/
-          cp docs/flasher/manifest-full.json _site/
-          cp docs/flasher/manifest-lite.json _site/
-
-          # Inject version into manifests
+          # Inject version into manifests (already in Astro output from web/public/)
           sed -i "s/\"version\": \"1.0.0\"/\"version\": \"${{ steps.version.outputs.tag }}\"/" \
-            _site/manifest-full.json _site/manifest-lite.json
+            "$SITE/manifest-full.json" "$SITE/manifest-lite.json"
 
           # Full variant binaries
-          cp /tmp/scrybar-full/scrybar.ino.bootloader.bin _site/firmware/full/bootloader.bin
-          cp /tmp/scrybar-full/scrybar.ino.partitions.bin  _site/firmware/full/partitions.bin
-          cp "${{ steps.boot-app.outputs.path }}"          _site/firmware/full/boot_app0.bin
-          cp /tmp/scrybar-full/scrybar.ino.bin             _site/firmware/full/firmware.bin
+          cp /tmp/scrybar-full/scrybar.ino.bootloader.bin "$SITE/firmware/full/bootloader.bin"
+          cp /tmp/scrybar-full/scrybar.ino.partitions.bin  "$SITE/firmware/full/partitions.bin"
+          cp "${{ steps.boot-app.outputs.path }}"          "$SITE/firmware/full/boot_app0.bin"
+          cp /tmp/scrybar-full/scrybar.ino.bin             "$SITE/firmware/full/firmware.bin"
 
           # Lite variant binaries
-          cp /tmp/scrybar-lite/scrybar.ino.bootloader.bin _site/firmware/lite/bootloader.bin
-          cp /tmp/scrybar-lite/scrybar.ino.partitions.bin  _site/firmware/lite/partitions.bin
-          cp "${{ steps.boot-app.outputs.path }}"          _site/firmware/lite/boot_app0.bin
-          cp /tmp/scrybar-lite/scrybar.ino.bin             _site/firmware/lite/firmware.bin
+          cp /tmp/scrybar-lite/scrybar.ino.bootloader.bin "$SITE/firmware/lite/bootloader.bin"
+          cp /tmp/scrybar-lite/scrybar.ino.partitions.bin  "$SITE/firmware/lite/partitions.bin"
+          cp "${{ steps.boot-app.outputs.path }}"          "$SITE/firmware/lite/boot_app0.bin"
+          cp /tmp/scrybar-lite/scrybar.ino.bin             "$SITE/firmware/lite/firmware.bin"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
           name: scrybar-firmware
           path: |
-            _site/firmware/full/
-            _site/firmware/lite/
+            web/dist/firmware/full/
+            web/dist/firmware/lite/
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site/
+          path: web/dist/
 
   deploy:
     needs: build

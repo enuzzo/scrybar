@@ -140,19 +140,7 @@ LV_FONT_DECLARE(scry_font_funnel_display_38);
 #include "secrets.h"
 #endif
 
-#ifndef RSS_FAVICON_CACHE_SIZE
-#define RSS_FAVICON_CACHE_SIZE 12
-#endif
-#if RSS_FAVICON_CACHE_SIZE < 4
-#undef RSS_FAVICON_CACHE_SIZE
-#define RSS_FAVICON_CACHE_SIZE 4
-#endif
-#ifndef RSS_FAVICON_MAX_BYTES
-#define RSS_FAVICON_MAX_BYTES 8192
-#endif
-#ifndef RSS_FAVICON_RETRY_MS
-#define RSS_FAVICON_RETRY_MS 300000UL
-#endif
+// (dead RSS_FAVICON_CACHE_SIZE / MAX_BYTES / RETRY_MS removed in r216 — actual cache uses kFaviconCacheSlots)
 #ifndef RSS_THUMB_CACHE_SIZE
 #define RSS_THUMB_CACHE_SIZE 3
 #endif
@@ -6592,6 +6580,7 @@ struct FaviconCacheEntry {
   char     host[64]       = {0};
   uint8_t *rgb565         = nullptr;  // PSRAM-allocated, kFaviconBytes
   lv_img_dsc_t imgDsc     = {};
+  uint32_t lastAccessMs   = 0;        // LRU: updated on every cache hit
   bool     valid          = false;
 };
 static FaviconCacheEntry g_faviconCache[kFaviconCacheSlots];
@@ -6641,21 +6630,31 @@ static void pngleOnDraw(pngle_t *pngle, uint32_t x, uint32_t y,
 }
 
 /// Find or allocate a cache slot for `host`.  Returns slot index.
+/// LRU eviction: when full, evicts the least-recently-accessed entry in-place
+/// (no memmove — LVGL may hold pointers to lv_img_dsc_t inside entries).
 static uint8_t faviconCacheSlot(const char *host) {
-  // Check existing
+  // Check existing (hit → touch access time)
   for (uint8_t i = 0; i < kFaviconCacheSlots; ++i) {
-    if (g_faviconCache[i].valid && strcmp(g_faviconCache[i].host, host) == 0) return i;
+    if (g_faviconCache[i].valid && strcmp(g_faviconCache[i].host, host) == 0) {
+      g_faviconCache[i].lastAccessMs = millis();
+      return i;
+    }
   }
   // Find empty
   for (uint8_t i = 0; i < kFaviconCacheSlots; ++i) {
     if (!g_faviconCache[i].valid) return i;
   }
-  // Evict oldest (slot 0) and shift
-  if (g_faviconCache[0].rgb565) heap_caps_free(g_faviconCache[0].rgb565);
-  memmove(&g_faviconCache[0], &g_faviconCache[1], sizeof(FaviconCacheEntry) * (kFaviconCacheSlots - 1));
-  auto &last = g_faviconCache[kFaviconCacheSlots - 1];
-  last = FaviconCacheEntry{};
-  return kFaviconCacheSlots - 1;
+  // Evict LRU (smallest lastAccessMs)
+  uint8_t lruIdx = 0;
+  for (uint8_t i = 1; i < kFaviconCacheSlots; ++i) {
+    if (g_faviconCache[i].lastAccessMs < g_faviconCache[lruIdx].lastAccessMs) lruIdx = i;
+  }
+  Serial.printf("[FAV] LRU evict slot %u host=%s (age %lums)\n",
+                lruIdx, g_faviconCache[lruIdx].host,
+                (unsigned long)(millis() - g_faviconCache[lruIdx].lastAccessMs));
+  if (g_faviconCache[lruIdx].rgb565) heap_caps_free(g_faviconCache[lruIdx].rgb565);
+  g_faviconCache[lruIdx] = FaviconCacheEntry{};
+  return lruIdx;
 }
 
 /// Download favicon from Google API, decode PNG → RGB565, cache in PSRAM.
@@ -6663,9 +6662,10 @@ static uint8_t faviconCacheSlot(const char *host) {
 static const lv_img_dsc_t *faviconFetchAndCache(const char *host) {
   if (!host || !host[0]) return nullptr;
 
-  // Already cached?
+  // Already cached? → touch LRU timestamp
   for (uint8_t i = 0; i < kFaviconCacheSlots; ++i) {
     if (g_faviconCache[i].valid && strcmp(g_faviconCache[i].host, host) == 0) {
+      g_faviconCache[i].lastAccessMs = millis();
       return &g_faviconCache[i].imgDsc;
     }
   }
@@ -6744,6 +6744,7 @@ static const lv_img_dsc_t *faviconFetchAndCache(const char *host) {
   auto &entry = g_faviconCache[slot];
   if (entry.rgb565 && entry.rgb565 != rgb565Buf) heap_caps_free(entry.rgb565);
   entry.valid = true;
+  entry.lastAccessMs = millis();
   copyStringSafe(entry.host, sizeof(entry.host), host);
   entry.rgb565 = rgb565Buf;
   entry.imgDsc.header.cf = LV_IMG_CF_TRUE_COLOR;
@@ -7299,6 +7300,23 @@ static bool updateWikiFromFeed(bool force) {
                 (unsigned)feedsTried,
                 (unsigned)g_wiki.itemCount,
                 g_wiki.items[0].title);
+
+  // Prefetch favicon for wiki host (typically one per language, e.g. en.wikipedia.org)
+  {
+    char wikiHost[96];
+    extractRssHost(g_wiki.items[0].link, wikiHost, sizeof(wikiHost));
+    if (wikiHost[0]) {
+      bool cached = false;
+      for (uint8_t s = 0; s < kFaviconCacheSlots; ++s) {
+        if (g_faviconCache[s].valid && strcmp(g_faviconCache[s].host, wikiHost) == 0) { cached = true; break; }
+      }
+      if (!cached) {
+        faviconFetchAndCache(wikiHost);
+        pumpWebUiDuringIo();
+      }
+    }
+  }
+
   return true;
 }
 
@@ -11624,11 +11642,12 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
     lvglForceLabelVisible(d.sourceBadgeText);
   }
   if (d.sourceBadge) lv_obj_set_style_bg_color(d.sourceBadge, lv_color_hex(siteColorHex), LV_PART_MAIN);
-  // Show cached favicon image over text badge (if available)
+  // Show cached favicon image over text badge (if available) — touch LRU on hit
   if (d.sourceBadgeImg) {
     const lv_img_dsc_t *fav = nullptr;
     for (uint8_t i = 0; i < kFaviconCacheSlots; ++i) {
       if (g_faviconCache[i].valid && strcmp(g_faviconCache[i].host, siteHost) == 0) {
+        g_faviconCache[i].lastAccessMs = millis();
         fav = &g_faviconCache[i].imgDsc;
         break;
       }

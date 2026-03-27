@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-03-27 - Favicon LRU Cache + CI Full-Site Deployment (r216)
+
+- Context: Favicon cache used FIFO eviction (`memmove` shifting all entries when slot 0 was evicted), which could invalidate `lv_img_dsc_t` pointers LVGL was actively referencing. Wiki deck had no favicon prefetch. Three dead preprocessor constants (`RSS_FAVICON_CACHE_SIZE`, `RSS_FAVICON_MAX_BYTES`, `RSS_FAVICON_RETRY_MS`) were defined but never used. CI workflow was missing `pngle` and `GFX Library for Arduino` libs (added in r215), and deployed only the standalone flasher page instead of the full Astro landing page.
+- Decision: (1) Replace FIFO eviction with true LRU: add `lastAccessMs` field to `FaviconCacheEntry`, touch on every cache hit (fetch, prefetch, display read), evict the entry with smallest `lastAccessMs` in-place (no `memmove`). (2) Add Wiki favicon prefetch after `updateWikiFromFeed()`. (3) Remove dead constants. (4) Rewrite CI to build Astro landing page + firmware, deploy `web/dist/` with firmware binaries to GitHub Pages. Add env-based `PAGES_BASE`/`PAGES_SITE` to astro.config.mjs for CI mode (local dev unaffected). (5) Enable GitHub Pages at `enuzzo.github.io/scrybar/` with Actions deployment.
+- Impact/Tradeoffs: Eliminates pointer invalidation bug (no memmove). Actively displayed favicons survive cache pressure. Wiki shows favicons now (e.g. it.wikipedia.org). CI deploys full landing page with working flasher at `enuzzo.github.io/scrybar/`. Flash/RAM unchanged (41%/63%).
+
+---
+
 ## 2026-03-25 - Unified Typeface: Funnel Display + RSS Favicons (r215)
 
 - Context: Each theme had its own font (Space Mono for cyberpunk, Delius Unicase for toxic candy, built-in Montserrat for default). Different font metrics caused recurring layout bugs (text clipping, inconsistent line counts). RSS source badges were text-only ("NYT", "BBC") with no visual brand identity.
