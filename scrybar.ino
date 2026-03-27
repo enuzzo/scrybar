@@ -1966,7 +1966,7 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
         g_pwrBtn.holdReported = false;
         g_pwrBtn.pressCandidateMs = 0;
         g_pwrBtn.releaseCandidateMs = 0;
-        shutdownFromPowerButton(false);
+        shutdownFromPowerButton(true);
       }
     }
     return;

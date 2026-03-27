@@ -24,7 +24,7 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r217"
+#define FW_BUILD_TAG "r218"
 #define FW_RELEASE_DATE "2026-03-27"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
@@ -197,8 +197,8 @@ struct TouchReleaseInfo {
 // Board vendor example maps PWR key to GPIO16 (active low).
 #define PWR_BUTTON_PIN 16
 #define PWR_BUTTON_ACTIVE_LOW 1
-#define PWR_HOLD_SHUTDOWN_MS 3000
-#define PWR_HOLD_WAKE_MS 3000
+#define PWR_HOLD_SHUTDOWN_MS 1500
+#define PWR_HOLD_WAKE_MS 1500
 #define PWR_RELEASE_DEBOUNCE_MS 120
 
 // --- Navigation button shortcuts (main views only, INFO excluded) ---

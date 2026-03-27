@@ -536,9 +536,15 @@ Discard touch frames where:
   - refresh cadence uses `RSS_REFRESH_MS` / `RSS_RETRY_MS` (defaults 15m / 2m)
 - Physical buttons (current mapping):
   - `PWR` short press: screensaver toggle (debounced)
-  - `PWR` long press `3s`: soft-off / wake to `HOME`
+  - `PWR` long press `1.5s`: hard-off (TCA9554 SYS_EN cut on battery) / soft-off fallback on USB
+  - `PWR` long press `1.5s` in soft-off: wake to `HOME`
   - `BOOT` short press: jump to `HOME`
   - `RST`: hardware reset
+- Power button GOTCHAs:
+  - Pin: GPIO16, active-low, INPUT_PULLUP. Confirmed via `[PWR] raw level change` serial events.
+  - 3 seconds without visual feedback = users release early → threshold was halved to 1.5s.
+  - Hard-off (`shutdownFromPowerButton(true)`): tries TCA9554 EXIO6=LOW first; if USB holds chip alive, falls back to soft-off (display off, MCU busy-wait). This is expected USB behavior, not a bug.
+  - Short press toggles screensaver — can confuse shutdown attempt if user taps before holding.
 
 ## DOOM Integration Baseline
 

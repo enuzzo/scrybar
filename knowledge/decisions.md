@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-03-27 - Power Button UX: 1.5s Hold + Hard-Off (r218)
+
+- Context: `PWR_HOLD_SHUTDOWN_MS=3000` — 3 seconds with zero visual feedback caused users to release before the threshold. Soft-off (`shutdownFromPowerButton(false)`) only turned off the backlight and entered busy-wait; on battery the MCU kept running. GPIO16 was confirmed correct via serial scan (`[PWR] raw level change: 1 -> 0` detected). Short presses (≤200ms) toggled the screensaver, compounding confusion.
+- Decision: (1) Reduce `PWR_HOLD_SHUTDOWN_MS` and `PWR_HOLD_WAKE_MS` to 1500ms. (2) Use `shutdownFromPowerButton(true)` (hard-off) for the long-press: tries TCA9554 SYS_EN cut first (true power-off on battery), falls back to soft-off only if USB holds the chip alive.
+- Impact/Tradeoffs: Power-off now feels responsive (1.5s ≈ consumer standard). On battery: true cut via TCA9554 EXIO6. On USB: soft-off fallback (expected — USB supplies the chip regardless). GOTCHA: no visual countdown during hold — if UX still feels unclear, add a progress indicator in a future pass.
+
+---
+
 ## 2026-03-27 - Two New Themes: Mint Protocol + Cathode Ray (r217)
 
 - Context: ScryBar had 5 themes, all dark or high-contrast. No light theme existed. A phosphor-green CRT aesthetic was requested. Weather card on Mint Protocol was invisible (screenBg #DBE8DB vs panelBg #FFFFFF — luma gap too small). Light/dark detection was hardcoded per-theme.
