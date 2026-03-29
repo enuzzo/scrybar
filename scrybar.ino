@@ -7760,7 +7760,7 @@ static bool updateWeatherFromApi(bool force) {
   if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
   const uint32_t now = millis();
   const uint32_t waitMs = g_weather.valid ? weatherRefreshIntervalByEnergy() : weatherRetryIntervalByEnergy();
-  if (!force && (now - g_weather.lastFetchMs) < waitMs) return g_weather.valid;
+  if (!force && g_weather.lastFetchMs != 0 && (now - g_weather.lastFetchMs) < waitMs) return g_weather.valid;
   g_weather.lastFetchMs = now;  // mark attempt time
 
   if (g_netTaskReady) {
