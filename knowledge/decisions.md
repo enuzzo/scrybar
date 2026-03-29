@@ -407,3 +407,11 @@ Entry format:
 - Impact/Tradeoffs: ~1,000 lines removed (code + config constants); display pipeline is simpler and more reliable. 4-page navigation is uniform and extensible. WIKI page currently shows a placeholder "WIKI" label — full deck UI (header + news + badge + QR) is the next implementation target. lv_tileview was evaluated and rejected: HIDDEN pages cost zero CPU while tileview renders all visible tiles during transitions, which is worse for this 4-page layout.
 
 ---
+
+## 2026-03-29 - r219-r225: Performance Overhaul — Network Isolation + Display Pipeline
+
+- Context: Swipe animations stuttered whenever network fetches ran on Core 0. RSS took 2-3s, Wiki 7-10s, weather up to 75s (streaming loop bug) — all blocking LVGL on Core 0. Display flush used a pixel-by-pixel copy loop, single LVGL buffer, and HTTP/1.0 with Connection:close.
+- Decision: **Phase 1** (r219): Move all HTTP I/O to a dedicated FreeRTOS `netTask` pinned to Core 1, with `xQueueCreate/xQueueSend` dispatch from Core 0 and `xSemaphoreMutex` for result hand-off. `mbedtls_platform_set_calloc_free(psramCalloc, psramFree)` redirects TLS heap to PSRAM in the netTask. Weather, RSS, Wiki, favicons, wiki-meta, now-playing all run on Core 1. **Phase 2** (r220): `DB_CHUNK_ROWS` 32→64 (halves DMA semaphore overhead), tile T 8→16 (PSRAM cache-line aligned), `lvglDisplayFlushCb` pixel loop → `memcpy`, LVGL double-buffer (2×215KB PSRAM), adaptive LVGL cadence 8ms (animating) / 20ms (idle). **Phase 3** (r221-r225): `extractJsonNumber*/ArrayNumber*/ArrayString*` migrated from `String`→`const char*`, weather URL `String` concatenation (8 allocs) → `snprintf` into `char[400]`, `http.getString()` for reliable chunked response handling, `useHTTP10(true)` / `Connection: close` removed from all 3 fetch functions (HTTP/1.1 default), `lastFetchMs != 0` guard added to weather time-gate (matched RSS/wiki pattern; fixed ~60s weather boot delay).
+- Impact/Tradeoffs: flush avg 21ms→16ms, max ~19ms (idle). LVGL handler avg ~1.5ms. netTask stack HWM 6384→9792 bytes remaining after HTTP/1.1 switch. Weather resolves at boot in ~226ms (was 60s+ delay). Zero queue overflows in steady state. free_heap stable at 21.6KB internal. PSRAM used: ~430KB for dual LVGL buffers. Core 0 never blocks on HTTP — swipes are smooth during all network activity.
+
+---
