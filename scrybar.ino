@@ -15004,18 +15004,10 @@ void loop() {
   updateWeatherFromApi(false);
 #if TEST_WIFI && RSS_ENABLED
 #if TEST_LVGL_UI && DISPLAY_BACKEND_ESP_LCD
-  if (!uiPageIsFeedDeck(g_uiPageMode)) {
-    updateRssFromFeed(false);   // background preload/refresh outside AUX/WIKI to avoid swipe stalls
-    updateWikiFromFeed(false);  // background preload/refresh outside AUX/WIKI to avoid swipe stalls
-    wikiPreloadMetaStep();
-  } else if (g_uiPageMode == UI_PAGE_AUX) {
-    // Keep RSS alive even if user stays on AUX for long periods.
-    updateRssFromFeed(false);
-  } else if (g_uiPageMode == UI_PAGE_WIKI) {
-    // Keep Wiki feed refreshing even while user is pinned to WIKI view.
-    updateWikiFromFeed(false);
-    wikiPreloadVisibleItemStep();  // keep current Wiki card (text summary) enriched while staying on WIKI
-  }
+  updateRssFromFeed(false);
+  updateWikiFromFeed(false);
+  wikiPreloadMetaStep();
+  wikiPreloadVisibleItemStep();
 #else
   updateRssFromFeed(false);
   updateWikiFromFeed(false);
