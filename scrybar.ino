@@ -847,6 +847,16 @@ static QueueHandle_t    g_netQueue  = nullptr;
 static SemaphoreHandle_t g_netMutex = nullptr;
 static TaskHandle_t     g_netTaskHandle = nullptr;
 static bool             g_netTaskReady = false;
+
+// Forward declarations — must appear after WeatherState/NetRequestType to
+// prevent the Arduino auto-prototyper from generating broken prototypes.
+static bool netFetchWeather(WeatherState &out);
+static void netFetchRss();
+static void netFetchWiki();
+static void netFetchFavicons();
+static void netFetchWikiMeta();
+static bool netEnqueue(NetRequestType type);
+static void netTaskMain(void *param);
 #endif
 
 #if TEST_NTP
@@ -7521,6 +7531,87 @@ static void wikiPreloadVisibleItemStep() {
     return;
   }
 
+}
+
+// --- netFetch stubs (Phase 1 — replaced in Tasks 1.3-1.5) ---
+static bool netFetchWeather(WeatherState &out) { (void)out; return false; }
+static void netFetchRss() {}
+static void netFetchWiki() {}
+static void netFetchFavicons() {}
+static void netFetchWikiMeta() {}
+
+// ── Network background task (Core 1) ──────────────────────────────────────────
+static bool netEnqueue(NetRequestType type) {
+  if (!g_netQueue) return false;
+  NetRequest req = { type };
+  if (xQueueSend(g_netQueue, &req, 0) != pdTRUE) {
+    Serial.printf("[NET] queue full, dropping %d\n", (int)type);
+    return false;
+  }
+  return true;
+}
+
+static void netTaskMain(void *param) {
+  (void)param;
+
+  // Activate PSRAM for mbedtls on this task's lifetime.
+  // INVARIANT: Core 0 must NEVER use WiFiClientSecure while this is active.
+  mbedtls_platform_set_calloc_free(psramCalloc, psramFree);
+
+  Serial.printf("[NET] task started on core %d\n", xPortGetCoreID());
+  g_netTaskReady = true;
+
+  uint32_t lastStackCheckMs = 0;
+  NetRequest req;
+
+  for (;;) {
+    if (xQueueReceive(g_netQueue, &req, pdMS_TO_TICKS(500)) == pdTRUE) {
+      const uint32_t t0 = millis();
+      switch (req.type) {
+        case NET_REQ_WEATHER: {
+          WeatherState local = {};
+          const bool ok = netFetchWeather(local);
+          if (ok) {
+            xSemaphoreTake(g_netMutex, portMAX_DELAY);
+            g_weather = local;
+            g_weather.lastFetchMs = millis();
+            g_weather.dirty = true;
+            xSemaphoreGive(g_netMutex);
+          }
+          Serial.printf("[NET] weather done ok=%d dt=%lu ms\n", ok ? 1 : 0, millis() - t0);
+          break;
+        }
+        case NET_REQ_RSS: {
+          netFetchRss();
+          Serial.printf("[NET] rss done dt=%lu ms\n", millis() - t0);
+          break;
+        }
+        case NET_REQ_WIKI: {
+          netFetchWiki();
+          Serial.printf("[NET] wiki done dt=%lu ms\n", millis() - t0);
+          break;
+        }
+        case NET_REQ_FAVICON: {
+          netFetchFavicons();
+          Serial.printf("[NET] favicons done dt=%lu ms\n", millis() - t0);
+          break;
+        }
+        case NET_REQ_WIKI_META: {
+          netFetchWikiMeta();
+          Serial.printf("[NET] wiki_meta done dt=%lu ms\n", millis() - t0);
+          break;
+        }
+      }
+    }
+
+    // Stack high-water mark monitoring
+    const uint32_t now = millis();
+    if ((now - lastStackCheckMs) >= NET_STACK_MONITOR_MS) {
+      lastStackCheckMs = now;
+      const UBaseType_t hwm = uxTaskGetStackHighWaterMark(NULL);
+      Serial.printf("[NET] stack high-water: %u bytes remaining\n", (unsigned)(hwm * sizeof(StackType_t)));
+    }
+  }
 }
 
 static void printTlsDiagResult(const char *label, WiFiClientSecure &client, bool ok) {
@@ -14834,6 +14925,24 @@ void setup() {
 #elif TEST_DISPLAY && TEST_NTP
   updateDisplayClock(true);
 #endif
+
+  // Start network background task on Core 1
+  g_netMutex = xSemaphoreCreateMutex();
+  g_netQueue = xQueueCreate(NET_QUEUE_DEPTH, sizeof(NetRequest));
+  if (g_netMutex && g_netQueue) {
+    xTaskCreatePinnedToCore(
+      netTaskMain,
+      "net_task",
+      NET_TASK_STACK_SIZE,
+      nullptr,
+      NET_TASK_PRIORITY,
+      &g_netTaskHandle,
+      1  // Core 1
+    );
+    Serial.println("[NET] task created on Core 1");
+  } else {
+    Serial.println("[NET][ERR] failed to create queue/mutex — network stays on Core 0");
+  }
 
 #if TEST_NTP
   if (wifiIsConnectedNow()) {
