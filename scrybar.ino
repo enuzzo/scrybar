@@ -6402,8 +6402,13 @@ static void internalFree(void *ptr) { free(ptr); }
 
 // RAII guard: redirect mbedtls to PSRAM on construction, restore on destruction.
 struct ScopedPsramTls {
-  ScopedPsramTls()  { mbedtls_platform_set_calloc_free(psramCalloc,    psramFree); }
-  ~ScopedPsramTls() { mbedtls_platform_set_calloc_free(internalCalloc, internalFree); }
+  bool active;
+  ScopedPsramTls() : active(!g_netTaskReady) {
+    if (active) mbedtls_platform_set_calloc_free(psramCalloc, psramFree);
+  }
+  ~ScopedPsramTls() {
+    if (active) mbedtls_platform_set_calloc_free(internalCalloc, internalFree);
+  }
 };
 
 static void buildRssWhenLabel(const char *pubDate, char *out, size_t outLen) {
@@ -6974,161 +6979,18 @@ static RssItem *ensureRssParseBuf() {
 
 static bool updateRssFromFeed(bool force) {
   if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
-  RssItem *parseBuf = ensureRssParseBuf();
-  if (!parseBuf) return false;
   const uint32_t now = millis();
   const uint32_t waitMs = g_rss.valid ? rssRefreshIntervalByEnergy() : rssRetryIntervalByEnergy();
   if (!force && g_rss.lastAttemptMs != 0 && (now - g_rss.lastAttemptMs) < waitMs) return g_rss.valid;
   g_rss.lastAttemptMs = now;
 
-  memset(parseBuf, 0, sizeof(RssItem) * RSS_MAX_ITEMS);
-  uint8_t count = 0;
-  uint8_t feedsTried = 0;
-  uint8_t feedsWithItems = 0;
-  const uint8_t configuredFeeds = runtimeRssConfiguredFeedCount();
-  uint8_t configuredSeen = 0;
-  int firstHttpErr = 0;
-
-  for (uint8_t slot = 0; slot < RSS_FEED_SLOT_COUNT && count < RSS_MAX_ITEMS; ++slot) {
-    const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(slot);
-    if (!feed || !startsWithHttp(feed->url)) continue;
-    pumpWebUiDuringIo();
-    ++feedsTried;
-    ++configuredSeen;
-
-    const uint8_t remaining = (uint8_t)(RSS_MAX_ITEMS - count);
-    uint8_t feedCap = clampRssFeedMaxItems(feed->maxItems);
-    if (configuredFeeds > 0 && configuredSeen <= configuredFeeds) {
-      const uint8_t feedsLeft = (uint8_t)(configuredFeeds - configuredSeen + 1);
-      const uint8_t reserveForOthers = (feedsLeft > 1) ? (uint8_t)(feedsLeft - 1) : 0;
-      uint8_t fairCap = (remaining > reserveForOthers) ? (uint8_t)(remaining - reserveForOthers) : 1;
-      if (fairCap == 0) fairCap = 1;
-      if (feedCap > fairCap) feedCap = fairCap;
-    }
-    if (feedCap > remaining) feedCap = remaining;
-    int httpCode = 0;
-    const uint8_t got = fetchRssItemsFromUrl(feed->url, &parseBuf[count], feedCap, &httpCode);
-    pumpWebUiDuringIo();
-    if (got > 0) {
-      for (uint8_t k = 0; k < got; ++k) {
-        parseBuf[count + k].feedSlot = slot;
-      }
-      count = (uint8_t)(count + got);
-      ++feedsWithItems;
-    } else if (firstHttpErr == 0 && httpCode != 0) {
-      firstHttpErr = httpCode;
-    }
+  if (g_netTaskReady) {
+    netEnqueue(NET_REQ_RSS);
+    return g_rss.valid;
   }
-
-  if (count == 0 && startsWithHttp(RSS_FEED_URL)) {
-    bool alreadyConfigured = false;
-    for (uint8_t slot = 0; slot < RSS_FEED_SLOT_COUNT; ++slot) {
-      const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(slot);
-      if (!feed || !startsWithHttp(feed->url)) continue;
-      if (strncmp(feed->url, RSS_FEED_URL, sizeof(feed->url)) == 0) {
-        alreadyConfigured = true;
-        break;
-      }
-    }
-    if (!alreadyConfigured || configuredFeeds == 0) {
-      ++feedsTried;
-      int httpCode = 0;
-      const uint8_t got = fetchRssItemsFromUrl(RSS_FEED_URL,
-                                               &parseBuf[count],
-                                               clampRssFeedMaxItems(RSS_DEFAULT_FEED_ITEMS),
-                                               &httpCode);
-      if (got > 0) {
-        for (uint8_t k = 0; k < got; ++k) {
-          parseBuf[count + k].feedSlot = 0;
-        }
-        count = (uint8_t)(count + got);
-        ++feedsWithItems;
-        Serial.printf("[RSS] fallback default feed used url=%s items=%u\n", RSS_FEED_URL, (unsigned)got);
-      } else if (firstHttpErr == 0 && httpCode != 0) {
-        firstHttpErr = httpCode;
-      }
-    }
-  }
-
-  if (count == 0) {
-    g_rss.lastHttpCode = (firstHttpErr != 0) ? firstHttpErr : -1;
-    return false;
-  }
-
-  g_rss.lastHttpCode = HTTP_CODE_OK;
-
-  const bool changed =
-      (!g_rss.valid) ||
-      (g_rss.itemCount != count) ||
-      (strncmp(g_rss.items[0].title, parseBuf[0].title, sizeof(g_rss.items[0].title) - 1) != 0);
-
-  g_rss.itemCount = count;
-  for (uint8_t i = 0; i < count; ++i) {
-    g_rss.items[i] = parseBuf[i];
-  }
-  if (count < RSS_MAX_ITEMS) {
-    for (uint8_t i = count; i < RSS_MAX_ITEMS; ++i) {
-      g_rss.items[i].title[0] = '\0';
-      g_rss.items[i].link[0] = '\0';
-      g_rss.items[i].pubDate[0] = '\0';
-      g_rss.items[i].summary[0] = '\0';
-      g_rss.items[i].feedSlot = 0xFF;
-      g_rss.items[i].wikiMetaReady = false;
-      g_rss.items[i].wikiMetaTried = false;
-    }
-  }
-  g_rss.currentIndex = 0;
-  g_rss.lastRotateMs = now;
-  g_rss.valid = true;
-  g_rss.lastFetchMs = now;
-  if (changed) {
-    g_auxDeck.lastItemShown = -1;
-    g_auxDeck.lastQrPayload[0] = '\0';
-  }
-  struct tm tinfo;
-  if (getLocalTime(&tinfo, 50)) {
-    snprintf(g_rss.fetchedAt, sizeof(g_rss.fetchedAt), "%02d/%02d %02d:%02d",
-             tinfo.tm_mday, tinfo.tm_mon + 1, tinfo.tm_hour, tinfo.tm_min);
-  } else {
-    strncpy(g_rss.fetchedAt, "--/-- --:--", sizeof(g_rss.fetchedAt) - 1);
-    g_rss.fetchedAt[sizeof(g_rss.fetchedAt) - 1] = '\0';
-  }
-#if TEST_NTP
-  if (changed) g_uiNeedsRedraw = true;
-#endif
-  Serial.printf("[RSS] feeds=%u/%u items=%u first='%s'\n",
-                (unsigned)feedsWithItems,
-                (unsigned)feedsTried,
-                (unsigned)g_rss.itemCount,
-                g_rss.items[0].title);
-
-  // Prefetch favicons for unique hosts in this batch
-  {
-    char seenHosts[kFaviconCacheSlots][64];
-    uint8_t seenCount = 0;
-    for (uint8_t i = 0; i < count && seenCount < kFaviconCacheSlots; ++i) {
-      char host[96];
-      rssResolveSourceHost(parseBuf[i], host, sizeof(host));
-      if (!host[0]) continue;
-      // Skip if already seen or already cached
-      bool dup = false;
-      for (uint8_t s = 0; s < seenCount; ++s) {
-        if (strcmp(seenHosts[s], host) == 0) { dup = true; break; }
-      }
-      if (dup) continue;
-      for (uint8_t s = 0; s < kFaviconCacheSlots; ++s) {
-        if (g_faviconCache[s].valid && strcmp(g_faviconCache[s].host, host) == 0) { dup = true; break; }
-      }
-      if (dup) continue;
-      copyStringSafe(seenHosts[seenCount], sizeof(seenHosts[seenCount]), host);
-      ++seenCount;
-      faviconFetchAndCache(host);
-      pumpWebUiDuringIo();
-    }
-    if (seenCount) Serial.printf("[FAV] prefetched %u new favicons\n", (unsigned)seenCount);
-  }
-
-  return true;
+  // Fallback: inline (during boot before netTask starts)
+  netFetchRss();
+  return g_rss.valid;
 }
 
 // Extract a JSON string value by key. Handles simple "key":"value" patterns.
@@ -7617,7 +7479,112 @@ static bool netFetchWeather(WeatherState &out) {
                 out.weatherCode, out.isDay ? 1 : 0, out.sunrise, out.sunset);
   return true;
 }
-static void netFetchRss() {}
+static void netFetchRss() {
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return;
+  RssItem *parseBuf = ensureRssParseBuf();
+  if (!parseBuf) return;
+  const uint32_t now = millis();
+
+  memset(parseBuf, 0, sizeof(RssItem) * RSS_MAX_ITEMS);
+  uint8_t count = 0;
+  uint8_t feedsTried = 0;
+  uint8_t feedsWithItems = 0;
+  const uint8_t configuredFeeds = runtimeRssConfiguredFeedCount();
+  uint8_t configuredSeen = 0;
+  int firstHttpErr = 0;
+
+  for (uint8_t slot = 0; slot < RSS_FEED_SLOT_COUNT && count < RSS_MAX_ITEMS; ++slot) {
+    const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(slot);
+    if (!feed || !startsWithHttp(feed->url)) continue;
+    ++feedsTried;
+    ++configuredSeen;
+
+    const uint8_t remaining = (uint8_t)(RSS_MAX_ITEMS - count);
+    uint8_t feedCap = clampRssFeedMaxItems(feed->maxItems);
+    if (configuredFeeds > 0 && configuredSeen <= configuredFeeds) {
+      const uint8_t feedsLeft = (uint8_t)(configuredFeeds - configuredSeen + 1);
+      const uint8_t reserveForOthers = (feedsLeft > 1) ? (uint8_t)(feedsLeft - 1) : 0;
+      uint8_t fairCap = (remaining > reserveForOthers) ? (uint8_t)(remaining - reserveForOthers) : 1;
+      if (fairCap == 0) fairCap = 1;
+      if (feedCap > fairCap) feedCap = fairCap;
+    }
+    if (feedCap > remaining) feedCap = remaining;
+    int httpCode = 0;
+    const uint8_t got = fetchRssItemsFromUrl(feed->url, &parseBuf[count], feedCap, &httpCode);
+    if (got > 0) {
+      for (uint8_t k = 0; k < got; ++k) parseBuf[count + k].feedSlot = slot;
+      count = (uint8_t)(count + got);
+      ++feedsWithItems;
+    } else if (firstHttpErr == 0 && httpCode != 0) {
+      firstHttpErr = httpCode;
+    }
+  }
+
+  // Fallback to compile-time default feed
+  if (count == 0 && startsWithHttp(RSS_FEED_URL)) {
+    bool alreadyConfigured = false;
+    for (uint8_t slot = 0; slot < RSS_FEED_SLOT_COUNT; ++slot) {
+      const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(slot);
+      if (!feed || !startsWithHttp(feed->url)) continue;
+      if (strncmp(feed->url, RSS_FEED_URL, sizeof(feed->url)) == 0) { alreadyConfigured = true; break; }
+    }
+    if (!alreadyConfigured || configuredFeeds == 0) {
+      ++feedsTried;
+      int httpCode = 0;
+      const uint8_t got = fetchRssItemsFromUrl(RSS_FEED_URL, &parseBuf[count],
+                                               clampRssFeedMaxItems(RSS_DEFAULT_FEED_ITEMS), &httpCode);
+      if (got > 0) {
+        for (uint8_t k = 0; k < got; ++k) parseBuf[count + k].feedSlot = 0;
+        count = (uint8_t)(count + got);
+        ++feedsWithItems;
+      } else if (firstHttpErr == 0 && httpCode != 0) {
+        firstHttpErr = httpCode;
+      }
+    }
+  }
+
+  if (count == 0) {
+    xSemaphoreTake(g_netMutex, portMAX_DELAY);
+    g_rss.lastHttpCode = (firstHttpErr != 0) ? firstHttpErr : -1;
+    xSemaphoreGive(g_netMutex);
+    return;
+  }
+
+  // Copy results to shared state under mutex
+  xSemaphoreTake(g_netMutex, portMAX_DELAY);
+  g_rss.lastHttpCode = HTTP_CODE_OK;
+  g_rss.itemCount = count;
+  for (uint8_t i = 0; i < count; ++i) g_rss.items[i] = parseBuf[i];
+  for (uint8_t i = count; i < RSS_MAX_ITEMS; ++i) {
+    g_rss.items[i].title[0] = '\0';
+    g_rss.items[i].link[0] = '\0';
+    g_rss.items[i].pubDate[0] = '\0';
+    g_rss.items[i].summary[0] = '\0';
+    g_rss.items[i].feedSlot = 0xFF;
+    g_rss.items[i].wikiMetaReady = false;
+    g_rss.items[i].wikiMetaTried = false;
+  }
+  g_rss.currentIndex = 0;
+  g_rss.lastRotateMs = now;
+  g_rss.valid = true;
+  g_rss.lastFetchMs = now;
+  struct tm tinfo;
+  if (getLocalTime(&tinfo, 50)) {
+    snprintf(g_rss.fetchedAt, sizeof(g_rss.fetchedAt), "%02d/%02d %02d:%02d",
+             tinfo.tm_mday, tinfo.tm_mon + 1, tinfo.tm_hour, tinfo.tm_min);
+  } else {
+    strncpy(g_rss.fetchedAt, "--/-- --:--", sizeof(g_rss.fetchedAt) - 1);
+  }
+  g_rss.dirty = true;
+  xSemaphoreGive(g_netMutex);
+
+  Serial.printf("[RSS] feeds=%u/%u items=%u first='%s'\n",
+                (unsigned)feedsWithItems, (unsigned)feedsTried,
+                (unsigned)count, parseBuf[0].title);
+
+  // Trigger favicon prefetch
+  netEnqueue(NET_REQ_FAVICON);
+}
 static void netFetchWiki() {}
 static void netFetchFavicons() {}
 static void netFetchWikiMeta() {}
@@ -13772,6 +13739,14 @@ static void updateLvglUi(bool force) {
   if (g_weather.dirty) {
     if (g_netMutex) xSemaphoreTake(g_netMutex, portMAX_DELAY);
     g_weather.dirty = false;
+    if (g_netMutex) xSemaphoreGive(g_netMutex);
+    g_uiNeedsRedraw = true;
+  }
+  if (g_rss.dirty) {
+    if (g_netMutex) xSemaphoreTake(g_netMutex, portMAX_DELAY);
+    g_rss.dirty = false;
+    g_auxDeck.lastItemShown = -1;
+    g_auxDeck.lastQrPayload[0] = '\0';
     if (g_netMutex) xSemaphoreGive(g_netMutex);
     g_uiNeedsRedraw = true;
   }
