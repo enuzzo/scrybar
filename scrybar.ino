@@ -7534,7 +7534,89 @@ static void wikiPreloadVisibleItemStep() {
 }
 
 // --- netFetch stubs (Phase 1 — replaced in Tasks 1.3-1.5) ---
-static bool netFetchWeather(WeatherState &out) { (void)out; return false; }
+static bool netFetchWeather(WeatherState &out) {
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
+
+  const float lat = runtimeWeatherLat();
+  const float lon = runtimeWeatherLon();
+  String url = "http://api.open-meteo.com/v1/forecast?latitude=";
+  url += String(lat, 4);
+  url += "&longitude=";
+  url += String(lon, 4);
+  url += "&current=temperature_2m,relative_humidity_2m,weather_code,is_day,wind_speed_10m";
+  url += "&hourly=temperature_2m,weather_code";
+  url += "&daily=sunrise,sunset";
+  url += "&timezone=Europe%2FRome&forecast_hours=36&forecast_days=2";
+
+  HTTPClient http;
+  http.setConnectTimeout(7000);
+  http.setTimeout(7000);
+  if (!http.begin(url)) {
+    Serial.println("[METEO][ERR] HTTP begin fallita.");
+    return false;
+  }
+  const int code = http.GET();
+  if (code != HTTP_CODE_OK) {
+    Serial.printf("[METEO][ERR] HTTP GET code=%d\n", code);
+    http.end();
+    return false;
+  }
+  const String payload = http.getString();
+  http.end();
+
+  float temp = 0.0f, hum = 0.0f, wc = 0.0f, day = 1.0f, wind = 0.0f;
+  const bool okTemp = extractJsonNumberField(payload, "\"temperature_2m\"", temp);
+  const bool okHum = extractJsonNumberField(payload, "\"relative_humidity_2m\"", hum);
+  const bool okCode = extractJsonNumberField(payload, "\"weather_code\"", wc);
+  const bool okDay = extractJsonNumberField(payload, "\"is_day\"", day);
+  const bool okWind = extractJsonNumberField(payload, "\"wind_speed_10m\"", wind);
+
+  String sunriseIso, sunsetIso;
+  const bool okSunrise = extractJsonArrayStringAt(payload, "\"sunrise\":[", 0, sunriseIso);
+  const bool okSunset = extractJsonArrayStringAt(payload, "\"sunset\":[", 0, sunsetIso);
+
+  float next0 = 0.0f, next3 = 0.0f, next6 = 0.0f;
+  float nextCode0 = 0.0f, nextCode3 = 0.0f, nextCode6 = 0.0f;
+  const bool okNext0 = extractJsonArrayNumberAt(payload, "\"temperature_2m\":[", 0, next0) &&
+                       extractJsonArrayNumberAt(payload, "\"weather_code\":[", 0, nextCode0);
+  const bool okNext3 = extractJsonArrayNumberAt(payload, "\"temperature_2m\":[", 3, next3) &&
+                       extractJsonArrayNumberAt(payload, "\"weather_code\":[", 3, nextCode3);
+  const bool okNext6 = extractJsonArrayNumberAt(payload, "\"temperature_2m\":[", 6, next6) &&
+                       extractJsonArrayNumberAt(payload, "\"weather_code\":[", 6, nextCode6);
+
+  float tomTemp = 0.0f, tomCode = 0.0f;
+  const bool okTomorrow = extractJsonArrayNumberAt(payload, "\"temperature_2m\":[", 24, tomTemp) &&
+                          extractJsonArrayNumberAt(payload, "\"weather_code\":[", 24, tomCode);
+
+  if (!(okTemp && okHum && okCode && okDay && okWind)) {
+    Serial.println("[METEO][ERR] parse JSON fallita.");
+    return false;
+  }
+
+  out.valid = true;
+  out.tempC = temp;
+  out.humidity = (int)lroundf(hum);
+  out.weatherCode = (int)lroundf(wc);
+  out.isDay = ((int)lroundf(day) != 0);
+  out.windKmh = wind;
+  if (okSunrise) isoToHhMm(sunriseIso, out.sunrise);
+  if (okSunset) isoToHhMm(sunsetIso, out.sunset);
+
+  out.nextValid[0] = okNext0;
+  out.nextValid[1] = okNext3;
+  out.nextValid[2] = okNext6;
+  if (okNext0) { out.nextTemp[0] = (int)lroundf(next0); out.nextCode[0] = (int)lroundf(nextCode0); }
+  if (okNext3) { out.nextTemp[1] = (int)lroundf(next3); out.nextCode[1] = (int)lroundf(nextCode3); }
+  if (okNext6) { out.nextTemp[2] = (int)lroundf(next6); out.nextCode[2] = (int)lroundf(nextCode6); }
+
+  out.tomorrowValid = okTomorrow;
+  if (okTomorrow) { out.tomorrowTemp = (int)lroundf(tomTemp); out.tomorrowCode = (int)lroundf(tomCode); }
+
+  Serial.printf("[METEO] %s %.1fC RH=%d%% wind=%.1fkm/h code=%d day=%d sun=%s/%s\n",
+                runtimeWeatherCityLabel(), out.tempC, out.humidity, out.windKmh,
+                out.weatherCode, out.isDay ? 1 : 0, out.sunrise, out.sunset);
+  return true;
+}
 static void netFetchRss() {}
 static void netFetchWiki() {}
 static void netFetchFavicons() {}
@@ -7684,119 +7766,21 @@ static bool updateWeatherFromApi(bool force) {
   const uint32_t now = millis();
   const uint32_t waitMs = g_weather.valid ? weatherRefreshIntervalByEnergy() : weatherRetryIntervalByEnergy();
   if (!force && (now - g_weather.lastFetchMs) < waitMs) return g_weather.valid;
-  g_weather.lastFetchMs = now;
+  g_weather.lastFetchMs = now;  // mark attempt time
 
-  const float lat = runtimeWeatherLat();
-  const float lon = runtimeWeatherLon();
-  String url = "http://api.open-meteo.com/v1/forecast?latitude=";
-  url += String(lat, 4);
-  url += "&longitude=";
-  url += String(lon, 4);
-  url += "&current=temperature_2m,relative_humidity_2m,weather_code,is_day,wind_speed_10m";
-  url += "&hourly=temperature_2m,weather_code";
-  url += "&daily=sunrise,sunset";
-  url += "&timezone=Europe%2FRome&forecast_hours=36&forecast_days=2";
-
-  HTTPClient http;
-  http.setConnectTimeout(7000);
-  http.setTimeout(7000);
-  if (!http.begin(url)) {
-    Serial.println("[METEO][ERR] HTTP begin fallita.");
-    return false;
+  if (g_netTaskReady) {
+    netEnqueue(NET_REQ_WEATHER);
+    return g_weather.valid;  // return current state; result arrives async
   }
-  const int code = http.GET();
-  if (code != HTTP_CODE_OK) {
-    Serial.printf("[METEO][ERR] HTTP GET code=%d\n", code);
-    http.end();
-    return false;
+  // Fallback: inline fetch (during boot before netTask starts)
+  WeatherState local = {};
+  const bool ok = netFetchWeather(local);
+  if (ok) {
+    g_weather = local;
+    g_weather.lastFetchMs = millis();
+    g_weather.dirty = true;
   }
-  const String payload = http.getString();
-  http.end();
-
-  float temp = 0.0f, hum = 0.0f, wc = 0.0f, day = 1.0f, wind = 0.0f;
-  const bool okTemp = extractJsonNumberField(payload, "\"temperature_2m\"", temp);
-  const bool okHum = extractJsonNumberField(payload, "\"relative_humidity_2m\"", hum);
-  const bool okCode = extractJsonNumberField(payload, "\"weather_code\"", wc);
-  const bool okDay = extractJsonNumberField(payload, "\"is_day\"", day);
-  const bool okWind = extractJsonNumberField(payload, "\"wind_speed_10m\"", wind);
-
-  String sunriseIso, sunsetIso;
-  const bool okSunrise = extractJsonArrayStringAt(payload, "\"sunrise\":[", 0, sunriseIso);
-  const bool okSunset = extractJsonArrayStringAt(payload, "\"sunset\":[", 0, sunsetIso);
-
-  float next0 = 0.0f, next3 = 0.0f, next6 = 0.0f;
-  float nextCode0 = 0.0f, nextCode3 = 0.0f, nextCode6 = 0.0f;
-  const bool okNext0 = extractJsonArrayNumberAt(payload, "\"temperature_2m\":[", 0, next0) &&
-                       extractJsonArrayNumberAt(payload, "\"weather_code\":[", 0, nextCode0);
-  const bool okNext3 = extractJsonArrayNumberAt(payload, "\"temperature_2m\":[", 3, next3) &&
-                       extractJsonArrayNumberAt(payload, "\"weather_code\":[", 3, nextCode3);
-  const bool okNext6 = extractJsonArrayNumberAt(payload, "\"temperature_2m\":[", 6, next6) &&
-                       extractJsonArrayNumberAt(payload, "\"weather_code\":[", 6, nextCode6);
-
-  float tomTemp = 0.0f, tomCode = 0.0f;
-  const bool okTomorrow = extractJsonArrayNumberAt(payload, "\"temperature_2m\":[", 24, tomTemp) &&
-                          extractJsonArrayNumberAt(payload, "\"weather_code\":[", 24, tomCode);
-
-  if (!(okTemp && okHum && okCode && okDay && okWind)) {
-    Serial.println("[METEO][ERR] parse JSON fallita.");
-    return false;
-  }
-
-  const int newHum = (int)lroundf(hum);
-  const int newCode = (int)lroundf(wc);
-  const bool newIsDay = ((int)lroundf(day) != 0);
-  const bool changed =
-      (!g_weather.valid) ||
-      (fabsf(g_weather.tempC - temp) > 0.09f) ||
-      (g_weather.humidity != newHum) ||
-      (g_weather.weatherCode != newCode) ||
-      (g_weather.isDay != newIsDay) ||
-      (fabsf(g_weather.windKmh - wind) > 0.09f);
-
-  g_weather.valid = true;
-  g_weather.tempC = temp;
-  g_weather.humidity = newHum;
-  g_weather.weatherCode = newCode;
-  g_weather.isDay = newIsDay;
-  g_weather.windKmh = wind;
-  if (okSunrise) isoToHhMm(sunriseIso, g_weather.sunrise);
-  if (okSunset) isoToHhMm(sunsetIso, g_weather.sunset);
-
-  g_weather.nextValid[0] = okNext0;
-  g_weather.nextValid[1] = okNext3;
-  g_weather.nextValid[2] = okNext6;
-  if (okNext0) {
-    g_weather.nextTemp[0] = (int)lroundf(next0);
-    g_weather.nextCode[0] = (int)lroundf(nextCode0);
-  }
-  if (okNext3) {
-    g_weather.nextTemp[1] = (int)lroundf(next3);
-    g_weather.nextCode[1] = (int)lroundf(nextCode3);
-  }
-  if (okNext6) {
-    g_weather.nextTemp[2] = (int)lroundf(next6);
-    g_weather.nextCode[2] = (int)lroundf(nextCode6);
-  }
-
-  g_weather.tomorrowValid = okTomorrow;
-  if (okTomorrow) {
-    g_weather.tomorrowTemp = (int)lroundf(tomTemp);
-    g_weather.tomorrowCode = (int)lroundf(tomCode);
-  }
-
-#if TEST_NTP
-  if (changed) g_uiNeedsRedraw = true;
-#endif
-  Serial.printf("[METEO] %s %.1fC RH=%d%% wind=%.1fkm/h code=%d day=%d sun=%s/%s\n",
-                runtimeWeatherCityLabel(),
-                g_weather.tempC,
-                g_weather.humidity,
-                g_weather.windKmh,
-                g_weather.weatherCode,
-                g_weather.isDay ? 1 : 0,
-                g_weather.sunrise,
-                g_weather.sunset);
-  return true;
+  return ok;
 }
 #else
 static const char* weatherCodeLabelIt(int code) {
@@ -13784,6 +13768,13 @@ static void updateLvglUi(bool force) {
 #if SCREENSAVER_ENABLED
   if (g_saver.active) return;
 #endif
+  // Consume network results (Phase 1 — async dirty flags)
+  if (g_weather.dirty) {
+    if (g_netMutex) xSemaphoreTake(g_netMutex, portMAX_DELAY);
+    g_weather.dirty = false;
+    if (g_netMutex) xSemaphoreGive(g_netMutex);
+    g_uiNeedsRedraw = true;
+  }
   const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
   const uint32_t weatherBg = lvglResolvedWeatherBg(theme);
   const uint32_t weatherPrimary = lvglResolvedWeatherPrimary(theme, weatherBg);
