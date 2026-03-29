@@ -46,7 +46,7 @@ namespace {
 
 constexpr int kDoomSampleRate = 22050;
 constexpr uint32_t kDoomTaskStack = 32768;
-constexpr BaseType_t kDoomTaskPriority = 1;
+constexpr BaseType_t kDoomTaskPriority = 2;  // > netTask (1) — DOOM is interactive, network is background
 constexpr size_t kDoomFrameBytes = 320 * 200;
 
 struct DoomInputButtons {
