@@ -5241,27 +5241,20 @@ static void ensureWebConfigServerStarted() {
 static void handleWebConfigServerLoop() {}
 #endif
 
-static bool extractJsonNumberField(const String &json, const char *key, float &out) {
-  int pos = -1;
+static bool extractJsonNumberField(const char *json, const char *key, float &out) {
+  if (!json || !key) return false;
+  const char *p = json;
   while (true) {
-    pos = json.indexOf(key, pos + 1);
-    if (pos < 0) return false;
-    int i = pos + (int)strlen(key);
-    while (i < (int)json.length() && (json[i] == ' ' || json[i] == '\t' || json[i] == ':' || json[i] == '\n' || json[i] == '\r')) ++i;
-    if (i >= (int)json.length()) return false;
-    if (json[i] == '"') continue;  // skip units string occurrence, keep searching numeric one
-
-    int j = i;
-    while (j < (int)json.length()) {
-      const char c = json[j];
-      if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.') {
-        ++j;
-      } else {
-        break;
-      }
-    }
-    if (j <= i) continue;
-    out = json.substring(i, j).toFloat();
+    p = strstr(p, key);
+    if (!p) return false;
+    p += strlen(key);
+    while (*p == ' ' || *p == '\t' || *p == ':' || *p == '\n' || *p == '\r') ++p;
+    if (!*p) return false;
+    if (*p == '"') { ++p; continue; }  // skip units string occurrence, keep searching numeric one
+    char *endp = nullptr;
+    const float val = strtof(p, &endp);
+    if (!endp || endp == p) { ++p; continue; }
+    out = val;
     return true;
   }
 }
@@ -5297,59 +5290,64 @@ static bool extractJsonBoolFieldLoose(const String &json, const char *key, bool 
   return parseStrictBool(token, out);
 }
 
-static bool extractJsonArrayNumberAt(const String &json, const char *key, int index, float &out) {
-  if (index < 0) return false;
-  const int keyPos = json.indexOf(key);
-  if (keyPos < 0) return false;
-  int pos = json.indexOf('[', keyPos);
-  if (pos < 0) return false;
-  ++pos;
+static bool extractJsonArrayNumberAt(const char *json, const char *key, int index, float &out) {
+  if (!json || !key || index < 0) return false;
+  const char *keyP = strstr(json, key);
+  if (!keyP) return false;
+  const char *p = strchr(keyP, '[');
+  if (!p) return false;
+  ++p;
 
   for (int i = 0; i <= index; ++i) {
-    while (pos < (int)json.length() && (json[pos] == ' ' || json[pos] == '\n' || json[pos] == '\r' || json[pos] == '\t')) ++pos;
-    if (pos >= (int)json.length() || json[pos] == ']') return false;
-    int end = pos;
-    while (end < (int)json.length() && json[end] != ',' && json[end] != ']') ++end;
+    while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t') ++p;
+    if (!*p || *p == ']') return false;
+    const char *start = p;
+    while (*p && *p != ',' && *p != ']') ++p;
     if (i == index) {
-      String token = json.substring(pos, end);
-      token.trim();
-      out = token.toFloat();
-      return true;
+      const char *s = start;
+      while (s < p && (*s == ' ' || *s == '\n' || *s == '\r' || *s == '\t')) ++s;
+      if (s == p) return false;
+      char *endp = nullptr;
+      out = strtof(s, &endp);
+      return (endp && endp > s);
     }
-    pos = end;
-    if (pos < (int)json.length() && json[pos] == ',') ++pos;
+    if (*p == ',') ++p;
   }
   return false;
 }
 
-static bool extractJsonArrayStringAt(const String &json, const char *key, int index, String &out) {
-  if (index < 0) return false;
-  const int keyPos = json.indexOf(key);
-  if (keyPos < 0) return false;
-  int pos = json.indexOf('[', keyPos);
-  if (pos < 0) return false;
-  ++pos;
+static bool extractJsonArrayStringAt(const char *json, const char *key, int index, char *out, size_t outLen) {
+  if (!json || !key || index < 0 || !out || outLen == 0) return false;
+  const char *keyP = strstr(json, key);
+  if (!keyP) return false;
+  const char *p = strchr(keyP, '[');
+  if (!p) return false;
+  ++p;
 
   for (int i = 0; i <= index; ++i) {
-    while (pos < (int)json.length() && (json[pos] == ' ' || json[pos] == '\n' || json[pos] == '\r' || json[pos] == '\t')) ++pos;
-    if (pos >= (int)json.length() || json[pos] == ']') return false;
-    if (json[pos] != '"') return false;
-    ++pos;
-    int end = json.indexOf('"', pos);
-    if (end < 0) return false;
+    while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t') ++p;
+    if (!*p || *p == ']') return false;
+    if (*p != '"') return false;
+    ++p;
+    const char *end = strchr(p, '"');
+    if (!end) return false;
     if (i == index) {
-      out = json.substring(pos, end);
+      size_t len = (size_t)(end - p);
+      if (len >= outLen) len = outLen - 1;
+      memcpy(out, p, len);
+      out[len] = '\0';
       return true;
     }
-    pos = end + 1;
-    while (pos < (int)json.length() && json[pos] != ',' && json[pos] != ']') ++pos;
-    if (pos < (int)json.length() && json[pos] == ',') ++pos;
+    p = end + 1;
+    while (*p && *p != ',' && *p != ']') ++p;
+    if (*p == ',') ++p;
   }
   return false;
 }
 
-static void isoToHhMm(const String &iso, char out[6]) {
-  if (iso.length() >= 16) {
+static void isoToHhMm(const char *iso, char out[6]) {
+  const size_t len = iso ? strlen(iso) : 0;
+  if (len >= 16) {
     out[0] = iso[11];
     out[1] = iso[12];
     out[2] = ':';
@@ -6157,10 +6155,10 @@ static bool applyNowPlayingPayloadJson(const String &body, String &err) {
   const bool hasArtworkBase64 = extractJsonStringFieldLoose(body, "\"artworkRGB565B64\"", artworkRgb565B64);
   (void)extractJsonBoolFieldLoose(body, "\"isPlaying\"", isPlaying);
   (void)extractJsonBoolFieldLoose(body, "\"inSync\"", inSync);
-  (void)extractJsonNumberField(body, "\"durationSec\"", durationSecF);
-  (void)extractJsonNumberField(body, "\"elapsedSec\"", elapsedSecF);
-  (void)extractJsonNumberField(body, "\"artworkWidth\"", artworkWidthF);
-  (void)extractJsonNumberField(body, "\"artworkHeight\"", artworkHeightF);
+  (void)extractJsonNumberField(body.c_str(), "\"durationSec\"", durationSecF);
+  (void)extractJsonNumberField(body.c_str(), "\"elapsedSec\"", elapsedSecF);
+  (void)extractJsonNumberField(body.c_str(), "\"artworkWidth\"", artworkWidthF);
+  (void)extractJsonNumberField(body.c_str(), "\"artworkHeight\"", artworkHeightF);
 
   if (!hasArtworkId && hasArtworkUrl && artworkUrl.length() > 0) {
     artworkId = artworkUrl;
@@ -7217,14 +7215,14 @@ static bool netFetchWeather(WeatherState &out) {
 
   const float lat = runtimeWeatherLat();
   const float lon = runtimeWeatherLon();
-  String url = "http://api.open-meteo.com/v1/forecast?latitude=";
-  url += String(lat, 4);
-  url += "&longitude=";
-  url += String(lon, 4);
-  url += "&current=temperature_2m,relative_humidity_2m,weather_code,is_day,wind_speed_10m";
-  url += "&hourly=temperature_2m,weather_code";
-  url += "&daily=sunrise,sunset";
-  url += "&timezone=Europe%2FRome&forecast_hours=36&forecast_days=2";
+  char url[400];
+  snprintf(url, sizeof(url),
+    "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f"
+    "&current=temperature_2m,relative_humidity_2m,weather_code,is_day,wind_speed_10m"
+    "&hourly=temperature_2m,weather_code"
+    "&daily=sunrise,sunset"
+    "&timezone=Europe%%2FRome&forecast_hours=36&forecast_days=2",
+    lat, lon);
 
   HTTPClient http;
   http.setConnectTimeout(7000);
@@ -7239,8 +7237,15 @@ static bool netFetchWeather(WeatherState &out) {
     http.end();
     return false;
   }
-  const String payload = http.getString();
+
+  // getString() handles both Content-Length and chunked encoding correctly.
+  // Copy to PSRAM so the heap-allocated String can be freed before parsing.
+  const String responseStr = http.getString();
   http.end();
+  const char *payload = responseStr.c_str();
+  if (responseStr.length() == 0) {
+    return false;
+  }
 
   float temp = 0.0f, hum = 0.0f, wc = 0.0f, day = 1.0f, wind = 0.0f;
   const bool okTemp = extractJsonNumberField(payload, "\"temperature_2m\"", temp);
@@ -7249,9 +7254,9 @@ static bool netFetchWeather(WeatherState &out) {
   const bool okDay = extractJsonNumberField(payload, "\"is_day\"", day);
   const bool okWind = extractJsonNumberField(payload, "\"wind_speed_10m\"", wind);
 
-  String sunriseIso, sunsetIso;
-  const bool okSunrise = extractJsonArrayStringAt(payload, "\"sunrise\":[", 0, sunriseIso);
-  const bool okSunset = extractJsonArrayStringAt(payload, "\"sunset\":[", 0, sunsetIso);
+  char sunriseIso[32] = {}, sunsetIso[32] = {};
+  const bool okSunrise = extractJsonArrayStringAt(payload, "\"sunrise\":[", 0, sunriseIso, sizeof(sunriseIso));
+  const bool okSunset  = extractJsonArrayStringAt(payload, "\"sunset\":[",  0, sunsetIso,  sizeof(sunsetIso));
 
   float next0 = 0.0f, next3 = 0.0f, next6 = 0.0f;
   float nextCode0 = 0.0f, nextCode3 = 0.0f, nextCode6 = 0.0f;
