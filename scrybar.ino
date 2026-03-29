@@ -893,6 +893,7 @@ static uint32_t g_lvglLastTickMs = 0;
 static lv_disp_draw_buf_t g_lvglDrawBuf;
 static lv_disp_drv_t g_lvglDispDrv;
 static lv_color_t *g_lvglBuf1 = nullptr;
+static lv_color_t *g_lvglBuf2 = nullptr;  // Phase 2: double-buffering
 struct LvglClockUi {
   lv_obj_t *l1 = nullptr;
   lv_obj_t *l2 = nullptr;
@@ -1338,7 +1339,7 @@ static constexpr int16_t DB_CANVAS_H = LCD_WIDTH;   // 172
 static constexpr int16_t DB_NATIVE_W = LCD_WIDTH;   // 172
 static constexpr int16_t DB_NATIVE_H = LCD_HEIGHT;  // 640
 // Keep DMA chunks small enough to leave internal heap available for TLS handshakes.
-static constexpr int16_t DB_CHUNK_ROWS = 32;
+static constexpr int16_t DB_CHUNK_ROWS = 64;  // was 32 — halves semaphore overhead per frame
 
 // --- Frame performance counters (lightweight, no per-frame logging) ---
 struct PerfCounters {
@@ -2672,13 +2673,13 @@ static void doomRenderSpike(bool force) {
 // ── fine DOOM spike ───────────────────────────────────────────────────────────
 
 // Tile-based transpose+flip of one chunk from canvasBuf into a DMA buffer.
-// 8×8 tiles reduce PSRAM cache misses ~8× vs pixel-by-pixel stride.
+// 16×16 tiles aligned to PSRAM cache line (32B = 16 px) reduce cache misses vs pixel stride.
 static inline void dispRotateChunk(uint16_t *dst, int16_t colBase) {
-  constexpr int T = 8;
+  constexpr int T = 16;  // was 8 — matches PSRAM cache line (32B = 16 px)
   for (int16_t dj0 = 0; dj0 < DB_CHUNK_ROWS; dj0 += T) {
     for (int16_t di0 = 0; di0 < DB_CANVAS_H; di0 += T) {
       const int16_t diEnd = (di0 + T <= DB_CANVAS_H) ? (di0 + T) : DB_CANVAS_H;
-      for (int16_t dj = dj0; dj < dj0 + T; ++dj) {
+      for (int16_t dj = dj0; dj < dj0 + T && dj < DB_CHUNK_ROWS; ++dj) {
         uint16_t *d = &dst[dj * DB_NATIVE_W + di0];
         for (int16_t di = di0; di < diEnd; ++di) {
           d[di - di0] = g_dispHw.canvasBuf[(DB_CANVAS_H - 1 - di) * DB_CANVAS_W + colBase + dj];
@@ -2692,7 +2693,7 @@ static bool dispFlush() {
   if (!g_dispHw.panel || !g_dispHw.canvasBuf || !g_dispHw.dmaBuf || !g_dispHw.dmaBuf2 || !g_dispHw.flushSem) return false;
 
   const uint32_t t0 = micros();
-  const int chunks = DB_NATIVE_H / DB_CHUNK_ROWS;  // 640/64 = 10
+  const int chunks = DB_NATIVE_H / DB_CHUNK_ROWS;  // 640/64 = 10 chunks
   uint16_t *bufCur = g_dispHw.dmaBuf;
   uint16_t *bufNext = g_dispHw.dmaBuf2;
 
@@ -7664,7 +7665,8 @@ static void netTaskMain(void *param) {
         }
         case NET_REQ_WIKI_META: {
           netFetchWikiMeta();
-          Serial.printf("[NET] wiki_meta done dt=%lu ms\n", millis() - t0);
+          const uint32_t wikiMetaDt = millis() - t0;
+          if (wikiMetaDt >= 50) Serial.printf("[NET] wiki_meta done dt=%lu ms\n", wikiMetaDt);
           break;
         }
       }
@@ -12378,42 +12380,23 @@ static void lvglUpdateInfoPanel(bool force) {
 
 static void lvglDisplayFlushCb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
   (void)drv;
-  if (!g_dispHw.canvasBuf) {
-    lv_disp_flush_ready(drv);
-    return;
-  }
+  if (!g_dispHw.canvasBuf) { lv_disp_flush_ready(drv); return; }
 
-  const int32_t w = area->x2 - area->x1 + 1;
-  const int16_t cW = canvasWidth();
-  const int16_t cH = canvasHeight();
-  const lv_color_t *src = color_p;
+  const int32_t srcW = area->x2 - area->x1 + 1;
+  const int16_t cW   = canvasWidth();
+  const int16_t cH   = canvasHeight();
 
-  for (int32_t y = area->y1; y <= area->y2; ++y) {
-    if (y < 0 || y >= cH) {
-      src += w;
-      continue;
-    }
-
-    int32_t sx = 0;
-    int32_t ex = w - 1;
-    int32_t dstX = area->x1;
-    if (dstX < 0) {
-      sx = -dstX;
-      dstX = 0;
-    }
-    const int32_t over = (area->x1 + ex) - (cW - 1);
-    if (over > 0) ex -= over;
-    if (sx <= ex) {
-      uint16_t *dst = &g_dispHw.canvasBuf[(size_t)y * (size_t)DB_CANVAS_W + (size_t)dstX];
-      for (int32_t x = sx; x <= ex; ++x) {
+  for (int32_t y = area->y1; y <= area->y2; ++y, color_p += srcW) {
+    if (y < 0 || y >= cH) continue;
+    const int32_t x1 = (area->x1 < 0)    ? 0      : area->x1;
+    const int32_t x2 = (area->x2 >= cW)  ? cW - 1 : area->x2;
+    if (x1 > x2) continue;
+    uint16_t *dst = &g_dispHw.canvasBuf[(size_t)y * DB_CANVAS_W + (size_t)x1];
 #if LV_COLOR_DEPTH == 16
-        dst[x - sx] = src[x].full;
+    memcpy(dst, color_p + (x1 - area->x1), (size_t)(x2 - x1 + 1) * sizeof(uint16_t));
 #else
-        dst[x - sx] = lv_color_to16(src[x]);
+    for (int32_t x = x1; x <= x2; ++x) dst[x - x1] = lv_color_to16(color_p[x - area->x1]);
 #endif
-      }
-    }
-    src += w;
   }
 
   g_dispHw.canvasDirty = true;
@@ -13568,7 +13551,17 @@ static bool initLvglUi() {
     return false;
   }
 
-  lv_disp_draw_buf_init(&g_lvglDrawBuf, g_lvglBuf1, nullptr, bufPx);
+  // Phase 2: second buffer enables render/flush overlap (double-buffering)
+  g_lvglBuf2 = (lv_color_t*)heap_caps_malloc(bufPx * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (g_lvglBuf2) {
+    Serial.printf("[LVGL] double-buffer enabled (%u + %u KB PSRAM)\n",
+                  (unsigned)(bufPx * sizeof(lv_color_t) / 1024),
+                  (unsigned)(bufPx * sizeof(lv_color_t) / 1024));
+  } else {
+    Serial.println("[LVGL][WARN] second buffer alloc failed — single-buffer fallback");
+  }
+
+  lv_disp_draw_buf_init(&g_lvglDrawBuf, g_lvglBuf1, g_lvglBuf2, bufPx);  // g_lvglBuf2 may be nullptr
   lv_disp_drv_init(&g_lvglDispDrv);
   g_lvglDispDrv.hor_res = cW;
   g_lvglDispDrv.ver_res = cH;
@@ -13857,8 +13850,10 @@ static void updateLvglUi(bool force) {
 static void runLvglLoop() {
   if (!g_lvglReady) return;
   const uint32_t now = millis();
-  // Cap LVGL handler cadence to reduce frame thrash on this panel pipeline.
-  if (g_pageAnim.lastRunMs != 0 && (now - g_pageAnim.lastRunMs) < 12) return;
+  // Adaptive cadence: tighter during animation for smooth swipes, relaxed at idle.
+  const bool animating = (g_pageAnim.untilMs > now) || (lv_anim_count_running() > 0);
+  const uint16_t cadenceMs = animating ? 8 : 20;
+  if (g_pageAnim.lastRunMs != 0 && (now - g_pageAnim.lastRunMs) < cadenceMs) return;
   g_pageAnim.lastRunMs = now;
   uint32_t elapsed = now - g_lvglLastTickMs;
   if (elapsed > 50) elapsed = 50;
