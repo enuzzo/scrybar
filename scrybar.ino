@@ -5144,13 +5144,11 @@ static void handleWebReloadForm() {
       return;
     }
   }
-  const bool wOk = updateWeatherFromApi(true);
-  const bool rOk = updateRssFromFeed(true);
-  const bool kOk = updateWikiFromFeed(true);
-#if TEST_NTP
+  netEnqueue(NET_REQ_WEATHER);
+  netEnqueue(NET_REQ_RSS);
+  netEnqueue(NET_REQ_WIKI);
   g_uiNeedsRedraw = true;
-#endif
-  Serial.printf("[WEB] reload weather=%d rss=%d wiki=%d\n", wOk ? 1 : 0, rOk ? 1 : 0, kOk ? 1 : 0);
+  Serial.println("[WEB] reload queued (weather+rss+wiki)");
   webConfigRedirect("reloaded");
 }
 
@@ -5162,16 +5160,10 @@ static void handleWebReloadApi() {
       return;
     }
   }
-  const bool wOk = updateWeatherFromApi(true);
-  const bool rOk = updateRssFromFeed(true);
-  const bool kOk = updateWikiFromFeed(true);
-  String msg = "weather=";
-  msg += (wOk ? "ok" : "fail");
-  msg += ",rss=";
-  msg += (rOk ? "ok" : "fail");
-  msg += ",wiki=";
-  msg += (kOk ? "ok" : "fail");
-  sendWebConfigJson((wOk || rOk || kOk) ? 200 : 503, (wOk || rOk || kOk), msg.c_str());
+  netEnqueue(NET_REQ_WEATHER);
+  netEnqueue(NET_REQ_RSS);
+  netEnqueue(NET_REQ_WIKI);
+  sendWebConfigJson(200, true, "reload queued");
 }
 
 static void ensureWebConfigServerStarted() {
@@ -6925,7 +6917,6 @@ static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint
     http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
     http.addHeader("Connection", "close");
 
-    pumpWebUiDuringIo();
     const int code = http.GET();
     if (httpCodeOut) *httpCodeOut = code;
     if (code != HTTP_CODE_OK) {
@@ -6943,7 +6934,6 @@ static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint
       return 0;
     }
 
-    pumpWebUiDuringIo();
     String payload = http.getString();
     http.end();
     if (payload.length() <= 0) return 0;
@@ -7055,7 +7045,6 @@ static bool fetchWikiRandomArticle(RssItem &item) {
     http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
     http.addHeader("Connection", "close");
 
-    pumpWebUiDuringIo();
     const int code = http.GET();
     if (code != HTTP_CODE_OK) {
       http.end();
@@ -7067,7 +7056,6 @@ static bool fetchWikiRandomArticle(RssItem &item) {
       return false;
     }
 
-    pumpWebUiDuringIo();
     payload = http.getString();
     http.end();
     if (payload.length() == 0) return false;
@@ -14451,10 +14439,8 @@ static void cmdWikiStat(const String &args) {
 
 static void cmdRssReload(const String &args) {
 #if TEST_WIFI && RSS_ENABLED
-  const bool ok = updateRssFromFeed(true);
-  Serial.printf("[RSSRELOAD] ok=%d valid=%d items=%u http=%d fetched='%s'\n",
-                ok ? 1 : 0, g_rss.valid ? 1 : 0, (unsigned)g_rss.itemCount,
-                g_rss.lastHttpCode, g_rss.fetchedAt);
+  netEnqueue(NET_REQ_RSS);
+  Serial.println("[RSSRELOAD] queued");
 #else
   Serial.println("[RSSRELOAD] unavailable");
 #endif
@@ -14462,10 +14448,8 @@ static void cmdRssReload(const String &args) {
 
 static void cmdWikiReload(const String &args) {
 #if TEST_WIFI && RSS_ENABLED
-  const bool ok = updateWikiFromFeed(true);
-  Serial.printf("[WIKIRELOAD] ok=%d valid=%d items=%u http=%d fetched='%s'\n",
-                ok ? 1 : 0, g_wiki.valid ? 1 : 0, (unsigned)g_wiki.itemCount,
-                g_wiki.lastHttpCode, g_wiki.fetchedAt);
+  netEnqueue(NET_REQ_WIKI);
+  Serial.println("[WIKIRELOAD] queued");
 #else
   Serial.println("[WIKIRELOAD] unavailable");
 #endif
@@ -14473,14 +14457,12 @@ static void cmdWikiReload(const String &args) {
 
 static void cmdReload(const String &args) {
 #if TEST_WIFI
-  const bool weatherOk = updateWeatherFromApi(true);
+  netEnqueue(NET_REQ_WEATHER);
 #if RSS_ENABLED
-  const bool rssOk = updateRssFromFeed(true);
-  const bool wikiOk = updateWikiFromFeed(true);
-  Serial.printf("[RELOAD] weather=%d rss=%d wiki=%d\n", weatherOk ? 1 : 0, rssOk ? 1 : 0, wikiOk ? 1 : 0);
-#else
-  Serial.printf("[RELOAD] weather=%d rss=0 wiki=0\n", weatherOk ? 1 : 0);
+  netEnqueue(NET_REQ_RSS);
+  netEnqueue(NET_REQ_WIKI);
 #endif
+  Serial.println("[CMD] reload queued");
 #else
   Serial.println("[RELOAD] unavailable");
 #endif
