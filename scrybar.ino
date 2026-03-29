@@ -6513,13 +6513,12 @@ static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSumm
     http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
     http.setTimeout(RSS_HTTP_TIMEOUT_MS);
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.useHTTP10(true);
 
     bool beginOk = false;
     WiFiClientSecure tls;
     if (strncmp(requestUrl, "https://", 8) == 0) {
       tls.setInsecure();
-  
+
       tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
       beginOk = http.begin(tls, requestUrl);
     } else {
@@ -6535,7 +6534,6 @@ static bool rssFetchWikipediaSummaryMeta(const char *articleUrl, String &outSumm
     }
     http.addHeader("Accept", "application/json");
     http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
-    http.addHeader("Connection", "close");
     const int code = http.GET();
     if (code != HTTP_CODE_OK) {
       http.end();
@@ -6887,13 +6885,12 @@ static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint
     http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
     http.setTimeout(RSS_HTTP_TIMEOUT_MS);
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.useHTTP10(true);
 
     bool beginOk = false;
     WiFiClientSecure tls;
     if (strncmp(requestUrl, "https://", 8) == 0) {
       tls.setInsecure();
-  
+
       tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
       beginOk = http.begin(tls, requestUrl);
     } else {
@@ -6914,7 +6911,6 @@ static uint8_t fetchRssItemsFromUrl(const char *feedUrl, RssItem *outItems, uint
 
     http.addHeader("Accept", "application/rss+xml, application/xml, text/xml, application/atom+xml;q=0.9, */*;q=0.1");
     http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
-    http.addHeader("Connection", "close");
 
     const int code = http.GET();
     if (httpCodeOut) *httpCodeOut = code;
@@ -7020,13 +7016,12 @@ static bool fetchWikiRandomArticle(RssItem &item) {
     http.setConnectTimeout(RSS_HTTP_TIMEOUT_MS);
     http.setTimeout(RSS_HTTP_TIMEOUT_MS);
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.useHTTP10(true);
 
     bool beginOk = false;
     WiFiClientSecure tls;
     if (strncmp(requestUrl, "https://", 8) == 0) {
       tls.setInsecure();
-  
+
       tls.setHandshakeTimeout((RSS_HTTP_TIMEOUT_MS + 999U) / 1000U);
       beginOk = http.begin(tls, requestUrl);
     } else {
@@ -7042,7 +7037,6 @@ static bool fetchWikiRandomArticle(RssItem &item) {
     }
     http.addHeader("Accept", "application/json; charset=utf-8");
     http.addHeader("User-Agent", "ScryBar/1.0 (ESP32)");
-    http.addHeader("Connection", "close");
 
     const int code = http.GET();
     if (code != HTTP_CODE_OK) {
