@@ -802,6 +802,7 @@ struct WeatherState {
   int tomorrowCode = -1;
   bool tomorrowValid = false;
   uint32_t lastFetchMs = 0;
+  bool dirty = false;  // set by netTask, cleared by UI update
 };
 static WeatherState g_weather;
 
@@ -824,12 +825,28 @@ struct RssState {
   uint32_t lastAttemptMs = 0;
   uint32_t lastRotateMs = 0;
   int lastHttpCode = 0;
+  bool dirty = false;  // set by netTask, cleared by UI update
 };
 static RssState g_rss = {};
 static RssState g_wiki = {};
 static RssItem *g_rssParseBuf = nullptr;
 static uint32_t g_wikiMetaPreloadLastMs = 0;
 static uint32_t g_wikiVisiblePreloadLastMs = 0;
+
+// --- Network background task (Core 1) ---
+enum NetRequestType : uint8_t {
+  NET_REQ_WEATHER = 0,
+  NET_REQ_RSS,
+  NET_REQ_WIKI,
+  NET_REQ_FAVICON,
+  NET_REQ_WIKI_META,
+};
+struct NetRequest { NetRequestType type; };
+
+static QueueHandle_t    g_netQueue  = nullptr;
+static SemaphoreHandle_t g_netMutex = nullptr;
+static TaskHandle_t     g_netTaskHandle = nullptr;
+static bool             g_netTaskReady = false;
 #endif
 
 #if TEST_NTP

@@ -217,3 +217,9 @@ struct TouchReleaseInfo {
 
 // Try hard power cut through TCA9554 SYS_EN bit before deep sleep fallback.
 #define PWR_USE_TCA9554_SYS_EN 1
+
+// --- Network background task (Phase 1 perf overhaul) ---
+#define NET_TASK_STACK_SIZE 16384
+#define NET_TASK_PRIORITY 1
+#define NET_QUEUE_DEPTH 8
+#define NET_STACK_MONITOR_MS 30000
