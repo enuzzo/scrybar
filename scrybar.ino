@@ -7107,170 +7107,18 @@ static bool fetchWikiRandomArticle(RssItem &item) {
 
 static bool updateWikiFromFeed(bool force) {
   if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
-  RssItem *parseBuf = ensureRssParseBuf();
-  if (!parseBuf) return false;
   const uint32_t now = millis();
   const uint32_t waitMs = g_wiki.valid ? rssRefreshIntervalByEnergy() : rssRetryIntervalByEnergy();
   if (!force && g_wiki.lastAttemptMs != 0 && (now - g_wiki.lastAttemptMs) < waitMs) return g_wiki.valid;
   g_wiki.lastAttemptMs = now;
 
-  memset(parseBuf, 0, sizeof(RssItem) * RSS_MAX_ITEMS);
-  uint8_t count = 0;
-  uint8_t feedsTried = 0;
-  uint8_t feedsWithItems = 0;
-  int firstHttpErr = 0;
-
-  // Build language-parameterized URLs for Featured (slot 0) and On This Day (slot 1).
-  // Slot 2 (Random) is handled separately via REST API JSON below.
-  char wikiFeedUrls[2][160];
-  snprintf(wikiFeedUrls[0], sizeof(wikiFeedUrls[0]),
-           "https://%s.wikipedia.org/w/api.php?action=featuredfeed&feed=featured&feedformat=rss",
-           g_wikiLang);
-  {
-    struct tm tNow;
-    if (getLocalTime(&tNow, 50)) {
-      snprintf(wikiFeedUrls[1], sizeof(wikiFeedUrls[1]),
-               "https://%s.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday"
-               "&feedformat=rss&month=%02d&day=%02d",
-               g_wikiLang, tNow.tm_mon + 1, tNow.tm_mday);
-    } else {
-      snprintf(wikiFeedUrls[1], sizeof(wikiFeedUrls[1]),
-               "https://%s.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday&feedformat=rss",
-               g_wikiLang);
-    }
+  if (g_netTaskReady) {
+    netEnqueue(NET_REQ_WIKI);
+    return g_wiki.valid;
   }
-
-  // Slots 0-1: RSS feeds (Featured, On This Day)
-  for (uint8_t slot = 0; slot < 2 && count < RSS_MAX_ITEMS; ++slot) {
-    const char *feedUrl = wikiFeedUrls[slot];
-    if (!startsWithHttp(feedUrl)) continue;
-    pumpWebUiDuringIo();
-    ++feedsTried;
-
-    const uint8_t remaining = (uint8_t)(RSS_MAX_ITEMS - count);
-    uint8_t feedCap = RSS_DEFAULT_FEED_ITEMS;
-    if (feedCap > remaining) feedCap = remaining;
-    int httpCode = 0;
-
-    // Wikipedia feeds return ~10 days oldest-first.
-    // Parse all into a PSRAM buffer and keep only the last feedCap (most recent).
-    uint8_t got = 0;
-    {
-      static constexpr uint8_t WIKI_PARSE_MAX = 10;
-      RssItem *tmpBuf = (RssItem *)ps_calloc(WIKI_PARSE_MAX, sizeof(RssItem));
-      if (tmpBuf) {
-        const uint8_t parsed = fetchRssItemsFromUrl(feedUrl, tmpBuf, WIKI_PARSE_MAX, &httpCode);
-        if (parsed > 0) {
-          const uint8_t take = (parsed < feedCap) ? parsed : feedCap;
-          const uint8_t skip = parsed - take;
-          for (uint8_t k = 0; k < take; ++k) {
-            parseBuf[count + k] = tmpBuf[skip + k];
-          }
-          got = take;
-        }
-        free(tmpBuf);
-      } else {
-        got = fetchRssItemsFromUrl(feedUrl, &parseBuf[count], feedCap, &httpCode);
-      }
-    }
-
-    pumpWebUiDuringIo();
-    if (got > 0) {
-      for (uint8_t k = 0; k < got; ++k) {
-        parseBuf[count + k].feedSlot = slot;
-      }
-      count = (uint8_t)(count + got);
-      ++feedsWithItems;
-    } else if (firstHttpErr == 0 && httpCode != 0) {
-      firstHttpErr = httpCode;
-    }
-  }
-
-  // Slot 2: Random article via REST API (JSON, not RSS).
-  // If the feed endpoints are empty or blocked, keep this view alive by pulling
-  // multiple random summaries instead of failing hard with ERR -1.
-  const uint8_t randomTarget = (count == 0) ? 3 : 1;
-  for (uint8_t attempt = 0; attempt < randomTarget && count < RSS_MAX_ITEMS; ++attempt) {
-    ++feedsTried;
-    pumpWebUiDuringIo();
-    RssItem randomItem;
-    memset(&randomItem, 0, sizeof(randomItem));
-    if (fetchWikiRandomArticle(randomItem)) {
-      parseBuf[count] = randomItem;
-      ++count;
-      ++feedsWithItems;
-    }
-  }
-
-  if (count == 0) {
-    g_wiki.lastHttpCode = (firstHttpErr != 0) ? firstHttpErr : -1;
-    return false;
-  }
-
-  g_wiki.lastHttpCode = HTTP_CODE_OK;
-  const bool changed =
-      (!g_wiki.valid) ||
-      (g_wiki.itemCount != count) ||
-      (strncmp(g_wiki.items[0].title, parseBuf[0].title, sizeof(g_wiki.items[0].title) - 1) != 0);
-
-  g_wiki.itemCount = count;
-  for (uint8_t i = 0; i < count; ++i) {
-    g_wiki.items[i] = parseBuf[i];
-  }
-  if (count < RSS_MAX_ITEMS) {
-    for (uint8_t i = count; i < RSS_MAX_ITEMS; ++i) {
-      g_wiki.items[i].title[0] = '\0';
-      g_wiki.items[i].link[0] = '\0';
-      g_wiki.items[i].pubDate[0] = '\0';
-      g_wiki.items[i].summary[0] = '\0';
-      g_wiki.items[i].feedSlot = 0xFF;
-      g_wiki.items[i].wikiMetaReady = false;
-      g_wiki.items[i].wikiMetaTried = false;
-    }
-  }
-  g_wiki.currentIndex = 0;
-  g_wiki.lastRotateMs = now;
-  g_wiki.valid = true;
-  g_wiki.lastFetchMs = now;
-  g_wikiMetaPreloadLastMs = 0;
-  if (changed && g_uiPageMode == UI_PAGE_WIKI) {
-    g_auxDeck.lastItemShown = -1;
-    g_auxDeck.lastQrPayload[0] = '\0';
-#if TEST_NTP
-    g_uiNeedsRedraw = true;
-#endif
-  }
-  struct tm tinfo;
-  if (getLocalTime(&tinfo, 50)) {
-    snprintf(g_wiki.fetchedAt, sizeof(g_wiki.fetchedAt), "%02d/%02d %02d:%02d",
-             tinfo.tm_mday, tinfo.tm_mon + 1, tinfo.tm_hour, tinfo.tm_min);
-  } else {
-    strncpy(g_wiki.fetchedAt, "--/-- --:--", sizeof(g_wiki.fetchedAt) - 1);
-    g_wiki.fetchedAt[sizeof(g_wiki.fetchedAt) - 1] = '\0';
-  }
-  Serial.printf("[WIKI] feeds=%u/%u items=%u first='%s'\n",
-                (unsigned)feedsWithItems,
-                (unsigned)feedsTried,
-                (unsigned)g_wiki.itemCount,
-                g_wiki.items[0].title);
-
-  // Prefetch favicon for wiki host (typically one per language, e.g. en.wikipedia.org)
-  {
-    char wikiHost[96];
-    extractRssHost(g_wiki.items[0].link, wikiHost, sizeof(wikiHost));
-    if (wikiHost[0]) {
-      bool cached = false;
-      for (uint8_t s = 0; s < kFaviconCacheSlots; ++s) {
-        if (g_faviconCache[s].valid && strcmp(g_faviconCache[s].host, wikiHost) == 0) { cached = true; break; }
-      }
-      if (!cached) {
-        faviconFetchAndCache(wikiHost);
-        pumpWebUiDuringIo();
-      }
-    }
-  }
-
-  return true;
+  // Fallback: inline (during boot before netTask starts)
+  netFetchWiki();
+  return g_wiki.valid;
 }
 
 static bool contentAdvanceToNextFeed(RssState &state, uint8_t feedSlotCount) {
@@ -7348,29 +7196,16 @@ static void wikiPreloadMetaStep() {
   if (!g_wiki.valid || g_wiki.itemCount == 0) return;
   if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return;
   const uint32_t now = millis();
-  if ((now - g_wikiMetaPreloadLastMs) < 2500UL) return;
+  if (g_wikiMetaPreloadLastMs != 0 && (now - g_wikiMetaPreloadLastMs) < 2000) return;
   g_wikiMetaPreloadLastMs = now;
-
-  for (uint8_t i = 0; i < g_wiki.itemCount; ++i) {
-    RssItem &item = g_wiki.items[i];
-    if (item.wikiMetaTried && item.wikiMetaReady) continue;
-    if (item.summary[0]) {
-      item.wikiMetaReady = true;
-      item.wikiMetaTried = true;
-      continue;
-    }
-    if (rssTryEnrichItemWikipediaMeta(item)) {
-      if (i == g_wiki.currentIndex && g_uiPageMode == UI_PAGE_WIKI) {
-#if TEST_NTP
-        g_uiNeedsRedraw = true;
-#endif
-      }
-      return;
-    }
+  if (g_netTaskReady) {
+    netEnqueue(NET_REQ_WIKI_META);
+    return;
   }
+  netFetchWikiMeta();
 }
 // Keep Wiki visuals progressing even while user stays on WIKI view.
-// Runs one lightweight preload action per tick on the currently visible item.
+// Enqueues wiki-meta enrichment for the currently visible item.
 static void wikiPreloadVisibleItemStep() {
   if (g_uiPageMode != UI_PAGE_WIKI) return;
   if (!g_wiki.valid || g_wiki.itemCount == 0) return;
@@ -7380,19 +7215,11 @@ static void wikiPreloadVisibleItemStep() {
   if ((now - g_wikiVisiblePreloadLastMs) < 2200UL) return;
   g_wikiVisiblePreloadLastMs = now;
 
-  const uint8_t idx = (uint8_t)(g_wiki.currentIndex % g_wiki.itemCount);
-  RssItem &item = g_wiki.items[idx];
-
-  // 1) Enrich summary/image metadata first (one HTTP call max).
-  if (!item.summary[0] && !(item.wikiMetaTried && item.wikiMetaReady)) {
-    if (rssTryEnrichItemWikipediaMeta(item)) {
-#if TEST_NTP
-      g_uiNeedsRedraw = true;
-#endif
-    }
+  if (g_netTaskReady) {
+    netEnqueue(NET_REQ_WIKI_META);
     return;
   }
-
+  netFetchWikiMeta();
 }
 
 // --- netFetch stubs (Phase 1 — replaced in Tasks 1.3-1.5) ---
@@ -7585,9 +7412,211 @@ static void netFetchRss() {
   // Trigger favicon prefetch
   netEnqueue(NET_REQ_FAVICON);
 }
-static void netFetchWiki() {}
-static void netFetchFavicons() {}
-static void netFetchWikiMeta() {}
+static void netFetchWiki() {
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return;
+  RssItem *parseBuf = ensureRssParseBuf();
+  if (!parseBuf) return;
+  const uint32_t now = millis();
+
+  memset(parseBuf, 0, sizeof(RssItem) * RSS_MAX_ITEMS);
+  uint8_t count = 0;
+  uint8_t feedsTried = 0;
+  uint8_t feedsWithItems = 0;
+  int firstHttpErr = 0;
+
+  // Build language-parameterized URLs for Featured (slot 0) and On This Day (slot 1).
+  char wikiFeedUrls[2][160];
+  snprintf(wikiFeedUrls[0], sizeof(wikiFeedUrls[0]),
+           "https://%s.wikipedia.org/w/api.php?action=featuredfeed&feed=featured&feedformat=rss",
+           g_wikiLang);
+  {
+    struct tm tNow;
+    if (getLocalTime(&tNow, 50)) {
+      snprintf(wikiFeedUrls[1], sizeof(wikiFeedUrls[1]),
+               "https://%s.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday"
+               "&feedformat=rss&month=%02d&day=%02d",
+               g_wikiLang, tNow.tm_mon + 1, tNow.tm_mday);
+    } else {
+      snprintf(wikiFeedUrls[1], sizeof(wikiFeedUrls[1]),
+               "https://%s.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday&feedformat=rss",
+               g_wikiLang);
+    }
+  }
+
+  // Slots 0-1: RSS feeds (Featured, On This Day)
+  for (uint8_t slot = 0; slot < 2 && count < RSS_MAX_ITEMS; ++slot) {
+    const char *feedUrl = wikiFeedUrls[slot];
+    if (!startsWithHttp(feedUrl)) continue;
+    ++feedsTried;
+
+    const uint8_t remaining = (uint8_t)(RSS_MAX_ITEMS - count);
+    uint8_t feedCap = RSS_DEFAULT_FEED_ITEMS;
+    if (feedCap > remaining) feedCap = remaining;
+    int httpCode = 0;
+
+    uint8_t got = 0;
+    {
+      static constexpr uint8_t WIKI_PARSE_MAX = 10;
+      RssItem *tmpBuf = (RssItem *)ps_calloc(WIKI_PARSE_MAX, sizeof(RssItem));
+      if (tmpBuf) {
+        const uint8_t parsed = fetchRssItemsFromUrl(feedUrl, tmpBuf, WIKI_PARSE_MAX, &httpCode);
+        if (parsed > 0) {
+          const uint8_t take = (parsed < feedCap) ? parsed : feedCap;
+          const uint8_t skip = parsed - take;
+          for (uint8_t k = 0; k < take; ++k) {
+            parseBuf[count + k] = tmpBuf[skip + k];
+          }
+          got = take;
+        }
+        free(tmpBuf);
+      } else {
+        got = fetchRssItemsFromUrl(feedUrl, &parseBuf[count], feedCap, &httpCode);
+      }
+    }
+
+    if (got > 0) {
+      for (uint8_t k = 0; k < got; ++k) {
+        parseBuf[count + k].feedSlot = slot;
+      }
+      count = (uint8_t)(count + got);
+      ++feedsWithItems;
+    } else if (firstHttpErr == 0 && httpCode != 0) {
+      firstHttpErr = httpCode;
+    }
+  }
+
+  // Slot 2: Random article via REST API (JSON, not RSS).
+  const uint8_t randomTarget = (count == 0) ? 3 : 1;
+  for (uint8_t attempt = 0; attempt < randomTarget && count < RSS_MAX_ITEMS; ++attempt) {
+    ++feedsTried;
+    RssItem randomItem;
+    memset(&randomItem, 0, sizeof(randomItem));
+    if (fetchWikiRandomArticle(randomItem)) {
+      parseBuf[count] = randomItem;
+      ++count;
+      ++feedsWithItems;
+    }
+  }
+
+  if (count == 0) {
+    xSemaphoreTake(g_netMutex, portMAX_DELAY);
+    g_wiki.lastHttpCode = (firstHttpErr != 0) ? firstHttpErr : -1;
+    xSemaphoreGive(g_netMutex);
+    return;
+  }
+
+  // Copy results to shared state under mutex
+  xSemaphoreTake(g_netMutex, portMAX_DELAY);
+  g_wiki.lastHttpCode = HTTP_CODE_OK;
+  g_wiki.itemCount = count;
+  for (uint8_t i = 0; i < count; ++i) g_wiki.items[i] = parseBuf[i];
+  for (uint8_t i = count; i < RSS_MAX_ITEMS; ++i) {
+    g_wiki.items[i].title[0] = '\0';
+    g_wiki.items[i].link[0] = '\0';
+    g_wiki.items[i].pubDate[0] = '\0';
+    g_wiki.items[i].summary[0] = '\0';
+    g_wiki.items[i].feedSlot = 0xFF;
+    g_wiki.items[i].wikiMetaReady = false;
+    g_wiki.items[i].wikiMetaTried = false;
+  }
+  g_wiki.currentIndex = 0;
+  g_wiki.lastRotateMs = now;
+  g_wiki.valid = true;
+  g_wiki.lastFetchMs = now;
+  g_wikiMetaPreloadLastMs = 0;
+  struct tm tinfo;
+  if (getLocalTime(&tinfo, 50)) {
+    snprintf(g_wiki.fetchedAt, sizeof(g_wiki.fetchedAt), "%02d/%02d %02d:%02d",
+             tinfo.tm_mday, tinfo.tm_mon + 1, tinfo.tm_hour, tinfo.tm_min);
+  } else {
+    strncpy(g_wiki.fetchedAt, "--/-- --:--", sizeof(g_wiki.fetchedAt) - 1);
+    g_wiki.fetchedAt[sizeof(g_wiki.fetchedAt) - 1] = '\0';
+  }
+  g_wiki.dirty = true;
+  xSemaphoreGive(g_netMutex);
+
+  Serial.printf("[WIKI] feeds=%u/%u items=%u first='%s'\n",
+                (unsigned)feedsWithItems, (unsigned)feedsTried,
+                (unsigned)count, parseBuf[0].title);
+
+  // Trigger favicon prefetch for wiki hosts
+  netEnqueue(NET_REQ_FAVICON);
+}
+
+static void netFetchFavicons() {
+  // Read item links under mutex to collect unique hosts
+  char hosts[16][96];
+  uint8_t hostCount = 0;
+
+  xSemaphoreTake(g_netMutex, portMAX_DELAY);
+  for (uint8_t i = 0; i < g_rss.itemCount && hostCount < 16; ++i) {
+    char host[96];
+    rssResolveSourceHost(g_rss.items[i], host, sizeof(host));
+    if (!host[0]) continue;
+    bool dup = false;
+    for (uint8_t s = 0; s < hostCount; ++s) { if (strcmp(hosts[s], host) == 0) { dup = true; break; } }
+    if (!dup) { copyStringSafe(hosts[hostCount++], sizeof(hosts[0]), host); }
+  }
+  for (uint8_t i = 0; i < g_wiki.itemCount && hostCount < 16; ++i) {
+    char host[96];
+    rssResolveSourceHost(g_wiki.items[i], host, sizeof(host));
+    if (!host[0]) continue;
+    bool dup = false;
+    for (uint8_t s = 0; s < hostCount; ++s) { if (strcmp(hosts[s], host) == 0) { dup = true; break; } }
+    if (!dup) { copyStringSafe(hosts[hostCount++], sizeof(hosts[0]), host); }
+  }
+  xSemaphoreGive(g_netMutex);
+
+  // Fetch favicons without holding mutex
+  uint8_t fetched = 0;
+  for (uint8_t i = 0; i < hostCount; ++i) {
+    bool cached = false;
+    for (uint8_t s = 0; s < kFaviconCacheSlots; ++s) {
+      if (g_faviconCache[s].valid && strcmp(g_faviconCache[s].host, hosts[i]) == 0) { cached = true; break; }
+    }
+    if (cached) continue;
+    faviconFetchAndCache(hosts[i]);
+    ++fetched;
+  }
+  if (fetched) Serial.printf("[FAV] prefetched %u new favicons\n", (unsigned)fetched);
+}
+
+static void netFetchWikiMeta() {
+  // Read which items need meta enrichment under mutex
+  xSemaphoreTake(g_netMutex, portMAX_DELAY);
+  uint8_t wikiCount = g_wiki.itemCount;
+  RssItem localItems[RSS_MAX_ITEMS];
+  for (uint8_t i = 0; i < wikiCount; ++i) localItems[i] = g_wiki.items[i];
+  xSemaphoreGive(g_netMutex);
+
+  bool anyUpdated = false;
+  for (uint8_t i = 0; i < wikiCount; ++i) {
+    if (localItems[i].wikiMetaTried && localItems[i].wikiMetaReady) continue;
+    if (localItems[i].summary[0]) {
+      localItems[i].wikiMetaReady = true;
+      localItems[i].wikiMetaTried = true;
+      continue;
+    }
+    if (!localItems[i].link[0]) continue;
+    localItems[i].wikiMetaTried = true;
+    String summary;
+    if (rssFetchWikipediaSummaryMeta(localItems[i].link, summary)) {
+      if (summary.length() > 0) {
+        copyStringSafe(localItems[i].summary, sizeof(localItems[i].summary), summary.c_str());
+        localItems[i].wikiMetaReady = true;
+        anyUpdated = true;
+      }
+    }
+    break;  // one item per call (same as original wikiPreloadMetaStep behavior)
+  }
+
+  if (anyUpdated) {
+    xSemaphoreTake(g_netMutex, portMAX_DELAY);
+    for (uint8_t i = 0; i < wikiCount; ++i) g_wiki.items[i] = localItems[i];
+    g_wiki.dirty = true;
+    xSemaphoreGive(g_netMutex);
+  }
+}
 
 // ── Network background task (Core 1) ──────────────────────────────────────────
 static bool netEnqueue(NetRequestType type) {
@@ -7677,6 +7706,10 @@ static void printTlsDiagResult(const char *label, WiFiClientSecure &client, bool
 
 static void runRssDiag() {
   Serial.println("[RSSDIAG] begin");
+  if (g_netTaskReady) {
+    Serial.println("[RSSDIAG] TLS diag disabled while netTask active — use web UI");
+    return;
+  }
 #if WIFI_DNS_OVERRIDE_ENABLED
   {
     const IPAddress dns1 = WIFI_DNS1_IP;
@@ -13747,6 +13780,14 @@ static void updateLvglUi(bool force) {
     g_rss.dirty = false;
     g_auxDeck.lastItemShown = -1;
     g_auxDeck.lastQrPayload[0] = '\0';
+    if (g_netMutex) xSemaphoreGive(g_netMutex);
+    g_uiNeedsRedraw = true;
+  }
+  if (g_wiki.dirty) {
+    if (g_netMutex) xSemaphoreTake(g_netMutex, portMAX_DELAY);
+    g_wiki.dirty = false;
+    g_wikiDeck.lastItemShown = -1;
+    g_wikiDeck.lastQrPayload[0] = '\0';
     if (g_netMutex) xSemaphoreGive(g_netMutex);
     g_uiNeedsRedraw = true;
   }
