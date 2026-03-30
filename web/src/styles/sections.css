@@ -145,6 +145,8 @@
 [data-theme-id="toxic-candy"] .theme-pill__dot { background: #39FF14; }
 [data-theme-id="tokyo-transit"] .theme-pill__dot { background: #E85D3A; }
 [data-theme-id="minimal-brutalist-mono"] .theme-pill__dot { background: #FFFFFF; }
+[data-theme-id="mint-protocol"] .theme-pill__dot { background: #58855C; }
+[data-theme-id="cathode-ray"] .theme-pill__dot { background: #33FF33; }
 
 /* ============ LANGUAGE PREVIEW ============ */
 .lang-preview {
