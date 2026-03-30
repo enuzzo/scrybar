@@ -53,7 +53,10 @@ jobs:
             "SensorLib@0.3.1"
 
       - name: Prepare secrets
-        run: cp .github/ci-secrets.h secrets.h
+        run: |
+          cp .github/ci-secrets.h secrets.h
+          # Stub IWAD for CI — DOOM won't run, file just needs to exist for .incbin
+          printf 'IWAD\x00\x00\x00\x00\x0c\x00\x00\x00' > src/doom/doom1.wad
 
       - name: Build Full variant
         run: |

@@ -67,3 +67,7 @@ venv/
 # Redundant local archives
 assets/weather_demo/weather_images.zip
 backups/
+
+# DOOM WAD (copyrighted game asset — not for repo)
+src/doom/doom1.wad
+*.wad
