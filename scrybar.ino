@@ -10114,11 +10114,15 @@ static void handleTouchSwipeInput() {
                  abs(g_touch.lastX - g_touch.startX) <= 72 &&
                  abs(g_touch.lastY - g_touch.startY) <= 72),
     .auxBtnDown = (uint8_t)g_touch.auxBtnDown,
+#if TEST_DISPLAY && DOOM_SPIKE_ENABLED
     .doomTouchZone = g_doom.touchZone,
+#else
+    .doomTouchZone = 0,
+#endif
   };
   g_touch.auxBtnDown = TOUCH_AUX_BTN_NONE;
-  g_doom.touchZone = DOOM_TOUCH_NONE;
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
+  g_doom.touchZone = DOOM_TOUCH_NONE;
   if (r.doomTouchZone != DOOM_TOUCH_NONE) g_doom.frameDirty = true;
 #endif
   if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_QR) lvglSetFeedQrButtonPressed(false);
