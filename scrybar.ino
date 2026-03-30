@@ -99,7 +99,8 @@ LV_FONT_DECLARE(scry_font_funnel_display_38);
 #include "assets/weather_icons/generated/weather_icons_lvgl_local.h"
 #define DB_HAS_LVGL_WEATHER_IMAGES 1
 #define DB_LVGL_WEATHER_ICON_SET "local"
-#elif __has_include("assets/weather_demo/weather_images.h")
+#elif __has_include("assets/weather_demo/weather_images.h") && defined(LVGL_VERSION_MAJOR) && LVGL_VERSION_MAJOR >= 9
+// weather_images.h uses LVGL v9 API (lv_image_dsc_t, LV_IMAGE_HEADER_MAGIC) — skip on v8
 #include "assets/weather_demo/weather_images.h"
 #define DB_HAS_LVGL_WEATHER_IMAGES 1
 #define DB_LVGL_WEATHER_ICON_SET "demo"
