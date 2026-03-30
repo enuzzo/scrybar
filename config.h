@@ -24,8 +24,8 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r226"
-#define FW_RELEASE_DATE "2026-03-29"
+#define FW_BUILD_TAG "r227"
+#define FW_RELEASE_DATE "2026-03-30"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
 typedef struct {
@@ -117,7 +117,9 @@ struct TouchReleaseInfo {
 #define DISPLAY_TOUCH_SWIPE_MIN_PX 14
 #define DISPLAY_TOUCH_TAP_MAX_PX 12
 #define DISPLAY_TOUCH_TAP_MAX_MS 350
-#define DOOM_SPIKE_ENABLED 1
+#ifndef DOOM_SPIKE_ENABLED
+#define DOOM_SPIKE_ENABLED 1   // override via build_opt.h: -DDOOM_SPIKE_ENABLED=0
+#endif
 #define DOOM_SPIKE_AUTOSTART 0
 
 // Touch controller (AXS15231B) on secondary I2C bus for this board wiring.

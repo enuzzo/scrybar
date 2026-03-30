@@ -3,42 +3,24 @@
     <span class="section-label">Install</span>
     <h2>Flash from your browser</h2>
     <p class="section-sub">
-      No toolchain. No drivers. Plug in USB-C, pick a variant, click flash.
+      No toolchain. No drivers. Plug in USB-C, click flash.
       Powered by Web Serial API.
     </p>
 
-    <div class="flash-cards">
+    <div class="flash-cards flash-cards--single">
       <div class="vm-card flash-card">
         <div class="flash-card__header">
-          <h3>Full</h3>
-          <span class="vm-badge vm-badge--success">recommended</span>
+          <h3>ScryBar Firmware</h3>
+          <span class="vm-badge vm-badge--success">latest</span>
         </div>
         <p class="flash-card__desc">
-          Everything included: word clock, weather, RSS reader,
-          Wikipedia deck, Now Playing, and DOOM.
+          Word clock, weather, RSS reader, Wikipedia deck, Now Playing —
+          everything ready to use out of the box.
         </p>
         <div class="flash-card__action">
-          <esp-web-install-button manifest="manifest-full.json">
+          <esp-web-install-button manifest="manifest.json">
             <button slot="activate" class="vm-btn vm-btn--primary vm-btn--block">
-              Install Full Firmware
-            </button>
-          </esp-web-install-button>
-        </div>
-      </div>
-
-      <div class="vm-card flash-card">
-        <div class="flash-card__header">
-          <h3>Lite</h3>
-          <span class="vm-badge vm-badge--info">smaller</span>
-        </div>
-        <p class="flash-card__desc">
-          Word clock, weather, RSS reader, Wikipedia deck, Now Playing.
-          No DOOM — smaller flash footprint.
-        </p>
-        <div class="flash-card__action">
-          <esp-web-install-button manifest="manifest-lite.json">
-            <button slot="activate" class="vm-btn vm-btn--secondary vm-btn--block">
-              Install Lite Firmware
+              Install Firmware
             </button>
           </esp-web-install-button>
         </div>
@@ -59,6 +41,11 @@
         </li>
       </ol>
     </div>
+
+    <p class="flash-doom-note">
+      Want DOOM? Add your own <code>doom1.wad</code> to <code>src/doom/</code> and
+      <a href="https://github.com/enuzzo/scrybar" target="_blank" rel="noopener noreferrer">build from source</a>.
+    </p>
 
     <p class="flash-compat">
       Requires a Chromium-based browser (Chrome, Edge, Opera 89+) with{' '}

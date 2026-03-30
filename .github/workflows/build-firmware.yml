@@ -55,21 +55,16 @@ jobs:
       - name: Prepare secrets
         run: |
           cp .github/ci-secrets.h secrets.h
-          # Stub IWAD for CI — DOOM won't run, file just needs to exist for .incbin
+          # DOOM is disabled in CI builds (no redistributable WAD).
+          # Stub file keeps .incbin from failing; DOOM_SPIKE_ENABLED=0 strips all DOOM code.
           printf 'IWAD\x00\x00\x00\x00\x0c\x00\x00\x00' > src/doom/doom1.wad
+          # Disable DOOM for web-flasher firmware
+          echo "-DDOOM_SPIKE_ENABLED=0" > build_opt.h
 
-      - name: Build Full variant
+      - name: Build firmware
         run: |
           arduino-cli compile --clean \
-            --build-path /tmp/scrybar-full \
-            --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
-            .
-
-      - name: Build Lite variant
-        run: |
-          echo "-DHAVE_CONFIG_H" > build_opt.h
-          arduino-cli compile --clean \
-            --build-path /tmp/scrybar-lite \
+            --build-path /tmp/scrybar-build \
             --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
             .
 
@@ -88,35 +83,26 @@ jobs:
             echo "tag=dev-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
-      # ── Assemble site: Astro output + firmware binaries ──────────────
+      # ── Assemble site: Astro output + firmware binary ─────────────────
       - name: Assemble site
         run: |
           SITE=web/dist
-          mkdir -p "$SITE/firmware/full" "$SITE/firmware/lite"
+          mkdir -p "$SITE/firmware"
 
-          # Inject version into manifests (already in Astro output from web/public/)
+          # Inject version into manifest
           sed -i "s/\"version\": \"1.0.0\"/\"version\": \"${{ steps.version.outputs.tag }}\"/" \
-            "$SITE/manifest-full.json" "$SITE/manifest-lite.json"
+            "$SITE/manifest.json"
 
-          # Full variant binaries
-          cp /tmp/scrybar-full/scrybar.ino.bootloader.bin "$SITE/firmware/full/bootloader.bin"
-          cp /tmp/scrybar-full/scrybar.ino.partitions.bin  "$SITE/firmware/full/partitions.bin"
-          cp "${{ steps.boot-app.outputs.path }}"          "$SITE/firmware/full/boot_app0.bin"
-          cp /tmp/scrybar-full/scrybar.ino.bin             "$SITE/firmware/full/firmware.bin"
-
-          # Lite variant binaries
-          cp /tmp/scrybar-lite/scrybar.ino.bootloader.bin "$SITE/firmware/lite/bootloader.bin"
-          cp /tmp/scrybar-lite/scrybar.ino.partitions.bin  "$SITE/firmware/lite/partitions.bin"
-          cp "${{ steps.boot-app.outputs.path }}"          "$SITE/firmware/lite/boot_app0.bin"
-          cp /tmp/scrybar-lite/scrybar.ino.bin             "$SITE/firmware/lite/firmware.bin"
+          cp /tmp/scrybar-build/scrybar.ino.bootloader.bin "$SITE/firmware/bootloader.bin"
+          cp /tmp/scrybar-build/scrybar.ino.partitions.bin  "$SITE/firmware/partitions.bin"
+          cp "${{ steps.boot-app.outputs.path }}"           "$SITE/firmware/boot_app0.bin"
+          cp /tmp/scrybar-build/scrybar.ino.bin             "$SITE/firmware/firmware.bin"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
           name: scrybar-firmware
-          path: |
-            web/dist/firmware/full/
-            web/dist/firmware/lite/
+          path: web/dist/firmware/
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3

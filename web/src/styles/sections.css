@@ -411,6 +411,13 @@
   margin-bottom: 2.5rem;
 }
 
+.flash-cards--single {
+  grid-template-columns: 1fr;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .flash-card {
   display: flex;
   flex-direction: column;
@@ -486,6 +493,28 @@ esp-web-install-button [slot="activate"] {
   border-radius: 5px;
   color: var(--accent-secondary);
   transition: background-color 0.45s ease, color 0.45s ease;
+}
+
+.flash-doom-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.flash-doom-note code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-tertiary);
+}
+
+.flash-doom-note a {
+  color: var(--text-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .flash-compat {
