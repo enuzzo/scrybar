@@ -2779,9 +2779,11 @@ static bool initDisplay() {
     return false;
   }
 
+  static const uint8_t kLcdCmd11Data[] = {0x00};
+  static const uint8_t kLcdCmd29Data[] = {0x00};
   static const axs15231b_lcd_init_cmd_t lcd_init_cmds[] = {
-      {0x11, (uint8_t[]){0x00}, 0, 100},
-      {0x29, (uint8_t[]){0x00}, 0, 100},
+      {0x11, kLcdCmd11Data, 0, 100},
+      {0x29, kLcdCmd29Data, 0, 100},
   };
   axs15231b_vendor_config_t vendor_config = {};
   vendor_config.flags.use_qspi_interface = 1;
