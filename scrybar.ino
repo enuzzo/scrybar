@@ -166,10 +166,15 @@ struct PwrButtonState {
   int lastRawLevel = -1;
   uint32_t pressCandidateMs = 0;
   uint32_t releaseCandidateMs = 0;
+  // Power-hold progress overlay (shown after kPwrFeedbackDelayMs)
+  lv_obj_t *ovBar = nullptr;   // progress bar on lv_layer_top()
+  lv_obj_t *ovBg  = nullptr;   // dark strip behind bar
 };
 static PwrButtonState g_pwrBtn;
-static constexpr uint32_t kPwrPressDebounceMs = 45UL;
-static constexpr uint32_t kPwrShortPressMinMs = 70UL;
+static constexpr uint32_t kPwrPressDebounceMs  = 45UL;
+static constexpr uint32_t kPwrShortPressMinMs  = 70UL;
+static constexpr uint32_t kPwrFeedbackDelayMs  = 300UL;  // hold before overlay appears
+static constexpr int16_t  kPwrBarH             = 6;      // progress bar height (px)
 struct NavButtonState {
   bool down = false;
   uint32_t downMs = 0;
@@ -1949,6 +1954,60 @@ static void onPowerButtonShortPress(uint32_t nowMs) {
 #endif
 }
 
+// --- Power-hold progress overlay -------------------------------------------
+#if TEST_LVGL_UI && DISPLAY_BACKEND_ESP_LCD
+static void pwrOverlayShow(uint32_t nowMs) {
+  if (!g_lvglReady || g_pwrBtn.ovBg) return;  // already visible
+  const int16_t cW = canvasWidth();
+  const int16_t cH = canvasHeight();
+  lv_obj_t *layer = lv_layer_top();
+
+  // Dark backing strip across the bottom
+  g_pwrBtn.ovBg = lv_obj_create(layer);
+  lv_obj_set_size(g_pwrBtn.ovBg, cW, kPwrBarH + 4);
+  lv_obj_set_pos(g_pwrBtn.ovBg, 0, cH - kPwrBarH - 4);
+  lv_obj_set_style_bg_color(g_pwrBtn.ovBg, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_pwrBtn.ovBg, LV_OPA_70, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_pwrBtn.ovBg, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_pwrBtn.ovBg, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_pwrBtn.ovBg, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_pwrBtn.ovBg, LV_OBJ_FLAG_SCROLLABLE);
+
+  // Progress bar (width updated every loop tick)
+  const uint32_t accentColor = activeUiTheme().lvgl.headerBg;
+  g_pwrBtn.ovBar = lv_obj_create(layer);
+  lv_obj_set_size(g_pwrBtn.ovBar, 1, kPwrBarH);
+  lv_obj_set_pos(g_pwrBtn.ovBar, 0, cH - kPwrBarH - 2);
+  lv_obj_set_style_bg_color(g_pwrBtn.ovBar, lv_color_hex(accentColor), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_pwrBtn.ovBar, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_pwrBtn.ovBar, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_pwrBtn.ovBar, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_pwrBtn.ovBar, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_pwrBtn.ovBar, LV_OBJ_FLAG_SCROLLABLE);
+  (void)nowMs;
+}
+
+static void pwrOverlayUpdate(uint32_t heldMs) {
+  if (!g_pwrBtn.ovBar) return;
+  // fraction of hold completed (0..1), clamped, starting from feedback delay
+  const uint32_t elapsed = (heldMs > kPwrFeedbackDelayMs) ? (heldMs - kPwrFeedbackDelayMs) : 0;
+  const uint32_t total   = PWR_HOLD_SHUTDOWN_MS - kPwrFeedbackDelayMs;
+  const int16_t  cW      = canvasWidth();
+  const int16_t  barW    = (int16_t)((elapsed * (uint32_t)cW) / total);
+  lv_obj_set_width(g_pwrBtn.ovBar, (lv_coord_t)(barW > 0 ? barW : 1));
+}
+
+static void pwrOverlayHide() {
+  if (g_pwrBtn.ovBar) { lv_obj_del(g_pwrBtn.ovBar); g_pwrBtn.ovBar = nullptr; }
+  if (g_pwrBtn.ovBg)  { lv_obj_del(g_pwrBtn.ovBg);  g_pwrBtn.ovBg  = nullptr; }
+}
+#else
+static void pwrOverlayShow(uint32_t) {}
+static void pwrOverlayUpdate(uint32_t) {}
+static void pwrOverlayHide() {}
+#endif
+// ---------------------------------------------------------------------------
+
 static void handlePowerButtonLoop(uint32_t nowMs) {
   const int rawLevel = gpio_get_level((gpio_num_t)PWR_BUTTON_PIN);
   if (rawLevel != g_pwrBtn.lastRawLevel) {
@@ -1959,6 +2018,7 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
   const bool pressed = isPwrButtonPressed();
   if (g_pwrBtn.ignoreUntilRelease) {
     if (!pressed) {
+      pwrOverlayHide();
       g_pwrBtn.ignoreUntilRelease = false;
       g_pwrBtn.down = false;
       g_pwrBtn.holdReported = false;
@@ -1985,12 +2045,18 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
       Serial.println("[PWR] Button down.");
     } else {
       const uint32_t heldMs = nowMs - g_pwrBtn.downMs;
+      // Show / update progress overlay after feedback delay
+      if (heldMs >= kPwrFeedbackDelayMs) {
+        pwrOverlayShow(nowMs);
+        pwrOverlayUpdate(heldMs);
+      }
       if (!g_pwrBtn.holdReported && heldMs >= 1000UL) {
         g_pwrBtn.holdReported = true;
         Serial.printf("[PWR] Keep holding (%lu/%d ms)\n", (unsigned long)heldMs, PWR_HOLD_SHUTDOWN_MS);
       }
       if (heldMs >= (uint32_t)PWR_HOLD_SHUTDOWN_MS) {
         Serial.printf("[PWR] Long press confirmed (%lu ms).\n", (unsigned long)heldMs);
+        pwrOverlayHide();
         g_pwrBtn.down = false;
         g_pwrBtn.holdReported = false;
         g_pwrBtn.pressCandidateMs = 0;
@@ -2002,7 +2068,8 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
   }
 
   g_pwrBtn.pressCandidateMs = 0;
-  if (!g_pwrBtn.down) return;
+  // Button released — hide overlay (only meaningful if was down)
+  if (!g_pwrBtn.down) { pwrOverlayHide(); return; }
 
   if (g_pwrBtn.releaseCandidateMs == 0) {
     g_pwrBtn.releaseCandidateMs = nowMs;
@@ -2012,6 +2079,7 @@ static void handlePowerButtonLoop(uint32_t nowMs) {
     return;
   }
 
+  pwrOverlayHide();
   const uint32_t heldMs = g_pwrBtn.releaseCandidateMs - g_pwrBtn.downMs;
   if (heldMs >= (uint32_t)PWR_HOLD_SHUTDOWN_MS) {
     shutdownFromPowerButton(false);
