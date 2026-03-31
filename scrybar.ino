@@ -703,12 +703,14 @@ static constexpr uint8_t UI_VIEW_FLAG_WIKI = 0x04;
 // 0x08 was UI_VIEW_FLAG_ANSI (archived)
 static constexpr uint8_t UI_VIEW_FLAG_DOOM        = 0x10;
 static constexpr uint8_t UI_VIEW_FLAG_NOW_PLAYING  = 0x20;
+static constexpr uint8_t UI_VIEW_FLAG_HA           = 0x40;
 static constexpr uint8_t UI_VIEW_MASK_DEFAULT =
     UI_VIEW_FLAG_INFO |
     UI_VIEW_FLAG_AUX |
     UI_VIEW_FLAG_WIKI |
     UI_VIEW_FLAG_DOOM |
-    UI_VIEW_FLAG_NOW_PLAYING;
+    UI_VIEW_FLAG_NOW_PLAYING |
+    UI_VIEW_FLAG_HA;
 
 struct RuntimeNetConfig {
   char weatherCity[32];
@@ -835,6 +837,19 @@ struct RssState {
 };
 static RssState g_rss = {};
 static RssState g_wiki = {};
+
+// --- Home Assistant runtime state ---
+struct HaState {
+  char    values[HA_BADGE_COUNT][32];       // display string per badge
+  char    units[HA_BADGE_COUNT][16];        // resolved unit per badge
+  bool    controlStates[HA_CONTROL_COUNT];  // on/off for toggles
+  bool    valid       = false;
+  uint32_t lastFetchMs = 0;
+  bool    fetchError  = false;
+  bool    dirty       = false;  // set by netTask, cleared by UI update
+};
+static HaConfig  g_haConfig  = {};
+static HaState   g_haState   = {};
 static RssItem *g_rssParseBuf = nullptr;
 static uint32_t g_wikiMetaPreloadLastMs = 0;
 static uint32_t g_wikiVisiblePreloadLastMs = 0;
@@ -846,8 +861,13 @@ enum NetRequestType : uint8_t {
   NET_REQ_WIKI,
   NET_REQ_FAVICON,
   NET_REQ_WIKI_META,
+  NET_REQ_HA_POLL,      // fetch all HA badge + toggle states
+  NET_REQ_HA_SERVICE,   // fire a service, then re-poll
 };
-struct NetRequest { NetRequestType type; };
+struct NetRequest {
+  NetRequestType type;
+  uint8_t        param;  // NET_REQ_HA_SERVICE: control index (0-3)
+};
 
 static QueueHandle_t    g_netQueue  = nullptr;
 static SemaphoreHandle_t g_netMutex = nullptr;
@@ -860,8 +880,12 @@ static bool netFetchWeather(WeatherState &out);
 static void netFetchRss();
 static void netFetchWiki();
 static void netFetchFavicons();
+static void netFetchHaStates();
+static void netFetchHaService(uint8_t ctrlIdx);
+static bool updateHaFromApi(bool force);
+static void haCallService(uint8_t ctrlIdx);
 static void netFetchWikiMeta();
-static bool netEnqueue(NetRequestType type);
+static bool netEnqueue(NetRequestType type, uint8_t param);
 static void netTaskMain(void *param);
 #endif
 
@@ -888,6 +912,7 @@ enum UiPageMode : uint8_t {
   UI_PAGE_WIKI = 3,
   UI_PAGE_NOW_PLAYING = 4,
   UI_PAGE_DOOM = 5,
+  UI_PAGE_HA   = 6,
 };
 static UiPageMode g_uiPageMode = UI_PAGE_HOME;
 static bool g_uiNeedsRedraw = true;
@@ -1015,6 +1040,28 @@ struct NowPlayingUi {
   bool lastUsingLive = false;
   bool lastInSync = false;
 };
+struct LvglHaUi {
+  lv_obj_t *header       = nullptr;
+  lv_obj_t *headerTitle  = nullptr;
+  lv_obj_t *headerStatus = nullptr;
+  lv_obj_t *panel        = nullptr;
+  lv_obj_t *separator    = nullptr;
+  lv_obj_t *badgeCol     = nullptr;
+  lv_obj_t *badgeRow[HA_BADGE_COUNT]    = {};
+  lv_obj_t *badgeLabel[HA_BADGE_COUNT]  = {};
+  lv_obj_t *badgeValue[HA_BADGE_COUNT]  = {};
+  lv_obj_t *ctrlCol      = nullptr;
+  lv_obj_t *ctrlBtn[HA_CONTROL_COUNT]   = {};
+  lv_obj_t *ctrlLabel[HA_CONTROL_COUNT] = {};
+  lv_obj_t *ctrlIndic[HA_CONTROL_COUNT] = {};
+  lv_obj_t *qrPane       = nullptr;
+  lv_obj_t *qrCode       = nullptr;
+  lv_obj_t *qrHint       = nullptr;
+  bool      lastConfigured = false;
+  char      lastValues[HA_BADGE_COUNT][32] = {};
+  bool      lastCtrlStates[HA_CONTROL_COUNT] = {};
+};
+
 struct LiveNowPlayingState {
   bool valid = false;
   bool isPlaying = false;
@@ -1059,6 +1106,7 @@ struct FakeNowPlayingTrack {
   uint32_t progressFill;
 };
 static NowPlayingUi g_nowPlayingUi;
+static LvglHaUi g_haUi;
 static LiveNowPlayingState g_liveNowPlaying = {};
 static LiveNowPlayingArtwork g_liveNowPlayingArtwork = {};
 static uint32_t g_liveNowPlayingTokenSeq = 0;
@@ -1066,6 +1114,7 @@ static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
 static lv_obj_t *g_lvglNowPlayingRoot = nullptr;
 static lv_obj_t *g_lvglDoomRoot = nullptr;
+static lv_obj_t *g_lvglHaRoot   = nullptr;
 static constexpr uint32_t NOW_PLAYING_FAKE_ROTATE_MS = 18000UL;
 static constexpr uint32_t NOW_PLAYING_SYNC_TTL_MS = 5000UL;
 static const lv_img_dsc_t kNowPlayingRealCover150 = {
@@ -3738,6 +3787,52 @@ static void nvsLoadLanguageConfig(Preferences &prefs, bool &langNeedsPersist) {
   }
 }
 
+// ---------- Home Assistant NVS helpers ----------
+
+static void nvsLoadHaConfig(Preferences &prefs) {
+  const String url = prefs.getString("ha_url", "");
+  if (url.length() == 0) return;
+  copyStringSafe(g_haConfig.url,   sizeof(g_haConfig.url),   url.c_str());
+  copyStringSafe(g_haConfig.token, sizeof(g_haConfig.token), prefs.getString("ha_token","").c_str());
+  for (uint8_t i = 0; i < HA_BADGE_COUNT; ++i) {
+    char key[16];
+    snprintf(key, sizeof(key), "ha_b%u_eid",  i); copyStringSafe(g_haConfig.badges[i].entityId, 64, prefs.getString(key,"").c_str());
+    snprintf(key, sizeof(key), "ha_b%u_lbl",  i); copyStringSafe(g_haConfig.badges[i].label,    24, prefs.getString(key,"").c_str());
+    snprintf(key, sizeof(key), "ha_b%u_unit", i); copyStringSafe(g_haConfig.badges[i].unit,     16, prefs.getString(key,"").c_str());
+  }
+  for (uint8_t i = 0; i < HA_CONTROL_COUNT; ++i) {
+    char key[16];
+    snprintf(key, sizeof(key), "ha_c%u_type", i); g_haConfig.controls[i].type = prefs.getUChar(key, 0);
+    snprintf(key, sizeof(key), "ha_c%u_lbl",  i); copyStringSafe(g_haConfig.controls[i].label,         24, prefs.getString(key,"").c_str());
+    snprintf(key, sizeof(key), "ha_c%u_eid",  i); copyStringSafe(g_haConfig.controls[i].entityId,      64, prefs.getString(key,"").c_str());
+    snprintf(key, sizeof(key), "ha_c%u_dom",  i); copyStringSafe(g_haConfig.controls[i].serviceDomain, 24, prefs.getString(key,"").c_str());
+    snprintf(key, sizeof(key), "ha_c%u_svc",  i); copyStringSafe(g_haConfig.controls[i].service,       24, prefs.getString(key,"").c_str());
+  }
+  g_haConfig.configured = (g_haConfig.url[0] != '\0') && (g_haConfig.token[0] != '\0');
+  Serial.printf("[HA][NVS] loaded url=%s configured=%d\n", g_haConfig.url, (int)g_haConfig.configured);
+}
+
+static size_t nvsSaveHaConfig(Preferences &prefs) {
+  size_t n = 0;
+  n += prefs.putString("ha_url",   g_haConfig.url);
+  n += prefs.putString("ha_token", g_haConfig.token);
+  for (uint8_t i = 0; i < HA_BADGE_COUNT; ++i) {
+    char key[16];
+    snprintf(key, sizeof(key), "ha_b%u_eid",  i); n += prefs.putString(key, g_haConfig.badges[i].entityId);
+    snprintf(key, sizeof(key), "ha_b%u_lbl",  i); n += prefs.putString(key, g_haConfig.badges[i].label);
+    snprintf(key, sizeof(key), "ha_b%u_unit", i); n += prefs.putString(key, g_haConfig.badges[i].unit);
+  }
+  for (uint8_t i = 0; i < HA_CONTROL_COUNT; ++i) {
+    char key[16];
+    snprintf(key, sizeof(key), "ha_c%u_type", i); n += prefs.putUChar(key,  g_haConfig.controls[i].type);
+    snprintf(key, sizeof(key), "ha_c%u_lbl",  i); n += prefs.putString(key, g_haConfig.controls[i].label);
+    snprintf(key, sizeof(key), "ha_c%u_eid",  i); n += prefs.putString(key, g_haConfig.controls[i].entityId);
+    snprintf(key, sizeof(key), "ha_c%u_dom",  i); n += prefs.putString(key, g_haConfig.controls[i].serviceDomain);
+    snprintf(key, sizeof(key), "ha_c%u_svc",  i); n += prefs.putString(key, g_haConfig.controls[i].service);
+  }
+  return n;
+}
+
 // ---------- Main NVS loader ----------
 
 static void loadRuntimeNetConfigFromNvs() {
@@ -3775,6 +3870,7 @@ static void loadRuntimeNetConfigFromNvs() {
   }
 
   nvsLoadRssFeeds(prefs, loadedAny);
+  nvsLoadHaConfig(prefs);
 
   if (prefs.isKey("logo_url")) {
     const String logo = prefs.getString("logo_url", "");
@@ -3904,13 +4000,14 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n8 = prefs.putString("wifi_pref", g_wifiSt.preferredSsid);
   const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSt.setupMode);
   const size_t n10 = saveRuntimeWiFiCredentialsToPrefs(prefs);
+  const size_t nHa = nvsSaveHaConfig(prefs);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
-  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u views=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
+  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u views=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u ha=%u)\n",
                 ok ? "OK" : "ERR",
                 (unsigned)n1, (unsigned)n2, (unsigned)n3, (unsigned)n4,
                 (unsigned)nFeedName, (unsigned)nFeedUrl, (unsigned)nFeedMax, (unsigned)n5,
-                (unsigned)n6, (unsigned)n7, (unsigned)nViewMask, (unsigned)nWikiLang, (unsigned)n8, (unsigned)n9, (unsigned)n10);
+                (unsigned)n6, (unsigned)n7, (unsigned)nViewMask, (unsigned)nWikiLang, (unsigned)n8, (unsigned)n9, (unsigned)n10, (unsigned)nHa);
   return ok;
 }
 
@@ -4418,6 +4515,99 @@ static void buildWebRssBuilder(String &html) {
   html += F("<div class='vm-actions'><button class='vm-btn vm-btn--primary' type='submit'>Save Config</button><button class='vm-btn vm-btn--secondary' type='submit' formaction='/reload' formmethod='post'>Force Reload</button></div>");
 }
 
+static void buildWebHaSection(String &html) {
+  html += F("<div class='vm-card'><h2>&#x1F3E0; Home Assistant</h2>");
+  html += F("<p class='vm-help'>Paste your HA URL and a Long-Lived Access Token. Leave blank to disable.</p>");
+  html += F("<div class='vm-label'>HA URL</div>");
+  html += F("<input class='vm-input' name='ha_url' maxlength='79' placeholder='http://homeassistant.local:8123' value='");
+  appendHtmlEscaped(html, g_haConfig.url);
+  html += F("'>");
+  html += F("<div class='vm-label'>ACCESS TOKEN</div>");
+  html += F("<input class='vm-input' name='ha_token' type='password' maxlength='255' placeholder='Long-lived token...' value='");
+  appendHtmlEscaped(html, g_haConfig.token);
+  html += F("'>");
+  // Sensor badges
+  html += F("<h3 style='margin-top:1.2rem;margin-bottom:.5rem'>Sensor Badges (left column)</h3>");
+  char key[20];
+  for (int i = 0; i < HA_BADGE_COUNT; i++) {
+    html += F("<div class='vm-label'>BADGE ");
+    html += (char)('1' + i);
+    html += F("</div><div class='vm-grid'><div><div class='vm-label'>ENTITY ID</div>");
+    snprintf(key, sizeof(key), "ha_b%d_eid", i);
+    html += F("<input class='vm-input' name='");
+    html += key;
+    html += F("' maxlength='63' placeholder='sensor.temperature' value='");
+    appendHtmlEscaped(html, g_haConfig.badges[i].entityId);
+    html += F("'></div><div><div class='vm-label'>LABEL</div>");
+    snprintf(key, sizeof(key), "ha_b%d_lbl", i);
+    html += F("<input class='vm-input' name='");
+    html += key;
+    html += F("' maxlength='23' placeholder='Temp' value='");
+    appendHtmlEscaped(html, g_haConfig.badges[i].label);
+    html += F("'></div><div><div class='vm-label'>UNIT (opt)</div>");
+    snprintf(key, sizeof(key), "ha_b%d_unit", i);
+    html += F("<input class='vm-input' name='");
+    html += key;
+    html += F("' maxlength='15' placeholder='&deg;C' value='");
+    appendHtmlEscaped(html, g_haConfig.badges[i].unit);
+    html += F("'></div></div>");
+  }
+  // Controls
+  html += F("<h3 style='margin-top:1.2rem;margin-bottom:.5rem'>Controls (2x2 grid)</h3>");
+  static const char *const kCtrlDomHint[] = {"homeassistant","homeassistant","homeassistant","homeassistant"};
+  static const char *const kCtrlSvcHint[] = {"toggle","toggle","toggle","toggle"};
+  for (int i = 0; i < HA_CONTROL_COUNT; i++) {
+    html += F("<div class='vm-label'>CONTROL ");
+    html += (char)('1' + i);
+    html += F("</div><div class='vm-grid'><div><div class='vm-label'>TYPE</div>");
+    snprintf(key, sizeof(key), "ha_c%d_type", i);
+    html += F("<select class='vm-select' name='");
+    html += key;
+    html += F("'>");
+    for (int t = 0; t <= HA_CTRL_BUTTON; t++) {
+      html += F("<option value='");
+      html += t;
+      html += '\'';
+      if (g_haConfig.controls[i].type == (uint8_t)t) html += F(" selected");
+      html += '>';
+      if (t == HA_CTRL_OFF)    html += F("Off");
+      else if (t == HA_CTRL_TOGGLE) html += F("Toggle");
+      else                     html += F("Button");
+      html += F("</option>");
+    }
+    html += F("</select></div><div><div class='vm-label'>LABEL</div>");
+    snprintf(key, sizeof(key), "ha_c%d_lbl", i);
+    html += F("<input class='vm-input' name='");
+    html += key;
+    html += F("' maxlength='23' placeholder='Lights' value='");
+    appendHtmlEscaped(html, g_haConfig.controls[i].label);
+    html += F("'></div><div><div class='vm-label'>ENTITY ID</div>");
+    snprintf(key, sizeof(key), "ha_c%d_eid", i);
+    html += F("<input class='vm-input' name='");
+    html += key;
+    html += F("' maxlength='63' placeholder='light.living_room' value='");
+    appendHtmlEscaped(html, g_haConfig.controls[i].entityId);
+    html += F("'></div><div><div class='vm-label'>DOMAIN</div>");
+    snprintf(key, sizeof(key), "ha_c%d_dom", i);
+    html += F("<input class='vm-input' name='");
+    html += key;
+    html += F("' maxlength='23' placeholder='");
+    html += kCtrlDomHint[i];
+    html += F("' value='");
+    appendHtmlEscaped(html, g_haConfig.controls[i].serviceDomain);
+    html += F("'></div><div><div class='vm-label'>SERVICE</div>");
+    snprintf(key, sizeof(key), "ha_c%d_svc", i);
+    html += F("<input class='vm-input' name='");
+    html += key;
+    html += F("' maxlength='23' placeholder='");
+    html += kCtrlSvcHint[i];
+    html += F("' value='");
+    appendHtmlEscaped(html, g_haConfig.controls[i].service);
+    html += F("'></div></div>");
+  }
+  html += F("</div>");
+}
+
 static void buildWebSystemInfo(String &html) {
   char siBuf[48];
   html += F("<div class='vm-card vm-card--muted'><h2>&#x2699; System Info</h2><div class='vm-grid'>");
@@ -4533,6 +4723,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   buildWebLangSelectors(html);
   buildWebWeatherSection(html);
   buildWebRssBuilder(html);
+  buildWebHaSection(html);
   html += F("</form>");
   // ── System info + footer + JS ──
   buildWebSystemInfo(html);
@@ -4724,6 +4915,74 @@ static bool parseRssFeedConfig(RuntimeNetConfig &next, String &errorOut, bool &h
     }
   }
   if (rssInput) normalizeRuntimeRssFeeds(next);
+  return true;
+}
+
+static bool parseHaConfig(String &errorOut, bool &hasInput) {
+  if (!g_webCfg.server.hasArg("ha_url")) return true;  // HA section not in this POST
+  hasInput = true;
+  HaConfig next = g_haConfig;
+
+  { String v = g_webCfg.server.arg("ha_url"); v.trim();
+    strncpy(next.url, v.c_str(), sizeof(next.url) - 1); next.url[sizeof(next.url)-1] = '\0'; }
+  { String v = g_webCfg.server.arg("ha_token"); v.trim();
+    strncpy(next.token, v.c_str(), sizeof(next.token) - 1); next.token[sizeof(next.token)-1] = '\0'; }
+
+  char key[20];
+  for (int i = 0; i < HA_BADGE_COUNT; i++) {
+    snprintf(key, sizeof(key), "ha_b%d_eid", i);
+    if (g_webCfg.server.hasArg(key)) {
+      String v = g_webCfg.server.arg(key); v.trim();
+      strncpy(next.badges[i].entityId, v.c_str(), sizeof(next.badges[i].entityId)-1);
+    }
+    snprintf(key, sizeof(key), "ha_b%d_lbl", i);
+    if (g_webCfg.server.hasArg(key)) {
+      String v = g_webCfg.server.arg(key); v.trim();
+      strncpy(next.badges[i].label, v.c_str(), sizeof(next.badges[i].label)-1);
+    }
+    snprintf(key, sizeof(key), "ha_b%d_unit", i);
+    if (g_webCfg.server.hasArg(key)) {
+      String v = g_webCfg.server.arg(key); v.trim();
+      strncpy(next.badges[i].unit, v.c_str(), sizeof(next.badges[i].unit)-1);
+    }
+  }
+  for (int i = 0; i < HA_CONTROL_COUNT; i++) {
+    snprintf(key, sizeof(key), "ha_c%d_type", i);
+    if (g_webCfg.server.hasArg(key)) {
+      int t = g_webCfg.server.arg(key).toInt();
+      if (t >= HA_CTRL_OFF && t <= HA_CTRL_BUTTON) next.controls[i].type = (uint8_t)t;
+    }
+    snprintf(key, sizeof(key), "ha_c%d_lbl", i);
+    if (g_webCfg.server.hasArg(key)) {
+      String v = g_webCfg.server.arg(key); v.trim();
+      strncpy(next.controls[i].label, v.c_str(), sizeof(next.controls[i].label)-1);
+    }
+    snprintf(key, sizeof(key), "ha_c%d_eid", i);
+    if (g_webCfg.server.hasArg(key)) {
+      String v = g_webCfg.server.arg(key); v.trim();
+      strncpy(next.controls[i].entityId, v.c_str(), sizeof(next.controls[i].entityId)-1);
+    }
+    snprintf(key, sizeof(key), "ha_c%d_dom", i);
+    if (g_webCfg.server.hasArg(key)) {
+      String v = g_webCfg.server.arg(key); v.trim();
+      strncpy(next.controls[i].serviceDomain, v.c_str(), sizeof(next.controls[i].serviceDomain)-1);
+    }
+    snprintf(key, sizeof(key), "ha_c%d_svc", i);
+    if (g_webCfg.server.hasArg(key)) {
+      String v = g_webCfg.server.arg(key); v.trim();
+      strncpy(next.controls[i].service, v.c_str(), sizeof(next.controls[i].service)-1);
+    }
+  }
+  next.configured = (next.url[0] != '\0' && next.token[0] != '\0');
+  if (memcmp(&next, &g_haConfig, sizeof(HaConfig)) != 0) {
+    g_haConfig = next;
+    { Preferences prefs;
+      if (prefs.begin("scrybar_cfg", false)) { nvsSaveHaConfig(prefs); prefs.end(); } }
+    g_haState.dirty = true;
+    g_haState.valid = false;
+    g_haState.lastFetchMs = 0;
+    Serial.printf("[HA][CFG] saved, configured=%d url=%s\n", next.configured, next.url);
+  }
   return true;
 }
 
@@ -4962,6 +5221,7 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
 
   if (!parseWeatherConfig(next, errorOut, hasInput)) return false;
   if (!parseRssFeedConfig(next, errorOut, hasInput)) return false;
+  if (!parseHaConfig(errorOut, hasInput)) return false;
   if (!parseLogoConfig(next, errorOut, hasInput)) return false;
   if (!parseThemeConfig(next, errorOut, hasInput)) return false;
   if (!parseViewsConfig(next, errorOut, hasInput)) return false;
@@ -5201,6 +5461,7 @@ static bool webRequestHasConfigParams() {
   if (g_webCfg.server.hasArg("view_doom")) return true;
   if (g_webCfg.server.hasArg("rss_feed_url")) return true;
   if (g_webCfg.server.hasArg("logo_url")) return true;
+  if (g_webCfg.server.hasArg("ha_url")) return true;
   for (uint8_t i = 1; i <= RSS_FEED_SLOT_COUNT; ++i) {
     const String keyUrl = String("rss_feed_url_") + String(i);
     if (g_webCfg.server.hasArg(keyUrl)) return true;
@@ -5216,9 +5477,9 @@ static void handleWebReloadForm() {
       return;
     }
   }
-  netEnqueue(NET_REQ_WEATHER);
-  netEnqueue(NET_REQ_RSS);
-  netEnqueue(NET_REQ_WIKI);
+  netEnqueue(NET_REQ_WEATHER, 0);
+  netEnqueue(NET_REQ_RSS, 0);
+  netEnqueue(NET_REQ_WIKI, 0);
   g_uiNeedsRedraw = true;
   Serial.println("[WEB] reload queued (weather+rss+wiki)");
   webConfigRedirect("reloaded");
@@ -5232,9 +5493,9 @@ static void handleWebReloadApi() {
       return;
     }
   }
-  netEnqueue(NET_REQ_WEATHER);
-  netEnqueue(NET_REQ_RSS);
-  netEnqueue(NET_REQ_WIKI);
+  netEnqueue(NET_REQ_WEATHER, 0);
+  netEnqueue(NET_REQ_RSS, 0);
+  netEnqueue(NET_REQ_WIKI, 0);
   sendWebConfigJson(200, true, "reload queued");
 }
 
@@ -7041,7 +7302,7 @@ static bool updateRssFromFeed(bool force) {
   g_rss.lastAttemptMs = now;
 
   if (g_netTaskReady) {
-    netEnqueue(NET_REQ_RSS);
+    netEnqueue(NET_REQ_RSS, 0);
     return g_rss.valid;
   }
   // Fallback: inline (during boot before netTask starts)
@@ -7068,6 +7329,13 @@ static bool extractJsonStringField(const String &json, const char *key, String &
   if (i >= (int)json.length()) return false;
   out = json.substring(start, i);
   return out.length() > 0;
+}
+// char* overload used by HA fetch (avoids Arduino String heap churn)
+static bool extractJsonStringField(const char *json, const char *key, char *buf, size_t bufLen) {
+  String out;
+  if (!extractJsonStringField(String(json), key, out)) return false;
+  copyStringSafe(buf, bufLen, out.c_str());
+  return buf[0] != '\0';
 }
 
 // Fetch a random Wikipedia article via REST API. Returns true if item populated.
@@ -7165,7 +7433,7 @@ static bool updateWikiFromFeed(bool force) {
   g_wiki.lastAttemptMs = now;
 
   if (g_netTaskReady) {
-    netEnqueue(NET_REQ_WIKI);
+    netEnqueue(NET_REQ_WIKI, 0);
     return g_wiki.valid;
   }
   // Fallback: inline (during boot before netTask starts)
@@ -7251,7 +7519,7 @@ static void wikiPreloadMetaStep() {
   if (g_wikiMetaPreloadLastMs != 0 && (now - g_wikiMetaPreloadLastMs) < 2000) return;
   g_wikiMetaPreloadLastMs = now;
   if (g_netTaskReady) {
-    netEnqueue(NET_REQ_WIKI_META);
+    netEnqueue(NET_REQ_WIKI_META, 0);
     return;
   }
   netFetchWikiMeta();
@@ -7268,7 +7536,7 @@ static void wikiPreloadVisibleItemStep() {
   g_wikiVisiblePreloadLastMs = now;
 
   if (g_netTaskReady) {
-    netEnqueue(NET_REQ_WIKI_META);
+    netEnqueue(NET_REQ_WIKI_META, 0);
     return;
   }
   netFetchWikiMeta();
@@ -7469,7 +7737,7 @@ static void netFetchRss() {
                 (unsigned)count, parseBuf[0].title);
 
   // Trigger favicon prefetch
-  netEnqueue(NET_REQ_FAVICON);
+  netEnqueue(NET_REQ_FAVICON, 0);
 }
 static void netFetchWiki() {
   if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return;
@@ -7599,7 +7867,7 @@ static void netFetchWiki() {
                 (unsigned)count, parseBuf[0].title);
 
   // Trigger favicon prefetch for wiki hosts
-  netEnqueue(NET_REQ_FAVICON);
+  netEnqueue(NET_REQ_FAVICON, 0);
 }
 
 static void netFetchFavicons() {
@@ -7678,14 +7946,145 @@ static void netFetchWikiMeta() {
 }
 
 // ── Network background task (Core 1) ──────────────────────────────────────────
-static bool netEnqueue(NetRequestType type) {
+static bool netEnqueue(NetRequestType type, uint8_t param) {
   if (!g_netQueue) return false;
-  NetRequest req = { type };
+  NetRequest req = { type, param };
   if (xQueueSend(g_netQueue, &req, 0) != pdTRUE) {
     Serial.printf("[NET] queue full, dropping %d\n", (int)type);
     return false;
   }
   return true;
+}
+
+// ── Home Assistant fetch (runs on netTask / Core 1) ───────────────────
+
+static void netFetchHaStates() {
+  HaConfig cfg;
+  xSemaphoreTake(g_netMutex, portMAX_DELAY);
+  cfg = g_haConfig;
+  xSemaphoreGive(g_netMutex);
+
+  if (!cfg.configured) return;
+
+  char values[HA_BADGE_COUNT][32]      = {};
+  char units[HA_BADGE_COUNT][16]       = {};
+  bool ctrlStates[HA_CONTROL_COUNT]    = {};
+  bool anyError = false;
+
+  HTTPClient http;
+  http.setConnectTimeout(HA_HTTP_TIMEOUT_MS);
+  http.setTimeout(HA_HTTP_TIMEOUT_MS);
+
+  // Fetch badge states
+  for (uint8_t i = 0; i < HA_BADGE_COUNT; ++i) {
+    if (cfg.badges[i].entityId[0] == '\0') continue;
+    char url[160];
+    snprintf(url, sizeof(url), "%s/api/states/%s", cfg.url, cfg.badges[i].entityId);
+    http.begin(url);
+    http.addHeader("Authorization", String("Bearer ") + cfg.token);
+    const int code = http.GET();
+    if (code == HTTP_CODE_OK) {
+      const String body = http.getString();
+      // Parse "state" field
+      char stateBuf[32] = {};
+      extractJsonStringField(body.c_str(), "state", stateBuf, sizeof(stateBuf));
+      // Parse unit_of_measurement from attributes (use override if set)
+      if (cfg.badges[i].unit[0] != '\0') {
+        snprintf(values[i], sizeof(values[i]), "%s %s", stateBuf, cfg.badges[i].unit);
+        copyStringSafe(units[i], sizeof(units[i]), cfg.badges[i].unit);
+      } else {
+        char unitBuf[16] = {};
+        extractJsonStringField(body.c_str(), "unit_of_measurement", unitBuf, sizeof(unitBuf));
+        if (unitBuf[0] != '\0')
+          snprintf(values[i], sizeof(values[i]), "%s %s", stateBuf, unitBuf);
+        else
+          copyStringSafe(values[i], sizeof(values[i]), stateBuf);
+        copyStringSafe(units[i], sizeof(units[i]), unitBuf);
+      }
+    } else {
+      anyError = true;
+      Serial.printf("[HA] badge %u GET %d\n", i, code);
+    }
+    http.end();
+  }
+
+  // Fetch toggle control states
+  for (uint8_t i = 0; i < HA_CONTROL_COUNT; ++i) {
+    if (cfg.controls[i].type != HA_CTRL_TOGGLE) continue;
+    if (cfg.controls[i].entityId[0] == '\0') continue;
+    char url[160];
+    snprintf(url, sizeof(url), "%s/api/states/%s", cfg.url, cfg.controls[i].entityId);
+    http.begin(url);
+    http.addHeader("Authorization", String("Bearer ") + cfg.token);
+    const int code = http.GET();
+    if (code == HTTP_CODE_OK) {
+      const String body = http.getString();
+      char stateBuf[16] = {};
+      extractJsonStringField(body.c_str(), "state", stateBuf, sizeof(stateBuf));
+      ctrlStates[i] = (strcasecmp(stateBuf, "on") == 0);
+    } else {
+      anyError = true;
+    }
+    http.end();
+  }
+
+  xSemaphoreTake(g_netMutex, portMAX_DELAY);
+  memcpy(g_haState.values,        values,      sizeof(values));
+  memcpy(g_haState.units,         units,       sizeof(units));
+  memcpy(g_haState.controlStates, ctrlStates,  sizeof(ctrlStates));
+  g_haState.valid      = !anyError;
+  g_haState.fetchError = anyError;
+  g_haState.lastFetchMs = millis();
+  g_haState.dirty      = true;
+  xSemaphoreGive(g_netMutex);
+}
+
+static void netFetchHaService(uint8_t ctrlIdx) {
+  if (ctrlIdx >= HA_CONTROL_COUNT) return;
+  HaConfig cfg;
+  xSemaphoreTake(g_netMutex, portMAX_DELAY);
+  cfg = g_haConfig;
+  xSemaphoreGive(g_netMutex);
+  if (!cfg.configured) return;
+
+  const HaControlConfig &ctrl = cfg.controls[ctrlIdx];
+  if (ctrl.type == HA_CTRL_OFF || ctrl.entityId[0] == '\0') return;
+
+  const char *domain  = (ctrl.type == HA_CTRL_TOGGLE) ? "homeassistant" : ctrl.serviceDomain;
+  const char *service = (ctrl.type == HA_CTRL_TOGGLE) ? "toggle"        : ctrl.service;
+  if (domain[0] == '\0' || service[0] == '\0') return;
+
+  char url[200];
+  snprintf(url, sizeof(url), "%s/api/services/%s/%s", cfg.url, domain, service);
+  char body[128];
+  snprintf(body, sizeof(body), "{\"entity_id\":\"%s\"}", ctrl.entityId);
+
+  HTTPClient http;
+  http.setConnectTimeout(HA_HTTP_TIMEOUT_MS);
+  http.setTimeout(HA_HTTP_TIMEOUT_MS);
+  http.begin(url);
+  http.addHeader("Authorization", String("Bearer ") + cfg.token);
+  http.addHeader("Content-Type", "application/json");
+  const int code = http.POST(body);
+  http.end();
+  Serial.printf("[HA] service %s/%s entity=%s code=%d\n", domain, service, ctrl.entityId, code);
+}
+
+static bool updateHaFromApi(bool force) {
+  if (!g_haConfig.configured) return false;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
+  const uint32_t now = millis();
+  const uint32_t waitMs = g_haState.valid ? HA_POLL_INTERVAL_MS : HA_RETRY_INTERVAL_MS;
+  if (!force && g_haState.lastFetchMs != 0 && (now - g_haState.lastFetchMs) < waitMs) return g_haState.valid;
+  g_haState.lastFetchMs = now;
+  if (g_netTaskReady) { netEnqueue(NET_REQ_HA_POLL, 0); return g_haState.valid; }
+  netFetchHaStates();
+  return g_haState.valid;
+}
+
+static void haCallService(uint8_t ctrlIdx) {
+  if (!g_netTaskReady) return;
+  netEnqueue(NET_REQ_HA_SERVICE, ctrlIdx);
 }
 
 static void netTaskMain(void *param) {
@@ -7737,6 +8136,18 @@ static void netTaskMain(void *param) {
           netFetchWikiMeta();
           const uint32_t wikiMetaDt = millis() - t0;
           if (wikiMetaDt >= 50) Serial.printf("[NET] wiki_meta done dt=%lu ms\n", wikiMetaDt);
+          break;
+        }
+        case NET_REQ_HA_POLL: {
+          netFetchHaStates();
+          Serial.printf("[NET] ha_poll done dt=%lu ms\n", millis() - t0);
+          break;
+        }
+        case NET_REQ_HA_SERVICE: {
+          netFetchHaService(req.param);
+          vTaskDelay(pdMS_TO_TICKS(HA_SERVICE_REFETCH_DELAY_MS));
+          netFetchHaStates();
+          Serial.printf("[NET] ha_service idx=%u done dt=%lu ms\n", (unsigned)req.param, millis() - t0);
           break;
         }
       }
@@ -7829,7 +8240,7 @@ static bool updateWeatherFromApi(bool force) {
   g_weather.lastFetchMs = now;  // mark attempt time
 
   if (g_netTaskReady) {
-    netEnqueue(NET_REQ_WEATHER);
+    netEnqueue(NET_REQ_WEATHER, 0);
     return g_weather.valid;  // return current state; result arrives async
   }
   // Fallback: inline fetch (during boot before netTask starts)
@@ -8009,6 +8420,8 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
 static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki);
 static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root);
 static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force);
+static void lvglInitHaUi(LvglHaUi &ui, lv_obj_t *root);
+static void lvglUpdateHaUi(LvglHaUi &ui, bool force);
 #endif
 
 // Returns true for pages that have a feed deck (AUX/RSS and WIKI).
@@ -8029,6 +8442,8 @@ static const char* uiPageName(UiPageMode mode) {
       return "NOW";
     case UI_PAGE_DOOM:
       return "DOOM";
+    case UI_PAGE_HA:
+      return "HA";
     case UI_PAGE_HOME:
     default:
       return "HOME";
@@ -8042,6 +8457,7 @@ static uint8_t uiViewFlagForPage(UiPageMode mode) {
     case UI_PAGE_WIKI: return UI_VIEW_FLAG_WIKI;
     case UI_PAGE_DOOM:        return UI_VIEW_FLAG_DOOM;
     case UI_PAGE_NOW_PLAYING: return UI_VIEW_FLAG_NOW_PLAYING;
+    case UI_PAGE_HA:          return UI_VIEW_FLAG_HA;
     case UI_PAGE_HOME:
     default:
       return 0;
@@ -8086,6 +8502,7 @@ static const UiPageMode kSwipePageOrder[] = {
     UI_PAGE_AUX,
     UI_PAGE_WIKI,
     UI_PAGE_NOW_PLAYING,
+    UI_PAGE_HA,
     UI_PAGE_DOOM,
 };
 
@@ -8931,6 +9348,33 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
 
   g_clockUi.wifiMask = 0xFFFF;
   lvglUpdateWiFiBars(true);
+
+  // HA panel styles
+  if (g_haUi.header) {
+    lvglSetBgFlat(g_haUi.header, headerBg);
+    lvglSetTextHex(g_haUi.headerTitle, headerText);
+    lvglSetTextHex(g_haUi.headerStatus, headerMeta);
+    lvglSetBgFlat(g_haUi.panel, panelBg);
+    lvglSetBgFlat(g_haUi.qrPane, panelBg);
+    if (g_haUi.separator)
+      lv_obj_set_style_bg_color(g_haUi.separator, lv_color_hex(t.divider), LV_PART_MAIN);
+    lvglSetTextHex(g_haUi.qrHint, headerText);
+    for (int i = 0; i < HA_BADGE_COUNT; i++) {
+      if (g_haUi.badgeLabel[i]) lvglSetTextHex(g_haUi.badgeLabel[i], t.auxMeta);
+      if (g_haUi.badgeValue[i]) lvglSetTextHex(g_haUi.badgeValue[i], t.infoText);
+    }
+    for (int i = 0; i < HA_CONTROL_COUNT; i++) {
+      if (!g_haUi.ctrlBtn[i]) continue;
+      lv_obj_set_style_border_color(g_haUi.ctrlBtn[i], lv_color_hex(t.divider), LV_PART_MAIN);
+      if (g_haUi.ctrlLabel[i]) lvglSetTextHex(g_haUi.ctrlLabel[i], t.infoText);
+      if (g_haUi.ctrlIndic[i]) {
+        const bool on = (i < HA_CONTROL_COUNT) && g_haState.controlStates[i]
+                        && g_haConfig.controls[i].type == HA_CTRL_TOGGLE;
+        lv_obj_set_style_bg_color(g_haUi.ctrlIndic[i],
+                                   lv_color_hex(on ? t.auxSourceText : t.divider), LV_PART_MAIN);
+      }
+    }
+  }
 
   if (!forceInvalidate) return;
   g_uiNeedsRedraw = true;
@@ -10010,6 +10454,26 @@ static void handleFeedDeckTapRelease(const TouchReleaseInfo &r) {
   }
   // In AUX/WIKI, ignore neutral taps not on actionable regions.
   if (r.isTap && uiPageIsFeedDeck(g_uiPageMode)) return;
+  // HA page: tap on 2x2 control grid (right column)
+  if (r.isTap && g_uiPageMode == UI_PAGE_HA) {
+    if (g_haConfig.configured) {
+      constexpr int16_t kHaLeftW = 185, kHaSepW = 2, kHaHdr = 28;
+      const int16_t rightW = canvasWidth() - kHaLeftW - kHaSepW;
+      const int16_t ctrlW  = rightW / 2;
+      const int16_t ctrlH  = (canvasHeight() - kHaHdr) / 2;
+      const int16_t gridX  = r.tapX - (int16_t)(kHaLeftW + kHaSepW);
+      const int16_t gridY  = r.tapY - kHaHdr;
+      if (gridX >= 0 && gridX < rightW && gridY >= 0) {
+        const int ctrlIdx = (gridY / ctrlH) * 2 + (gridX / ctrlW);
+        if (ctrlIdx >= 0 && ctrlIdx < HA_CONTROL_COUNT &&
+            g_haConfig.controls[ctrlIdx].type != HA_CTRL_OFF) {
+          haCallService((uint8_t)ctrlIdx);
+          Serial.printf("[HA][TOUCH] ctrl=%d (%s)\n", ctrlIdx, g_haConfig.controls[ctrlIdx].label);
+        }
+      }
+    }
+    return;
+  }
   // HOME: tap left panel toggles clock mode.
   if (r.isTap && g_uiPageMode == UI_PAGE_HOME &&
       g_touch.startX < (canvasWidth() - DISPLAY_WEATHER_PANEL_W)) {
@@ -11987,6 +12451,7 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglWikiRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglNowPlayingRoot, lvglSetObjXAnim);
+  if (g_lvglHaRoot) lv_anim_del(g_lvglHaRoot, lvglSetObjXAnim);
   g_pageAnim.untilMs = 0;
   g_pageAnim.dragActive = true;
 
@@ -11996,8 +12461,10 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
     {UI_PAGE_AUX,         g_lvglAuxRoot},
     {UI_PAGE_WIKI,        g_lvglWikiRoot},
     {UI_PAGE_NOW_PLAYING, g_lvglNowPlayingRoot},
+    {UI_PAGE_HA,          g_lvglHaRoot},
   };
   for (auto &p : pages) {
+    if (!p.root) continue;
     const int32_t tx = lvglCarouselPageX(p.mode, cur, w, p.root);
     if (tx >= (int32_t)w * 10) continue;  // disabled, already hidden by helper
     lv_obj_clear_flag(p.root, LV_OBJ_FLAG_HIDDEN);
@@ -12026,6 +12493,7 @@ static void lvglApplyPageVisibility(bool animate) {
     if (g_uiPageMode == UI_PAGE_DOOM) lv_obj_clear_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_add_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
   }
+  // HA root is part of carousel slots below (not special-cased like DOOM)
 
   if (g_uiPageMode == UI_PAGE_DOOM) {
     lv_obj_add_flag(g_infoUi.root, LV_OBJ_FLAG_HIDDEN);
@@ -12051,9 +12519,11 @@ static void lvglApplyPageVisibility(bool animate) {
     {g_lvglAuxRoot,        UI_PAGE_AUX,         0},
     {g_lvglWikiRoot,       UI_PAGE_WIKI,        0},
     {g_lvglNowPlayingRoot, UI_PAGE_NOW_PLAYING, 0},
+    {g_lvglHaRoot,         UI_PAGE_HA,          0},
   };
   constexpr size_t kSlotCount = sizeof(slots) / sizeof(slots[0]);
   for (size_t i = 0; i < kSlotCount; ++i) {
+    if (!slots[i].root) { slots[i].targetX = (int32_t)w * 10 + 1; continue; }
     slots[i].targetX = lvglCarouselPageX(slots[i].mode, cur, w, slots[i].root);
   }
 
@@ -12067,7 +12537,7 @@ static void lvglApplyPageVisibility(bool animate) {
       if (lv_obj_get_x(slots[i].root) != (lv_coord_t)slots[i].targetX) { allOk = false; break; }
     }
     if (allOk) return;
-    for (size_t i = 0; i < kSlotCount; ++i) lv_anim_del(slots[i].root, lvglSetObjXAnim);
+    for (size_t i = 0; i < kSlotCount; ++i) if (slots[i].root) lv_anim_del(slots[i].root, lvglSetObjXAnim);
     for (size_t i = 0; i < kSlotCount; ++i) {
       if (slots[i].targetX >= (int32_t)w * 10) continue;
       lv_obj_clear_flag(slots[i].root, LV_OBJ_FLAG_HIDDEN);
@@ -12948,6 +13418,207 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
 }
 
 // ---------------------------------------------------------------------------
+// Home Assistant view — badge column (left) + 2×2 control grid (right)
+// ---------------------------------------------------------------------------
+
+static void lvglInitHaUi(LvglHaUi &ui, lv_obj_t *root) {
+  const int16_t cW = canvasWidth();
+  const int16_t cH = canvasHeight();
+  const int16_t hdr = 28;
+  const int16_t contentH = cH - hdr;   // 144
+  const int16_t leftW  = 185;
+  const int16_t sepW   = 2;
+  const int16_t rightW = cW - leftW - sepW;  // 453
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const uint32_t panelBg  = lvglResolvedPanelBg(t);
+  const uint32_t headerBg = lvglResolvedHeaderBg(t);
+
+  // Header bar
+  ui.header = lvglCreatePanel(root, cW, hdr, 0, 0, lv_color_hex(headerBg), 0);
+
+  ui.headerTitle = lv_label_create(ui.header);
+  lv_label_set_text(ui.headerTitle, "HOME ASSISTANT");
+  lv_obj_set_style_text_font(ui.headerTitle, &scry_font_funnel_display_14, 0);
+  lv_obj_align(ui.headerTitle, LV_ALIGN_LEFT_MID, 10, 2);
+
+  ui.headerStatus = lv_label_create(ui.header);
+  lv_label_set_text(ui.headerStatus, "---");
+  lv_obj_set_style_text_font(ui.headerStatus, &scry_font_funnel_display_14, 0);
+  lv_obj_align(ui.headerStatus, LV_ALIGN_RIGHT_MID, -10, 2);
+
+  // Main content panel (below header)
+  ui.panel = lvglCreatePanel(root, cW, contentH, 0, hdr, lv_color_hex(panelBg), 0);
+
+  // Badge column (left, transparent bg)
+  ui.badgeCol = lvglCreatePanel(ui.panel, leftW, contentH, 0, 0, lv_color_hex(panelBg), 0);
+  lv_obj_set_style_bg_opa(ui.badgeCol, LV_OPA_TRANSP, LV_PART_MAIN);
+
+  const int16_t badgeH = contentH / HA_BADGE_COUNT;  // 36px
+  for (int i = 0; i < HA_BADGE_COUNT; i++) {
+    ui.badgeRow[i] = lvglCreatePanel(ui.badgeCol, leftW, badgeH,
+                                     0, i * badgeH, lv_color_hex(panelBg), 0);
+    lv_obj_set_style_bg_opa(ui.badgeRow[i], LV_OPA_TRANSP, LV_PART_MAIN);
+
+    ui.badgeLabel[i] = lv_label_create(ui.badgeRow[i]);
+    lv_label_set_text(ui.badgeLabel[i], "---");
+    lv_obj_set_style_text_font(ui.badgeLabel[i], &scry_font_funnel_display_12, 0);
+    lv_label_set_long_mode(ui.badgeLabel[i], LV_LABEL_LONG_DOT);
+    lv_obj_set_width(ui.badgeLabel[i], leftW - 12);
+    lv_obj_align(ui.badgeLabel[i], LV_ALIGN_TOP_LEFT, 8, 2);
+
+    ui.badgeValue[i] = lv_label_create(ui.badgeRow[i]);
+    lv_label_set_text(ui.badgeValue[i], "--");
+    lv_obj_set_style_text_font(ui.badgeValue[i], &scry_font_funnel_display_16, 0);
+    lv_obj_align(ui.badgeValue[i], LV_ALIGN_BOTTOM_LEFT, 8, -2);
+  }
+
+  // Vertical separator
+  ui.separator = lv_obj_create(ui.panel);
+  lv_obj_set_size(ui.separator, sepW, contentH);
+  lv_obj_set_pos(ui.separator, leftW, 0);
+  lv_obj_set_style_border_width(ui.separator, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(ui.separator, 0, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui.separator, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(ui.separator, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(ui.separator, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(ui.separator, lv_color_hex(t.divider), LV_PART_MAIN);
+  lv_obj_clear_flag(ui.separator, LV_OBJ_FLAG_SCROLLABLE);
+
+  // Control grid (right): 2 columns × 2 rows
+  ui.ctrlCol = lvglCreatePanel(ui.panel, rightW, contentH,
+                                leftW + sepW, 0, lv_color_hex(panelBg), 0);
+  lv_obj_set_style_bg_opa(ui.ctrlCol, LV_OPA_TRANSP, LV_PART_MAIN);
+
+  const int16_t ctrlW = rightW / 2;  // 226
+  const int16_t ctrlH = contentH / 2;  // 72
+  for (int i = 0; i < HA_CONTROL_COUNT; i++) {
+    const int col = i % 2;
+    const int row = i / 2;
+    ui.ctrlBtn[i] = lv_obj_create(ui.ctrlCol);
+    lv_obj_set_size(ui.ctrlBtn[i], ctrlW, ctrlH);
+    lv_obj_set_pos(ui.ctrlBtn[i], col * ctrlW, row * ctrlH);
+    lv_obj_set_style_pad_all(ui.ctrlBtn[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(ui.ctrlBtn[i], 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(ui.ctrlBtn[i], lv_color_hex(t.divider), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(ui.ctrlBtn[i], LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_radius(ui.ctrlBtn[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(ui.ctrlBtn[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(ui.ctrlBtn[i], LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_clear_flag(ui.ctrlBtn[i], LV_OBJ_FLAG_SCROLLABLE);
+
+    ui.ctrlLabel[i] = lv_label_create(ui.ctrlBtn[i]);
+    lv_label_set_text(ui.ctrlLabel[i], "---");
+    lv_obj_set_style_text_font(ui.ctrlLabel[i], &scry_font_funnel_display_16, 0);
+    lv_label_set_long_mode(ui.ctrlLabel[i], LV_LABEL_LONG_DOT);
+    lv_obj_set_width(ui.ctrlLabel[i], ctrlW - 36);
+    lv_obj_align(ui.ctrlLabel[i], LV_ALIGN_LEFT_MID, 10, 0);
+
+    ui.ctrlIndic[i] = lv_obj_create(ui.ctrlBtn[i]);
+    lv_obj_set_size(ui.ctrlIndic[i], 12, 12);
+    lv_obj_set_style_radius(ui.ctrlIndic[i], LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_style_border_width(ui.ctrlIndic[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(ui.ctrlIndic[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(ui.ctrlIndic[i], LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.ctrlIndic[i], lv_color_hex(t.divider), LV_PART_MAIN);
+    lv_obj_align(ui.ctrlIndic[i], LV_ALIGN_RIGHT_MID, -10, 0);
+  }
+
+  // QR fallback pane (full-page, shown when not configured)
+  const int16_t qrSize = cH - 24;  // ~148px
+  ui.qrPane = lvglCreatePanel(root, cW, cH, 0, 0, lv_color_hex(panelBg), 0);
+
+  ui.qrCode = lv_qrcode_create(ui.qrPane, qrSize,
+                                lv_color_hex(0xF6FBFF), lv_color_hex(0x000000));
+  const char *qrUrl = "https://github.com/enuzzo/scrybar#home-assistant";
+  lv_qrcode_update(ui.qrCode, qrUrl, strlen(qrUrl));
+  lv_obj_align(ui.qrCode, LV_ALIGN_RIGHT_MID, -12, 0);
+
+  ui.qrHint = lv_label_create(ui.qrPane);
+  lv_label_set_text(ui.qrHint, "Home Assistant\nnot configured.\nScan to set up.");
+  lv_obj_set_style_text_font(ui.qrHint, &scry_font_funnel_display_20, 0);
+  lv_label_set_long_mode(ui.qrHint, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(ui.qrHint, cW - qrSize - 36);
+  lv_obj_align(ui.qrHint, LV_ALIGN_LEFT_MID, 16, 0);
+
+  // Initial visibility
+  if (g_haConfig.configured) {
+    lv_obj_add_flag(ui.qrPane, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_obj_add_flag(ui.header, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui.panel,  LV_OBJ_FLAG_HIDDEN);
+  }
+  ui.lastConfigured = g_haConfig.configured;
+}
+
+static void lvglUpdateHaUi(LvglHaUi &ui, bool force) {
+  if (!ui.qrPane) return;
+
+  const bool configured = g_haConfig.configured;
+  if (configured != ui.lastConfigured || force) {
+    ui.lastConfigured = configured;
+    if (configured) {
+      lv_obj_clear_flag(ui.header, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(ui.panel,  LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(ui.qrPane,   LV_OBJ_FLAG_HIDDEN);
+      for (int i = 0; i < HA_BADGE_COUNT; i++) {
+        lv_label_set_text(ui.badgeLabel[i],
+                          g_haConfig.badges[i].label[0] ? g_haConfig.badges[i].label : "--");
+      }
+      for (int i = 0; i < HA_CONTROL_COUNT; i++) {
+        if (g_haConfig.controls[i].type == HA_CTRL_OFF) {
+          lv_obj_add_flag(ui.ctrlBtn[i], LV_OBJ_FLAG_HIDDEN);
+        } else {
+          lv_obj_clear_flag(ui.ctrlBtn[i], LV_OBJ_FLAG_HIDDEN);
+          lv_label_set_text(ui.ctrlLabel[i], g_haConfig.controls[i].label);
+        }
+      }
+    } else {
+      lv_obj_add_flag(ui.header, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(ui.panel,  LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(ui.qrPane, LV_OBJ_FLAG_HIDDEN);
+      return;
+    }
+  }
+  if (!configured) return;
+
+  // Status
+  if (g_haState.fetchError) {
+    lv_label_set_text(ui.headerStatus, "ERROR");
+  } else if (g_haState.valid) {
+    lv_label_set_text(ui.headerStatus, "ONLINE");
+  } else {
+    lv_label_set_text(ui.headerStatus, "...");
+  }
+
+  if (!g_haState.dirty && !force) return;
+
+  // Badge values
+  for (int i = 0; i < HA_BADGE_COUNT; i++) {
+    if (strcmp(ui.lastValues[i], g_haState.values[i]) == 0 && !force) continue;
+    strncpy(ui.lastValues[i], g_haState.values[i], sizeof(ui.lastValues[i]) - 1);
+    char buf[48];
+    const char *unit = g_haConfig.badges[i].unit[0]
+                         ? g_haConfig.badges[i].unit
+                         : g_haState.units[i];
+    if (unit[0]) snprintf(buf, sizeof(buf), "%s %s", g_haState.values[i], unit);
+    else         snprintf(buf, sizeof(buf), "%s",    g_haState.values[i]);
+    lv_label_set_text(ui.badgeValue[i], buf[0] ? buf : "--");
+  }
+
+  // Toggle indicators
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  for (int i = 0; i < HA_CONTROL_COUNT; i++) {
+    if (g_haConfig.controls[i].type != HA_CTRL_TOGGLE) continue;
+    const bool on = g_haState.controlStates[i];
+    if (on == ui.lastCtrlStates[i] && !force) continue;
+    ui.lastCtrlStates[i] = on;
+    lv_obj_set_style_bg_color(ui.ctrlIndic[i],
+                               lv_color_hex(on ? t.auxSourceText : t.divider), LV_PART_MAIN);
+  }
+  g_haState.dirty = false;
+}
+
+// ---------------------------------------------------------------------------
 // M1: Sub-functions extracted from initLvglUi() for decomposition.
 // Each sub-function creates one logical panel/section of the LVGL UI.
 // ---------------------------------------------------------------------------
@@ -13675,6 +14346,11 @@ static bool initLvglUi() {
   lv_obj_set_pos(g_lvglNowPlayingRoot, cW, 0);
   lvglInitNowPlayingUi(g_nowPlayingUi, g_lvglNowPlayingRoot);
 
+  // Home Assistant
+  g_lvglHaRoot = lvglCreatePageRoot(scr, cW, cH);
+  lv_obj_set_pos(g_lvglHaRoot, cW, 0);
+  lvglInitHaUi(g_haUi, g_lvglHaRoot);
+
   // DOOM
   g_lvglDoomRoot = lvglCreatePageRoot(scr, cW, cH);
   lv_obj_set_style_bg_color(g_lvglDoomRoot, lv_color_hex(0x000000), LV_PART_MAIN);
@@ -13886,6 +14562,13 @@ static void updateLvglUi(bool force) {
   }
   if (g_uiPageMode == UI_PAGE_NOW_PLAYING) {
     lvglUpdateNowPlayingUi(g_nowPlayingUi, force);
+    g_clock.lastSecond = timeinfo.tm_sec;
+    g_clock.lastDateKey = dateKey;
+    g_uiNeedsRedraw = false;
+    return;
+  }
+  if (g_uiPageMode == UI_PAGE_HA) {
+    lvglUpdateHaUi(g_haUi, force);
     g_clock.lastSecond = timeinfo.tm_sec;
     g_clock.lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
@@ -14508,7 +15191,7 @@ static void cmdWikiStat(const String &args) {
 
 static void cmdRssReload(const String &args) {
 #if TEST_WIFI && RSS_ENABLED
-  netEnqueue(NET_REQ_RSS);
+  netEnqueue(NET_REQ_RSS, 0);
   Serial.println("[RSSRELOAD] queued");
 #else
   Serial.println("[RSSRELOAD] unavailable");
@@ -14517,7 +15200,7 @@ static void cmdRssReload(const String &args) {
 
 static void cmdWikiReload(const String &args) {
 #if TEST_WIFI && RSS_ENABLED
-  netEnqueue(NET_REQ_WIKI);
+  netEnqueue(NET_REQ_WIKI, 0);
   Serial.println("[WIKIRELOAD] queued");
 #else
   Serial.println("[WIKIRELOAD] unavailable");
@@ -14526,10 +15209,10 @@ static void cmdWikiReload(const String &args) {
 
 static void cmdReload(const String &args) {
 #if TEST_WIFI
-  netEnqueue(NET_REQ_WEATHER);
+  netEnqueue(NET_REQ_WEATHER, 0);
 #if RSS_ENABLED
-  netEnqueue(NET_REQ_RSS);
-  netEnqueue(NET_REQ_WIKI);
+  netEnqueue(NET_REQ_RSS, 0);
+  netEnqueue(NET_REQ_WIKI, 0);
 #endif
   Serial.println("[CMD] reload queued");
 #else
@@ -15071,6 +15754,7 @@ void loop() {
 
 #if TEST_DISPLAY && TEST_NTP
   updateWeatherFromApi(false);
+  updateHaFromApi(false);
 #if TEST_WIFI && RSS_ENABLED
 #if TEST_LVGL_UI && DISPLAY_BACKEND_ESP_LCD
   updateRssFromFeed(false);
