@@ -846,6 +846,7 @@ struct TransitState {
   uint32_t lastAttemptMs = 0;
   int      lastHttpCode = 0;
   char     fetchedAt[12] = "--:--";
+  char     stationName[TRANSIT_STATION_LEN] = {};  // official name from API
 };
 static TransitState  g_transitState = {};
 static TransitConfig g_transitConfig = {};
@@ -1095,11 +1096,13 @@ struct LvglTransitUi {
   lv_obj_t *title = nullptr;
   lv_obj_t *station = nullptr;
   lv_obj_t *status = nullptr;
+  lv_obj_t *rowBg[TRANSIT_MAX_DEPARTURES] = {};
   lv_obj_t *rowSep[TRANSIT_MAX_DEPARTURES] = {};
   lv_obj_t *lineBg[TRANSIT_MAX_DEPARTURES] = {};
   lv_obj_t *line_[TRANSIT_MAX_DEPARTURES] = {};
   lv_obj_t *dest[TRANSIT_MAX_DEPARTURES] = {};
   lv_obj_t *time_[TRANSIT_MAX_DEPARTURES] = {};
+  lv_obj_t *arr[TRANSIT_MAX_DEPARTURES] = {};
   lv_obj_t *delay[TRANSIT_MAX_DEPARTURES] = {};
   lv_obj_t *platform[TRANSIT_MAX_DEPARTURES] = {};
   lv_obj_t *noData = nullptr;
@@ -3870,7 +3873,7 @@ static void loadRuntimeNetConfigFromNvs() {
     for (const char **p = kWikiLangs; *p; ++p) { if (strcmp(wl, *p) == 0) { wlValid = true; break; } }
     if (wlValid) strncpy(g_wikiLang, wl, sizeof(g_wikiLang) - 1);
   }
-  // Transit station
+  // Transit stations
   if (prefs.isKey("transit_stn")) {
     char stn[TRANSIT_STATION_LEN] = {0};
     prefs.getString("transit_stn", stn, sizeof(stn));
@@ -3879,6 +3882,11 @@ static void loadRuntimeNetConfigFromNvs() {
       g_transitConfig.configured = true;
       loadedAny = true;
     }
+  }
+  if (prefs.isKey("transit_arr")) {
+    char arr[TRANSIT_STATION_LEN] = {0};
+    prefs.getString("transit_arr", arr, sizeof(arr));
+    copyStringSafe(g_transitConfig.arrStation, sizeof(g_transitConfig.arrStation), arr);
   }
 
   prefs.end();
@@ -3955,6 +3963,7 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSt.setupMode);
   const size_t n10 = saveRuntimeWiFiCredentialsToPrefs(prefs);
   prefs.putString("transit_stn", g_transitConfig.station);
+  prefs.putString("transit_arr", g_transitConfig.arrStation);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
   Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u views=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
@@ -4455,19 +4464,98 @@ static void buildWebRssBuilder(String &html) {
 
 static void buildWebTransitSection(String &html) {
   html += F("<div class='vm-card'><h2>&#x1F689; Transit Departure Board</h2>");
-  html += F("<p class='vm-help'>Enter a Swiss train/bus station name (e.g. <em>Luino</em>, <em>Zurich HB</em>). Departures refresh every 60 s. Leave empty to disable.</p>");
-  html += F("<div class='vm-row'><div class='vm-col'><div class='vm-label'>STATION NAME</div>");
-  html += F("<input class='vm-input' name='transit_station' maxlength='47' placeholder='e.g. Luino' value='");
-  html += g_transitConfig.station;
-  html += F("'></div></div>");
+  html += F("<p class='vm-help'>Search for a Swiss train/bus station to show upcoming departures. "
+            "Powered by <a href='https://transport.opendata.ch' target='_blank' rel='noopener noreferrer'>transport.opendata.ch</a>. "
+            "Departure station is required; destination is optional (filters by direction).</p>");
+  html += F("<div class='vm-grid'>");
+
+  // --- Departure station ---
+  html += F("<div><div class='vm-label'>DEPARTURE STATION</div>");
+  html += F("<input class='vm-input' type='search' id='transit_from_q' list='transit_from_hits' "
+            "autocomplete='off' placeholder='e.g. Zurich HB'");
+  if (g_transitConfig.station[0]) {
+    html += F(" value='");
+    appendHtmlEscaped(html, g_transitConfig.station);
+    html += '\'';
+  }
+  html += F("><datalist id='transit_from_hits'></datalist>");
+  html += F("<input type='hidden' id='transit_from_val' name='transit_from' value='");
+  appendHtmlEscaped(html, g_transitConfig.station);
+  html += F("'><p id='transit_from_st' class='geo-status'></p></div>");
+
+  // --- Destination station (optional) ---
+  html += F("<div><div class='vm-label'>FILTER BY DESTINATION <small>(optional)</small></div>");
+  html += F("<input class='vm-input' type='search' id='transit_to_q' list='transit_to_hits' "
+            "autocomplete='off' placeholder='Leave empty for all departures'");
+  if (g_transitConfig.arrStation[0]) {
+    html += F(" value='");
+    appendHtmlEscaped(html, g_transitConfig.arrStation);
+    html += '\'';
+  }
+  html += F("><datalist id='transit_to_hits'></datalist>");
+  html += F("<input type='hidden' id='transit_to_val' name='transit_to' value='");
+  appendHtmlEscaped(html, g_transitConfig.arrStation);
+  html += F("'><p id='transit_to_st' class='geo-status'></p></div>");
+
+  html += F("</div>"); // vm-grid
+
   if (g_transitConfig.configured) {
     html += F("<p class='vm-help'><small>Last fetch: ");
     html += g_transitState.fetchedAt;
     html += F(" &bull; ");
     html += g_transitState.count;
-    html += F(" departure(s). Powered by <a href='https://transport.opendata.ch' target='_blank' rel='noopener noreferrer'>transport.opendata.ch</a> (Switzerland only).</small></p>");
+    html += F(" departure(s).</small></p>");
   }
-  html += F("</div>");
+  html += F("</div>"); // vm-card
+
+  // Inline autocomplete JS for transit station search
+  html += F("<script>(function(){"
+    "function setupTAC(qId,vId,lId,sId){"
+      "var q=document.getElementById(qId);"
+      "var v=document.getElementById(vId);"
+      "var dl=document.getElementById(lId);"
+      "var st=document.getElementById(sId);"
+      "if(!q||!dl)return;"
+      "var t=0,map={};"
+      "function setS(m){if(st)st.textContent=m||'';}"
+      "function clr(){dl.innerHTML='';map={};}"
+      "q.addEventListener('change',function(){"
+        "if(map[q.value]){if(v)v.value=q.value;setS('Station: '+q.value);}"
+        "else if(!q.value.trim()){if(v)v.value='';setS('');}"
+      "});"
+      "q.addEventListener('input',function(){"
+        "var term=q.value.trim();"
+        "if(term.length<2){clr();setS('');return;}"
+        "clearTimeout(t);"
+        "t=setTimeout(async function(){"
+          "try{"
+            "setS('Searching...');"
+            "var u='https://transport.opendata.ch/v1/locations?query='+encodeURIComponent(term)+'&type=station&limit=8';"
+            "var r=await fetch(u,{cache:'no-store'});"
+            "if(!r.ok)throw new Error('http '+r.status);"
+            "var d=await r.json();"
+            "var rows=(d&&d.stations)?d.stations:[];"
+            "clr();"
+            "if(!rows.length){setS('No station found.');return;}"
+            "rows.forEach(function(s){"
+              "var n=s.name||'';"
+              "if(!n||n==='null')return;"
+              "var o=document.createElement('option');"
+              "o.value=n;dl.appendChild(o);map[n]=s;"
+            "});"
+            "setS(rows.length+' result(s) — pick one from the list.');"
+            "if(rows.length===1){"
+              "q.value=rows[0].name;"
+              "if(v)v.value=rows[0].name;"
+              "setS('Station: '+rows[0].name);"
+            "}"
+          "}catch(e){clr();setS('Search unavailable.');}"
+        "},300);"
+      "});"
+    "}"
+    "setupTAC('transit_from_q','transit_from_val','transit_from_hits','transit_from_st');"
+    "setupTAC('transit_to_q','transit_to_val','transit_to_hits','transit_to_st');"
+  "})();</script>");
 }
 
 static void buildWebSystemInfo(String &html) {
@@ -4919,19 +5007,27 @@ static bool parseWikiLangConfig(String &errorOut, bool &hasInput, bool &wikiLang
 }
 
 static bool parseTransitConfig(String &errorOut, bool &hasInput, bool &transitChanged) {
-  if (!g_webCfg.server.hasArg("transit_station")) return true;
+  if (!g_webCfg.server.hasArg("transit_from")) return true;
   hasInput = true;
-  String stn = g_webCfg.server.arg("transit_station");
+  String stn = g_webCfg.server.arg("transit_from");
   stn.trim();
-  if (stn.length() >= TRANSIT_STATION_LEN) { errorOut = "station name too long"; return false; }
+  if (stn.length() >= TRANSIT_STATION_LEN) { errorOut = "departure station name too long"; return false; }
+  String arr = g_webCfg.server.hasArg("transit_to") ? g_webCfg.server.arg("transit_to") : "";
+  arr.trim();
+  if (arr.length() >= TRANSIT_STATION_LEN) { errorOut = "destination station name too long"; return false; }
+
   const bool newConfigured = (stn.length() > 0);
-  const bool changed = (g_transitConfig.configured != newConfigured) ||
-                       (strncmp(g_transitConfig.station, stn.c_str(), TRANSIT_STATION_LEN) != 0);
-  if (changed) {
+  const bool stnChanged = (g_transitConfig.configured != newConfigured) ||
+                          (strncmp(g_transitConfig.station, stn.c_str(), TRANSIT_STATION_LEN) != 0);
+  const bool arrChanged = (strncmp(g_transitConfig.arrStation, arr.c_str(), TRANSIT_STATION_LEN) != 0);
+
+  if (stnChanged || arrChanged) {
     copyStringSafe(g_transitConfig.station, sizeof(g_transitConfig.station), stn.c_str());
+    copyStringSafe(g_transitConfig.arrStation, sizeof(g_transitConfig.arrStation), arr.c_str());
     g_transitConfig.configured = newConfigured;
     transitChanged = true;
-    Serial.printf("[CFG][WEB] transit_station='%s'\n", g_transitConfig.station);
+    Serial.printf("[CFG][WEB] transit_from='%s' transit_to='%s'\n",
+                  g_transitConfig.station, g_transitConfig.arrStation);
   }
   return true;
 }
@@ -5288,7 +5384,7 @@ static bool webRequestHasConfigParams() {
   if (g_webCfg.server.hasArg("view_wiki")) return true;
   if (g_webCfg.server.hasArg("rss_feed_url")) return true;
   if (g_webCfg.server.hasArg("logo_url")) return true;
-  if (g_webCfg.server.hasArg("transit_station")) return true;
+  if (g_webCfg.server.hasArg("transit_from")) return true;
   for (uint8_t i = 1; i <= RSS_FEED_SLOT_COUNT; ++i) {
     const String keyUrl = String("rss_feed_url_") + String(i);
     if (g_webCfg.server.hasArg(keyUrl)) return true;
@@ -7936,7 +8032,7 @@ static uint32_t transitCategoryColor(const char *cat) {
   if (strncmp(cat, "IC", 2) == 0 || strncmp(cat, "EC", 2) == 0) return 0xCC2222;
   if (strncmp(cat, "IR", 2) == 0) return 0xDD5500;
   if (strncmp(cat, "RE", 2) == 0 || strncmp(cat, "RB", 2) == 0) return 0xDD8800;
-  if (cat[0] == 'S' && cat[1] >= '0' && cat[1] <= '9') return 0x118833;
+  if (cat[0] == 'S') return 0x118833;
   if (strcmp(cat, "Bus") == 0 || strcmp(cat, "NFB") == 0) return 0x1155CC;
   if (strcmp(cat, "Tram") == 0) return 0xCC6600;
   return 0x555577;
@@ -7994,6 +8090,19 @@ static void netFetchTransitDepartures() {
     const char *p     = sbTag ? strchr(sbTag, '[') : nullptr;
     if (p) {
       ++p;
+      // Extract official station name from first entry's stop.station.name
+      {
+        const char *snTag = (const char *)memmem(p, (size_t)(payload.length() - (p - data)),
+                                                  "\"station\":{", 11);
+        if (snTag) {
+          const char *snOpen = strchr(snTag, '{');
+          if (snOpen) {
+            int sd = 1; const char *sq = snOpen + 1;
+            while (*sq && sd > 0) { if (*sq=='{') ++sd; else if (*sq=='}') --sd; ++sq; }
+            transitExtractStr(snOpen, sq, "\"name\":", local.stationName, sizeof(local.stationName));
+          }
+        }
+      }
       struct tm ti = {};
       getLocalTime(&ti, 0);
 
@@ -8029,9 +8138,9 @@ static void netFetchTransitDepartures() {
           }
         }
 
-        char name[8] = {}, cat[8] = {}, dest[48] = {}, dep[32] = {}, pf[8] = {};
-        transitExtractStr(stopEnd, entryEnd, "\"name\":",     name, sizeof(name));
+        char cat[8] = {}, num[8] = {}, dest[48] = {}, dep[32] = {}, pf[8] = {};
         transitExtractStr(stopEnd, entryEnd, "\"category\":", cat,  sizeof(cat));
+        transitExtractStr(stopEnd, entryEnd, "\"number\":",   num,  sizeof(num));
         transitExtractStr(stopEnd, entryEnd, "\"to\":",       dest, sizeof(dest));
         if (stopTag) {
           transitExtractStr(stopTag, stopEnd, "\"departure\":", dep, sizeof(dep));
@@ -8041,16 +8150,62 @@ static void netFetchTransitDepartures() {
         if (stopTag) extractJsonNumberField(stopTag, "\"delay\"", delayF);
         const int delay = (int)delayF;
 
-        if (name[0] && dest[0]) {
+        // Arrival at final destination: parse passList last entry
+        char destArr[32] = {};
+        const char *plTag = (const char *)memmem(entryStart,
+                              (size_t)(entryEnd - entryStart), "\"passList\":[", 12);
+        if (plTag) {
+          const char *plOpen = strchr(plTag, '[');
+          if (plOpen && plOpen < entryEnd) {
+            // find matching ]
+            int plD = 1; const char *plP = plOpen + 1;
+            while (plP < entryEnd && plD > 0) {
+              if (*plP == '[') ++plD; else if (*plP == ']') --plD; ++plP;
+            }
+            const char *plClose = plP - 1;          // points at ]
+            // backtrack to last } of the last array element
+            const char *cur = plClose - 1;
+            while (cur > plOpen && *cur != '}') --cur;
+            if (*cur == '}') {
+              int bd = 1; const char *bP = cur - 1;
+              while (bP > plOpen && bd > 0) {
+                if (*bP == '}') ++bd; else if (*bP == '{') --bd; --bP;
+              }
+              const char *lastEntryStart = bP + 1;
+              transitExtractStr(lastEntryStart, cur + 1, "\"arrival\":", destArr, sizeof(destArr));
+            }
+          }
+        }
+
+        // Build display name: category + " " + number (e.g. "S 30", "IC 3")
+        char dispLine[8] = {};
+        if (cat[0] && num[0]) snprintf(dispLine, sizeof(dispLine), "%s %s", cat, num);
+        else if (cat[0])       copyStringSafe(dispLine, sizeof(dispLine), cat);
+        else                   copyStringSafe(dispLine, sizeof(dispLine), "?");
+
+        // If arrival station filter is set, skip departures that don't match
+        if (dest[0] && g_transitConfig.arrStation[0]) {
+          if (strncasecmp(dest, g_transitConfig.arrStation,
+                          strlen(g_transitConfig.arrStation)) != 0) {
+            p = entryEnd; continue;
+          }
+        }
+
+        if (dest[0]) {
           TransitDeparture &d = local.departures[local.count];
-          copyStringSafe(d.line,        sizeof(d.line),        name);
+          copyStringSafe(d.line,        sizeof(d.line),        dispLine);
           copyStringSafe(d.category,    sizeof(d.category),    cat);
           copyStringSafe(d.destination, sizeof(d.destination), dest);
           copyStringSafe(d.platform,    sizeof(d.platform),    pf);
           // ISO 8601: "2026-03-31T14:35:00+0200" — H at [11], M at [14]
           if (strlen(dep) >= 16) {
-            d.hour   = (uint8_t)(((dep[11] - '0') * 10) + (dep[12] - '0'));
-            d.minute = (uint8_t)(((dep[14] - '0') * 10) + (dep[15] - '0'));
+            d.depHour   = (uint8_t)(((dep[11] - '0') * 10) + (dep[12] - '0'));
+            d.depMinute = (uint8_t)(((dep[14] - '0') * 10) + (dep[15] - '0'));
+          }
+          if (strlen(destArr) >= 16) {
+            d.arrHour   = (uint8_t)(((destArr[11] - '0') * 10) + (destArr[12] - '0'));
+            d.arrMinute = (uint8_t)(((destArr[14] - '0') * 10) + (destArr[15] - '0'));
+            d.hasArr    = true;
           }
           d.delayMin = (int8_t)(delay > 127 ? 127 : (delay < -128 ? -128 : delay));
           d.hasDelay = (delay != 0);
@@ -12330,72 +12485,105 @@ static void lvglInitTransitUi() {
   lv_obj_align(g_transitUi.status, LV_ALIGN_RIGHT_MID, -8, 2);
 
   // Departure rows
-  const lv_coord_t rowH = (cH - hdrH) / TRANSIT_MAX_DEPARTURES;  // ~35px
+  // Layout (640px wide, 35px per row):
+  //  [4..73]    badge "S 30"  (70×30, font Meta 20px)
+  //  [80..367]  destination   (font Meta 20px)
+  //  [378..519] dep + arr     (font Small 18px, right-aligned)
+  //  [524..573] delay         (font Tiny 14px, semaphore color)
+  //  [578..633] platform      (font Mini 16px, right-aligned)
+  const lv_coord_t rowH = 35;
+  const lv_coord_t badgeW = 70, badgeH = 30;
+  // Alternate row tint: white on dark themes, black on light themes
+  const bool darkPanel = (lvglColorLuma(panelBg) < 128u);
+  const uint32_t altTintColor = darkPanel ? 0xFFFFFF : 0x000000;
   for (uint8_t i = 0; i < TRANSIT_MAX_DEPARTURES; ++i) {
     const lv_coord_t ry = hdrH + (lv_coord_t)i * rowH;
 
-    if (i > 0) {
-      g_transitUi.rowSep[i] = lv_obj_create(root);
-      lv_obj_set_size(g_transitUi.rowSep[i], cW - 8, 1);
-      lv_obj_set_pos(g_transitUi.rowSep[i], 4, ry);
-      lv_obj_set_style_bg_color(g_transitUi.rowSep[i], lv_color_hex(t.divider), LV_PART_MAIN);
-      lv_obj_set_style_bg_opa(g_transitUi.rowSep[i], LV_OPA_40, LV_PART_MAIN);
-      lv_obj_set_style_border_width(g_transitUi.rowSep[i], 0, LV_PART_MAIN);
+    // Alternate row background (odd rows get a subtle tint)
+    g_transitUi.rowBg[i] = lv_obj_create(root);
+    lv_obj_set_size(g_transitUi.rowBg[i], cW, rowH);
+    lv_obj_set_pos(g_transitUi.rowBg[i], 0, ry);
+    lv_obj_set_style_border_width(g_transitUi.rowBg[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_transitUi.rowBg[i], 0, LV_PART_MAIN);
+    lv_obj_clear_flag(g_transitUi.rowBg[i], LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_pad_all(g_transitUi.rowBg[i], 0, LV_PART_MAIN);
+    if (i & 1) {
+      lv_obj_set_style_bg_color(g_transitUi.rowBg[i], lv_color_hex(altTintColor), LV_PART_MAIN);
+      lv_obj_set_style_bg_opa(g_transitUi.rowBg[i], 22, LV_PART_MAIN);  // ~9% tint
+    } else {
+      lv_obj_set_style_bg_opa(g_transitUi.rowBg[i], LV_OPA_TRANSP, LV_PART_MAIN);
     }
 
-    // Colored line badge
-    const lv_coord_t badgeW = 56, badgeH = 22;
-    const lv_coord_t badgeX = 6, badgeY = ry + (rowH - badgeH) / 2;
+    // Separator line (below each row except last)
+    if (i < TRANSIT_MAX_DEPARTURES - 1) {
+      g_transitUi.rowSep[i] = lv_obj_create(root);
+      lv_obj_set_size(g_transitUi.rowSep[i], cW - 16, 1);
+      lv_obj_set_pos(g_transitUi.rowSep[i], 8, ry + rowH - 1);
+      lv_obj_set_style_bg_color(g_transitUi.rowSep[i], lv_color_hex(t.divider), LV_PART_MAIN);
+      lv_obj_set_style_bg_opa(g_transitUi.rowSep[i], LV_OPA_30, LV_PART_MAIN);
+      lv_obj_set_style_border_width(g_transitUi.rowSep[i], 0, LV_PART_MAIN);
+      lv_obj_set_style_radius(g_transitUi.rowSep[i], 0, LV_PART_MAIN);
+    }
+
+    // Colored line badge (category + number)
+    const lv_coord_t badgeX = 4, badgeY = ry + (rowH - badgeH) / 2;
     g_transitUi.lineBg[i] = lv_obj_create(root);
     lv_obj_set_size(g_transitUi.lineBg[i], badgeW, badgeH);
     lv_obj_set_pos(g_transitUi.lineBg[i], badgeX, badgeY);
     lv_obj_set_style_bg_color(g_transitUi.lineBg[i], lv_color_hex(0x555577), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(g_transitUi.lineBg[i], LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(g_transitUi.lineBg[i], 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(g_transitUi.lineBg[i], 4, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_transitUi.lineBg[i], 6, LV_PART_MAIN);
     lv_obj_clear_flag(g_transitUi.lineBg[i], LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_pad_all(g_transitUi.lineBg[i], 0, LV_PART_MAIN);
 
     g_transitUi.line_[i] = lv_label_create(g_transitUi.lineBg[i]);
     lv_obj_set_style_text_color(g_transitUi.line_[i], lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.line_[i], lvglFontTiny(), 0);
+    lv_obj_set_style_text_font(g_transitUi.line_[i], lvglFontMeta(), 0);  // 20px
     lv_label_set_text(g_transitUi.line_[i], "--");
-    lv_obj_align(g_transitUi.line_[i], LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(g_transitUi.line_[i], LV_ALIGN_CENTER, 0, 1);
 
-    // Destination
+    // Destination (big)
     g_transitUi.dest[i] = lv_label_create(root);
-    lv_obj_set_pos(g_transitUi.dest[i], 68, ry + 2);
-    lv_obj_set_size(g_transitUi.dest[i], 328, rowH - 4);
+    lv_obj_set_pos(g_transitUi.dest[i], 80, ry);
+    lv_obj_set_size(g_transitUi.dest[i], 288, rowH);
     lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(t.infoText), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.dest[i], lvglFontSmall(), 0);
+    lv_obj_set_style_text_font(g_transitUi.dest[i], lvglFontMeta(), 0);  // 20px
+    lv_obj_set_style_text_align(g_transitUi.dest[i], LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
     lv_label_set_long_mode(g_transitUi.dest[i], LV_LABEL_LONG_DOT);
+    lv_obj_set_style_pad_top(g_transitUi.dest[i], (rowH - 20) / 2, LV_PART_MAIN);
     lv_label_set_text(g_transitUi.dest[i], "--");
 
-    // Departure time
+    // Time column: "HH:MM" or "HH:MM >HH:MM" when arrival known (inline)
     g_transitUi.time_[i] = lv_label_create(root);
-    lv_obj_set_pos(g_transitUi.time_[i], 400, ry + 2);
-    lv_obj_set_size(g_transitUi.time_[i], 64, rowH - 4);
+    lv_obj_set_pos(g_transitUi.time_[i], 378, ry);
+    lv_obj_set_size(g_transitUi.time_[i], 142, rowH);
     lv_obj_set_style_text_color(g_transitUi.time_[i], lv_color_hex(t.infoText), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.time_[i], lvglFontSmall(), 0);
+    lv_obj_set_style_text_font(g_transitUi.time_[i], lvglFontSmall(), 0);  // 18px
     lv_obj_set_style_text_align(g_transitUi.time_[i], LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
+    lv_obj_set_style_pad_top(g_transitUi.time_[i], (rowH - 18) / 2, LV_PART_MAIN);
     lv_label_set_text(g_transitUi.time_[i], "--:--");
 
-    // Delay
+    // arr: unused (arrival rendered inline in time_ label) — kept for struct compat
+    g_transitUi.arr[i] = nullptr;
+
+    // Delay (+Xm)
     g_transitUi.delay[i] = lv_label_create(root);
-    lv_obj_set_pos(g_transitUi.delay[i], 468, ry + 2);
-    lv_obj_set_size(g_transitUi.delay[i], 50, rowH - 4);
+    lv_obj_set_pos(g_transitUi.delay[i], 524, ry + (rowH - 14) / 2);
+    lv_obj_set_size(g_transitUi.delay[i], 50, 14);
     lv_obj_set_style_text_color(g_transitUi.delay[i], lv_color_hex(0x22AA33), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.delay[i], lvglFontTiny(), 0);
+    lv_obj_set_style_text_font(g_transitUi.delay[i], lvglFontTiny(), 0);  // 14px
     lv_obj_set_style_text_align(g_transitUi.delay[i], LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_label_set_text(g_transitUi.delay[i], "");
 
-    // Platform
+    // Platform (right edge, shown as "Bin. X" when available)
     g_transitUi.platform[i] = lv_label_create(root);
-    lv_obj_set_pos(g_transitUi.platform[i], 522, ry + 2);
-    lv_obj_set_size(g_transitUi.platform[i], 60, rowH - 4);
+    lv_obj_set_pos(g_transitUi.platform[i], 578, ry);
+    lv_obj_set_size(g_transitUi.platform[i], 56, rowH);
     lv_obj_set_style_text_color(g_transitUi.platform[i], lv_color_hex(t.auxMeta), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontTiny(), 0);
-    lv_obj_set_style_text_align(g_transitUi.platform[i], LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontMini(), 0);  // 16px
+    lv_obj_set_style_text_align(g_transitUi.platform[i], LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
+    lv_obj_set_style_pad_top(g_transitUi.platform[i], (rowH - 16) / 2, LV_PART_MAIN);
     lv_label_set_text(g_transitUi.platform[i], "");
   }
 
@@ -12413,10 +12601,11 @@ static void lvglUpdateTransitUi(bool force) {
   if (!g_lvglTransitRoot) return;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
 
-  // Station name in header
+  // Station name in header: prefer official API name, fallback to user-typed
   if (g_transitUi.station) {
-    lv_label_set_text(g_transitUi.station,
-        g_transitConfig.station[0] ? g_transitConfig.station : "--");
+    const char *stn = g_transitState.stationName[0] ? g_transitState.stationName
+                    : (g_transitConfig.station[0]   ? g_transitConfig.station : "--");
+    lv_label_set_text(g_transitUi.station, stn);
   }
 
   // Status (last fetch time)
@@ -12454,25 +12643,38 @@ static void lvglUpdateTransitUi(bool force) {
     rowShow(g_transitUi.delay[i],   hasRow);
     rowShow(g_transitUi.platform[i],hasRow);
 
-    if (!hasRow) continue;
+    if (!hasRow) {
+      if (g_transitUi.arr[i]) lv_obj_add_flag(g_transitUi.arr[i], LV_OBJ_FLAG_HIDDEN);
+      continue;
+    }
     const TransitDeparture &d = g_transitState.departures[i];
 
-    // Badge color by category
+    // Badge color: semantic by category, overridden for toxic-candy theme
     if (g_transitUi.lineBg[i]) {
-      lv_obj_set_style_bg_color(g_transitUi.lineBg[i],
-          lv_color_hex(transitCategoryColor(d.category)), LV_PART_MAIN);
+      const uint32_t badgeColor = lvglThemeIsToxicCandy()
+          ? 0xCC00AA   // toxic-candy: magenta for all transit badges
+          : transitCategoryColor(d.category);
+      lv_obj_set_style_bg_color(g_transitUi.lineBg[i], lv_color_hex(badgeColor), LV_PART_MAIN);
     }
     if (g_transitUi.line_[i])  lv_label_set_text(g_transitUi.line_[i], d.line);
     if (g_transitUi.dest[i])   lv_label_set_text(g_transitUi.dest[i], d.destination);
 
-    char tbuf[8];
-    snprintf(tbuf, sizeof(tbuf), "%02u:%02u", d.hour, d.minute);
-    if (g_transitUi.time_[i]) lv_label_set_text(g_transitUi.time_[i], tbuf);
+    // Time label: "HH:MM" or "HH:MM >HH:MM" when arrival known
+    if (g_transitUi.time_[i]) {
+      char tbuf[20];
+      if (d.hasArr) {
+        snprintf(tbuf, sizeof(tbuf), "%02u:%02u >%02u:%02u",
+                 d.depHour, d.depMinute, d.arrHour, d.arrMinute);
+      } else {
+        snprintf(tbuf, sizeof(tbuf), "%02u:%02u", d.depHour, d.depMinute);
+      }
+      lv_label_set_text(g_transitUi.time_[i], tbuf);
+    }
 
     if (g_transitUi.delay[i]) {
       if (d.hasDelay && d.delayMin != 0) {
         char dbuf[8];
-        snprintf(dbuf, sizeof(dbuf), d.delayMin > 0 ? "+%d" : "%d", (int)d.delayMin);
+        snprintf(dbuf, sizeof(dbuf), d.delayMin > 0 ? "+%dm" : "%dm", (int)d.delayMin);
         lv_label_set_text(g_transitUi.delay[i], dbuf);
         lv_obj_set_style_text_color(g_transitUi.delay[i],
             lv_color_hex(d.delayMin > 0 ? 0xCC3322 : 0x22AA33), LV_PART_MAIN);
@@ -12482,8 +12684,8 @@ static void lvglUpdateTransitUi(bool force) {
     }
 
     if (g_transitUi.platform[i]) {
-      char pbuf[10];
-      snprintf(pbuf, sizeof(pbuf), d.platform[0] ? "Pf %s" : "", d.platform);
+      char pbuf[12];
+      snprintf(pbuf, sizeof(pbuf), d.platform[0] ? "Bin. %s" : "", d.platform);
       lv_label_set_text(g_transitUi.platform[i], pbuf);
       lv_obj_set_style_text_color(g_transitUi.platform[i],
           lv_color_hex(t.auxMeta), LV_PART_MAIN);

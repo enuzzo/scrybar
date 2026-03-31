@@ -24,7 +24,7 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r235"
+#define FW_BUILD_TAG "r238"
 #define FW_RELEASE_DATE "2026-03-31"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
@@ -57,19 +57,23 @@ struct TouchReleaseInfo {
 #define TRANSIT_HTTP_TIMEOUT_MS  8000
 
 struct TransitDeparture {
-  char    line[8];         // "IC 3", "S5"
-  char    category[8];     // "IC", "RE", "S", "Bus"
+  char    line[8];         // display string e.g. "S 30", "IC 3"
+  char    category[8];     // "IC", "RE", "S", "Bus" (for color)
   char    destination[48];
   char    platform[8];
-  uint8_t hour;
-  uint8_t minute;
+  uint8_t depHour;
+  uint8_t depMinute;
+  uint8_t arrHour;
+  uint8_t arrMinute;
+  bool    hasArr;
   int8_t  delayMin;        // 0 = on time
   bool    hasDelay;
   bool    valid;
 };
 
 struct TransitConfig {
-  char station[TRANSIT_STATION_LEN];
+  char station[TRANSIT_STATION_LEN];     // departure station
+  char arrStation[TRANSIT_STATION_LEN];  // optional: filter by destination
   bool configured;
 };
 
