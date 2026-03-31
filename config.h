@@ -24,7 +24,7 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r233"
+#define FW_BUILD_TAG "r234"
 #define FW_RELEASE_DATE "2026-03-31"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
@@ -47,6 +47,30 @@ struct TouchReleaseInfo {
   uint8_t auxBtnDown;   // TouchAuxButton (enum not available here, use uint8_t)
   uint8_t doomTouchZone;
   int16_t tapX, tapY;   // absolute position of tap (startX/startY at release)
+};
+
+// --- Transit Departure Board ---
+#define TRANSIT_MAX_DEPARTURES   4
+#define TRANSIT_STATION_LEN      48
+#define TRANSIT_REFRESH_MS       60000UL
+#define TRANSIT_RETRY_MS         15000UL
+#define TRANSIT_HTTP_TIMEOUT_MS  8000
+
+struct TransitDeparture {
+  char    line[8];         // "IC 3", "S5"
+  char    category[8];     // "IC", "RE", "S", "Bus"
+  char    destination[48];
+  char    platform[8];
+  uint8_t hour;
+  uint8_t minute;
+  int8_t  delayMin;        // 0 = on time
+  bool    hasDelay;
+  bool    valid;
+};
+
+struct TransitConfig {
+  char station[TRANSIT_STATION_LEN];
+  bool configured;
 };
 
 // --- M0.2 Backlight test config ---

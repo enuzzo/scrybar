@@ -703,6 +703,7 @@ static constexpr uint8_t UI_VIEW_FLAG_WIKI = 0x04;
 // 0x08 was UI_VIEW_FLAG_ANSI (archived)
 static constexpr uint8_t UI_VIEW_FLAG_DOOM        = 0x10;
 static constexpr uint8_t UI_VIEW_FLAG_NOW_PLAYING  = 0x20;
+static constexpr uint8_t UI_VIEW_FLAG_TRANSIT = 0x40;  // auto-enables via g_transitConfig.configured
 static constexpr uint8_t UI_VIEW_MASK_DEFAULT =
     UI_VIEW_FLAG_INFO |
     UI_VIEW_FLAG_AUX |
@@ -836,6 +837,19 @@ struct RssState {
 static RssState g_rss = {};
 static RssState g_wiki = {};
 
+struct TransitState {
+  TransitDeparture departures[TRANSIT_MAX_DEPARTURES];
+  uint8_t  count = 0;
+  bool     valid = false;
+  bool     dirty = false;
+  uint32_t lastFetchMs = 0;
+  uint32_t lastAttemptMs = 0;
+  int      lastHttpCode = 0;
+  char     fetchedAt[12] = "--:--";
+};
+static TransitState  g_transitState = {};
+static TransitConfig g_transitConfig = {};
+
 static RssItem *g_rssParseBuf = nullptr;
 static uint32_t g_wikiMetaPreloadLastMs = 0;
 static uint32_t g_wikiVisiblePreloadLastMs = 0;
@@ -847,6 +861,7 @@ enum NetRequestType : uint8_t {
   NET_REQ_WIKI,
   NET_REQ_FAVICON,
   NET_REQ_WIKI_META,
+  NET_REQ_TRANSIT_POLL,
 };
 struct NetRequest {
   NetRequestType type;
@@ -865,6 +880,8 @@ static void netFetchRss();
 static void netFetchWiki();
 static void netFetchFavicons();
 static void netFetchWikiMeta();
+static void netFetchTransitDepartures();
+static bool updateTransitFromApi(bool force);
 static bool netEnqueue(NetRequestType type, uint8_t param);
 static void netTaskMain(void *param);
 #endif
@@ -892,6 +909,7 @@ enum UiPageMode : uint8_t {
   UI_PAGE_WIKI = 3,
   UI_PAGE_NOW_PLAYING = 4,
   UI_PAGE_DOOM = 5,
+  UI_PAGE_TRANSIT = 6,
 };
 static UiPageMode g_uiPageMode = UI_PAGE_HOME;
 static bool g_uiNeedsRedraw = true;
@@ -1070,6 +1088,24 @@ static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
 static lv_obj_t *g_lvglNowPlayingRoot = nullptr;
 static lv_obj_t *g_lvglDoomRoot = nullptr;
+struct LvglTransitUi {
+  lv_obj_t *root = nullptr;
+  lv_obj_t *header = nullptr;
+  lv_obj_t *headerFill = nullptr;
+  lv_obj_t *title = nullptr;
+  lv_obj_t *station = nullptr;
+  lv_obj_t *status = nullptr;
+  lv_obj_t *rowSep[TRANSIT_MAX_DEPARTURES] = {};
+  lv_obj_t *lineBg[TRANSIT_MAX_DEPARTURES] = {};
+  lv_obj_t *line_[TRANSIT_MAX_DEPARTURES] = {};
+  lv_obj_t *dest[TRANSIT_MAX_DEPARTURES] = {};
+  lv_obj_t *time_[TRANSIT_MAX_DEPARTURES] = {};
+  lv_obj_t *delay[TRANSIT_MAX_DEPARTURES] = {};
+  lv_obj_t *platform[TRANSIT_MAX_DEPARTURES] = {};
+  lv_obj_t *noData = nullptr;
+};
+static LvglTransitUi g_transitUi;
+static lv_obj_t *g_lvglTransitRoot = nullptr;
 static constexpr uint32_t NOW_PLAYING_FAKE_ROTATE_MS = 18000UL;
 static constexpr uint32_t NOW_PLAYING_SYNC_TTL_MS = 5000UL;
 static const lv_img_dsc_t kNowPlayingRealCover150 = {
@@ -3834,6 +3870,16 @@ static void loadRuntimeNetConfigFromNvs() {
     for (const char **p = kWikiLangs; *p; ++p) { if (strcmp(wl, *p) == 0) { wlValid = true; break; } }
     if (wlValid) strncpy(g_wikiLang, wl, sizeof(g_wikiLang) - 1);
   }
+  // Transit station
+  if (prefs.isKey("transit_stn")) {
+    char stn[TRANSIT_STATION_LEN] = {0};
+    prefs.getString("transit_stn", stn, sizeof(stn));
+    if (stn[0]) {
+      copyStringSafe(g_transitConfig.station, sizeof(g_transitConfig.station), stn);
+      g_transitConfig.configured = true;
+      loadedAny = true;
+    }
+  }
 
   prefs.end();
 
@@ -3908,6 +3954,7 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n8 = prefs.putString("wifi_pref", g_wifiSt.preferredSsid);
   const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSt.setupMode);
   const size_t n10 = saveRuntimeWiFiCredentialsToPrefs(prefs);
+  prefs.putString("transit_stn", g_transitConfig.station);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
   Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u views=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
@@ -4406,6 +4453,23 @@ static void buildWebRssBuilder(String &html) {
   html += F("<div class='vm-actions'><button class='vm-btn vm-btn--primary' type='submit'>Save Config</button><button class='vm-btn vm-btn--secondary' type='submit' formaction='/reload' formmethod='post'>Force Reload</button></div>");
 }
 
+static void buildWebTransitSection(String &html) {
+  html += F("<div class='vm-card'><h2>&#x1F689; Transit Departure Board</h2>");
+  html += F("<p class='vm-help'>Enter a Swiss train/bus station name (e.g. <em>Luino</em>, <em>Zurich HB</em>). Departures refresh every 60 s. Leave empty to disable.</p>");
+  html += F("<div class='vm-row'><div class='vm-col'><div class='vm-label'>STATION NAME</div>");
+  html += F("<input class='vm-input' name='transit_station' maxlength='47' placeholder='e.g. Luino' value='");
+  html += g_transitConfig.station;
+  html += F("'></div></div>");
+  if (g_transitConfig.configured) {
+    html += F("<p class='vm-help'><small>Last fetch: ");
+    html += g_transitState.fetchedAt;
+    html += F(" &bull; ");
+    html += g_transitState.count;
+    html += F(" departure(s). Powered by <a href='https://transport.opendata.ch' target='_blank' rel='noopener noreferrer'>transport.opendata.ch</a> (Switzerland only).</small></p>");
+  }
+  html += F("</div>");
+}
+
 static void buildWebSystemInfo(String &html) {
   char siBuf[48];
   html += F("<div class='vm-card vm-card--muted'><h2>&#x2699; System Info</h2><div class='vm-grid'>");
@@ -4521,6 +4585,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   buildWebLangSelectors(html);
   buildWebWeatherSection(html);
   buildWebRssBuilder(html);
+  buildWebTransitSection(html);
   html += F("</form>");
   // ── System info + footer + JS ──
   buildWebSystemInfo(html);
@@ -4853,6 +4918,24 @@ static bool parseWikiLangConfig(String &errorOut, bool &hasInput, bool &wikiLang
   return true;
 }
 
+static bool parseTransitConfig(String &errorOut, bool &hasInput, bool &transitChanged) {
+  if (!g_webCfg.server.hasArg("transit_station")) return true;
+  hasInput = true;
+  String stn = g_webCfg.server.arg("transit_station");
+  stn.trim();
+  if (stn.length() >= TRANSIT_STATION_LEN) { errorOut = "station name too long"; return false; }
+  const bool newConfigured = (stn.length() > 0);
+  const bool changed = (g_transitConfig.configured != newConfigured) ||
+                       (strncmp(g_transitConfig.station, stn.c_str(), TRANSIT_STATION_LEN) != 0);
+  if (changed) {
+    copyStringSafe(g_transitConfig.station, sizeof(g_transitConfig.station), stn.c_str());
+    g_transitConfig.configured = newConfigured;
+    transitChanged = true;
+    Serial.printf("[CFG][WEB] transit_station='%s'\n", g_transitConfig.station);
+  }
+  return true;
+}
+
 // ── M5: Commit phase — diff detection + NVS save ──
 
 static ConfigDiffResult commitConfigToNvs(RuntimeNetConfig &next) {
@@ -4945,6 +5028,7 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   RuntimeNetConfig next = g_runtimeNetConfig;
   bool hasInput = false, langChanged = false, wikiLangChanged = false;
   bool wifiPrefChanged = false, wifiSetupModeChanged = false, wifiProvisioned = false;
+  bool transitChanged = false;
   int8_t wifiPrefIdx = -1;
 
   if (!parseWeatherConfig(next, errorOut, hasInput)) return false;
@@ -4957,11 +5041,28 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   if (!parseWifiPreferredConfig(errorOut, hasInput, wifiProvisioned, wifiPrefChanged, wifiPrefIdx)) return false;
   if (!parseLangConfig(errorOut, hasInput, langChanged)) return false;
   if (!parseWikiLangConfig(errorOut, hasInput, wikiLangChanged)) return false;
+  if (!parseTransitConfig(errorOut, hasInput, transitChanged)) return false;
 
   if (!hasInput) { errorOut = "nessun parametro"; return false; }
 
   const ConfigDiffResult diff = commitConfigToNvs(next);
   applyConfigSideEffects(diff, langChanged, wikiLangChanged, wifiPrefChanged, wifiSetupModeChanged, wifiPrefIdx);
+
+  if (transitChanged) {
+    g_transitState.valid = false;
+    g_transitState.lastFetchMs = 0;
+    g_transitState.count = 0;
+    g_uiNeedsRedraw = true;
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+    if (g_lvglReady && g_transitUi.station)
+      lv_label_set_text(g_transitUi.station,
+          g_transitConfig.station[0] ? g_transitConfig.station : "--");
+    if (g_lvglReady && g_transitUi.noData)
+      lv_label_set_text(g_transitUi.noData,
+          g_transitConfig.configured ? "Loading..." : "Set station in web UI");
+#endif
+    if (g_transitConfig.configured) (void)updateTransitFromApi(true);
+  }
   return true;
 }
 
@@ -5187,6 +5288,7 @@ static bool webRequestHasConfigParams() {
   if (g_webCfg.server.hasArg("view_wiki")) return true;
   if (g_webCfg.server.hasArg("rss_feed_url")) return true;
   if (g_webCfg.server.hasArg("logo_url")) return true;
+  if (g_webCfg.server.hasArg("transit_station")) return true;
   for (uint8_t i = 1; i <= RSS_FEED_SLOT_COUNT; ++i) {
     const String keyUrl = String("rss_feed_url_") + String(i);
     if (g_webCfg.server.hasArg(keyUrl)) return true;
@@ -7732,6 +7834,11 @@ static void netTaskMain(void *param) {
           if (wikiMetaDt >= 50) Serial.printf("[NET] wiki_meta done dt=%lu ms\n", wikiMetaDt);
           break;
         }
+        case NET_REQ_TRANSIT_POLL: {
+          netFetchTransitDepartures();
+          Serial.printf("[NET] transit_poll done dt=%lu ms\n", millis() - t0);
+          break;
+        }
       }
     }
 
@@ -7813,6 +7920,178 @@ static void runRssDiag() {
   Serial.println("[RSSDIAG] RSS disabled");
 }
 #endif
+
+// ── Transit Departure Board — net fetch ────────────────────────────────────
+
+static void urlEncodeSpaces(const char *src, char *dst, size_t dstLen) {
+  size_t di = 0;
+  for (size_t i = 0; src[i] && di + 2 < dstLen; ++i) {
+    dst[di++] = (src[i] == ' ') ? '+' : src[i];
+  }
+  dst[di] = '\0';
+}
+
+static uint32_t transitCategoryColor(const char *cat) {
+  if (!cat || !cat[0]) return 0x777777;
+  if (strncmp(cat, "IC", 2) == 0 || strncmp(cat, "EC", 2) == 0) return 0xCC2222;
+  if (strncmp(cat, "IR", 2) == 0) return 0xDD5500;
+  if (strncmp(cat, "RE", 2) == 0 || strncmp(cat, "RB", 2) == 0) return 0xDD8800;
+  if (cat[0] == 'S' && cat[1] >= '0' && cat[1] <= '9') return 0x118833;
+  if (strcmp(cat, "Bus") == 0 || strcmp(cat, "NFB") == 0) return 0x1155CC;
+  if (strcmp(cat, "Tram") == 0) return 0xCC6600;
+  return 0x555577;
+}
+
+/// Extract a JSON string value for the first occurrence of key in a bounded region.
+static void transitExtractStr(const char *start, const char *stop,
+                               const char *key, char *out, size_t outLen) {
+  const size_t kl = strlen(key);
+  out[0] = '\0';
+  for (const char *p = start; p < stop - (ptrdiff_t)kl; ++p) {
+    if (strncmp(p, key, kl) != 0) continue;
+    p += kl;
+    while (p < stop && (*p == ' ' || *p == ':' || *p == '\t' || *p == '\n' || *p == '\r')) ++p;
+    if (p >= stop || *p != '"') continue;
+    ++p;
+    size_t di = 0;
+    while (p < stop && *p != '"' && di + 1 < outLen) {
+      if (*p == '\\') { ++p; if (p < stop && di + 1 < outLen) out[di++] = *p++; else if (p < stop) ++p; }
+      else out[di++] = *p++;
+    }
+    out[di] = '\0';
+    return;
+  }
+}
+
+static void netFetchTransitDepartures() {
+  if (!g_transitConfig.configured || !g_transitConfig.station[0]) return;
+  char encStation[96];
+  urlEncodeSpaces(g_transitConfig.station, encStation, sizeof(encStation));
+  char url[256];
+  snprintf(url, sizeof(url),
+           "https://transport.opendata.ch/v1/stationboard?station=%s&limit=8",
+           encStation);
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.setConnectTimeout(TRANSIT_HTTP_TIMEOUT_MS);
+  http.setTimeout(TRANSIT_HTTP_TIMEOUT_MS);
+  http.begin(client, url);
+  const uint32_t t0 = millis();
+  const int code = http.GET();
+
+  TransitState local = {};
+  local.lastFetchMs = millis();
+  local.lastHttpCode = code;
+
+  if (code == 200) {
+    const String payload = http.getString();
+    const char *data = payload.c_str();
+
+    // Find stationboard array start
+    const char *sbTag = strstr(data, "\"stationboard\":[");
+    const char *p     = sbTag ? strchr(sbTag, '[') : nullptr;
+    if (p) {
+      ++p;
+      struct tm ti = {};
+      getLocalTime(&ti, 0);
+
+      while (*p && local.count < TRANSIT_MAX_DEPARTURES) {
+        // Advance to next stationboard entry '{'
+        while (*p && *p != '{' && *p != ']') ++p;
+        if (!*p || *p == ']') break;
+        const char *entryStart = p;
+
+        // Find the matching top-level '}' (depth-track)
+        int depth = 1; ++p;
+        while (*p && depth > 0) {
+          if (*p == '{') ++depth;
+          else if (*p == '}') --depth;
+          ++p;
+        }
+        const char *entryEnd = p;
+
+        // "stop" sub-block (find first "stop":{)
+        const char *stopTag = (const char *)memmem(entryStart, (size_t)(entryEnd - entryStart),
+                                                    "\"stop\":{", 8);
+        const char *stopEnd = entryEnd;
+        if (stopTag) {
+          stopTag = strchr(stopTag, '{');
+          if (stopTag) {
+            int sd = 1; const char *sq = stopTag + 1;
+            while (*sq && sd > 0) {
+              if (*sq == '{') ++sd;
+              else if (*sq == '}') --sd;
+              ++sq;
+            }
+            stopEnd = sq;
+          }
+        }
+
+        char name[8] = {}, cat[8] = {}, dest[48] = {}, dep[32] = {}, pf[8] = {};
+        transitExtractStr(entryStart, entryEnd, "\"name\":",     name, sizeof(name));
+        transitExtractStr(entryStart, entryEnd, "\"category\":", cat,  sizeof(cat));
+        transitExtractStr(entryStart, entryEnd, "\"to\":",       dest, sizeof(dest));
+        if (stopTag) {
+          transitExtractStr(stopTag, stopEnd, "\"departure\":", dep, sizeof(dep));
+          transitExtractStr(stopTag, stopEnd, "\"platform\":",  pf,  sizeof(pf));
+        }
+        float delayF = 0.0f;
+        if (stopTag) extractJsonNumberField(stopTag, "\"delay\"", delayF);
+        const int delay = (int)delayF;
+
+        if (name[0] && dest[0]) {
+          TransitDeparture &d = local.departures[local.count];
+          copyStringSafe(d.line,        sizeof(d.line),        name);
+          copyStringSafe(d.category,    sizeof(d.category),    cat);
+          copyStringSafe(d.destination, sizeof(d.destination), dest);
+          copyStringSafe(d.platform,    sizeof(d.platform),    pf);
+          // ISO 8601: "2026-03-31T14:35:00+0200" — H at [11], M at [14]
+          if (strlen(dep) >= 16) {
+            d.hour   = (uint8_t)(((dep[11] - '0') * 10) + (dep[12] - '0'));
+            d.minute = (uint8_t)(((dep[14] - '0') * 10) + (dep[15] - '0'));
+          }
+          d.delayMin = (int8_t)(delay > 127 ? 127 : (delay < -128 ? -128 : delay));
+          d.hasDelay = (delay != 0);
+          d.valid    = true;
+          local.count++;
+        }
+      }
+      local.valid = (local.count > 0);
+      snprintf(local.fetchedAt, sizeof(local.fetchedAt), "%02d:%02d", ti.tm_hour, ti.tm_min);
+    } else {
+      Serial.println("[TRANSIT] stationboard key not found in response");
+    }
+  }
+  http.end();
+
+  if (g_netMutex) xSemaphoreTake(g_netMutex, portMAX_DELAY);
+  g_transitState = local;
+  g_transitState.dirty = true;
+  if (g_netMutex) xSemaphoreGive(g_netMutex);
+
+  Serial.printf("[NET] transit done code=%d count=%d dt=%lu ms\n",
+                code, local.count, millis() - t0);
+}
+
+static bool updateTransitFromApi(bool force) {
+  if (!g_transitConfig.configured) return false;
+  if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
+  const uint32_t now = millis();
+  const uint32_t waitMs = g_transitState.valid ? TRANSIT_REFRESH_MS : TRANSIT_RETRY_MS;
+  if (!force && g_transitState.lastFetchMs != 0 && (now - g_transitState.lastFetchMs) < waitMs)
+    return g_transitState.valid;
+  g_transitState.lastFetchMs = now;
+  if (g_netTaskReady) {
+    netEnqueue(NET_REQ_TRANSIT_POLL, 0);
+    return g_transitState.valid;
+  }
+  netFetchTransitDepartures();
+  return g_transitState.valid;
+}
+
+// ── End Transit net fetch ───────────────────────────────────────────────────
 
 static bool updateWeatherFromApi(bool force) {
   if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
@@ -8022,6 +8301,8 @@ static const char* uiPageName(UiPageMode mode) {
       return "NOW";
     case UI_PAGE_DOOM:
       return "DOOM";
+    case UI_PAGE_TRANSIT:
+      return "TRANSIT";
     case UI_PAGE_HOME:
     default:
       return "HOME";
@@ -8035,6 +8316,7 @@ static uint8_t uiViewFlagForPage(UiPageMode mode) {
     case UI_PAGE_WIKI: return UI_VIEW_FLAG_WIKI;
     case UI_PAGE_DOOM:        return UI_VIEW_FLAG_DOOM;
     case UI_PAGE_NOW_PLAYING: return UI_VIEW_FLAG_NOW_PLAYING;
+    case UI_PAGE_TRANSIT:     return UI_VIEW_FLAG_TRANSIT;
     case UI_PAGE_HOME:
     default:
       return 0;
@@ -8050,6 +8332,7 @@ static bool uiPageEnabledNoEnsure(UiPageMode mode) {
     return false;
 #endif
   }
+  if (mode == UI_PAGE_TRANSIT) return g_transitConfig.configured;
   const uint8_t flag = uiViewFlagForPage(mode);
   return (flag != 0) && ((g_runtimeNetConfig.enabledViewsMask & flag) != 0);
 }
@@ -8067,6 +8350,7 @@ static bool uiPageInSwipeCarousel(UiPageMode mode) {
     case UI_PAGE_WIKI:
     case UI_PAGE_NOW_PLAYING:
     case UI_PAGE_DOOM:
+    case UI_PAGE_TRANSIT:
       return true;
     default:
       return false;
@@ -8080,6 +8364,7 @@ static const UiPageMode kSwipePageOrder[] = {
     UI_PAGE_WIKI,
     UI_PAGE_NOW_PLAYING,
     UI_PAGE_DOOM,
+    UI_PAGE_TRANSIT,
 };
 
 static int8_t uiSwipePageCountNoEnsure() {
@@ -8925,11 +9210,30 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   g_clockUi.wifiMask = 0xFFFF;
   lvglUpdateWiFiBars(true);
 
+  // Transit theme colors
+  if (g_lvglTransitRoot) {
+    lvglSetBgFlat(g_lvglTransitRoot, panelBg);
+    if (g_transitUi.header) lvglSetBgFlat(g_transitUi.header, headerBg);
+    if (g_transitUi.headerFill) lvglSetBgFlat(g_transitUi.headerFill, headerBg);
+    lvglSetTextHex(g_transitUi.title,   headerText);
+    lvglSetTextHex(g_transitUi.station, headerText);
+    lvglSetTextHex(g_transitUi.status,  headerText);
+    for (uint8_t i = 0; i < TRANSIT_MAX_DEPARTURES; ++i) {
+      lvglSetTextHex(g_transitUi.dest[i],     t.infoText);
+      lvglSetTextHex(g_transitUi.time_[i],    t.infoText);
+      lvglSetTextHex(g_transitUi.platform[i], t.auxMeta);
+      if (g_transitUi.rowSep[i])
+        lv_obj_set_style_bg_color(g_transitUi.rowSep[i], lv_color_hex(t.divider), LV_PART_MAIN);
+    }
+    lvglSetTextHex(g_transitUi.noData, t.auxMeta);
+  }
+
   if (!forceInvalidate) return;
   g_uiNeedsRedraw = true;
   if (g_infoUi.root) lv_obj_invalidate(g_infoUi.root);
   if (g_lvglHomeRoot) lv_obj_invalidate(g_lvglHomeRoot);
   if (g_lvglAuxRoot) lv_obj_invalidate(g_lvglAuxRoot);
+  if (g_lvglTransitRoot) lv_obj_invalidate(g_lvglTransitRoot);
 #if SCREENSAVER_ENABLED
   if (g_saver.root) lv_obj_invalidate(g_saver.root);
 #endif
@@ -11487,6 +11791,19 @@ static void lvglApplyThemeFonts() {
   if (g_saver.footer) lv_obj_set_style_text_font(g_saver.footer, lvglFontScreenSaverFooterText(), 0);
 #endif
   if (g_clockUi.l1) lvglApplyClockSentenceAutoFit(lv_label_get_text(g_clockUi.l1));
+
+  // Transit fonts
+  if (g_transitUi.title)   lv_obj_set_style_text_font(g_transitUi.title,   lvglFontSmall(), 0);
+  if (g_transitUi.station) lv_obj_set_style_text_font(g_transitUi.station, lvglFontSmall(), 0);
+  if (g_transitUi.status)  lv_obj_set_style_text_font(g_transitUi.status,  lvglFontTiny(),  0);
+  if (g_transitUi.noData)  lv_obj_set_style_text_font(g_transitUi.noData,  lvglFontSmall(), 0);
+  for (uint8_t i = 0; i < TRANSIT_MAX_DEPARTURES; ++i) {
+    if (g_transitUi.line_[i])    lv_obj_set_style_text_font(g_transitUi.line_[i],    lvglFontTiny(),  0);
+    if (g_transitUi.dest[i])     lv_obj_set_style_text_font(g_transitUi.dest[i],     lvglFontSmall(), 0);
+    if (g_transitUi.time_[i])    lv_obj_set_style_text_font(g_transitUi.time_[i],    lvglFontSmall(), 0);
+    if (g_transitUi.delay[i])    lv_obj_set_style_text_font(g_transitUi.delay[i],    lvglFontTiny(),  0);
+    if (g_transitUi.platform[i]) lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontTiny(),  0);
+  }
 }
 
 static const char* weatherGlyphText(int code, bool isDay) {
@@ -11960,6 +12277,219 @@ static int32_t lvglCarouselPageX(UiPageMode mode, int8_t curOrd, int16_t w, lv_o
   return (int32_t)(ord - curOrd) * w;
 }
 
+// ── Transit LVGL init / update ──────────────────────────────────────────────
+
+static void lvglInitTransitUi() {
+  if (!g_lvglTransitRoot) return;
+  lv_obj_t *root = g_lvglTransitRoot;
+  const lv_coord_t cW = canvasWidth();
+  const lv_coord_t cH = canvasHeight();
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const uint32_t panelBg   = lvglResolvedPanelBg(t);
+  const uint32_t headerBg  = lvglResolvedHeaderBg(t);
+  const uint32_t headerTxt = lvglResolvedHeaderText(t);
+  const lv_coord_t hdrH = 30;
+
+  lvglSetBgFlat(root, panelBg);
+
+  // Header bar
+  g_transitUi.header = lv_obj_create(root);
+  lv_obj_set_size(g_transitUi.header, cW, hdrH);
+  lv_obj_set_pos(g_transitUi.header, 0, 0);
+  lvglSetBgFlat(g_transitUi.header, headerBg);
+  lv_obj_clear_flag(g_transitUi.header, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_border_width(g_transitUi.header, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_transitUi.header, 0, LV_PART_MAIN);
+
+  g_transitUi.headerFill = lv_obj_create(g_transitUi.header);
+  lv_obj_set_size(g_transitUi.headerFill, cW, hdrH);
+  lv_obj_set_pos(g_transitUi.headerFill, 0, 0);
+  lvglSetBgFlat(g_transitUi.headerFill, headerBg);
+  lv_obj_clear_flag(g_transitUi.headerFill, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_border_width(g_transitUi.headerFill, 0, LV_PART_MAIN);
+
+  g_transitUi.title = lv_label_create(g_transitUi.header);
+  lv_obj_set_style_text_color(g_transitUi.title, lv_color_hex(headerTxt), LV_PART_MAIN);
+  lv_obj_set_style_text_font(g_transitUi.title, lvglFontSmall(), 0);
+  lv_label_set_text(g_transitUi.title, "DEPARTURES");
+  lv_obj_align(g_transitUi.title, LV_ALIGN_LEFT_MID, 8, 2);
+
+  g_transitUi.station = lv_label_create(g_transitUi.header);
+  lv_obj_set_style_text_color(g_transitUi.station, lv_color_hex(headerTxt), LV_PART_MAIN);
+  lv_obj_set_style_text_font(g_transitUi.station, lvglFontSmall(), 0);
+  lv_label_set_text(g_transitUi.station, g_transitConfig.station[0] ? g_transitConfig.station : "--");
+  lv_obj_align(g_transitUi.station, LV_ALIGN_CENTER, 0, 2);
+
+  g_transitUi.status = lv_label_create(g_transitUi.header);
+  lv_obj_set_style_text_color(g_transitUi.status, lv_color_hex(headerTxt), LV_PART_MAIN);
+  lv_obj_set_style_text_font(g_transitUi.status, lvglFontTiny(), 0);
+  lv_label_set_text(g_transitUi.status, "--:--");
+  lv_obj_align(g_transitUi.status, LV_ALIGN_RIGHT_MID, -8, 2);
+
+  // Departure rows
+  const lv_coord_t rowH = (cH - hdrH) / TRANSIT_MAX_DEPARTURES;  // ~35px
+  for (uint8_t i = 0; i < TRANSIT_MAX_DEPARTURES; ++i) {
+    const lv_coord_t ry = hdrH + (lv_coord_t)i * rowH;
+
+    if (i > 0) {
+      g_transitUi.rowSep[i] = lv_obj_create(root);
+      lv_obj_set_size(g_transitUi.rowSep[i], cW - 8, 1);
+      lv_obj_set_pos(g_transitUi.rowSep[i], 4, ry);
+      lv_obj_set_style_bg_color(g_transitUi.rowSep[i], lv_color_hex(t.divider), LV_PART_MAIN);
+      lv_obj_set_style_bg_opa(g_transitUi.rowSep[i], LV_OPA_40, LV_PART_MAIN);
+      lv_obj_set_style_border_width(g_transitUi.rowSep[i], 0, LV_PART_MAIN);
+    }
+
+    // Colored line badge
+    const lv_coord_t badgeW = 56, badgeH = 22;
+    const lv_coord_t badgeX = 6, badgeY = ry + (rowH - badgeH) / 2;
+    g_transitUi.lineBg[i] = lv_obj_create(root);
+    lv_obj_set_size(g_transitUi.lineBg[i], badgeW, badgeH);
+    lv_obj_set_pos(g_transitUi.lineBg[i], badgeX, badgeY);
+    lv_obj_set_style_bg_color(g_transitUi.lineBg[i], lv_color_hex(0x555577), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_transitUi.lineBg[i], LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_transitUi.lineBg[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_transitUi.lineBg[i], 4, LV_PART_MAIN);
+    lv_obj_clear_flag(g_transitUi.lineBg[i], LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_pad_all(g_transitUi.lineBg[i], 0, LV_PART_MAIN);
+
+    g_transitUi.line_[i] = lv_label_create(g_transitUi.lineBg[i]);
+    lv_obj_set_style_text_color(g_transitUi.line_[i], lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+    lv_obj_set_style_text_font(g_transitUi.line_[i], lvglFontTiny(), 0);
+    lv_label_set_text(g_transitUi.line_[i], "--");
+    lv_obj_align(g_transitUi.line_[i], LV_ALIGN_CENTER, 0, 0);
+
+    // Destination
+    g_transitUi.dest[i] = lv_label_create(root);
+    lv_obj_set_pos(g_transitUi.dest[i], 68, ry + 2);
+    lv_obj_set_size(g_transitUi.dest[i], 328, rowH - 4);
+    lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(t.infoText), LV_PART_MAIN);
+    lv_obj_set_style_text_font(g_transitUi.dest[i], lvglFontSmall(), 0);
+    lv_label_set_long_mode(g_transitUi.dest[i], LV_LABEL_LONG_DOT);
+    lv_label_set_text(g_transitUi.dest[i], "--");
+
+    // Departure time
+    g_transitUi.time_[i] = lv_label_create(root);
+    lv_obj_set_pos(g_transitUi.time_[i], 400, ry + 2);
+    lv_obj_set_size(g_transitUi.time_[i], 64, rowH - 4);
+    lv_obj_set_style_text_color(g_transitUi.time_[i], lv_color_hex(t.infoText), LV_PART_MAIN);
+    lv_obj_set_style_text_font(g_transitUi.time_[i], lvglFontSmall(), 0);
+    lv_obj_set_style_text_align(g_transitUi.time_[i], LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
+    lv_label_set_text(g_transitUi.time_[i], "--:--");
+
+    // Delay
+    g_transitUi.delay[i] = lv_label_create(root);
+    lv_obj_set_pos(g_transitUi.delay[i], 468, ry + 2);
+    lv_obj_set_size(g_transitUi.delay[i], 50, rowH - 4);
+    lv_obj_set_style_text_color(g_transitUi.delay[i], lv_color_hex(0x22AA33), LV_PART_MAIN);
+    lv_obj_set_style_text_font(g_transitUi.delay[i], lvglFontTiny(), 0);
+    lv_obj_set_style_text_align(g_transitUi.delay[i], LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_label_set_text(g_transitUi.delay[i], "");
+
+    // Platform
+    g_transitUi.platform[i] = lv_label_create(root);
+    lv_obj_set_pos(g_transitUi.platform[i], 522, ry + 2);
+    lv_obj_set_size(g_transitUi.platform[i], 60, rowH - 4);
+    lv_obj_set_style_text_color(g_transitUi.platform[i], lv_color_hex(t.auxMeta), LV_PART_MAIN);
+    lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontTiny(), 0);
+    lv_obj_set_style_text_align(g_transitUi.platform[i], LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_label_set_text(g_transitUi.platform[i], "");
+  }
+
+  // No-data label (shown when no departures)
+  g_transitUi.noData = lv_label_create(root);
+  lv_obj_set_style_text_color(g_transitUi.noData, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_obj_set_style_text_font(g_transitUi.noData, lvglFontSmall(), 0);
+  lv_label_set_text(g_transitUi.noData,
+      g_transitConfig.configured ? "Loading..." : "Set station in web UI \xF0\x9F\x9A\x89");
+  lv_obj_align(g_transitUi.noData, LV_ALIGN_CENTER, 0, 10);
+}
+
+static void lvglUpdateTransitUi(bool force) {
+  (void)force;
+  if (!g_lvglTransitRoot) return;
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+
+  // Station name in header
+  if (g_transitUi.station) {
+    lv_label_set_text(g_transitUi.station,
+        g_transitConfig.station[0] ? g_transitConfig.station : "--");
+  }
+
+  // Status (last fetch time)
+  if (g_transitUi.status) {
+    char buf[24];
+    if (g_transitState.valid) {
+      snprintf(buf, sizeof(buf), "%s", g_transitState.fetchedAt);
+    } else if (g_transitState.lastHttpCode != 0 && g_transitState.lastHttpCode != 200) {
+      snprintf(buf, sizeof(buf), "err %d", g_transitState.lastHttpCode);
+    } else {
+      copyStringSafe(buf, sizeof(buf), g_transitConfig.configured ? "..." : "");
+    }
+    lv_label_set_text(g_transitUi.status, buf);
+  }
+
+  // Show/hide rows
+  const uint8_t cnt = g_transitState.valid ? g_transitState.count : 0;
+  if (g_transitUi.noData) {
+    if (cnt == 0) lv_obj_clear_flag(g_transitUi.noData, LV_OBJ_FLAG_HIDDEN);
+    else          lv_obj_add_flag(g_transitUi.noData,   LV_OBJ_FLAG_HIDDEN);
+  }
+
+  for (uint8_t i = 0; i < TRANSIT_MAX_DEPARTURES; ++i) {
+    const bool hasRow = (i < cnt);
+    // Toggle visibility of row elements
+    auto rowShow = [&](lv_obj_t *obj, bool show) {
+      if (!obj) return;
+      if (show) lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+      else      lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    };
+    rowShow(g_transitUi.lineBg[i],  hasRow);
+    rowShow(g_transitUi.line_[i],   hasRow);
+    rowShow(g_transitUi.dest[i],    hasRow);
+    rowShow(g_transitUi.time_[i],   hasRow);
+    rowShow(g_transitUi.delay[i],   hasRow);
+    rowShow(g_transitUi.platform[i],hasRow);
+
+    if (!hasRow) continue;
+    const TransitDeparture &d = g_transitState.departures[i];
+
+    // Badge color by category
+    if (g_transitUi.lineBg[i]) {
+      lv_obj_set_style_bg_color(g_transitUi.lineBg[i],
+          lv_color_hex(transitCategoryColor(d.category)), LV_PART_MAIN);
+    }
+    if (g_transitUi.line_[i])  lv_label_set_text(g_transitUi.line_[i], d.line);
+    if (g_transitUi.dest[i])   lv_label_set_text(g_transitUi.dest[i], d.destination);
+
+    char tbuf[8];
+    snprintf(tbuf, sizeof(tbuf), "%02u:%02u", d.hour, d.minute);
+    if (g_transitUi.time_[i]) lv_label_set_text(g_transitUi.time_[i], tbuf);
+
+    if (g_transitUi.delay[i]) {
+      if (d.hasDelay && d.delayMin != 0) {
+        char dbuf[8];
+        snprintf(dbuf, sizeof(dbuf), d.delayMin > 0 ? "+%d" : "%d", (int)d.delayMin);
+        lv_label_set_text(g_transitUi.delay[i], dbuf);
+        lv_obj_set_style_text_color(g_transitUi.delay[i],
+            lv_color_hex(d.delayMin > 0 ? 0xCC3322 : 0x22AA33), LV_PART_MAIN);
+      } else {
+        lv_label_set_text(g_transitUi.delay[i], "");
+      }
+    }
+
+    if (g_transitUi.platform[i]) {
+      char pbuf[10];
+      snprintf(pbuf, sizeof(pbuf), d.platform[0] ? "Pf %s" : "", d.platform);
+      lv_label_set_text(g_transitUi.platform[i], pbuf);
+      lv_obj_set_style_text_color(g_transitUi.platform[i],
+          lv_color_hex(t.auxMeta), LV_PART_MAIN);
+    }
+  }
+}
+
+// ── End Transit LVGL ────────────────────────────────────────────────────────
+
 static bool lvglApplyPageDrag(int16_t dragDx) {
   if (!g_infoUi.root || !g_lvglHomeRoot || !g_lvglAuxRoot || !g_lvglWikiRoot || !g_lvglNowPlayingRoot) return false;
   if (g_uiPageMode == UI_PAGE_DOOM) return false;
@@ -11980,6 +12510,7 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   lv_anim_del(g_lvglAuxRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglWikiRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglNowPlayingRoot, lvglSetObjXAnim);
+  if (g_lvglTransitRoot) lv_anim_del(g_lvglTransitRoot, lvglSetObjXAnim);
   g_pageAnim.untilMs = 0;
   g_pageAnim.dragActive = true;
 
@@ -11989,6 +12520,7 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
     {UI_PAGE_AUX,         g_lvglAuxRoot},
     {UI_PAGE_WIKI,        g_lvglWikiRoot},
     {UI_PAGE_NOW_PLAYING, g_lvglNowPlayingRoot},
+    {UI_PAGE_TRANSIT,     g_lvglTransitRoot},
   };
   for (auto &p : pages) {
     if (!p.root) continue;
@@ -12040,11 +12572,12 @@ static void lvglApplyPageVisibility(bool animate) {
   // Build dynamic target positions using live ordinals (skip disabled pages).
   struct PageSlot { lv_obj_t *root; UiPageMode mode; int32_t targetX; };
   PageSlot slots[] = {
-    {g_infoUi.root,       UI_PAGE_INFO,        0},
+    {g_infoUi.root,        UI_PAGE_INFO,        0},
     {g_lvglHomeRoot,       UI_PAGE_HOME,        0},
     {g_lvglAuxRoot,        UI_PAGE_AUX,         0},
     {g_lvglWikiRoot,       UI_PAGE_WIKI,        0},
     {g_lvglNowPlayingRoot, UI_PAGE_NOW_PLAYING, 0},
+    {g_lvglTransitRoot,    UI_PAGE_TRANSIT,     0},
   };
   constexpr size_t kSlotCount = sizeof(slots) / sizeof(slots[0]);
   for (size_t i = 0; i < kSlotCount; ++i) {
@@ -13676,6 +14209,12 @@ static bool initLvglUi() {
   lv_obj_set_style_bg_opa(g_lvglDoomRoot, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_add_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
 
+  // Transit Departure Board
+  g_lvglTransitRoot = lvglCreatePageRoot(scr, cW, cH);
+  g_transitUi.root = g_lvglTransitRoot;
+  lv_obj_set_pos(g_lvglTransitRoot, cW, 0);
+  lvglInitTransitUi();
+
   // Screensaver
 #if SCREENSAVER_ENABLED
   initLvglScreensaverUi(scr);
@@ -13841,6 +14380,12 @@ static void updateLvglUi(bool force) {
     if (g_netMutex) xSemaphoreGive(g_netMutex);
     g_uiNeedsRedraw = true;
   }
+  if (g_transitState.dirty) {
+    if (g_netMutex) xSemaphoreTake(g_netMutex, portMAX_DELAY);
+    g_transitState.dirty = false;
+    if (g_netMutex) xSemaphoreGive(g_netMutex);
+    if (g_uiPageMode == UI_PAGE_TRANSIT) g_uiNeedsRedraw = true;
+  }
   const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
   const uint32_t weatherBg = lvglResolvedWeatherBg(theme);
   const uint32_t weatherPrimary = lvglResolvedWeatherPrimary(theme, weatherBg);
@@ -13881,6 +14426,13 @@ static void updateLvglUi(bool force) {
   }
   if (g_uiPageMode == UI_PAGE_NOW_PLAYING) {
     lvglUpdateNowPlayingUi(g_nowPlayingUi, force);
+    g_clock.lastSecond = timeinfo.tm_sec;
+    g_clock.lastDateKey = dateKey;
+    g_uiNeedsRedraw = false;
+    return;
+  }
+  if (g_uiPageMode == UI_PAGE_TRANSIT) {
+    lvglUpdateTransitUi(force);
     g_clock.lastSecond = timeinfo.tm_sec;
     g_clock.lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
@@ -15001,6 +15553,7 @@ void setup() {
   if (wifiIsConnectedNow()) {
     runNtpTimeTest();
     updateWeatherFromApi(true);
+    updateTransitFromApi(false);  // preload transit at boot if station is configured
 #if TEST_WIFI && RSS_ENABLED
     updateRssFromFeed(false);  // preload RSS once at boot while still on HOME
     updateWikiFromFeed(false); // preload WIKI once at boot while still on HOME
@@ -15066,6 +15619,7 @@ void loop() {
 
 #if TEST_DISPLAY && TEST_NTP
   updateWeatherFromApi(false);
+  updateTransitFromApi(false);
 #if TEST_WIFI && RSS_ENABLED
 #if TEST_LVGL_UI && DISPLAY_BACKEND_ESP_LCD
   updateRssFromFeed(false);
