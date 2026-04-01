@@ -4,10 +4,10 @@
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
 [![Languages](https://img.shields.io/badge/Word_Clock-13_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
-[![Views](https://img.shields.io/badge/Views-6_live_views-3B82F6?style=for-the-badge)](#views)
+[![Views](https://img.shields.io/badge/Views-7_live_views-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
-**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, six swipeable views, a word clock that composes real sentences in thirteen languages (from Italian and Latin to Klingon, 1337 Speak, and Bellazio), actual grammar, not uppercase tiles, plus RSS feeds, a Wikipedia viewer, a `Now Playing` strip with cover art, a full DOOM port with gyro controls, and a LAN web config UI.
+**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, seven swipeable views, a word clock that composes real sentences in thirteen languages (from Italian and Latin to Klingon, 1337 Speak, and Bellazio), actual grammar, not uppercase tiles, plus RSS feeds, a Wikipedia viewer, a `Now Playing` strip with cover art, a live transit departure board, a full DOOM port with gyro controls, and a LAN web config UI.
 
 *Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls random Wikipedia facts nobody asked for, and opens a portal to Hell. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
 
@@ -17,7 +17,7 @@
 <td width="55%"><img src="assets/readme_previews/home_weather_toxic-candy.png" alt="HOME view, Toxic Candy theme" width="100%"></td>
 <td>
 
-**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from OpenWeatherMap. Thirteen languages, five themes, all switchable from the web UI without reflashing. This is what you leave on when nobody's playing DOOM.
+**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from OpenWeatherMap. Thirteen languages, seven themes, all switchable from the web UI without reflashing. This is what you leave on when nobody's playing DOOM.
 
 </td>
 </tr></table>
@@ -118,10 +118,10 @@ The physical profile: a horizontal bar that sits flat on your desk. Wide enough 
 
 ## Views
 
-Six views, navigated by swipe.
+Seven views, navigated by swipe.
 
 ```
-  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► DOOM
+  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► DOOM ◄─► TRANSIT
 ```
 
 **HOME** — Word clock in natural sentence form (13 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing. Themes switchable from the web UI without reflashing.
@@ -134,11 +134,13 @@ Six views, navigated by swipe.
 
 **DOOM** — `prboom-go` donor port adapted for ScryBar. Centered 4:3 live framebuffer on the 640×172 strip, "Bunker Console" side HUD with oversized tilt meters, IMU gyroscope controls, and touch bands for `USE` / `FIRE`. Tap FIRE on the title screen to boot the engine. Tilt forward to move, tilt sideways to turn. [Details below.](#doom-view)
 
+**TRANSIT** — Live departure board powered by [Transitous](https://transitous.org) (free global GTFS data, no API key). Search any station worldwide from the web UI. Colored line badges with adaptive font, real-time delay indicators, arrival times, platform info. Handles trains, metro, trams, buses, and coaches across 20+ countries. Tap to toggle origin display; destination filter via web UI.
+
 **INFO** — System diagnostics: Wi-Fi status, RSSI, IP, MAC, battery level, power source, firmware build tag, NTP sync status. QR code pointing to the web config UI. The nervous system, exposed.
 
 Physical buttons:
 
-- `PWR` (center): short press toggles screensaver; hold `3s` for soft-off; hold `3s` again to wake back to `HOME`.
+- `PWR` (center): short press toggles screensaver; hold `1.5s` for power-off (hard-off on battery via TCA9554, soft-off on USB); hold `1.5s` again to wake back to `HOME`.
 - `BOOT` (left): single click jumps to `HOME`.
 - `RST` (right): hardware reset. The nuclear option.
 
@@ -314,7 +316,9 @@ Commands sent over Serial at 115200 baud. Case-insensitive.
 | `VIEW1` / `VIEWHOME` | Force HOME page |
 | `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
 | `VIEW3` / `VIEWWIKI` | Force WIKI page |
-| `VIEW4` / `VIEWDOOM` / `DOOM` | Force DOOM page |
+| `VIEW4` / `VIEWNOW` / `VIEWNP` | Force NOW PLAYING page |
+| `VIEW5` / `VIEWDOOM` / `DOOM` | Force DOOM page |
+| `VIEW6` / `VIEWTRANSIT` / `TRANSIT` | Force TRANSIT page |
 
 **Configuration:**
 

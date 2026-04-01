@@ -4309,7 +4309,7 @@ static void buildWebHeroSection(String &html, const char *statusMsg) {
 }
 
 static void buildWebThemeSelector(String &html) {
-  html += F("<div class='vm-card'><h2>&#x1F3A8; Visual Theme</h2><div class='vm-label'>THEME</div><select class='vm-select' name='ui_theme'>");
+  html += F("<div class='vm-card'><h2>&#x1F3A8;&ensp;Visual Theme</h2><div class='vm-label'>THEME</div><select class='vm-select' name='ui_theme'>");
   for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
     html += F("<option value='");
     html += kUiThemes[i].id;
@@ -4328,7 +4328,7 @@ static void buildWebViewToggles(String &html) {
   const bool wikiViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) != 0;
   const bool nowPlayingViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) != 0;
   const bool transitViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) != 0;
-  html += F("<div class='vm-card'><h2>&#x1F4F1; Views</h2><div class='vm-views'>");
+  html += F("<div class='vm-card'><h2>&#x1F4F1;&ensp;Views</h2><div class='vm-views'>");
   html += F("<label class='vm-view'><input id='view_info_cb' type='checkbox'");
   if (infoViewOn) html += F(" checked");
   html += F("><span class='vm-view__copy'><strong>Info</strong><small>Word clock and ambient status page.</small></span></label>");
@@ -4354,7 +4354,7 @@ static void buildWebWifiSection(String &html) {
   const String activeSsid = wifiOk ? WiFi.SSID() : String("");
   char setupUrl[96] = "";
   wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
-  html += F("<div class='vm-card'><h2>&#x1F4F6; Wi-Fi Known Networks</h2><div class='vm-label'>PREFERRED SSID</div><select class='vm-select' name='wifi_pref_ssid'>");
+  html += F("<div class='vm-card'><h2>&#x1F4F6;&ensp;Wi-Fi Known Networks</h2><div class='vm-label'>PREFERRED SSID</div><select class='vm-select' name='wifi_pref_ssid'>");
   html += F("<option value=''");
   if (!g_wifiSt.preferredSsid[0]) html += F(" selected");
   html += F(">Auto (smart rotation)</option>");
@@ -4418,7 +4418,7 @@ static void buildWebLangSelectors(String &html) {
       {"de",  "Deutsch"},
       {"pt",  "Portugu\xC3\xAA" "s"},
     };
-    html += F("<div class='vm-card'><h2>&#x1F310; System Language</h2><div class='vm-label'>LANGUAGE</div><select class='vm-select' name='wc_lang'>");
+    html += F("<div class='vm-card'><h2>&#x1F310;&ensp;System Language</h2><div class='vm-label'>LANGUAGE</div><select class='vm-select' name='wc_lang'>");
     html += F("<optgroup label='Creative &amp; Constructed'>");
     for (unsigned i = 0; i < sizeof(kLangsFun)/sizeof(kLangsFun[0]); ++i) {
       html += F("<option value='");
@@ -4449,7 +4449,7 @@ static void buildWebLangSelectors(String &html) {
       {"es", "Espa\xC3\xB1" "ol"}, {"pt", "Portugu\xC3\xAA" "s"},
       {"la", "Latina"}, {"eo", "Esperanto"},
     };
-    html += F("<div class='vm-card'><h2>&#x1F4D6; Wikipedia Language</h2>"
+    html += F("<div class='vm-card'><h2>&#x1F4D6;&ensp;Wikipedia Language</h2>"
               "<div class='vm-label'>WIKI LANGUAGE</div><select class='vm-select' name='wiki_lang'>");
     for (unsigned i = 0; i < sizeof(kWikiLangs)/sizeof(kWikiLangs[0]); ++i) {
       html += F("<option value='");
@@ -4470,7 +4470,7 @@ static void buildWebWeatherSection(String &html) {
   char lonBuf[24];
   snprintf(latBuf, sizeof(latBuf), "%.4f", runtimeWeatherLat());
   snprintf(lonBuf, sizeof(lonBuf), "%.4f", runtimeWeatherLon());
-  html += F("<div class='vm-card'><h2>&#x2600; Weather &amp; Location</h2><div class='vm-grid'><div><div class='vm-label'>PLACE SEARCH</div><input class='vm-input' id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='vm-label'>CITY LABEL</div><input class='vm-input' id='weather_city' name='weather_city' maxlength='31' value='");
+  html += F("<div class='vm-card'><h2>&#x2600;&ensp;Weather &amp; Location</h2><div class='vm-grid'><div><div class='vm-label'>PLACE SEARCH</div><input class='vm-input' id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='vm-label'>CITY LABEL</div><input class='vm-input' id='weather_city' name='weather_city' maxlength='31' value='");
   appendHtmlEscaped(html, runtimeWeatherCityLabel());
   html += F("'></div><div class='vm-grid'><div><div class='vm-label'>LATITUDE</div><input class='vm-input' id='weather_lat' name='weather_lat' value='");
   appendHtmlEscaped(html, latBuf);
@@ -4481,7 +4481,7 @@ static void buildWebWeatherSection(String &html) {
 
 static void buildWebRssBuilder(String &html) {
   const uint8_t configuredFeeds = runtimeRssConfiguredFeedCount();
-  html += F("<div class='vm-card'><h2>&#x1F4E1; RSS Feed Builder <span id='rss_count_pill' class='vm-badge vm-badge--info'>RSS feeds ");
+  html += F("<div class='vm-card'><h2>&#x1F4E1;&ensp;RSS Feed Builder <span id='rss_count_pill' class='vm-badge vm-badge--info'>RSS feeds ");
   html += configuredFeeds;
   html += F("/5</span></h2><p class='vm-help'>One composer for name, URL and max posts. Press + to add to the list (max 5 feeds).</p>");
   html += F("<div class='vm-rss-composer'><div><div class='vm-label'>FRIENDLY NAME</div><input class='vm-input' id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='vm-label'>FEED URL</div><input class='vm-input' id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='vm-label'>MAX POSTS</div><input class='vm-input' id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='vm-btn vm-btn--primary' type='button'>+ Add</button><button id='rss_reset' class='vm-btn vm-btn--secondary' type='button'>Reset</button></div><p id='rss_status' class='rss-status'></p>");
@@ -4489,7 +4489,7 @@ static void buildWebRssBuilder(String &html) {
 }
 
 static void buildWebTransitSection(String &html) {
-  html += F("<div class='vm-card'><h2>&#x1F689; Transit Departure Board</h2>");
+  html += F("<div class='vm-card'><h2>&#x1F689;&ensp;Transit Departure Board</h2>");
   html += F("<p class='vm-help'>Search for any stop worldwide. "
             "Powered by <a href='https://transitous.org' target='_blank' rel='noopener noreferrer'>Transitous</a> "
             "(global free GTFS data — trains, buses, trams). "
@@ -4617,7 +4617,7 @@ static void buildWebTransitSection(String &html) {
 
 static void buildWebSystemInfo(String &html) {
   char siBuf[48];
-  html += F("<div class='vm-card vm-card--muted'><h2>&#x2699; System Info</h2><div class='vm-grid'>");
+  html += F("<div class='vm-card vm-card--muted'><h2>&#x2699;&ensp;System Info</h2><div class='vm-grid'>");
   // Network card
   html += F("<div><div class='vm-label'>NETWORK</div>");
 #if TEST_WIFI
@@ -8424,16 +8424,21 @@ static void netFetchTransitDepartures() {
           }
         }
         // Effective destination: headsign → tripTo.name → skip.
-        // French RER/Transilien mission codes: exactly 4 uppercase letters (e.g., "ROPO")
-        // — these are internal codes, not destination names; prefer tripTo.name.
-        bool missionCode = false;
-        if (headsign[0] && strlen(headsign) == 4 && tripToName[0]) {
-          missionCode = (headsign[0] >= 'A' && headsign[0] <= 'Z' &&
-                         headsign[1] >= 'A' && headsign[1] <= 'Z' &&
-                         headsign[2] >= 'A' && headsign[2] <= 'Z' &&
-                         headsign[3] >= 'A' && headsign[3] <= 'Z');
+        // French feeds use non-destination headsigns — prefer tripTo.name when detected:
+        //  - RER/Transilien mission codes: exactly 4 uppercase letters (e.g., "ROPO")
+        //  - SNCF train numbers: all digits (e.g., "5470" at CDG)
+        bool looksLikeCode = false;
+        if (headsign[0] && tripToName[0]) {
+          const size_t hl = strlen(headsign);
+          bool allUpper = (hl == 4);
+          bool allDigit = (hl > 0);
+          for (size_t j = 0; j < hl; ++j) {
+            if (!(headsign[j] >= 'A' && headsign[j] <= 'Z')) allUpper = false;
+            if (!(headsign[j] >= '0' && headsign[j] <= '9')) allDigit = false;
+          }
+          looksLikeCode = allUpper || allDigit;
         }
-        const char *dest = (headsign[0] && !missionCode) ? headsign : tripToName;
+        const char *dest = (headsign[0] && !looksLikeCode) ? headsign : tripToName;
 
         // Destination filter: substring match anywhere in effective destination
         if (dest[0] && g_transitConfig.arrStation[0]) {
