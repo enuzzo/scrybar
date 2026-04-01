@@ -8393,22 +8393,40 @@ static void netFetchTransitDepartures() {
             }
           }
         }
+        // tripTo.name — destination (Trenitalia NeTEx feed has headsign="" but populates this)
+        char tripToName[48] = {};
+        {
+          const char *ttTag = (const char *)memmem(entryStart, (size_t)(entryEnd - entryStart),
+                                                    "\"tripTo\":{", 10);
+          if (ttTag) {
+            const char *ttOpen = strchr(ttTag, '{');
+            if (ttOpen && ttOpen < entryEnd) {
+              int ttd = 1; const char *ttp = ttOpen + 1;
+              while (ttp < entryEnd && ttd > 0) {
+                if (*ttp == '{') ++ttd; else if (*ttp == '}') --ttd; ++ttp;
+              }
+              transitExtractStr(ttOpen, ttp, "\"name\":", tripToName, sizeof(tripToName));
+            }
+          }
+        }
+        // Effective destination: headsign (Trenord) → tripTo.name (Trenitalia) → skip
+        const char *dest = headsign[0] ? headsign : tripToName;
 
-        // Destination filter: substring match (case-insensitive) anywhere in headsign
-        if (headsign[0] && g_transitConfig.arrStation[0]) {
-          if (!transitHeadsignContains(headsign, g_transitConfig.arrStation)) {
+        // Destination filter: substring match anywhere in effective destination
+        if (dest[0] && g_transitConfig.arrStation[0]) {
+          if (!transitHeadsignContains(dest, g_transitConfig.arrStation)) {
             p = entryEnd; continue;
           }
         }
 
         // Need at least a departure time and a destination to display
-        if (!depIso[0] || !headsign[0]) { p = entryEnd; continue; }
+        if (!depIso[0] || !dest[0]) { p = entryEnd; continue; }
 
         TransitDeparture &d = local.departures[local.count];
         // routeShortName is the badge line (e.g. "S30", "R21"); fallback to mode
         copyStringSafe(d.line,         sizeof(d.line),         routeShortName[0] ? routeShortName : mode);
         copyStringSafe(d.category,     sizeof(d.category),     mode);
-        copyStringSafe(d.destination,  sizeof(d.destination),  headsign);
+        copyStringSafe(d.destination,  sizeof(d.destination),  dest);
         copyStringSafe(d.platform,     sizeof(d.platform),     platform);
         copyStringSafe(d.tripFromName, sizeof(d.tripFromName), tripFromName);
         d.cancelled      = cancelled;
@@ -8440,6 +8458,12 @@ static void netFetchTransitDepartures() {
       }
       local.valid = (local.count > 0);
       snprintf(local.fetchedAt, sizeof(local.fetchedAt), "%02d:%02d", ti.tm_hour, ti.tm_min);
+      // Diagnostics: when count=0 log the raw payload start and active filter
+      if (local.count == 0) {
+        Serial.printf("[TRANSIT] count=0 stopId='%.64s' arrFilter='%s'\n",
+                      g_transitConfig.stopId, g_transitConfig.arrStation);
+        Serial.printf("[TRANSIT] payload[0..399]: %.400s\n", data);
+      }
 
       // r242: fetch destination arrival time for each departure via /api/v1/trip
       for (uint8_t j = 0; j < local.count; ++j) {
