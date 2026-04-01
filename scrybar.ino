@@ -8205,6 +8205,17 @@ static uint32_t transitCategoryColor(const char *cat) {
   return 0x555577;
 }
 
+// Case-insensitive substring search (strcasestr not available on ESP32).
+static bool transitHeadsignContains(const char *headsign, const char *filter) {
+  const size_t hl = strlen(headsign);
+  const size_t fl = strlen(filter);
+  if (!fl || fl > hl) return (fl == 0);
+  for (size_t i = 0; i <= hl - fl; ++i) {
+    if (strncasecmp(headsign + i, filter, fl) == 0) return true;
+  }
+  return false;
+}
+
 // Returns true for road/urban modes that get pill-shaped badge + blue fallback color.
 static bool transitIsBus(const char *cat) {
   if (!cat || !cat[0]) return false;
@@ -8383,10 +8394,9 @@ static void netFetchTransitDepartures() {
           }
         }
 
-        // Destination filter: skip if headsign doesn't contain the filter string
+        // Destination filter: substring match (case-insensitive) anywhere in headsign
         if (headsign[0] && g_transitConfig.arrStation[0]) {
-          if (strncasecmp(headsign, g_transitConfig.arrStation,
-                          strlen(g_transitConfig.arrStation)) != 0) {
+          if (!transitHeadsignContains(headsign, g_transitConfig.arrStation)) {
             p = entryEnd; continue;
           }
         }
