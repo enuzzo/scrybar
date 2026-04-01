@@ -3873,13 +3873,12 @@ static void loadRuntimeNetConfigFromNvs() {
     for (const char **p = kWikiLangs; *p; ++p) { if (strcmp(wl, *p) == 0) { wlValid = true; break; } }
     if (wlValid) strncpy(g_wikiLang, wl, sizeof(g_wikiLang) - 1);
   }
-  // Transit stations
+  // Transit stations + Transitous stop ID
   if (prefs.isKey("transit_stn")) {
     char stn[TRANSIT_STATION_LEN] = {0};
     prefs.getString("transit_stn", stn, sizeof(stn));
     if (stn[0]) {
       copyStringSafe(g_transitConfig.station, sizeof(g_transitConfig.station), stn);
-      g_transitConfig.configured = true;
       loadedAny = true;
     }
   }
@@ -3888,6 +3887,13 @@ static void loadRuntimeNetConfigFromNvs() {
     prefs.getString("transit_arr", arr, sizeof(arr));
     copyStringSafe(g_transitConfig.arrStation, sizeof(g_transitConfig.arrStation), arr);
   }
+  if (prefs.isKey("transit_sid")) {
+    char sid[TRANSIT_STOP_ID_LEN] = {0};
+    prefs.getString("transit_sid", sid, sizeof(sid));
+    copyStringSafe(g_transitConfig.stopId, sizeof(g_transitConfig.stopId), sid);
+  }
+  // configured = true only when both station name AND stop ID are present
+  g_transitConfig.configured = (g_transitConfig.station[0] && g_transitConfig.stopId[0]);
 
   prefs.end();
 
@@ -3964,6 +3970,7 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n10 = saveRuntimeWiFiCredentialsToPrefs(prefs);
   prefs.putString("transit_stn", g_transitConfig.station);
   prefs.putString("transit_arr", g_transitConfig.arrStation);
+  prefs.putString("transit_sid", g_transitConfig.stopId);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
   Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u views=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
@@ -4464,38 +4471,41 @@ static void buildWebRssBuilder(String &html) {
 
 static void buildWebTransitSection(String &html) {
   html += F("<div class='vm-card'><h2>&#x1F689; Transit Departure Board</h2>");
-  html += F("<p class='vm-help'>Search for a Swiss train/bus station to show upcoming departures. "
-            "Powered by <a href='https://transport.opendata.ch' target='_blank' rel='noopener noreferrer'>transport.opendata.ch</a>. "
-            "Departure station is required; destination is optional (filters by direction).</p>");
+  html += F("<p class='vm-help'>Search for any stop worldwide. "
+            "Powered by <a href='https://transitous.org' target='_blank' rel='noopener noreferrer'>Transitous</a> "
+            "(global free GTFS data — trains, buses, trams). "
+            "Type at least 3 chars and pick from the list; destination filter is optional.</p>");
   html += F("<div class='vm-grid'>");
 
   // --- Departure station ---
   html += F("<div><div class='vm-label'>DEPARTURE STATION</div>");
   html += F("<input class='vm-input' type='search' id='transit_from_q' list='transit_from_hits' "
-            "autocomplete='off' placeholder='e.g. Zurich HB'");
+            "autocomplete='off' placeholder='e.g. Luino, Milano Centrale, Zurich HB'");
   if (g_transitConfig.station[0]) {
     html += F(" value='");
     appendHtmlEscaped(html, g_transitConfig.station);
     html += '\'';
   }
   html += F("><datalist id='transit_from_hits'></datalist>");
+  // Hidden: display name submitted as transit_from
   html += F("<input type='hidden' id='transit_from_val' name='transit_from' value='");
   appendHtmlEscaped(html, g_transitConfig.station);
+  html += F("'>");
+  // Hidden: Transitous stop ID submitted as transit_from_id
+  html += F("<input type='hidden' id='transit_from_id' name='transit_from_id' value='");
+  appendHtmlEscaped(html, g_transitConfig.stopId);
   html += F("'><p id='transit_from_st' class='geo-status'></p></div>");
 
-  // --- Destination station (optional) ---
+  // --- Destination filter (optional) ---
   html += F("<div><div class='vm-label'>FILTER BY DESTINATION <small>(optional)</small></div>");
-  html += F("<input class='vm-input' type='search' id='transit_to_q' list='transit_to_hits' "
+  html += F("<input class='vm-input' type='text' id='transit_to_q' name='transit_to' "
             "autocomplete='off' placeholder='Leave empty for all departures'");
   if (g_transitConfig.arrStation[0]) {
     html += F(" value='");
     appendHtmlEscaped(html, g_transitConfig.arrStation);
     html += '\'';
   }
-  html += F("><datalist id='transit_to_hits'></datalist>");
-  html += F("<input type='hidden' id='transit_to_val' name='transit_to' value='");
-  appendHtmlEscaped(html, g_transitConfig.arrStation);
-  html += F("'><p id='transit_to_st' class='geo-status'></p></div>");
+  html += F("><p class='vm-help'><small>Partial match on headsign, e.g. \"Gallarate\" or \"Milano\".</small></p></div>");
 
   html += F("</div>"); // vm-grid
 
@@ -4504,60 +4514,74 @@ static void buildWebTransitSection(String &html) {
     html += g_transitState.fetchedAt;
     html += F(" &bull; ");
     html += g_transitState.count;
-    html += F(" departure(s).</small></p>");
+    html += F(" departure(s)");
+    if (g_transitConfig.stopId[0]) {
+      html += F(" &bull; id: <code>");
+      appendHtmlEscaped(html, g_transitConfig.stopId);
+      html += F("</code>");
+    }
+    html += F(".</small></p>");
   }
   html += F("</div>"); // vm-card
 
-  // Inline autocomplete JS for transit station search
+  // Inline autocomplete JS — Transitous geocode API
   html += F("<script>(function(){"
-    "function setupTAC(qId,vId,lId,sId){"
-      "var q=document.getElementById(qId);"
-      "var v=document.getElementById(vId);"
-      "var dl=document.getElementById(lId);"
-      "var st=document.getElementById(sId);"
-      "if(!q||!dl)return;"
-      "var t=0,map={};"
-      "function setS(m){if(st)st.textContent=m||'';}"
-      "function clr(){dl.innerHTML='';map={};}"
-      "q.addEventListener('change',function(){"
-        "if(map[q.value]){if(v)v.value=q.value;setS('Station: '+q.value);}"
-        "else if(!q.value.trim()){if(v)v.value='';setS('');}"
-      "});"
-      "q.addEventListener('input',function(){"
-        "var term=q.value.trim();"
-        "if(term.length<2){clr();setS('');return;}"
-        "clearTimeout(t);"
-        "t=setTimeout(async function(){"
-          "try{"
-            "setS('Searching...');"
-            "var u='https://transport.opendata.ch/v1/locations?query='+encodeURIComponent(term)+'&type=station&limit=8';"
-            "var r=await fetch(u,{cache:'no-store'});"
-            "if(!r.ok)throw new Error('http '+r.status);"
-            "var d=await r.json();"
-            "var rows=(d&&d.stations)?d.stations:[];"
-            "clr();"
-            "if(!rows.length){setS('No station found.');return;}"
-            "rows.forEach(function(s){"
-              "var n=s.name||'';"
-              "if(!n||n==='null')return;"
-              "var o=document.createElement('option');"
-              "o.value=n;"
-              "var hint=s.id?(s.id.charAt(0)==='8'?' [treno]':' [bus/tram]'):' [fermata]';"
-              "o.label=n+hint;"
-              "dl.appendChild(o);map[n]=s;"
-            "});"
-            "setS(rows.length+' result(s) — scegli dalla lista.');"
-            "if(rows.length===1){"
-              "q.value=rows[0].name;"
-              "if(v)v.value=rows[0].name;"
-              "setS('Station: '+rows[0].name);"
-            "}"
-          "}catch(e){clr();setS('Search unavailable.');}"
-        "},300);"
-      "});"
-    "}"
-    "setupTAC('transit_from_q','transit_from_val','transit_from_hits','transit_from_st');"
-    "setupTAC('transit_to_q','transit_to_val','transit_to_hits','transit_to_st');"
+    "var q=document.getElementById('transit_from_q');"
+    "var v=document.getElementById('transit_from_val');"
+    "var idI=document.getElementById('transit_from_id');"
+    "var dl=document.getElementById('transit_from_hits');"
+    "var st=document.getElementById('transit_from_st');"
+    "if(!q||!dl)return;"
+    "var t=0,map={};"
+    "function setS(m){if(st)st.textContent=m||'';}"
+    "function clr(){dl.innerHTML='';map={};}"
+    "q.addEventListener('change',function(){"
+      "var s=map[q.value];"
+      "if(s){"
+        "if(v)v.value=s.name||q.value;"
+        "if(idI)idI.value=s.id||'';"
+        "setS('&#x2713; '+s.name+(s.id?' ('+s.id+')':''));"
+      "}else if(!q.value.trim()){"
+        "if(v)v.value='';"
+        "if(idI)idI.value='';"
+        "setS('');"
+      "}"
+    "});"
+    "q.addEventListener('input',function(){"
+      "var term=q.value.trim();"
+      "if(term.length<3){clr();setS('');return;}"
+      "clearTimeout(t);"
+      "t=setTimeout(async function(){"
+        "try{"
+          "setS('Searching...');"
+          "var u='https://api.transitous.org/api/v1/geocode?text='+encodeURIComponent(term)+'&limit=8';"
+          "var r=await fetch(u,{cache:'no-store'});"
+          "if(!r.ok)throw new Error('HTTP '+r.status);"
+          "var d=await r.json();"
+          "var rows=Array.isArray(d)?d:(d&&d.features?d.features:[]);"
+          "clr();"
+          "if(!rows.length){setS('No stop found.');return;}"
+          "rows.forEach(function(s){"
+            // Transitous geocode returns objects with .id and .name (and .country)
+            "var n=s.name||'';"
+            "if(!n)return;"
+            "var hint=s.country?' ['+s.country+']':'';"
+            "var o=document.createElement('option');"
+            "o.value=n;"
+            "o.label=n+hint;"
+            "dl.appendChild(o);map[n]=s;"
+          "});"
+          "setS(rows.length+' result(s) — pick from list.');"
+          "if(rows.length===1){"
+            "var s0=rows[0];"
+            "q.value=s0.name||'';"
+            "if(v)v.value=s0.name||'';"
+            "if(idI)idI.value=s0.id||'';"
+            "setS('&#x2713; '+s0.name+(s0.id?' ('+s0.id+')':''));"
+          "}"
+        "}catch(e){clr();setS('Search error: '+e.message);}"
+      "},400);"
+    "});"
   "})();</script>");
 }
 
@@ -5015,22 +5039,37 @@ static bool parseTransitConfig(String &errorOut, bool &hasInput, bool &transitCh
   String stn = g_webCfg.server.arg("transit_from");
   stn.trim();
   if (stn.length() >= TRANSIT_STATION_LEN) { errorOut = "departure station name too long"; return false; }
+
+  String sid = g_webCfg.server.hasArg("transit_from_id") ? g_webCfg.server.arg("transit_from_id") : "";
+  sid.trim();
+  if (sid.length() >= TRANSIT_STOP_ID_LEN) { errorOut = "stop ID too long"; return false; }
+
   String arr = g_webCfg.server.hasArg("transit_to") ? g_webCfg.server.arg("transit_to") : "";
   arr.trim();
   if (arr.length() >= TRANSIT_STATION_LEN) { errorOut = "destination station name too long"; return false; }
 
-  const bool newConfigured = (stn.length() > 0);
-  const bool stnChanged = (g_transitConfig.configured != newConfigured) ||
-                          (strncmp(g_transitConfig.station, stn.c_str(), TRANSIT_STATION_LEN) != 0);
+  // configured = name AND stop ID both present
+  const bool newConfigured = (stn.length() > 0 && sid.length() > 0);
+  const bool stnChanged = (strncmp(g_transitConfig.station, stn.c_str(), TRANSIT_STATION_LEN) != 0);
+  const bool sidChanged = (strncmp(g_transitConfig.stopId,  sid.c_str(), TRANSIT_STOP_ID_LEN)  != 0);
   const bool arrChanged = (strncmp(g_transitConfig.arrStation, arr.c_str(), TRANSIT_STATION_LEN) != 0);
+  const bool cfgChanged = (g_transitConfig.configured != newConfigured);
 
-  if (stnChanged || arrChanged) {
-    copyStringSafe(g_transitConfig.station, sizeof(g_transitConfig.station), stn.c_str());
+  if (stnChanged || sidChanged || arrChanged || cfgChanged) {
+    copyStringSafe(g_transitConfig.station,    sizeof(g_transitConfig.station),    stn.c_str());
+    copyStringSafe(g_transitConfig.stopId,     sizeof(g_transitConfig.stopId),     sid.c_str());
     copyStringSafe(g_transitConfig.arrStation, sizeof(g_transitConfig.arrStation), arr.c_str());
     g_transitConfig.configured = newConfigured;
+    // Invalidate cached state so next fetch is triggered immediately
+    if (stnChanged || sidChanged) {
+      g_transitState.valid      = false;
+      g_transitState.count      = 0;
+      g_transitState.lastFetchMs = 0;
+    }
     transitChanged = true;
-    Serial.printf("[CFG][WEB] transit_from='%s' transit_to='%s'\n",
-                  g_transitConfig.station, g_transitConfig.arrStation);
+    Serial.printf("[CFG][WEB] transit_from='%s' transit_from_id='%s' transit_to='%s' configured=%d\n",
+                  g_transitConfig.station, g_transitConfig.stopId,
+                  g_transitConfig.arrStation, (int)g_transitConfig.configured);
   }
   return true;
 }
@@ -8022,6 +8061,26 @@ static void runRssDiag() {
 
 // ── Transit Departure Board — net fetch ────────────────────────────────────
 
+// Full percent-encoding for URL query parameters (handles ':' '/' etc. in GTFS stop IDs).
+static void urlEncodeParam(const char *src, char *dst, size_t dstLen) {
+  static const char kHex[] = "0123456789ABCDEF";
+  size_t di = 0;
+  for (size_t i = 0; src[i] && di + 3 < dstLen; ++i) {
+    const uint8_t c = (uint8_t)src[i];
+    // unreserved chars per RFC 3986: A-Z a-z 0-9 - _ . ~
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+        (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~') {
+      dst[di++] = (char)c;
+    } else {
+      dst[di++] = '%';
+      dst[di++] = kHex[c >> 4];
+      dst[di++] = kHex[c & 0x0F];
+    }
+  }
+  dst[di] = '\0';
+}
+
+// Kept for any existing callers that only need space→'+' encoding.
 static void urlEncodeSpaces(const char *src, char *dst, size_t dstLen) {
   size_t di = 0;
   for (size_t i = 0; src[i] && di + 2 < dstLen; ++i) {
@@ -8030,14 +8089,88 @@ static void urlEncodeSpaces(const char *src, char *dst, size_t dstLen) {
   dst[di] = '\0';
 }
 
+// Parse Transitous UTC ISO timestamp "2026-04-01T12:45:00Z" into local hour/minute.
+// Returns false if the string is malformed.
+static bool parseIsoUtcToLocal(const char *iso, uint8_t &hourOut, uint8_t &minOut) {
+  if (!iso || strlen(iso) < 19) return false;
+  // Fast path: parse digits directly.
+  struct tm t = {};
+  t.tm_year = ((iso[0]-'0')*1000 + (iso[1]-'0')*100 + (iso[2]-'0')*10 + (iso[3]-'0')) - 1900;
+  t.tm_mon  = ((iso[5]-'0')*10  + (iso[6]-'0')) - 1;
+  t.tm_mday =  (iso[8]-'0')*10  + (iso[9]-'0');
+  t.tm_hour =  (iso[11]-'0')*10 + (iso[12]-'0');
+  t.tm_min  =  (iso[14]-'0')*10 + (iso[15]-'0');
+  t.tm_sec  =  (iso[17]-'0')*10 + (iso[18]-'0');
+  t.tm_isdst = 0;
+  time_t utc = mktime(&t);   // treated as local by mktime; we compensate below
+  // mktime treats struct as local time; we have UTC — get timezone offset and subtract.
+  struct tm local = {};
+  getLocalTime(&local, 0);
+  time_t localNow = mktime(&local);
+  time_t utcNow;
+  {
+    struct tm utcTm = {};
+    getLocalTime(&utcTm, 0);
+    utcNow = mktime(&utcTm);
+  }
+  // Simpler: parse UTC as-is, then use gmtime offset trick via configTzTime set timezone.
+  // Actually the cleanest on ESP-IDF: interpret string as UTC with timegm equivalent.
+  // ESP32 doesn't have timegm(), so: set tm_isdst=0, use mktime, then subtract UTC offset.
+  (void)localNow; (void)utcNow; (void)utc;
+
+  // Reliable approach: use strptime on the string and rely on configured tz.
+  // We'll parse the UTC epoch manually: days since epoch + time.
+  // Zeller / Julian day approach for year/month/day → epoch.
+  static const int kDaysPerMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+  int y = t.tm_year + 1900, m = t.tm_mon + 1, d = t.tm_mday;
+  long days = 0;
+  for (int yr = 1970; yr < y; ++yr)
+    days += ((yr % 4 == 0 && (yr % 100 != 0 || yr % 400 == 0)) ? 366 : 365);
+  bool leap = (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0));
+  for (int mo = 1; mo < m; ++mo)
+    days += (mo == 2 && leap) ? 29 : kDaysPerMonth[mo-1];
+  days += d - 1;
+  time_t epoch = (time_t)(days * 86400L + t.tm_hour * 3600L + t.tm_min * 60L + t.tm_sec);
+
+  struct tm localTm = {};
+  localtime_r(&epoch, &localTm);
+  hourOut = (uint8_t)localTm.tm_hour;
+  minOut  = (uint8_t)localTm.tm_min;
+  return true;
+}
+
+// Parse 6-char hex color string (no '#') → uint32_t RGB. Returns fallback on error.
+static uint32_t parseHexColor(const char *hex, uint32_t fallback = 0x555577) {
+  if (!hex || strlen(hex) < 6) return fallback;
+  uint32_t v = 0;
+  for (int i = 0; i < 6; ++i) {
+    char c = hex[i];
+    uint8_t nib;
+    if      (c >= '0' && c <= '9') nib = c - '0';
+    else if (c >= 'a' && c <= 'f') nib = c - 'a' + 10;
+    else if (c >= 'A' && c <= 'F') nib = c - 'A' + 10;
+    else return fallback;
+    v = (v << 4) | nib;
+  }
+  return v;
+}
+
+// Fallback badge color by Transitous mode string (used when routeColor == 0).
 static uint32_t transitCategoryColor(const char *cat) {
   if (!cat || !cat[0]) return 0x777777;
+  // Transitous mode names
+  if (strcmp(cat, "HIGH_SPEED_RAIL") == 0 || strcmp(cat, "INTERCITY_RAIL") == 0) return 0xCC2222;
+  if (strcmp(cat, "REGIONAL_RAIL")   == 0) return 0x118833;
+  if (strcmp(cat, "SUBURBAN_RAILWAY")== 0) return 0x118833;
+  if (strcmp(cat, "BUS")             == 0) return 0x1155CC;
+  if (strcmp(cat, "TRAM")            == 0) return 0xCC6600;
+  if (strcmp(cat, "SUBWAY")          == 0) return 0x884499;
+  if (strcmp(cat, "FERRY")           == 0) return 0x0077AA;
+  // Legacy opendata.ch codes (kept in case of fallback)
   if (strncmp(cat, "IC", 2) == 0 || strncmp(cat, "EC", 2) == 0) return 0xCC2222;
   if (strncmp(cat, "IR", 2) == 0) return 0xDD5500;
   if (strncmp(cat, "RE", 2) == 0 || strncmp(cat, "RB", 2) == 0) return 0xDD8800;
   if (cat[0] == 'S') return 0x118833;
-  if (strcmp(cat, "Bus") == 0 || strcmp(cat, "NFB") == 0) return 0x1155CC;
-  if (strcmp(cat, "Tram") == 0) return 0xCC6600;
   return 0x555577;
 }
 
@@ -8063,13 +8196,45 @@ static void transitExtractStr(const char *start, const char *stop,
 }
 
 static void netFetchTransitDepartures() {
-  if (!g_transitConfig.configured || !g_transitConfig.station[0]) return;
-  char encStation[96];
-  urlEncodeSpaces(g_transitConfig.station, encStation, sizeof(encStation));
-  char url[256];
+  // Require a Transitous stop ID (set via web UI autocomplete).
+  if (!g_transitConfig.configured || !g_transitConfig.stopId[0]) {
+    Serial.println("[TRANSIT] no stopId configured — open web UI to search for station");
+    return;
+  }
+
+  char encId[256];
+  urlEncodeParam(g_transitConfig.stopId, encId, sizeof(encId));
+
+  // Current UTC time in ISO 8601 for the ?time= parameter.
+  time_t nowUtc = 0;
+  {
+    struct tm utcTm = {};
+    getLocalTime(&utcTm, 0);   // local — we convert back to UTC via mktime + tz offset
+    // Build UTC epoch: use the same Zeller trick as parseIsoUtcToLocal in reverse.
+    // Simplest: mktime gives local epoch; subtract UTC offset.
+    time_t localEpoch = mktime(&utcTm);
+    struct tm gmCheck = {};
+    gmtime_r(&localEpoch, &gmCheck);
+    // offset = local - gm
+    time_t gmEpoch = mktime(&gmCheck);
+    long tzOff = (long)(localEpoch - gmEpoch);
+    nowUtc = localEpoch - tzOff;
+  }
+  char timeParam[32];
+  {
+    struct tm utcFmt = {};
+    gmtime_r(&nowUtc, &utcFmt);
+    snprintf(timeParam, sizeof(timeParam), "%04d-%02d-%02dT%02d:%02d:%02dZ",
+             utcFmt.tm_year + 1900, utcFmt.tm_mon + 1, utcFmt.tm_mday,
+             utcFmt.tm_hour, utcFmt.tm_min, utcFmt.tm_sec);
+  }
+  char encTime[48];
+  urlEncodeParam(timeParam, encTime, sizeof(encTime));
+
+  char url[512];
   snprintf(url, sizeof(url),
-           "https://transport.opendata.ch/v1/stationboard?station=%s&limit=16",
-           encStation);
+           "https://api.transitous.org/api/v1/stoptimes?stopId=%s&n=8&time=%s",
+           encId, encTime);
 
   WiFiClientSecure client;
   client.setInsecure();
@@ -8077,45 +8242,38 @@ static void netFetchTransitDepartures() {
   http.setConnectTimeout(TRANSIT_HTTP_TIMEOUT_MS);
   http.setTimeout(TRANSIT_HTTP_TIMEOUT_MS);
   http.begin(client, url);
+  http.addHeader("User-Agent", "ScryBar/" FW_BUILD_TAG " (https://github.com/enuzzo/scrybar)");
+  http.addHeader("Accept", "application/json");
+
   const uint32_t t0 = millis();
   const int code = http.GET();
 
   TransitState local = {};
   local.lastFetchMs = millis();
   local.lastHttpCode = code;
+  // Copy station display name from config (Transitous doesn't echo it back).
+  copyStringSafe(local.stationName, sizeof(local.stationName), g_transitConfig.station);
 
   if (code == 200) {
     const String payload = http.getString();
     const char *data = payload.c_str();
+    const size_t dataLen = payload.length();
 
-    // Find stationboard array start
-    const char *sbTag = strstr(data, "\"stationboard\":[");
-    const char *p     = sbTag ? strchr(sbTag, '[') : nullptr;
+    struct tm ti = {};
+    getLocalTime(&ti, 0);
+
+    // Find "stopTimes":[ array
+    const char *stTag = strstr(data, "\"stopTimes\":[");
+    const char *p     = stTag ? strchr(stTag, '[') : nullptr;
     if (p) {
       ++p;
-      // Extract official station name from first entry's stop.station.name
-      {
-        const char *snTag = (const char *)memmem(p, (size_t)(payload.length() - (p - data)),
-                                                  "\"station\":{", 11);
-        if (snTag) {
-          const char *snOpen = strchr(snTag, '{');
-          if (snOpen) {
-            int sd = 1; const char *sq = snOpen + 1;
-            while (*sq && sd > 0) { if (*sq=='{') ++sd; else if (*sq=='}') --sd; ++sq; }
-            transitExtractStr(snOpen, sq, "\"name\":", local.stationName, sizeof(local.stationName));
-          }
-        }
-      }
-      struct tm ti = {};
-      getLocalTime(&ti, 0);
-
       while (*p && local.count < TRANSIT_MAX_DEPARTURES) {
-        // Advance to next stationboard entry '{'
+        // Advance to next entry '{'
         while (*p && *p != '{' && *p != ']') ++p;
         if (!*p || *p == ']') break;
         const char *entryStart = p;
 
-        // Find the matching top-level '}' (depth-track)
+        // Find matching top-level '}'
         int depth = 1; ++p;
         while (*p && depth > 0) {
           if (*p == '{') ++depth;
@@ -8124,103 +8282,84 @@ static void netFetchTransitDepartures() {
         }
         const char *entryEnd = p;
 
-        // "stop" sub-block (find first "stop":{)
-        const char *stopTag = (const char *)memmem(entryStart, (size_t)(entryEnd - entryStart),
-                                                    "\"stop\":{", 8);
-        const char *stopEnd = entryEnd;
-        if (stopTag) {
-          stopTag = strchr(stopTag, '{');
-          if (stopTag) {
-            int sd = 1; const char *sq = stopTag + 1;
-            while (*sq && sd > 0) {
-              if (*sq == '{') ++sd;
-              else if (*sq == '}') --sd;
-              ++sq;
-            }
-            stopEnd = sq;
-          }
+        // Extract top-level string fields
+        char headsign[48]      = {};
+        char routeShortName[16]= {};
+        char mode[32]          = {};
+        char routeColorHex[8]  = {};
+        char routeTextHex[8]   = {};
+        transitExtractStr(entryStart, entryEnd, "\"headsign\":",       headsign,       sizeof(headsign));
+        transitExtractStr(entryStart, entryEnd, "\"routeShortName\":", routeShortName, sizeof(routeShortName));
+        transitExtractStr(entryStart, entryEnd, "\"mode\":",           mode,           sizeof(mode));
+        transitExtractStr(entryStart, entryEnd, "\"routeColor\":",     routeColorHex,  sizeof(routeColorHex));
+        transitExtractStr(entryStart, entryEnd, "\"routeTextColor\":", routeTextHex,   sizeof(routeTextHex));
+
+        // "cancelled" and "realTime" boolean fields
+        bool cancelled = false, realTime = false;
+        {
+          const char *cTag = (const char *)memmem(entryStart, (size_t)(entryEnd - entryStart),
+                                                   "\"cancelled\":", 12);
+          if (cTag) cancelled = (strncmp(cTag + 12, "true", 4) == 0);
+          const char *rtTag = (const char *)memmem(entryStart, (size_t)(entryEnd - entryStart),
+                                                    "\"realTime\":", 11);
+          if (rtTag) realTime = (strncmp(rtTag + 11, "true", 4) == 0);
         }
 
-        char cat[8] = {}, num[8] = {}, dest[48] = {}, dep[32] = {}, pf[8] = {};
-        transitExtractStr(stopEnd, entryEnd, "\"category\":", cat,  sizeof(cat));
-        transitExtractStr(stopEnd, entryEnd, "\"number\":",   num,  sizeof(num));
-        transitExtractStr(stopEnd, entryEnd, "\"to\":",       dest, sizeof(dest));
-        if (stopTag) {
-          transitExtractStr(stopTag, stopEnd, "\"departure\":", dep, sizeof(dep));
-          transitExtractStr(stopTag, stopEnd, "\"platform\":",  pf,  sizeof(pf));
-        }
-        float delayF = 0.0f;
-        if (stopTag) extractJsonNumberField(stopTag, "\"delay\"", delayF);
-        const int delay = (int)delayF;
-
-        // Arrival at final destination: parse passList last entry
-        char destArr[32] = {};
-        const char *plTag = (const char *)memmem(entryStart,
-                              (size_t)(entryEnd - entryStart), "\"passList\":[", 12);
-        if (plTag) {
-          const char *plOpen = strchr(plTag, '[');
-          if (plOpen && plOpen < entryEnd) {
-            // find matching ]
-            int plD = 1; const char *plP = plOpen + 1;
-            while (plP < entryEnd && plD > 0) {
-              if (*plP == '[') ++plD; else if (*plP == ']') --plD; ++plP;
-            }
-            const char *plClose = plP - 1;          // points at ]
-            // backtrack to last } of the last array element
-            const char *cur = plClose - 1;
-            while (cur > plOpen && *cur != '}') --cur;
-            if (*cur == '}') {
-              int bd = 1; const char *bP = cur - 1;
-              while (bP > plOpen && bd > 0) {
-                if (*bP == '}') ++bd; else if (*bP == '{') --bd; --bP;
+        // "place":{ sub-block for departure timestamp and platform
+        char depIso[32] = {}, platform[8] = {};
+        {
+          const char *placeTag = (const char *)memmem(entryStart, (size_t)(entryEnd - entryStart),
+                                                       "\"place\":{", 9);
+          if (placeTag) {
+            const char *placeOpen = strchr(placeTag, '{');
+            if (placeOpen && placeOpen < entryEnd) {
+              int pd = 1; const char *pp = placeOpen + 1;
+              while (pp < entryEnd && pd > 0) {
+                if (*pp == '{') ++pd; else if (*pp == '}') --pd; ++pp;
               }
-              const char *lastEntryStart = bP + 1;
-              transitExtractStr(lastEntryStart, cur + 1, "\"arrival\":", destArr, sizeof(destArr));
+              const char *placeEnd = pp;
+              transitExtractStr(placeOpen, placeEnd, "\"departure\":", depIso,   sizeof(depIso));
+              transitExtractStr(placeOpen, placeEnd, "\"track\":",     platform, sizeof(platform));
             }
           }
         }
 
-        // Build display name: category + " " + number (e.g. "S 30", "IC 3")
-        char dispLine[8] = {};
-        if (cat[0] && num[0]) snprintf(dispLine, sizeof(dispLine), "%s %s", cat, num);
-        else if (cat[0])       copyStringSafe(dispLine, sizeof(dispLine), cat);
-        else                   copyStringSafe(dispLine, sizeof(dispLine), "?");
-
-        // If arrival station filter is set, skip departures that don't match
-        if (dest[0] && g_transitConfig.arrStation[0]) {
-          if (strncasecmp(dest, g_transitConfig.arrStation,
+        // Destination filter: skip if headsign doesn't contain the filter string
+        if (headsign[0] && g_transitConfig.arrStation[0]) {
+          if (strncasecmp(headsign, g_transitConfig.arrStation,
                           strlen(g_transitConfig.arrStation)) != 0) {
             p = entryEnd; continue;
           }
         }
 
-        if (dest[0]) {
-          TransitDeparture &d = local.departures[local.count];
-          copyStringSafe(d.line,        sizeof(d.line),        dispLine);
-          copyStringSafe(d.category,    sizeof(d.category),    cat);
-          copyStringSafe(d.destination, sizeof(d.destination), dest);
-          copyStringSafe(d.platform,    sizeof(d.platform),    pf);
-          // ISO 8601: "2026-03-31T14:35:00+0200" — H at [11], M at [14]
-          if (strlen(dep) >= 16) {
-            d.depHour   = (uint8_t)(((dep[11] - '0') * 10) + (dep[12] - '0'));
-            d.depMinute = (uint8_t)(((dep[14] - '0') * 10) + (dep[15] - '0'));
-          }
-          if (strlen(destArr) >= 16) {
-            d.arrHour   = (uint8_t)(((destArr[11] - '0') * 10) + (destArr[12] - '0'));
-            d.arrMinute = (uint8_t)(((destArr[14] - '0') * 10) + (destArr[15] - '0'));
-            d.hasArr    = true;
-          }
-          d.delayMin = (int8_t)(delay > 127 ? 127 : (delay < -128 ? -128 : delay));
-          d.hasDelay = (delay != 0);
-          d.valid    = true;
-          local.count++;
-        }
+        // Need at least a departure time and a destination to display
+        if (!depIso[0] || !headsign[0]) { p = entryEnd; continue; }
+
+        TransitDeparture &d = local.departures[local.count];
+        // routeShortName is the badge line (e.g. "S30", "R21"); fallback to mode
+        copyStringSafe(d.line,        sizeof(d.line),        routeShortName[0] ? routeShortName : mode);
+        copyStringSafe(d.category,    sizeof(d.category),    mode);
+        copyStringSafe(d.destination, sizeof(d.destination), headsign);
+        copyStringSafe(d.platform,    sizeof(d.platform),    platform);
+        d.cancelled      = cancelled;
+        d.realTime       = realTime;
+        d.routeColor     = parseHexColor(routeColorHex,    0);
+        d.routeTextColor = parseHexColor(routeTextHex,     0);
+        parseIsoUtcToLocal(depIso, d.depHour, d.depMinute);
+        d.hasArr  = false;   // Transitous stoptimes endpoint doesn't include destination arrival
+        d.delayMin = 0;
+        d.hasDelay = false;
+        d.valid    = true;
+        local.count++;
+        p = entryEnd;
       }
       local.valid = (local.count > 0);
       snprintf(local.fetchedAt, sizeof(local.fetchedAt), "%02d:%02d", ti.tm_hour, ti.tm_min);
     } else {
-      Serial.println("[TRANSIT] stationboard key not found in response");
+      Serial.printf("[TRANSIT] 'stopTimes' key not found — payload: %.120s\n", data);
     }
+  } else {
+    Serial.printf("[TRANSIT] HTTP error %d\n", code);
   }
   http.end();
 
@@ -8236,6 +8375,8 @@ static void netFetchTransitDepartures() {
 static bool updateTransitFromApi(bool force) {
   if (!g_transitConfig.configured) return false;
   if (WiFi.status() != WL_CONNECTED || !g_wifiSt.connected) return false;
+  // Only poll Transitous when the transit page is visible (or forced by config save).
+  if (!force && g_uiPageMode != UI_PAGE_TRANSIT) return g_transitState.valid;
   const uint32_t now = millis();
   const uint32_t waitMs = g_transitState.valid ? TRANSIT_REFRESH_MS : TRANSIT_RETRY_MS;
   if (!force && g_transitState.lastFetchMs != 0 && (now - g_transitState.lastFetchMs) < waitMs)
@@ -12652,15 +12793,43 @@ static void lvglUpdateTransitUi(bool force) {
     }
     const TransitDeparture &d = g_transitState.departures[i];
 
-    // Badge color: semantic by category, overridden for toxic-candy theme
+    // Badge color: API routeColor takes priority; fallback to semantic; toxic-candy override.
     if (g_transitUi.lineBg[i]) {
-      const uint32_t badgeColor = lvglThemeIsToxicCandy()
-          ? 0xCC00AA   // toxic-candy: magenta for all transit badges
-          : transitCategoryColor(d.category);
+      uint32_t badgeColor;
+      if (lvglThemeIsToxicCandy()) {
+        badgeColor = 0xCC00AA;  // toxic-candy: magenta for all transit badges
+      } else if (d.routeColor != 0) {
+        badgeColor = d.routeColor;
+      } else {
+        badgeColor = transitCategoryColor(d.category);
+      }
+      if (d.cancelled) badgeColor = 0x888888;  // grey out cancelled services
       lv_obj_set_style_bg_color(g_transitUi.lineBg[i], lv_color_hex(badgeColor), LV_PART_MAIN);
     }
-    if (g_transitUi.line_[i])  lv_label_set_text(g_transitUi.line_[i], d.line);
-    if (g_transitUi.dest[i])   lv_label_set_text(g_transitUi.dest[i], d.destination);
+    // Badge text color: API routeTextColor or auto-contrast from badge bg.
+    if (g_transitUi.line_[i]) {
+      uint32_t textColor = 0xFFFFFF;
+      if (!lvglThemeIsToxicCandy() && d.routeTextColor != 0) {
+        textColor = d.routeTextColor;
+      } else if (!lvglThemeIsToxicCandy() && d.routeColor != 0) {
+        // Auto contrast: if badge is light use dark text.
+        textColor = (lvglColorLuma(d.routeColor) >= 128) ? 0x111111 : 0xFFFFFF;
+      }
+      lv_obj_set_style_text_color(g_transitUi.line_[i], lv_color_hex(textColor), LV_PART_MAIN);
+      lv_label_set_text(g_transitUi.line_[i], d.line);
+    }
+    // Destination: grey out cancelled services.
+    if (g_transitUi.dest[i]) {
+      if (d.cancelled) {
+        char cbuf[52];
+        snprintf(cbuf, sizeof(cbuf), "X %s", d.destination);
+        lv_label_set_text(g_transitUi.dest[i], cbuf);
+        lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(0x888888), LV_PART_MAIN);
+      } else {
+        lv_label_set_text(g_transitUi.dest[i], d.destination);
+        lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(t.infoText), LV_PART_MAIN);
+      }
+    }
 
     // Time label: "HH:MM" or "HH:MM >HH:MM" when arrival known
     if (g_transitUi.time_[i]) {

@@ -24,7 +24,7 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r239"
+#define FW_BUILD_TAG "r240"
 #define FW_RELEASE_DATE "2026-03-31"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
@@ -52,28 +52,34 @@ struct TouchReleaseInfo {
 // --- Transit Departure Board ---
 #define TRANSIT_MAX_DEPARTURES   4
 #define TRANSIT_STATION_LEN      48
-#define TRANSIT_REFRESH_MS       60000UL
+#define TRANSIT_STOP_ID_LEN      128     // Transitous GTFS stop ID (e.g. "it-Lombardia-Trenord_S01113")
+#define TRANSIT_REFRESH_MS       120000UL  // 2 min — polite for community Transitous API
 #define TRANSIT_RETRY_MS         15000UL
 #define TRANSIT_HTTP_TIMEOUT_MS  8000
 
 struct TransitDeparture {
-  char    line[8];         // display string e.g. "S 30", "IC 3"
-  char    category[8];     // "IC", "RE", "S", "Bus" (for color)
-  char    destination[48];
-  char    platform[8];
-  uint8_t depHour;
-  uint8_t depMinute;
-  uint8_t arrHour;
-  uint8_t arrMinute;
-  bool    hasArr;
-  int8_t  delayMin;        // 0 = on time
-  bool    hasDelay;
-  bool    valid;
+  char     line[16];        // display string e.g. "S30", "R21", "IC 3"
+  char     category[8];     // mode fallback: "REGIONAL_RAIL", "BUS", etc.
+  char     destination[48];
+  char     platform[8];
+  uint8_t  depHour;
+  uint8_t  depMinute;
+  uint8_t  arrHour;
+  uint8_t  arrMinute;
+  bool     hasArr;
+  int8_t   delayMin;        // 0 = on time
+  bool     hasDelay;
+  bool     cancelled;
+  bool     realTime;        // true = live data
+  uint32_t routeColor;      // hex badge bg from API (0 = use fallback)
+  uint32_t routeTextColor;  // hex badge text (0 = auto white/black)
+  bool     valid;
 };
 
 struct TransitConfig {
-  char station[TRANSIT_STATION_LEN];     // departure station
+  char station[TRANSIT_STATION_LEN];     // departure station display name
   char arrStation[TRANSIT_STATION_LEN];  // optional: filter by destination
+  char stopId[TRANSIT_STOP_ID_LEN];      // Transitous GTFS stop ID
   bool configured;
 };
 
