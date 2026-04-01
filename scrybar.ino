@@ -4238,7 +4238,7 @@ a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(5
 .vm-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;margin-bottom:8px}
 .vm-actions-sticky{position:sticky;bottom:0;z-index:100;background:var(--bg-deepest);padding:10px 16px 8px;border-top:1px solid var(--stroke-soft);margin:0 -16px}
 .vm-clp>*:not(h2){display:none!important}
-.vm-card h2{display:flex;align-items:center;gap:6px}
+.vm-card h2{display:flex;align-items:center;gap:6px;font-size:15px;font-weight:600;margin:0}
 .vm-collapse-arr{margin-left:auto;font-size:18px;opacity:1;flex-shrink:0;color:var(--accent-secondary);line-height:1;transition:transform .15s}
 .vm-api-note{margin-top:12px;padding:6px 0;border-radius:0;background:0;border:0;font-size:12px;color:var(--text-tertiary)}.vm-api-note code{color:var(--text-secondary)}
 #wifi_new_password{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:.02em}
@@ -4273,7 +4273,7 @@ function clearComposer(){editIndex=-1;rssName.value='';rssUrl.value='';rssMax.va
 function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML="RSS feeds "+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.textContent='';t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='vm-btn vm-btn--sm vm-btn--warn';bEdit.textContent='Edit';bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.textContent='Update';setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='vm-btn vm-btn--sm vm-btn--danger';bDel.textContent='Delete';bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}
 function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}
 function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}
-function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}
+function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_transit','view_transit_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}
 if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();
 // Collapsible sections — start collapsed; ▶ = closed, ▼ = open
 document.querySelectorAll('.vm-card').forEach(function(card){
@@ -4327,7 +4327,8 @@ static void buildWebViewToggles(String &html) {
   const bool auxViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) != 0;
   const bool wikiViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) != 0;
   const bool nowPlayingViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) != 0;
-  html += F("<div class='vm-card'><h2>Views</h2><div class='vm-views'>");
+  const bool transitViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) != 0;
+  html += F("<div class='vm-card'><h2>&#x1F4F1; Views</h2><div class='vm-views'>");
   html += F("<label class='vm-view'><input id='view_info_cb' type='checkbox'");
   if (infoViewOn) html += F(" checked");
   html += F("><span class='vm-view__copy'><strong>Info</strong><small>Word clock and ambient status page.</small></span></label>");
@@ -4341,6 +4342,9 @@ static void buildWebViewToggles(String &html) {
   html += F("<label class='vm-view'><input id='view_now_playing_cb' type='checkbox'");
   if (nowPlayingViewOn) html += F(" checked");
   html += F("><span class='vm-view__copy'><strong>Now Playing</strong><small>Live track info from macOS companion app.</small></span></label>");
+  html += F("<label class='vm-view'><input id='view_transit_cb' type='checkbox'");
+  if (transitViewOn) html += F(" checked");
+  html += F("><span class='vm-view__copy'><strong>Departures</strong><small>Live transit departure board via Transitous API.</small></span></label>");
   html += F("</div><p class='vm-help'>Swipe navigation only includes enabled pages.</p><div id='view_hidden_inputs' class='hidden'></div></div>");
 }
 
@@ -4350,7 +4354,7 @@ static void buildWebWifiSection(String &html) {
   const String activeSsid = wifiOk ? WiFi.SSID() : String("");
   char setupUrl[96] = "";
   wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
-  html += F("<div class='vm-card'><h2>Wi-Fi Known Networks</h2><div class='vm-label'>PREFERRED SSID</div><select class='vm-select' name='wifi_pref_ssid'>");
+  html += F("<div class='vm-card'><h2>&#x1F4F6; Wi-Fi Known Networks</h2><div class='vm-label'>PREFERRED SSID</div><select class='vm-select' name='wifi_pref_ssid'>");
   html += F("<option value=''");
   if (!g_wifiSt.preferredSsid[0]) html += F(" selected");
   html += F(">Auto (smart rotation)</option>");
@@ -4466,7 +4470,7 @@ static void buildWebWeatherSection(String &html) {
   char lonBuf[24];
   snprintf(latBuf, sizeof(latBuf), "%.4f", runtimeWeatherLat());
   snprintf(lonBuf, sizeof(lonBuf), "%.4f", runtimeWeatherLon());
-  html += F("<div class='vm-card'><h2>Weather & Location</h2><div class='vm-grid'><div><div class='vm-label'>PLACE SEARCH</div><input class='vm-input' id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='vm-label'>CITY LABEL</div><input class='vm-input' id='weather_city' name='weather_city' maxlength='31' value='");
+  html += F("<div class='vm-card'><h2>&#x2600; Weather &amp; Location</h2><div class='vm-grid'><div><div class='vm-label'>PLACE SEARCH</div><input class='vm-input' id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='vm-label'>CITY LABEL</div><input class='vm-input' id='weather_city' name='weather_city' maxlength='31' value='");
   appendHtmlEscaped(html, runtimeWeatherCityLabel());
   html += F("'></div><div class='vm-grid'><div><div class='vm-label'>LATITUDE</div><input class='vm-input' id='weather_lat' name='weather_lat' value='");
   appendHtmlEscaped(html, latBuf);
@@ -4825,6 +4829,8 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) ? F("true") : F("false");
   out += F(",\"doom\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? F("true") : F("false");
+  out += F(",\"transit\":");
+  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) ? F("true") : F("false");
   out += F("},\"themes\":[");
   for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
     if (i) out += ',';
@@ -4955,6 +4961,7 @@ static bool parseViewsConfig(RuntimeNetConfig &next, String &errorOut, bool &has
       {"view_aux",         UI_VIEW_FLAG_AUX},
       {"view_wiki",        UI_VIEW_FLAG_WIKI},
       {"view_now_playing", UI_VIEW_FLAG_NOW_PLAYING},
+      {"view_transit",     UI_VIEW_FLAG_TRANSIT},
   };
   for (const ViewArgDef &viewArg : kViewArgs) {
     if (!g_webCfg.server.hasArg(viewArg.key)) continue;
@@ -12818,11 +12825,11 @@ static void lvglInitTransitUi() {
   lv_label_set_text(g_transitUi.status, "--:--");
   lv_obj_align(g_transitUi.status, LV_ALIGN_RIGHT_MID, -8, 2);
 
-  // Departure rows — r246 layout (640px wide, 35px per row):
-  //  [ 4.. 85]  badge "S30" / "Elizabeth" (82×30) — pill BUS/TRAM, rect rail
+  // Departure rows — r247 layout (640px wide, 35px per row):
+  //  [ 4.. 85]  badge "S30" / "Elizabeth" (82×30) — pill BUS/TRAM/COACH, rect rail
   //             label scrolls (LV_LABEL_LONG_SCROLL) when name > badge width
-  //  [90..337]  destination   (248px, 20px Funnel Display, LV_LABEL_LONG_DOT)
-  //  [344..413] dep time      (70px, 18px, right-aligned "HH:MM")
+  //  [90..337]  destination   (248px, 22px Funnel Display, LV_LABEL_LONG_DOT)
+  //  [344..413] dep time      (70px, 20px, right-aligned "HH:MM")
   //  [418..499] arr time      (82px, 18px, ">HH:MM" or ">---")
   //  [504..553] delay         (50px, 14px, semaphore color)
   //  [558..633] platform/LIVE (76px, 14px, right-aligned "LIVE" or "Bin.X")
@@ -12875,7 +12882,7 @@ static void lvglInitTransitUi() {
     // Badge label: fixed size so LV_LABEL_LONG_SCROLL clips & scrolls long names
     g_transitUi.line_[i] = lv_label_create(g_transitUi.lineBg[i]);
     lv_obj_set_size(g_transitUi.line_[i], badgeW - 6, badgeH - 4);   // 76×26 clip area
-    lv_obj_align(g_transitUi.line_[i], LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(g_transitUi.line_[i], LV_ALIGN_CENTER, 0, 3);  // +3 Funnel Display ascender
     lv_obj_set_style_text_color(g_transitUi.line_[i], lv_color_hex(0xFFFFFF), LV_PART_MAIN);
     lv_obj_set_style_text_font(g_transitUi.line_[i], lvglFontMeta(), 0);  // 20px default
     lv_obj_set_style_text_align(g_transitUi.line_[i], LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
@@ -12888,10 +12895,10 @@ static void lvglInitTransitUi() {
     lv_obj_set_pos(g_transitUi.dest[i], 90, ry);
     lv_obj_set_size(g_transitUi.dest[i], 248, rowH);
     lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(t.infoText), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.dest[i], lvglFontMeta(), 0);  // 20px
+    lv_obj_set_style_text_font(g_transitUi.dest[i], lvglFontRssNews(), 0);  // 22px
     lv_obj_set_style_text_align(g_transitUi.dest[i], LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
     lv_label_set_long_mode(g_transitUi.dest[i], LV_LABEL_LONG_DOT);
-    lv_obj_set_style_pad_top(g_transitUi.dest[i], (rowH - 20) / 2, LV_PART_MAIN);
+    lv_obj_set_style_pad_top(g_transitUi.dest[i], (rowH - 22) / 2 + 2, LV_PART_MAIN);  // +2 ascender
     lv_label_set_text(g_transitUi.dest[i], "--");
 
     // Departure time ("HH:MM", right-aligned)
@@ -12899,9 +12906,9 @@ static void lvglInitTransitUi() {
     lv_obj_set_pos(g_transitUi.time_[i], 344, ry);
     lv_obj_set_size(g_transitUi.time_[i], 70, rowH);
     lv_obj_set_style_text_color(g_transitUi.time_[i], lv_color_hex(t.infoText), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.time_[i], lvglFontSmall(), 0);  // 18px
+    lv_obj_set_style_text_font(g_transitUi.time_[i], lvglFontMeta(), 0);  // 20px
     lv_obj_set_style_text_align(g_transitUi.time_[i], LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-    lv_obj_set_style_pad_top(g_transitUi.time_[i], (rowH - 18) / 2, LV_PART_MAIN);
+    lv_obj_set_style_pad_top(g_transitUi.time_[i], (rowH - 20) / 2 + 2, LV_PART_MAIN);  // +2 ascender
     lv_label_set_text(g_transitUi.time_[i], "--:--");
 
     // Arrival time at destination (">HH:MM" or ">---")
@@ -12909,17 +12916,17 @@ static void lvglInitTransitUi() {
     lv_obj_set_pos(g_transitUi.arr[i], 418, ry);
     lv_obj_set_size(g_transitUi.arr[i], 82, rowH);
     lv_obj_set_style_text_color(g_transitUi.arr[i], lv_color_hex(t.auxMeta), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.arr[i], lvglFontSmall(), 0);  // 18px
+    lv_obj_set_style_text_font(g_transitUi.arr[i], lvglFontMeta(), 0);  // 20px
     lv_obj_set_style_text_align(g_transitUi.arr[i], LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
-    lv_obj_set_style_pad_top(g_transitUi.arr[i], (rowH - 18) / 2, LV_PART_MAIN);
+    lv_obj_set_style_pad_top(g_transitUi.arr[i], (rowH - 20) / 2 + 2, LV_PART_MAIN);  // +2 ascender
     lv_label_set_text(g_transitUi.arr[i], ">---");
 
     // Delay (+Xm / -Xm)
     g_transitUi.delay[i] = lv_label_create(root);
-    lv_obj_set_pos(g_transitUi.delay[i], 504, ry + (rowH - 14) / 2);
-    lv_obj_set_size(g_transitUi.delay[i], 50, 14);
+    lv_obj_set_pos(g_transitUi.delay[i], 504, ry + (rowH - 16) / 2 + 2);  // +2 ascender
+    lv_obj_set_size(g_transitUi.delay[i], 50, 16);
     lv_obj_set_style_text_color(g_transitUi.delay[i], lv_color_hex(0x22AA33), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.delay[i], lvglFontTiny(), 0);  // 14px
+    lv_obj_set_style_text_font(g_transitUi.delay[i], lvglFontMini(), 0);  // 16px
     lv_obj_set_style_text_align(g_transitUi.delay[i], LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_label_set_text(g_transitUi.delay[i], "");
 
@@ -12928,9 +12935,9 @@ static void lvglInitTransitUi() {
     lv_obj_set_pos(g_transitUi.platform[i], 558, ry);
     lv_obj_set_size(g_transitUi.platform[i], 76, rowH);
     lv_obj_set_style_text_color(g_transitUi.platform[i], lv_color_hex(t.auxMeta), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontTiny(), 0);  // 14px
+    lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontMini(), 0);  // 16px
     lv_obj_set_style_text_align(g_transitUi.platform[i], LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-    lv_obj_set_style_pad_top(g_transitUi.platform[i], (rowH - 14) / 2, LV_PART_MAIN);
+    lv_obj_set_style_pad_top(g_transitUi.platform[i], (rowH - 16) / 2 + 2, LV_PART_MAIN);  // +2 ascender
     lv_label_set_text(g_transitUi.platform[i], "");
   }
 
@@ -15451,6 +15458,12 @@ static void cmdViewDoom(const String &args) {
   Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
 }
 
+static void cmdViewTransit(const String &args) {
+  if (!uiPageEnabled(UI_PAGE_TRANSIT)) { Serial.println("[UI] TRANSIT disabled"); return; }
+  setUiPage(UI_PAGE_TRANSIT);
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
 static void cmdTheme(const String &args) {
   if (args.length() == 0) {
     Serial.printf("[UI] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
@@ -15742,6 +15755,9 @@ static const SerialCmd kSerialCmds[] = {
   { "VIEW5",         cmdViewDoom },
   { "VIEWDOOM",      cmdViewDoom },
   { "DOOM",          cmdViewDoom },
+  { "VIEW6",         cmdViewTransit },
+  { "VIEWTRANSIT",   cmdViewTransit },
+  { "TRANSIT",       cmdViewTransit },
   { "THEME",         cmdTheme },
   { "LANG",          cmdLang },
   { "LANGSTAT",      cmdLangStat },
