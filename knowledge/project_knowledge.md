@@ -485,8 +485,15 @@ Different national operators export different JSON field shapes for the same API
 | **Trenitalia** (IT national) | `""` empty | `tripTo.name` | NeTEx format gap — all headsigns blank |
 | **UK rail** (TransXChange) | ✅ populated | `headsign` | `routeShortName` can be long ("Greater Anglia") → badge scroll |
 | **Emilia-Romagna** (IT regional) | ✅ populated | `headsign` | Confirmed working (Fidenza) |
+| **French RER/Transilien** (IDFM) | 4-letter mission code | `tripTo.name` | e.g., "ROPO" → "Corbeil-Essonnes". Firmware detects `^[A-Z]{4}$` and prefers `tripTo.name` |
+| **SBB** (CH, opentransportdata) | ✅ populated | `headsign` | `routeShortName` = "IC5", "RE48"; `realTime` = true; `mode` = "LONG_DISTANCE" |
+| **Renfe** (ES) | ✅ populated | `headsign` | `routeShortName` very long ("PROXIMDAD 17192"); `routeColor` = near-white `#F2F5F5` (luma guard skips it) |
+| **LIRR** (US, NY) | ✅ populated | `headsign` | `routeShortName` = train number ("1510"), not line name; `routeColor` populated per branch |
+| **UK coach** (National Express) | route name | `headsign` | Format: "Origin - Destination" (e.g., "Belgravia, Victoria - Poole"); `mode` = "COACH" |
+| **FlixBus** (EU) | ✅ populated | `headsign` | `routeShortName` = "FlixBus 075"; `mode` = "COACH"; `routeColor` = FlixBus green `#73D700` |
+| **UK tube** (TfL) | ✅ populated | `headsign` | `routeShortName` = full line name ("Piccadilly", "Elizabeth line"); `mode` = "SUBWAY" or "METRO" |
 
-**Rule:** always use `headsign` when present; fall back to `tripTo.name` for Trenitalia-style feeds. The firmware uses `const char *dest = headsign[0] ? headsign : tripToName`.
+**Rule:** use `headsign` unless it looks like a French mission code (exactly 4 uppercase ASCII letters with `tripTo.name` available) or is empty (Trenitalia). Firmware: `const char *dest = (headsign[0] && !missionCode) ? headsign : tripToName`.
 
 ### Destination filter
 
@@ -500,11 +507,19 @@ Web UI field "FILTER BY DESTINATION" — stored in NVS as `transit_arr`. Impleme
 
 Geocode returns both `type=STOP` and `type=PLACE` results — filter to `type === 'STOP'`. For stations with multiple stops at the same name, the first result (highest Transitous relevance score) is used. Major junctions may have separate stop IDs per operator (Trenord vs Trenitalia at Gallarate) — the user should verify via the Transitous web map if results are unexpected.
 
-### Known working stations (tested)
-Porto Ceresio (IT, Trenord), Luino (IT, Trenord), Fidenza (IT, Emilia-Romagna), Gallarate (IT, Trenitalia), Ancona (IT, Trenitalia), London Liverpool Street (UK, TransXChange).
+### Known working stations (tested r247)
+Porto Ceresio (IT, Trenord), Luino (IT, Trenord), Fidenza (IT, Emilia-Romagna), Gallarate (IT, Trenitalia), Ancona (IT, Trenitalia), London Liverpool Street (UK, TransXChange), Frankfurt Hbf (DE, nl-OpenOV cross-border ICE), Berlin Hbf (DE, nl-OpenOV cross-border EC/ES), Paris Gare de Lyon (FR, IDFM RER+bus+metro), Zürich HB (CH, SBB IC/RE), Wien Hbf (AT, tram via PTA-Eastern), Madrid Atocha (ES, Renfe Cercanías/MD/REG), NY Penn Station (US, LIRR), Heathrow T5 (UK, Piccadilly+Heathrow Express+Elizabeth), Amsterdam Schiphol (NL, FlixBus COACH), Victoria Coach Station (UK, National Express COACH+bus).
+
+### Known mode values (from global testing r247)
+`REGIONAL_RAIL`, `LONG_DISTANCE`, `HIGHSPEED_RAIL`, `NIGHT_RAIL`, `SUBURBAN_RAILWAY`, `SUBWAY`, `METRO`, `TRAM`, `BUS`, `COACH`, `FERRY`. Badge shape: `BUS`/`TRAM`/`COACH` → pill (radius=14); all others → rect (radius=6).
+
+### Geocode relevance gotchas
+- **Wien Hbf**: first STOP result is Ukrainian Railways feed (`ua-ukrzaliznytsya_8101003`) — shows only 1 daily international train. Use Transitous web map to find the ÖBB stop ID.
+- **Frankfurt/Berlin Hbf**: first STOP result is `nl-OpenOV` (Netherlands feed) — shows only cross-border ICE/EC services, not local DB/S-Bahn. A DE-DELFI feed stop ID is needed for full coverage.
+- **SF Caltrain**: empty stopTimes (GTFS schedule data gap for queried date range).
 
 ### Testing targets (not yet verified)
-German DB, French SNCF, Swiss SBB, Austrian ÖBB, Spanish Renfe, US Caltrain/BART/NJTransit, airport people-movers (Heathrow Express, CDG CDGVAL, JFK AirTrain), Japanese JR/Tokyo Metro.
+Japanese JR/Tokyo Metro, CDG CDGVAL, JFK AirTrain, BART, NJ Transit.
 
 ---
 

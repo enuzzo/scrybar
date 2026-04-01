@@ -8189,13 +8189,18 @@ static uint32_t parseHexColor(const char *hex, uint32_t fallback = 0x555577) {
 // Fallback badge color by Transitous mode string (used when routeColor == 0).
 static uint32_t transitCategoryColor(const char *cat) {
   if (!cat || !cat[0]) return 0x777777;
-  // Transitous mode names
+  // Transitous mode names (from global API testing r247)
   if (strcmp(cat, "HIGH_SPEED_RAIL") == 0 || strcmp(cat, "INTERCITY_RAIL") == 0) return 0xCC2222;
+  if (strcmp(cat, "HIGHSPEED_RAIL")  == 0) return 0xCC2222;
+  if (strcmp(cat, "LONG_DISTANCE")   == 0) return 0xCC2222;
+  if (strcmp(cat, "NIGHT_RAIL")      == 0) return 0x443388;
   if (strcmp(cat, "REGIONAL_RAIL")   == 0) return 0x118833;
   if (strcmp(cat, "SUBURBAN_RAILWAY")== 0) return 0x118833;
-  if (strcmp(cat, "BUS")             == 0) return 0x1155CC;
-  if (strcmp(cat, "TRAM")            == 0) return 0xCC6600;
+  if (strcmp(cat, "METRO")           == 0) return 0x884499;
   if (strcmp(cat, "SUBWAY")          == 0) return 0x884499;
+  if (strcmp(cat, "BUS")             == 0) return 0x1155CC;
+  if (strcmp(cat, "COACH")           == 0) return 0x1155CC;
+  if (strcmp(cat, "TRAM")            == 0) return 0xCC6600;
   if (strcmp(cat, "FERRY")           == 0) return 0x0077AA;
   // Legacy opendata.ch codes (kept in case of fallback)
   if (strncmp(cat, "IC", 2) == 0 || strncmp(cat, "EC", 2) == 0) return 0xCC2222;
@@ -8219,7 +8224,9 @@ static bool transitHeadsignContains(const char *headsign, const char *filter) {
 // Returns true for road/urban modes that get pill-shaped badge + blue fallback color.
 static bool transitIsBus(const char *cat) {
   if (!cat || !cat[0]) return false;
-  return (strncmp(cat, "BUS",  3) == 0 || strncmp(cat, "TRAM", 4) == 0);
+  return (strncmp(cat, "BUS",   3) == 0 ||
+          strncmp(cat, "TRAM",  4) == 0 ||
+          strncmp(cat, "COACH", 5) == 0);
 }
 
 /// Extract a JSON string value for the first occurrence of key in a bounded region.
@@ -8409,8 +8416,17 @@ static void netFetchTransitDepartures() {
             }
           }
         }
-        // Effective destination: headsign (Trenord) → tripTo.name (Trenitalia) → skip
-        const char *dest = headsign[0] ? headsign : tripToName;
+        // Effective destination: headsign → tripTo.name → skip.
+        // French RER/Transilien mission codes: exactly 4 uppercase letters (e.g., "ROPO")
+        // — these are internal codes, not destination names; prefer tripTo.name.
+        bool missionCode = false;
+        if (headsign[0] && strlen(headsign) == 4 && tripToName[0]) {
+          missionCode = (headsign[0] >= 'A' && headsign[0] <= 'Z' &&
+                         headsign[1] >= 'A' && headsign[1] <= 'Z' &&
+                         headsign[2] >= 'A' && headsign[2] <= 'Z' &&
+                         headsign[3] >= 'A' && headsign[3] <= 'Z');
+        }
+        const char *dest = (headsign[0] && !missionCode) ? headsign : tripToName;
 
         // Destination filter: substring match anywhere in effective destination
         if (dest[0] && g_transitConfig.arrStation[0]) {
@@ -12997,7 +13013,11 @@ static void lvglUpdateTransitUi(bool force) {
       } else if (d.cancelled) {
         badgeColor = 0x888888;  // grey out cancelled services
       } else if (d.routeColor != 0) {
-        badgeColor = d.routeColor;
+        // Renfe feeds return near-white #F2F5F5 — invisible on light themes.
+        // Skip if luma > 230 (near-white) and let the mode fallback handle it.
+        uint8_t cr = (d.routeColor >> 16) & 0xFF, cg = (d.routeColor >> 8) & 0xFF, cb = d.routeColor & 0xFF;
+        uint16_t luma = (cr * 299u + cg * 587u + cb * 114u) / 1000u;
+        badgeColor = (luma > 230) ? transitCategoryColor(d.category) : d.routeColor;
       } else if (isBus) {
         badgeColor = 0x1565C0;  // blue shade for bus/tram (vs green trains)
       } else {
