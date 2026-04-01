@@ -4232,11 +4232,15 @@ a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(5
 .hidden{display:none}
 .vm-kv{font-size:13px;line-height:1.7}.vm-kv small{color:var(--text-tertiary)}.vm-kv code{color:var(--text-primary);font-family:var(--font-mono);font-size:12px}
 .vm-footer{margin-top:20px;padding:14px 0 4px;border-top:1px solid var(--stroke-soft);font-size:12px;color:var(--text-tertiary);line-height:1.5}.vm-footer strong{color:var(--text-secondary)}.vm-footer a{color:var(--accent-secondary)}
-.vm-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;margin-bottom:40px}
+.vm-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;margin-bottom:8px}
+.vm-actions-sticky{position:sticky;bottom:0;z-index:100;background:var(--bg-deepest);padding:10px 16px 8px;border-top:1px solid var(--stroke-soft);margin:0 -16px}
+.vm-clp>*:not(h2){display:none!important}
+.vm-card h2{display:flex;align-items:center;gap:6px}
+.vm-collapse-arr{margin-left:auto;font-size:10px;opacity:.4;flex-shrink:0}
 .vm-api-note{margin-top:12px;padding:6px 0;border-radius:0;background:0;border:0;font-size:12px;color:var(--text-tertiary)}.vm-api-note code{color:var(--text-secondary)}
 #wifi_new_password{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:.02em}
 .geo-status{margin:2px 0 8px;color:var(--text-tertiary);font-size:12px;min-height:16px}
-@media(max-width:768px){.vm-wrap{padding:12px 10px 24px}.vm-card{padding:14px 12px}.vm-grid{grid-template-columns:1fr;gap:8px}.vm-rss-composer{grid-template-columns:1fr;gap:8px}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions{flex-direction:column}.vm-actions .vm-btn{width:100%;justify-content:center}.logo{height:40px}}
+@media(max-width:768px){.vm-wrap{padding:12px 10px 24px}.vm-card{padding:14px 12px}.vm-grid{grid-template-columns:1fr;gap:8px}.vm-rss-composer{grid-template-columns:1fr;gap:8px}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions,.vm-actions-sticky{flex-direction:column}.vm-actions .vm-btn,.vm-actions-sticky .vm-btn{width:100%;justify-content:center}.logo{height:40px}}
 small{color:var(--text-tertiary)}code{color:var(--text-secondary)}
 )rawliteral";
 
@@ -4268,6 +4272,13 @@ function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.
 function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}
 function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}
 if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();
+// Collapsible sections
+document.querySelectorAll('.vm-card').forEach(function(card){
+  var h=card.querySelector('h2');if(!h)return;
+  var arr=document.createElement('span');arr.className='vm-collapse-arr';arr.textContent='\u25BE';h.appendChild(arr);
+  h.style.cursor='pointer';h.style.userSelect='none';
+  h.addEventListener('click',function(e){if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;var c=card.classList.toggle('vm-clp');arr.textContent=c?'\u25B8':'\u25BE';});
+});
 })();</script>)rawliteral";
 
 // ── M3: sub-functions for buildWebConfigPage decomposition ──
@@ -4466,7 +4477,6 @@ static void buildWebRssBuilder(String &html) {
   html += F("/5</span></h2><p class='vm-help'>One composer for name, URL and max posts. Press + to add to the list (max 5 feeds).</p>");
   html += F("<div class='vm-rss-composer'><div><div class='vm-label'>FRIENDLY NAME</div><input class='vm-input' id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='vm-label'>FEED URL</div><input class='vm-input' id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='vm-label'>MAX POSTS</div><input class='vm-input' id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='vm-btn vm-btn--primary' type='button'>+ Add</button><button id='rss_reset' class='vm-btn vm-btn--secondary' type='button'>Reset</button></div><p id='rss_status' class='rss-status'></p>");
   html += F("<div id='rss_list' class='vm-rss-list'></div><p id='rss_empty' class='rss-empty'>No feeds configured.</p><div id='rss_hidden_inputs' class='hidden'></div></div>");
-  html += F("<div class='vm-actions'><button class='vm-btn vm-btn--primary' type='submit'>Save Config</button><button class='vm-btn vm-btn--secondary' type='submit' formaction='/reload' formmethod='post'>Force Reload</button></div>");
 }
 
 static void buildWebTransitSection(String &html) {
@@ -4525,6 +4535,8 @@ static void buildWebTransitSection(String &html) {
   html += F("</div>"); // vm-card
 
   // Inline autocomplete JS — Transitous geocode API
+  // Bug-fixes vs r240: filter type=STOP only (avoids city POI overwriting train stop in map);
+  // check map in 'input' handler before re-searching (iOS never fires 'change' until blur).
   html += F("<script>(function(){"
     "var q=document.getElementById('transit_from_q');"
     "var v=document.getElementById('transit_from_val');"
@@ -4533,54 +4545,63 @@ static void buildWebTransitSection(String &html) {
     "var st=document.getElementById('transit_from_st');"
     "if(!q||!dl)return;"
     "var t=0,map={};"
-    "function setS(m){if(st)st.textContent=m||'';}"
+    "function setS(m){if(st)st.innerHTML=m||'';}"
     "function clr(){dl.innerHTML='';map={};}"
-    "q.addEventListener('change',function(){"
-      "var s=map[q.value];"
-      "if(s){"
-        "if(v)v.value=s.name||q.value;"
-        "if(idI)idI.value=s.id||'';"
-        "setS('&#x2713; '+s.name+(s.id?' ('+s.id+')':''));"
-      "}else if(!q.value.trim()){"
-        "if(v)v.value='';"
-        "if(idI)idI.value='';"
-        "setS('');"
+    // tryCapture: if current value is an exact map entry, store ID and return true
+    "function tryCapture(val){"
+      "var s=map[val];"
+      "if(s&&s.id){"
+        "if(v)v.value=s.name||val;"
+        "if(idI)idI.value=s.id;"
+        "var modes=(s.modes&&s.modes.length)?s.modes.slice(0,2).join('+'):'';"
+        "setS('&#x2713; <b>'+s.name+'</b>'+(modes?' ['+modes+']':'')+'<br><small style=\"opacity:.6\">'+s.id+'</small>');"
+        "return true;"
       "}"
-    "});"
+      "return false;"
+    "}"
     "q.addEventListener('input',function(){"
       "var term=q.value.trim();"
+      // On datalist pick, 'input' fires before 'change' (esp. on iOS) — capture immediately
+      "if(tryCapture(term)){clearTimeout(t);return;}"
       "if(term.length<3){clr();setS('');return;}"
       "clearTimeout(t);"
       "t=setTimeout(async function(){"
         "try{"
           "setS('Searching...');"
-          "var u='https://api.transitous.org/api/v1/geocode?text='+encodeURIComponent(term)+'&limit=8';"
+          "var u='https://api.transitous.org/api/v1/geocode?text='+encodeURIComponent(term)+'&limit=12';"
           "var r=await fetch(u,{cache:'no-store'});"
           "if(!r.ok)throw new Error('HTTP '+r.status);"
           "var d=await r.json();"
-          "var rows=Array.isArray(d)?d:(d&&d.features?d.features:[]);"
+          // API returns plain array
+          "var rows=Array.isArray(d)?d:[];"
           "clr();"
-          "if(!rows.length){setS('No stop found.');return;}"
-          "rows.forEach(function(s){"
-            // Transitous geocode returns objects with .id and .name (and .country)
+          // Filter to transit STOPs only (exclude type=PLACE city markers)
+          "var stops=rows.filter(function(s){return s.type==='STOP';});"
+          "if(!stops.length){setS('No transit stop found. Try a city or station name.');return;}"
+          "stops.forEach(function(s){"
             "var n=s.name||'';"
             "if(!n)return;"
-            "var hint=s.country?' ['+s.country+']':'';"
+            "var modes=(s.modes&&s.modes.length)?s.modes.slice(0,2).join('+'):'';"
+            "var label=n+(modes?' ['+modes+']':'')+(s.country?' \u2022 '+s.country:'');"
             "var o=document.createElement('option');"
             "o.value=n;"
-            "o.label=n+hint;"
-            "dl.appendChild(o);map[n]=s;"
+            "o.label=label;"
+            "dl.appendChild(o);"
+            // Keep first occurrence on name collision (API sorts by relevance, best first)
+            "if(!map[n])map[n]=s;"
           "});"
-          "setS(rows.length+' result(s) — pick from list.');"
-          "if(rows.length===1){"
-            "var s0=rows[0];"
-            "q.value=s0.name||'';"
-            "if(v)v.value=s0.name||'';"
-            "if(idI)idI.value=s0.id||'';"
-            "setS('&#x2713; '+s0.name+(s0.id?' ('+s0.id+')':''));"
+          "setS(stops.length+' stop(s) found \u2014 pick from list.');"
+          // Auto-fill if single result
+          "if(stops.length===1){"
+            "q.value=stops[0].name||'';"
+            "tryCapture(q.value);"
           "}"
         "}catch(e){clr();setS('Search error: '+e.message);}"
       "},400);"
+    "});"
+    // Fallback change handler (desktop: fires after blur when datalist selected)
+    "q.addEventListener('change',function(){"
+      "if(!tryCapture(q.value.trim())&&!q.value.trim()){if(v)v.value='';if(idI)idI.value='';setS('');}"
     "});"
   "})();</script>");
 }
@@ -4699,8 +4720,13 @@ static String buildWebConfigPage(const char *statusMsg) {
 #endif
   buildWebLangSelectors(html);
   buildWebWeatherSection(html);
+  buildWebTransitSection(html);   // Transit before RSS; Save button moved to sticky footer
   buildWebRssBuilder(html);
-  buildWebTransitSection(html);
+  // Sticky Save bar — always visible at the bottom of the viewport while scrolling
+  html += F("<div class='vm-actions vm-actions-sticky'>"
+            "<button class='vm-btn vm-btn--primary' type='submit'>&#x1F4BE; Save Config</button>"
+            "<button class='vm-btn vm-btn--secondary' type='submit' formaction='/reload' formmethod='post'>Force Reload</button>"
+            "</div>");
   html += F("</form>");
   // ── System info + footer + JS ──
   buildWebSystemInfo(html);
