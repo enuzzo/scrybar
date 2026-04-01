@@ -4541,9 +4541,12 @@ static void buildWebTransitSection(String &html) {
               "var n=s.name||'';"
               "if(!n||n==='null')return;"
               "var o=document.createElement('option');"
-              "o.value=n;dl.appendChild(o);map[n]=s;"
+              "o.value=n;"
+              "var hint=s.id?(s.id.charAt(0)==='8'?' [treno]':' [bus/tram]'):' [fermata]';"
+              "o.label=n+hint;"
+              "dl.appendChild(o);map[n]=s;"
             "});"
-            "setS(rows.length+' result(s) — pick one from the list.');"
+            "setS(rows.length+' result(s) — scegli dalla lista.');"
             "if(rows.length===1){"
               "q.value=rows[0].name;"
               "if(v)v.value=rows[0].name;"
@@ -8065,7 +8068,7 @@ static void netFetchTransitDepartures() {
   urlEncodeSpaces(g_transitConfig.station, encStation, sizeof(encStation));
   char url[256];
   snprintf(url, sizeof(url),
-           "https://transport.opendata.ch/v1/stationboard?station=%s&limit=8",
+           "https://transport.opendata.ch/v1/stationboard?station=%s&limit=16",
            encStation);
 
   WiFiClientSecure client;
