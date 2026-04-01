@@ -12300,10 +12300,10 @@ static void lvglApplyThemeFonts() {
   if (g_transitUi.noData)  lv_obj_set_style_text_font(g_transitUi.noData,  lvglFontSmall(), 0);
   for (uint8_t i = 0; i < TRANSIT_MAX_DEPARTURES; ++i) {
     if (g_transitUi.line_[i])    lv_obj_set_style_text_font(g_transitUi.line_[i],    lvglFontTiny(),  0);
-    if (g_transitUi.dest[i])     lv_obj_set_style_text_font(g_transitUi.dest[i],     lvglFontSmall(), 0);
-    if (g_transitUi.time_[i])    lv_obj_set_style_text_font(g_transitUi.time_[i],    lvglFontSmall(), 0);
+    if (g_transitUi.dest[i])     lv_obj_set_style_text_font(g_transitUi.dest[i],     lvglFontMeta(),  0);
+    if (g_transitUi.time_[i])    lv_obj_set_style_text_font(g_transitUi.time_[i],    lvglFontMeta(),  0);
     if (g_transitUi.delay[i])    lv_obj_set_style_text_font(g_transitUi.delay[i],    lvglFontTiny(),  0);
-    if (g_transitUi.platform[i]) lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontTiny(),  0);
+    if (g_transitUi.platform[i]) lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontMeta(),  0);
   }
 }
 
@@ -12900,10 +12900,10 @@ static void lvglInitTransitUi() {
     lv_obj_set_pos(g_transitUi.dest[i], 90, ry);
     lv_obj_set_size(g_transitUi.dest[i], 248, rowH);
     lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(t.infoText), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.dest[i], lvglFontRssNews(), 0);  // 22px
+    lv_obj_set_style_text_font(g_transitUi.dest[i], lvglFontMeta(), 0);  // 20px
     lv_obj_set_style_text_align(g_transitUi.dest[i], LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
     lv_label_set_long_mode(g_transitUi.dest[i], LV_LABEL_LONG_DOT);
-    lv_obj_set_style_pad_top(g_transitUi.dest[i], (rowH - 22) / 2 + 2, LV_PART_MAIN);  // +2 ascender
+    lv_obj_set_style_pad_top(g_transitUi.dest[i], (rowH - 20) / 2 + 2, LV_PART_MAIN);  // +2 ascender
     lv_label_set_text(g_transitUi.dest[i], "--");
 
     // Departure time ("HH:MM", right-aligned)
@@ -12940,9 +12940,9 @@ static void lvglInitTransitUi() {
     lv_obj_set_pos(g_transitUi.platform[i], 558, ry);
     lv_obj_set_size(g_transitUi.platform[i], 76, rowH);
     lv_obj_set_style_text_color(g_transitUi.platform[i], lv_color_hex(t.auxMeta), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontMini(), 0);  // 16px
+    lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontMeta(), 0);  // 20px
     lv_obj_set_style_text_align(g_transitUi.platform[i], LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-    lv_obj_set_style_pad_top(g_transitUi.platform[i], (rowH - 16) / 2 + 2, LV_PART_MAIN);  // +2 ascender
+    lv_obj_set_style_pad_top(g_transitUi.platform[i], (rowH - 20) / 2 + 2, LV_PART_MAIN);  // +2 ascender
     lv_label_set_text(g_transitUi.platform[i], "");
   }
 

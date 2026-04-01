@@ -461,7 +461,7 @@ Table-driven dispatch via `LangVtable` in `src/lang_types.h`:
 
 **To add a new language:** 1 `kLangTable` entry + 4 functions (wordClock, weatherShort data, weatherUi data, formatDate) + 1 UiStrings in `ui_strings.h` + add code to `kAllowedLangs[]`. Zero dispatcher changes needed.
 
-## Transit Departure Board (r240+)
+## Transit Departure Board (r240+, layout r248)
 
 Live departure board using the [Transitous](https://transitous.org) community GTFS API (Motis backend). Free, global, no API key required.
 
@@ -506,6 +506,17 @@ Web UI field "FILTER BY DESTINATION" — stored in NVS as `transit_arr`. Impleme
 ### Badge line name
 
 `routeShortName` is displayed in the left badge. Length varies hugely by network (3 chars for "S30" vs 14 chars for "Greater Anglia"). Firmware uses adaptive font shrink (20→18→16→14px by char count) + `LV_LABEL_LONG_SCROLL` at 15 px/s for overflow — gives ~5-8 second reveal cycle.
+
+### Row layout fonts (r248)
+All transit row labels use `lvglFontMeta()` = **20px Funnel Display** for visual consistency:
+- **Destination**: 20px (`lvglFontMeta`), left-aligned, truncated with `…`
+- **Departure time** ("HH:MM"): 20px (`lvglFontMeta`), right-aligned
+- **Arrival time** (">HH:MM"): 20px (`lvglFontMeta`), left-aligned, muted color
+- **Platform / LIVE**: 20px (`lvglFontMeta`), right-aligned
+- **Delay** ("+Xm"/"-Xm"): 16px (`lvglFontMini`), center-aligned, colored
+- **Badge line name**: adaptive 20→18→16→14px (see Badge line name section above)
+- All labels: +2px vertical offset for Funnel Display ascender optical centering
+- **GOTCHA**: theme-override block (around line 12301) re-applies fonts after creation — must stay in sync with creation-time fonts.
 
 ### Stop ID selection
 
