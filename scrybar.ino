@@ -12802,15 +12802,16 @@ static void lvglInitTransitUi() {
   lv_label_set_text(g_transitUi.status, "--:--");
   lv_obj_align(g_transitUi.status, LV_ALIGN_RIGHT_MID, -8, 2);
 
-  // Departure rows — r242 layout (640px wide, 35px per row):
-  //  [ 4.. 73]  badge "S30"   (70×30) — pill for BUS/TRAM, rect for rail
-  //  [80..337]  destination   (258px, 20px Funnel Display, LV_LABEL_LONG_DOT)
+  // Departure rows — r246 layout (640px wide, 35px per row):
+  //  [ 4.. 85]  badge "S30" / "Elizabeth" (82×30) — pill BUS/TRAM, rect rail
+  //             label scrolls (LV_LABEL_LONG_SCROLL) when name > badge width
+  //  [90..337]  destination   (248px, 20px Funnel Display, LV_LABEL_LONG_DOT)
   //  [344..413] dep time      (70px, 18px, right-aligned "HH:MM")
   //  [418..499] arr time      (82px, 18px, ">HH:MM" or ">---")
   //  [504..553] delay         (50px, 14px, semaphore color)
-  //  [558..633] platform/LIVE (76px, 16px, right-aligned "LIVE" or "Bin.X")
+  //  [558..633] platform/LIVE (76px, 14px, right-aligned "LIVE" or "Bin.X")
   const lv_coord_t rowH = 35;
-  const lv_coord_t badgeW = 70, badgeH = 30;
+  const lv_coord_t badgeW = 82, badgeH = 30;
   // Alternate row tint: white on dark themes, black on light themes
   const bool darkPanel = (lvglColorLuma(panelBg) < 128u);
   const uint32_t altTintColor = darkPanel ? 0xFFFFFF : 0x000000;
@@ -12855,16 +12856,21 @@ static void lvglInitTransitUi() {
     lv_obj_clear_flag(g_transitUi.lineBg[i], LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_pad_all(g_transitUi.lineBg[i], 0, LV_PART_MAIN);
 
+    // Badge label: fixed size so LV_LABEL_LONG_SCROLL clips & scrolls long names
     g_transitUi.line_[i] = lv_label_create(g_transitUi.lineBg[i]);
+    lv_obj_set_size(g_transitUi.line_[i], badgeW - 6, badgeH - 4);   // 76×26 clip area
+    lv_obj_align(g_transitUi.line_[i], LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_text_color(g_transitUi.line_[i], lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.line_[i], lvglFontMeta(), 0);  // 20px
+    lv_obj_set_style_text_font(g_transitUi.line_[i], lvglFontMeta(), 0);  // 20px default
+    lv_obj_set_style_text_align(g_transitUi.line_[i], LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_label_set_long_mode(g_transitUi.line_[i], LV_LABEL_LONG_SCROLL);
+    lv_obj_set_style_anim_speed(g_transitUi.line_[i], 15, LV_PART_MAIN);  // ~5-8 s cycle
     lv_label_set_text(g_transitUi.line_[i], "--");
-    lv_obj_align(g_transitUi.line_[i], LV_ALIGN_CENTER, 0, 1);
 
     // Destination (big, truncates with "..." on overflow)
     g_transitUi.dest[i] = lv_label_create(root);
-    lv_obj_set_pos(g_transitUi.dest[i], 80, ry);
-    lv_obj_set_size(g_transitUi.dest[i], 258, rowH);
+    lv_obj_set_pos(g_transitUi.dest[i], 90, ry);
+    lv_obj_set_size(g_transitUi.dest[i], 248, rowH);
     lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(t.infoText), LV_PART_MAIN);
     lv_obj_set_style_text_font(g_transitUi.dest[i], lvglFontMeta(), 0);  // 20px
     lv_obj_set_style_text_align(g_transitUi.dest[i], LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
@@ -12999,7 +13005,7 @@ static void lvglUpdateTransitUi(bool force) {
       }
       lv_obj_set_style_bg_color(g_transitUi.lineBg[i], lv_color_hex(badgeColor), LV_PART_MAIN);
     }
-    // Badge text color: API routeTextColor or auto-contrast from badge bg.
+    // Badge text color + adaptive font (shorter names → larger font; long → shrink to fit)
     if (g_transitUi.line_[i]) {
       uint32_t textColor = 0xFFFFFF;
       if (!lvglThemeIsToxicCandy() && d.routeTextColor != 0) {
@@ -13008,6 +13014,13 @@ static void lvglUpdateTransitUi(bool force) {
         textColor = (lvglColorLuma(d.routeColor) >= 128) ? 0x111111 : 0xFFFFFF;
       }
       lv_obj_set_style_text_color(g_transitUi.line_[i], lv_color_hex(textColor), LV_PART_MAIN);
+      // Adaptive font: shrink so short names still look bold, long ones legible
+      const size_t ll = strlen(d.line);
+      const lv_font_t *bFont = (ll <= 4) ? lvglFontMeta()  :  // 20px
+                                (ll <= 6) ? lvglFontSmall() :  // 18px
+                                (ll <= 8) ? lvglFontMini()  :  // 16px
+                                            lvglFontTiny();    // 14px — scroll reveals rest
+      lv_obj_set_style_text_font(g_transitUi.line_[i], bFont, 0);
       lv_label_set_text(g_transitUi.line_[i], d.line);
     }
 

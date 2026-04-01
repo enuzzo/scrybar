@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-04-01 - Transit: GTFS Feed Field Variations + headsign Fallback (r240–r246)
+
+- Context: Transit Departure Board (r240+) uses the Transitous/Motis stoptimes API (`/api/v1/stoptimes?stopId=…`). Three systematic field variations exist across GTFS providers: (1) **Trenitalia (Italy national)** exports `headsign: ""` in all entries (NeTEx format gap); destination is in `tripTo.name`. (2) **Destination filter bug** (r243): original code used `strncasecmp(headsign, filter, len)` — "starts with" semantics — but UI documents "partial match"; trains from a city named in the filter were silently dropped because their outbound headsigns don't start with the city name. (3) **Missing coverage**: some stop IDs from the Transitous geocode return empty `stopTimes` arrays — either a parent-station ID with no departures or a GTFS feed with no data for that region.
+- Decision: (1) Parse `tripTo.name` from each stoptimes entry alongside `tripFrom.name`. Use `headsign` when present, fall back to `tripTo.name` (covers Trenitalia + any future NeTEx-origin feed). (2) Replace `strncasecmp` filter with `transitHeadsignContains()` — case-insensitive `strstr`-style substring search. (3) When `count == 0` after a successful HTTP 200 fetch, log `stopId` and `arrFilter` values and dump the first 400 bytes of the payload to serial for debugging. (4) Distinguish "Loading…" (never fetched) from "No departures found" in future UI work.
+- Impact/Tradeoffs: Now works for Trenord, Trenitalia, UK rail (London Liverpool Street confirmed), Emilia-Romagna regional (Fidenza). Destination filter now behaves as documented: `"Milano"` matches `"Milano Centrale"`, `"Malpensa via Milano"`, etc. The `headsign → tripTo.name` fallback is safe because when `headsign` is populated it takes priority; `tripTo.name` is only used as a last resort. GOTCHA: some stop IDs from the geocode autocomplete may still return 0 results if the underlying GTFS feed has no departures (regional data gaps). Users should verify the stop via the Transitous web map. **Testing targets for future sessions**: German DB, French SNCF, Swiss SBB, Austrian ÖBB, Spanish Renfe, US Caltrain/BART/NJTransit, Japanese JR, airport people-movers (Heathrow Express, CDG CDGVAL).
+
+---
+
 ## 2026-03-27 - Power Button UX: 1.5s Hold + Hard-Off (r218)
 
 - Context: `PWR_HOLD_SHUTDOWN_MS=3000` — 3 seconds with zero visual feedback caused users to release before the threshold. Soft-off (`shutdownFromPowerButton(false)`) only turned off the backlight and entered busy-wait; on battery the MCU kept running. GPIO16 was confirmed correct via serial scan (`[PWR] raw level change: 1 -> 0` detected). Short presses (≤200ms) toggled the screensaver, compounding confusion.

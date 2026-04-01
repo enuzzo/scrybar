@@ -461,6 +461,53 @@ Table-driven dispatch via `LangVtable` in `src/lang_types.h`:
 
 **To add a new language:** 1 `kLangTable` entry + 4 functions (wordClock, weatherShort data, weatherUi data, formatDate) + 1 UiStrings in `ui_strings.h` + add code to `kAllowedLangs[]`. Zero dispatcher changes needed.
 
+## Transit Departure Board (r240+)
+
+Live departure board using the [Transitous](https://transitous.org) community GTFS API (Motis backend). Free, global, no API key required.
+
+### Key endpoints
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/geocode?text=X&limit=12` | Station search — returns plain JSON array; filter `type === 'STOP'` only (excludes city POIs) |
+| `GET /api/v1/stoptimes?stopId=X&n=8&time={utcISO}` | Next departures from a stop |
+| `GET /api/v1/trip?tripId=X` | Full trip legs — used to get destination arrival time (`legs[0].to.arrival`) |
+
+The `stopId` must be **fully percent-encoded** (colons, slashes, etc.) — use `urlEncodeParam()`.
+
+### GTFS feed field variations — critical gotchas
+
+Different national operators export different JSON field shapes for the same API endpoint:
+
+| Operator / Feed | `headsign` | Destination source | Notes |
+|---|---|---|---|
+| **Trenord** (Lombardia IT) | ✅ populated | `headsign` | `routeShortName` = "S30", "R21" |
+| **Trenitalia** (IT national) | `""` empty | `tripTo.name` | NeTEx format gap — all headsigns blank |
+| **UK rail** (TransXChange) | ✅ populated | `headsign` | `routeShortName` can be long ("Greater Anglia") → badge scroll |
+| **Emilia-Romagna** (IT regional) | ✅ populated | `headsign` | Confirmed working (Fidenza) |
+
+**Rule:** always use `headsign` when present; fall back to `tripTo.name` for Trenitalia-style feeds. The firmware uses `const char *dest = headsign[0] ? headsign : tripToName`.
+
+### Destination filter
+
+Web UI field "FILTER BY DESTINATION" — stored in NVS as `transit_arr`. Implemented as case-insensitive **substring** match (`transitHeadsignContains()`) against the effective destination. Empty = show all departures. **GOTCHA:** if the filter contains the departure station name and you change the departure station, the filter will drop all results. Clear the filter field when switching stations.
+
+### Badge line name
+
+`routeShortName` is displayed in the left badge. Length varies hugely by network (3 chars for "S30" vs 14 chars for "Greater Anglia"). Firmware uses adaptive font shrink (20→18→16→14px by char count) + `LV_LABEL_LONG_SCROLL` at 15 px/s for overflow — gives ~5-8 second reveal cycle.
+
+### Stop ID selection
+
+Geocode returns both `type=STOP` and `type=PLACE` results — filter to `type === 'STOP'`. For stations with multiple stops at the same name, the first result (highest Transitous relevance score) is used. Major junctions may have separate stop IDs per operator (Trenord vs Trenitalia at Gallarate) — the user should verify via the Transitous web map if results are unexpected.
+
+### Known working stations (tested)
+Porto Ceresio (IT, Trenord), Luino (IT, Trenord), Fidenza (IT, Emilia-Romagna), Gallarate (IT, Trenitalia), Ancona (IT, Trenitalia), London Liverpool Street (UK, TransXChange).
+
+### Testing targets (not yet verified)
+German DB, French SNCF, Swiss SBB, Austrian ÖBB, Spanish Renfe, US Caltrain/BART/NJTransit, airport people-movers (Heathrow Express, CDG CDGVAL, JFK AirTrain), Japanese JR/Tokyo Metro.
+
+---
+
 ## Global State Struct Architecture (M7, 2026-03-24)
 
 Firmware globals are grouped into 16 typed structs. Each struct instance keeps the `g_` prefix for grep-ability. Struct definitions sit inside the same `#if` guards as the original variables.
