@@ -24,8 +24,8 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r241"
-#define FW_RELEASE_DATE "2026-03-31"
+#define FW_BUILD_TAG "r242"
+#define FW_RELEASE_DATE "2026-04-01"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
 typedef struct {
@@ -73,6 +73,7 @@ struct TransitDeparture {
   bool     realTime;        // true = live data
   uint32_t routeColor;      // hex badge bg from API (0 = use fallback)
   uint32_t routeTextColor;  // hex badge text (0 = auto white/black)
+  char     tripFromName[32]; // origin station name (from tripFrom.name in stoptimes)
   bool     valid;
 };
 

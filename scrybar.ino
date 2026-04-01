@@ -850,6 +850,9 @@ struct TransitState {
 };
 static TransitState  g_transitState = {};
 static TransitConfig g_transitConfig = {};
+// r242: tap transit view to toggle origin/terminus display (auto-reverts after 8 s)
+static bool     g_transitOrgMode   = false;
+static uint32_t g_transitOrgModeMs = 0;
 
 static RssItem *g_rssParseBuf = nullptr;
 static uint32_t g_wikiMetaPreloadLastMs = 0;
@@ -4236,7 +4239,7 @@ a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(5
 .vm-actions-sticky{position:sticky;bottom:0;z-index:100;background:var(--bg-deepest);padding:10px 16px 8px;border-top:1px solid var(--stroke-soft);margin:0 -16px}
 .vm-clp>*:not(h2){display:none!important}
 .vm-card h2{display:flex;align-items:center;gap:6px}
-.vm-collapse-arr{margin-left:auto;font-size:10px;opacity:.4;flex-shrink:0}
+.vm-collapse-arr{margin-left:auto;font-size:18px;opacity:1;flex-shrink:0;color:var(--accent-secondary);line-height:1;transition:transform .15s}
 .vm-api-note{margin-top:12px;padding:6px 0;border-radius:0;background:0;border:0;font-size:12px;color:var(--text-tertiary)}.vm-api-note code{color:var(--text-secondary)}
 #wifi_new_password{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:.02em}
 .geo-status{margin:2px 0 8px;color:var(--text-tertiary);font-size:12px;min-height:16px}
@@ -4272,12 +4275,14 @@ function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.
 function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}
 function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}
 if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();
-// Collapsible sections
+// Collapsible sections — start collapsed; ▶ = closed, ▼ = open
 document.querySelectorAll('.vm-card').forEach(function(card){
   var h=card.querySelector('h2');if(!h)return;
-  var arr=document.createElement('span');arr.className='vm-collapse-arr';arr.textContent='\u25BE';h.appendChild(arr);
+  var arr=document.createElement('span');arr.className='vm-collapse-arr';
+  card.classList.add('vm-clp');arr.textContent='\u25B6';
+  h.appendChild(arr);
   h.style.cursor='pointer';h.style.userSelect='none';
-  h.addEventListener('click',function(e){if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;var c=card.classList.toggle('vm-clp');arr.textContent=c?'\u25B8':'\u25BE';});
+  h.addEventListener('click',function(e){if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;var c=card.classList.toggle('vm-clp');arr.textContent=c?'\u25B6':'\u25BC';});
 });
 })();</script>)rawliteral";
 
@@ -8200,6 +8205,12 @@ static uint32_t transitCategoryColor(const char *cat) {
   return 0x555577;
 }
 
+// Returns true for road/urban modes that get pill-shaped badge + blue fallback color.
+static bool transitIsBus(const char *cat) {
+  if (!cat || !cat[0]) return false;
+  return (strncmp(cat, "BUS",  3) == 0 || strncmp(cat, "TRAM", 4) == 0);
+}
+
 /// Extract a JSON string value for the first occurrence of key in a bounded region.
 static void transitExtractStr(const char *start, const char *stop,
                                const char *key, char *out, size_t outLen) {
@@ -8279,6 +8290,8 @@ static void netFetchTransitDepartures() {
   local.lastHttpCode = code;
   // Copy station display name from config (Transitous doesn't echo it back).
   copyStringSafe(local.stationName, sizeof(local.stationName), g_transitConfig.station);
+  // r242: store tripId per slot for post-loop trip endpoint calls
+  char tripIds[TRANSIT_MAX_DEPARTURES][128] = {};
 
   if (code == 200) {
     const String payload = http.getString();
@@ -8331,8 +8344,8 @@ static void netFetchTransitDepartures() {
           if (rtTag) realTime = (strncmp(rtTag + 11, "true", 4) == 0);
         }
 
-        // "place":{ sub-block for departure timestamp and platform
-        char depIso[32] = {}, platform[8] = {};
+        // "place":{ sub-block for departure timestamp, scheduled time and platform
+        char depIso[32] = {}, schedIso[32] = {}, platform[8] = {};
         {
           const char *placeTag = (const char *)memmem(entryStart, (size_t)(entryEnd - entryStart),
                                                        "\"place\":{", 9);
@@ -8344,8 +8357,28 @@ static void netFetchTransitDepartures() {
                 if (*pp == '{') ++pd; else if (*pp == '}') --pd; ++pp;
               }
               const char *placeEnd = pp;
-              transitExtractStr(placeOpen, placeEnd, "\"departure\":", depIso,   sizeof(depIso));
-              transitExtractStr(placeOpen, placeEnd, "\"track\":",     platform, sizeof(platform));
+              transitExtractStr(placeOpen, placeEnd, "\"departure\":",          depIso,   sizeof(depIso));
+              transitExtractStr(placeOpen, placeEnd, "\"scheduledDeparture\":", schedIso, sizeof(schedIso));
+              transitExtractStr(placeOpen, placeEnd, "\"track\":",              platform, sizeof(platform));
+            }
+          }
+        }
+        // tripId (top-level string in each stopTimes entry)
+        char tripId[128] = {};
+        transitExtractStr(entryStart, entryEnd, "\"tripId\":", tripId, sizeof(tripId));
+        // tripFrom.name — origin station for the trip
+        char tripFromName[32] = {};
+        {
+          const char *tfTag = (const char *)memmem(entryStart, (size_t)(entryEnd - entryStart),
+                                                    "\"tripFrom\":{", 12);
+          if (tfTag) {
+            const char *tfOpen = strchr(tfTag, '{');
+            if (tfOpen && tfOpen < entryEnd) {
+              int tfd = 1; const char *tfp = tfOpen + 1;
+              while (tfp < entryEnd && tfd > 0) {
+                if (*tfp == '{') ++tfd; else if (*tfp == '}') --tfd; ++tfp;
+              }
+              transitExtractStr(tfOpen, tfp, "\"name\":", tripFromName, sizeof(tripFromName));
             }
           }
         }
@@ -8363,24 +8396,97 @@ static void netFetchTransitDepartures() {
 
         TransitDeparture &d = local.departures[local.count];
         // routeShortName is the badge line (e.g. "S30", "R21"); fallback to mode
-        copyStringSafe(d.line,        sizeof(d.line),        routeShortName[0] ? routeShortName : mode);
-        copyStringSafe(d.category,    sizeof(d.category),    mode);
-        copyStringSafe(d.destination, sizeof(d.destination), headsign);
-        copyStringSafe(d.platform,    sizeof(d.platform),    platform);
+        copyStringSafe(d.line,         sizeof(d.line),         routeShortName[0] ? routeShortName : mode);
+        copyStringSafe(d.category,     sizeof(d.category),     mode);
+        copyStringSafe(d.destination,  sizeof(d.destination),  headsign);
+        copyStringSafe(d.platform,     sizeof(d.platform),     platform);
+        copyStringSafe(d.tripFromName, sizeof(d.tripFromName), tripFromName);
         d.cancelled      = cancelled;
         d.realTime       = realTime;
-        d.routeColor     = parseHexColor(routeColorHex,    0);
-        d.routeTextColor = parseHexColor(routeTextHex,     0);
+        d.routeColor     = parseHexColor(routeColorHex, 0);
+        d.routeTextColor = parseHexColor(routeTextHex,  0);
         parseIsoUtcToLocal(depIso, d.depHour, d.depMinute);
-        d.hasArr  = false;   // Transitous stoptimes endpoint doesn't include destination arrival
-        d.delayMin = 0;
+        // Delay = actual departure − scheduled departure (minutes)
         d.hasDelay = false;
-        d.valid    = true;
+        d.delayMin = 0;
+        if (schedIso[0]) {
+          uint8_t sh = 0, sm = 0;
+          if (parseIsoUtcToLocal(schedIso, sh, sm)) {
+            int diff = ((int)d.depHour * 60 + (int)d.depMinute) - ((int)sh * 60 + (int)sm);
+            if (diff >  12 * 60) diff -= 24 * 60;
+            if (diff < -12 * 60) diff += 24 * 60;
+            if (diff <  -99) diff = -99;
+            if (diff >   99) diff =  99;
+            d.delayMin = (int8_t)diff;
+            d.hasDelay = true;
+          }
+        }
+        d.hasArr = false;   // filled by trip endpoint calls below
+        d.valid  = true;
+        // Save tripId for post-loop trip fetch
+        copyStringSafe(tripIds[local.count], sizeof(tripIds[local.count]), tripId);
         local.count++;
         p = entryEnd;
       }
       local.valid = (local.count > 0);
       snprintf(local.fetchedAt, sizeof(local.fetchedAt), "%02d:%02d", ti.tm_hour, ti.tm_min);
+
+      // r242: fetch destination arrival time for each departure via /api/v1/trip
+      for (uint8_t j = 0; j < local.count; ++j) {
+        if (!tripIds[j][0]) continue;
+        char encTripId[200];
+        urlEncodeParam(tripIds[j], encTripId, sizeof(encTripId));
+        char tripUrl[400];
+        snprintf(tripUrl, sizeof(tripUrl),
+                 "https://api.transitous.org/api/v1/trip?tripId=%s", encTripId);
+        WiFiClientSecure tCl;
+        tCl.setInsecure();
+        HTTPClient tHttp;
+        tHttp.setConnectTimeout(3000);
+        tHttp.setTimeout(3000);
+        tHttp.begin(tCl, tripUrl);
+        tHttp.addHeader("User-Agent", "ScryBar/" FW_BUILD_TAG " (https://github.com/enuzzo/scrybar)");
+        tHttp.addHeader("Accept", "application/json");
+        const int tc = tHttp.GET();
+        if (tc == 200) {
+          const String tPay = tHttp.getString();
+          const char  *td   = tPay.c_str();
+          // Parse: {"legs":[{"to":{"arrival":"...Z","name":"..."},...},...]}
+          const char *legsTag = strstr(td, "\"legs\":[");
+          if (legsTag) {
+            const char *lb  = strchr(legsTag, '[');
+            const char *leg = lb ? strchr(lb + 1, '{') : nullptr;
+            if (leg) {
+              // Find end of first leg object
+              int ld = 1; const char *lp = leg + 1;
+              while (*lp && ld > 0) { if (*lp == '{') ++ld; else if (*lp == '}') --ld; ++lp; }
+              const char *legEnd = lp;
+              // Find "to":{ within first leg
+              const char *toTag = (const char *)memmem(leg, (size_t)(legEnd - leg), "\"to\":{", 6);
+              if (toTag) {
+                const char *toOpen = strchr(toTag + 5, '{');
+                if (toOpen && toOpen < legEnd) {
+                  int td2 = 1; const char *tp2 = toOpen + 1;
+                  while (*tp2 && td2 > 0) { if (*tp2 == '{') ++td2; else if (*tp2 == '}') --td2; ++tp2; }
+                  char arrIso[32] = {};
+                  transitExtractStr(toOpen, tp2, "\"arrival\":", arrIso, sizeof(arrIso));
+                  if (arrIso[0]) {
+                    if (parseIsoUtcToLocal(arrIso, local.departures[j].arrHour,
+                                                    local.departures[j].arrMinute)) {
+                      local.departures[j].hasArr = true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        tHttp.end();
+        Serial.printf("[TRANSIT] trip[%u] code=%d hasArr=%d arr=%02u:%02u\n",
+                      j, tc, (int)local.departures[j].hasArr,
+                      local.departures[j].arrHour, local.departures[j].arrMinute);
+      }
+
     } else {
       Serial.printf("[TRANSIT] 'stopTimes' key not found — payload: %.120s\n", data);
     }
@@ -10632,6 +10738,14 @@ static void handleFeedDeckTapRelease(const TouchReleaseInfo &r) {
   }
   // In AUX/WIKI, ignore neutral taps not on actionable regions.
   if (r.isTap && uiPageIsFeedDeck(g_uiPageMode)) return;
+  // TRANSIT: tap anywhere toggles origin/terminus display (auto-reverts after 8 s).
+  if (r.isTap && g_uiPageMode == UI_PAGE_TRANSIT) {
+    g_transitOrgMode   = !g_transitOrgMode;
+    g_transitOrgModeMs = millis();
+    g_uiNeedsRedraw    = true;
+    Serial.printf("[TOUCH] transit-tap -> orgMode=%d\n", (int)g_transitOrgMode);
+    return;
+  }
   // HOME: tap left panel toggles clock mode.
   if (r.isTap && g_uiPageMode == UI_PAGE_HOME &&
       g_touch.startX < (canvasWidth() - DISPLAY_WEATHER_PANEL_W)) {
@@ -12654,13 +12768,13 @@ static void lvglInitTransitUi() {
   lv_label_set_text(g_transitUi.status, "--:--");
   lv_obj_align(g_transitUi.status, LV_ALIGN_RIGHT_MID, -8, 2);
 
-  // Departure rows
-  // Layout (640px wide, 35px per row):
-  //  [4..73]    badge "S 30"  (70×30, font Meta 20px)
-  //  [80..367]  destination   (font Meta 20px)
-  //  [378..519] dep + arr     (font Small 18px, right-aligned)
-  //  [524..573] delay         (font Tiny 14px, semaphore color)
-  //  [578..633] platform      (font Mini 16px, right-aligned)
+  // Departure rows — r242 layout (640px wide, 35px per row):
+  //  [ 4.. 73]  badge "S30"   (70×30) — pill for BUS/TRAM, rect for rail
+  //  [80..337]  destination   (258px, 20px Funnel Display, LV_LABEL_LONG_DOT)
+  //  [344..413] dep time      (70px, 18px, right-aligned "HH:MM")
+  //  [418..499] arr time      (82px, 18px, ">HH:MM" or ">---")
+  //  [504..553] delay         (50px, 14px, semaphore color)
+  //  [558..633] platform/LIVE (76px, 16px, right-aligned "LIVE" or "Bin.X")
   const lv_coord_t rowH = 35;
   const lv_coord_t badgeW = 70, badgeH = 30;
   // Alternate row tint: white on dark themes, black on light themes
@@ -12713,10 +12827,10 @@ static void lvglInitTransitUi() {
     lv_label_set_text(g_transitUi.line_[i], "--");
     lv_obj_align(g_transitUi.line_[i], LV_ALIGN_CENTER, 0, 1);
 
-    // Destination (big)
+    // Destination (big, truncates with "..." on overflow)
     g_transitUi.dest[i] = lv_label_create(root);
     lv_obj_set_pos(g_transitUi.dest[i], 80, ry);
-    lv_obj_set_size(g_transitUi.dest[i], 288, rowH);
+    lv_obj_set_size(g_transitUi.dest[i], 258, rowH);
     lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(t.infoText), LV_PART_MAIN);
     lv_obj_set_style_text_font(g_transitUi.dest[i], lvglFontMeta(), 0);  // 20px
     lv_obj_set_style_text_align(g_transitUi.dest[i], LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
@@ -12724,36 +12838,43 @@ static void lvglInitTransitUi() {
     lv_obj_set_style_pad_top(g_transitUi.dest[i], (rowH - 20) / 2, LV_PART_MAIN);
     lv_label_set_text(g_transitUi.dest[i], "--");
 
-    // Time column: "HH:MM" or "HH:MM >HH:MM" when arrival known (inline)
+    // Departure time ("HH:MM", right-aligned)
     g_transitUi.time_[i] = lv_label_create(root);
-    lv_obj_set_pos(g_transitUi.time_[i], 378, ry);
-    lv_obj_set_size(g_transitUi.time_[i], 142, rowH);
+    lv_obj_set_pos(g_transitUi.time_[i], 344, ry);
+    lv_obj_set_size(g_transitUi.time_[i], 70, rowH);
     lv_obj_set_style_text_color(g_transitUi.time_[i], lv_color_hex(t.infoText), LV_PART_MAIN);
     lv_obj_set_style_text_font(g_transitUi.time_[i], lvglFontSmall(), 0);  // 18px
     lv_obj_set_style_text_align(g_transitUi.time_[i], LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
     lv_obj_set_style_pad_top(g_transitUi.time_[i], (rowH - 18) / 2, LV_PART_MAIN);
     lv_label_set_text(g_transitUi.time_[i], "--:--");
 
-    // arr: unused (arrival rendered inline in time_ label) — kept for struct compat
-    g_transitUi.arr[i] = nullptr;
+    // Arrival time at destination (">HH:MM" or ">---")
+    g_transitUi.arr[i] = lv_label_create(root);
+    lv_obj_set_pos(g_transitUi.arr[i], 418, ry);
+    lv_obj_set_size(g_transitUi.arr[i], 82, rowH);
+    lv_obj_set_style_text_color(g_transitUi.arr[i], lv_color_hex(t.auxMeta), LV_PART_MAIN);
+    lv_obj_set_style_text_font(g_transitUi.arr[i], lvglFontSmall(), 0);  // 18px
+    lv_obj_set_style_text_align(g_transitUi.arr[i], LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+    lv_obj_set_style_pad_top(g_transitUi.arr[i], (rowH - 18) / 2, LV_PART_MAIN);
+    lv_label_set_text(g_transitUi.arr[i], ">---");
 
-    // Delay (+Xm)
+    // Delay (+Xm / -Xm)
     g_transitUi.delay[i] = lv_label_create(root);
-    lv_obj_set_pos(g_transitUi.delay[i], 524, ry + (rowH - 14) / 2);
+    lv_obj_set_pos(g_transitUi.delay[i], 504, ry + (rowH - 14) / 2);
     lv_obj_set_size(g_transitUi.delay[i], 50, 14);
     lv_obj_set_style_text_color(g_transitUi.delay[i], lv_color_hex(0x22AA33), LV_PART_MAIN);
     lv_obj_set_style_text_font(g_transitUi.delay[i], lvglFontTiny(), 0);  // 14px
     lv_obj_set_style_text_align(g_transitUi.delay[i], LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_label_set_text(g_transitUi.delay[i], "");
 
-    // Platform (right edge, shown as "Bin. X" when available)
+    // Platform / LIVE indicator (right edge)
     g_transitUi.platform[i] = lv_label_create(root);
-    lv_obj_set_pos(g_transitUi.platform[i], 578, ry);
-    lv_obj_set_size(g_transitUi.platform[i], 56, rowH);
+    lv_obj_set_pos(g_transitUi.platform[i], 558, ry);
+    lv_obj_set_size(g_transitUi.platform[i], 76, rowH);
     lv_obj_set_style_text_color(g_transitUi.platform[i], lv_color_hex(t.auxMeta), LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontMini(), 0);  // 16px
+    lv_obj_set_style_text_font(g_transitUi.platform[i], lvglFontTiny(), 0);  // 14px
     lv_obj_set_style_text_align(g_transitUi.platform[i], LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-    lv_obj_set_style_pad_top(g_transitUi.platform[i], (rowH - 16) / 2, LV_PART_MAIN);
+    lv_obj_set_style_pad_top(g_transitUi.platform[i], (rowH - 14) / 2, LV_PART_MAIN);
     lv_label_set_text(g_transitUi.platform[i], "");
   }
 
@@ -12770,6 +12891,12 @@ static void lvglUpdateTransitUi(bool force) {
   (void)force;
   if (!g_lvglTransitRoot) return;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  // r242: auto-revert origin/terminus display after 8 seconds
+  if (g_transitOrgMode && g_transitOrgModeMs &&
+      (millis() - g_transitOrgModeMs) > 8000UL) {
+    g_transitOrgMode   = false;
+    g_transitOrgModeMs = 0;
+  }
 
   // Station name in header: prefer official API name, fallback to user-typed
   if (g_transitUi.station) {
@@ -12806,30 +12933,36 @@ static void lvglUpdateTransitUi(bool force) {
       if (show) lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
       else      lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
     };
-    rowShow(g_transitUi.lineBg[i],  hasRow);
-    rowShow(g_transitUi.line_[i],   hasRow);
-    rowShow(g_transitUi.dest[i],    hasRow);
-    rowShow(g_transitUi.time_[i],   hasRow);
-    rowShow(g_transitUi.delay[i],   hasRow);
-    rowShow(g_transitUi.platform[i],hasRow);
+    rowShow(g_transitUi.lineBg[i],   hasRow);
+    rowShow(g_transitUi.line_[i],    hasRow);
+    rowShow(g_transitUi.dest[i],     hasRow);
+    rowShow(g_transitUi.time_[i],    hasRow);
+    rowShow(g_transitUi.arr[i],      hasRow);
+    rowShow(g_transitUi.delay[i],    hasRow);
+    rowShow(g_transitUi.platform[i], hasRow);
 
-    if (!hasRow) {
-      if (g_transitUi.arr[i]) lv_obj_add_flag(g_transitUi.arr[i], LV_OBJ_FLAG_HIDDEN);
-      continue;
-    }
+    if (!hasRow) continue;
     const TransitDeparture &d = g_transitState.departures[i];
 
-    // Badge color: API routeColor takes priority; fallback to semantic; toxic-candy override.
+    // r242: badge shape — pill for BUS/TRAM, rect for rail
+    const bool isBus = transitIsBus(d.category);
+    if (g_transitUi.lineBg[i]) {
+      lv_obj_set_style_radius(g_transitUi.lineBg[i], isBus ? 14 : 6, LV_PART_MAIN);
+    }
+    // Badge color: API routeColor > mode semantic (bus→blue, rail→green/red); toxic-candy override.
     if (g_transitUi.lineBg[i]) {
       uint32_t badgeColor;
       if (lvglThemeIsToxicCandy()) {
         badgeColor = 0xCC00AA;  // toxic-candy: magenta for all transit badges
+      } else if (d.cancelled) {
+        badgeColor = 0x888888;  // grey out cancelled services
       } else if (d.routeColor != 0) {
         badgeColor = d.routeColor;
+      } else if (isBus) {
+        badgeColor = 0x1565C0;  // blue shade for bus/tram (vs green trains)
       } else {
         badgeColor = transitCategoryColor(d.category);
       }
-      if (d.cancelled) badgeColor = 0x888888;  // grey out cancelled services
       lv_obj_set_style_bg_color(g_transitUi.lineBg[i], lv_color_hex(badgeColor), LV_PART_MAIN);
     }
     // Badge text color: API routeTextColor or auto-contrast from badge bg.
@@ -12838,37 +12971,51 @@ static void lvglUpdateTransitUi(bool force) {
       if (!lvglThemeIsToxicCandy() && d.routeTextColor != 0) {
         textColor = d.routeTextColor;
       } else if (!lvglThemeIsToxicCandy() && d.routeColor != 0) {
-        // Auto contrast: if badge is light use dark text.
         textColor = (lvglColorLuma(d.routeColor) >= 128) ? 0x111111 : 0xFFFFFF;
       }
       lv_obj_set_style_text_color(g_transitUi.line_[i], lv_color_hex(textColor), LV_PART_MAIN);
       lv_label_set_text(g_transitUi.line_[i], d.line);
     }
-    // Destination: grey out cancelled services.
+
+    // Destination: cancelled → grey "X dest"; org mode → "From > Dest"; normal → headsign
     if (g_transitUi.dest[i]) {
       if (d.cancelled) {
         char cbuf[52];
         snprintf(cbuf, sizeof(cbuf), "X %s", d.destination);
         lv_label_set_text(g_transitUi.dest[i], cbuf);
         lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(0x888888), LV_PART_MAIN);
+      } else if (g_transitOrgMode && d.tripFromName[0]) {
+        char cbuf[84];
+        snprintf(cbuf, sizeof(cbuf), "%s > %s", d.tripFromName, d.destination);
+        lv_label_set_text(g_transitUi.dest[i], cbuf);
+        lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(t.auxMeta), LV_PART_MAIN);
       } else {
         lv_label_set_text(g_transitUi.dest[i], d.destination);
         lv_obj_set_style_text_color(g_transitUi.dest[i], lv_color_hex(t.infoText), LV_PART_MAIN);
       }
     }
 
-    // Time label: "HH:MM" or "HH:MM >HH:MM" when arrival known
+    // Departure time ("HH:MM")
     if (g_transitUi.time_[i]) {
-      char tbuf[20];
-      if (d.hasArr) {
-        snprintf(tbuf, sizeof(tbuf), "%02u:%02u >%02u:%02u",
-                 d.depHour, d.depMinute, d.arrHour, d.arrMinute);
-      } else {
-        snprintf(tbuf, sizeof(tbuf), "%02u:%02u", d.depHour, d.depMinute);
-      }
+      char tbuf[8];
+      snprintf(tbuf, sizeof(tbuf), "%02u:%02u", d.depHour, d.depMinute);
       lv_label_set_text(g_transitUi.time_[i], tbuf);
     }
 
+    // Arrival time at destination (">HH:MM" from trip endpoint, or ">---")
+    if (g_transitUi.arr[i]) {
+      char abuf[10];
+      if (d.hasArr) {
+        snprintf(abuf, sizeof(abuf), ">%02u:%02u", d.arrHour, d.arrMinute);
+        lv_obj_set_style_text_color(g_transitUi.arr[i], lv_color_hex(t.auxMeta), LV_PART_MAIN);
+      } else {
+        copyStringSafe(abuf, sizeof(abuf), ">---");
+        lv_obj_set_style_text_color(g_transitUi.arr[i], lv_color_hex(t.divider), LV_PART_MAIN);
+      }
+      lv_label_set_text(g_transitUi.arr[i], abuf);
+    }
+
+    // Delay indicator (+Xm = late, -Xm = early, blank = on time / no data)
     if (g_transitUi.delay[i]) {
       if (d.hasDelay && d.delayMin != 0) {
         char dbuf[8];
@@ -12881,12 +13028,19 @@ static void lvglUpdateTransitUi(bool force) {
       }
     }
 
+    // Platform / LIVE indicator: track number when available, else "LIVE" badge for real-time data
     if (g_transitUi.platform[i]) {
-      char pbuf[12];
-      snprintf(pbuf, sizeof(pbuf), d.platform[0] ? "Bin. %s" : "", d.platform);
+      char pbuf[16];
+      if (d.platform[0]) {
+        snprintf(pbuf, sizeof(pbuf), "Bin.%s", d.platform);
+      } else if (d.realTime) {
+        copyStringSafe(pbuf, sizeof(pbuf), "LIVE");
+      } else {
+        pbuf[0] = '\0';
+      }
       lv_label_set_text(g_transitUi.platform[i], pbuf);
       lv_obj_set_style_text_color(g_transitUi.platform[i],
-          lv_color_hex(t.auxMeta), LV_PART_MAIN);
+          lv_color_hex(d.realTime ? 0x22AA33 : t.auxMeta), LV_PART_MAIN);
     }
   }
 }
