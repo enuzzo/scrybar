@@ -2,14 +2,11 @@
 import imgRss from '../assets/screenshots/aux_rss.png';
 import imgWiki from '../assets/screenshots/wiki_stream.png';
 import imgNowPlaying from '../assets/screenshots/now_playing.png';
-import imgDoom from '../assets/screenshots/doom_bunker_console.png';
 const views = [
   { id: 'rss',  src: imgRss,        label: 'RSS Feeds',    desc: 'Live news with favicons, QR codes for mobile reading. Up to 5 configurable feeds.' },
   { id: 'wiki', src: imgWiki,       label: 'Wikipedia',     desc: 'Featured articles, On This Day, random discoveries. Swipe through knowledge.' },
   { id: 'np',   src: imgNowPlaying, label: 'Now Playing',   desc: 'Album art, progress bar, artist detection. Pushed live from macOS companion.' },
-  { id: 'doom', src: imgDoom,       label: 'DOOM',          desc: 'Real id Tech 1 engine. Tilt to move, tap to shoot. Full HUD overlay.' },
-  // TODO: add transit departure board screenshot and uncomment:
-  // { id: 'transit', src: imgTransit, label: 'Transit Board', desc: 'Live departures worldwide. Station auto-suggest, colored line badges, real-time delays.' },
+  // TODO: add transit departure board screenshot (capture from device, save to assets/screenshots/transit_board.png)
 ];
 ---
 <section id="views">
@@ -18,7 +15,7 @@ const views = [
     <h2>Seven views, one gesture away</h2>
     <p class="section-sub">
       Swipe left or right to switch between clock, news, Wikipedia,
-      Now Playing, transit departures, and DOOM.
+      Now Playing, and live transit departures.
     </p>
 
     <div class="views-grid">
