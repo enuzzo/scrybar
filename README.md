@@ -4,12 +4,12 @@
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
 [![Languages](https://img.shields.io/badge/Word_Clock-13_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
-[![Views](https://img.shields.io/badge/Views-7_live_views-3B82F6?style=for-the-badge)](#views)
+[![Views](https://img.shields.io/badge/Views-6_live_views-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
-**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, seven swipeable views, a word clock that composes real sentences in thirteen languages (from Italian and Latin to Klingon, 1337 Speak, and Bellazio), actual grammar, not uppercase tiles, plus RSS feeds, a Wikipedia viewer, a `Now Playing` strip with cover art, a live transit departure board, a full DOOM port with gyro controls, and a LAN web config UI.
+**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, six swipeable views, a word clock that composes real sentences in thirteen languages (from Italian and Latin to Klingon, 1337 Speak, and Bellazio), actual grammar, not uppercase tiles, plus RSS feeds, a Wikipedia viewer, a `Now Playing` strip with cover art, a live transit departure board, and a LAN web config UI.
 
-*Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls random Wikipedia facts nobody asked for, and opens a portal to Hell. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
+*Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls random Wikipedia facts nobody asked for, and shows live train departures you could just check on your phone. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
 
 ## HOME
 
@@ -17,22 +17,7 @@
 <td width="55%"><img src="assets/readme_previews/home_weather_toxic-candy.png" alt="HOME view, Toxic Candy theme" width="100%"></td>
 <td>
 
-**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from OpenWeatherMap. Thirteen languages, seven themes, all switchable from the web UI without reflashing. This is what you leave on when nobody's playing DOOM.
-
-</td>
-</tr></table>
-
-## DOOM on ScryBar
-
-<table><tr>
-<td width="55%"><img src="assets/readme_previews/doom_bunker_console.png" alt="DOOM Bunker Console HUD" width="100%"></td>
-<td>
-
-**Yes, it runs DOOM.**
-
-Native `prboom` on a desk bar. Gyroscope controls: tilt forward to charge, sideways to turn. Dark olive CRT-scanline HUD with oversized tilt meters, because when you're dodging fireballs on a 3.49" strip, subtlety is not a virtue.
-
-Tap **FIRE** on the title screen. The bar does the rest.
+**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from OpenWeatherMap. Thirteen languages, seven themes, all switchable from the web UI without reflashing.
 
 </td>
 </tr></table>
@@ -84,7 +69,6 @@ Tap **FIRE** on the title screen. The bar does the rest.
 
 - [Hardware](#hardware)
 - [Views](#views)
-- [DOOM View](#doom-view)
 - [Word Clock Languages](#word-clock-languages)
 - [How It Works](#how-it-works)
 - [Quick Start](#quick-start)
@@ -109,19 +93,19 @@ Tap **FIRE** on the title screen. The bar does the rest.
 | **Board** | Waveshare ESP32-S3-Touch-LCD-3.49 | The whole stack in one unit: display, touch controller, IMU, power management, battery connector. |
 | **Display** | AXS15231B, 3.49", 640×172 | The face. Horizontal strip format. `LV_COLOR_16_SWAP=1` because it expects RGB565 big-endian and is not open to discussion about this. |
 | **Touch** | AXS15231B integrated | Single-point touch. Carefully filtered for ghost frames and sentinel coordinates. |
-| **IMU** | QMI8658 6-axis | Accelerometer + gyroscope. Tilt-to-move in DOOM, shake detection elsewhere. The bar knows when you're angry. |
+| **IMU** | QMI8658 6-axis | Accelerometer + gyroscope. Shake detection, tilt sensing. The bar knows when you're angry. |
 | **Power** | USB-C + optional LiPo | Charging and battery fallback managed via TCA9554 GPIO expander. Always re-asserted at boot. |
 
-The physical profile: a horizontal bar that sits flat on your desk. Wide enough to host five modes of mischief. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
+The physical profile: a horizontal bar that sits flat on your desk. Wide enough to host six views of mischief. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
 
 ---
 
 ## Views
 
-Seven views, navigated by swipe.
+Six views, navigated by swipe.
 
 ```
-  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► DOOM ◄─► TRANSIT
+  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► TRANSIT
 ```
 
 **HOME** — Word clock in natural sentence form (13 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing. Themes switchable from the web UI without reflashing.
@@ -131,8 +115,6 @@ Seven views, navigated by swipe.
 **WIKI** — Wikipedia stream: Featured Article, On This Day, and Random Article. Language independently selectable (8 real languages) from the system language via web UI. Same `SKIP`/`NXT`/`QR` controls as AUX. A bottomless pit of trivia that you didn't need but now can't stop reading.
 
 **NOW PLAYING** — Cover art on the left, metadata on the right, playback progress and transport controls. The firmware UI is now live on-device, and the production path is a small macOS companion that discovers the bar over Bonjour, posts metadata to `/api/now-playing`, and by default reads the system-wide Mac `Now Playing` session through `MediaRemote.framework`. That gives ScryBar one practical feed for Music, Spotify, TIDAL, podcasts, and whatever else macOS itself is already surfacing.
-
-**DOOM** — `prboom-go` donor port adapted for ScryBar. Centered 4:3 live framebuffer on the 640×172 strip, "Bunker Console" side HUD with oversized tilt meters, IMU gyroscope controls, and touch bands for `USE` / `FIRE`. Tap FIRE on the title screen to boot the engine. Tilt forward to move, tilt sideways to turn. [Details below.](#doom-view)
 
 **TRANSIT** — Live departure board powered by [Transitous](https://transitous.org) (free global GTFS data, no API key). Search any station worldwide from the web UI. Colored line badges with adaptive font, real-time delay indicators, arrival times, platform info. Handles trains, metro, trams, buses, and coaches across 20+ countries. Tap to toggle origin display; destination filter via web UI.
 
@@ -145,30 +127,6 @@ Physical buttons:
 - `RST` (right): hardware reset. The nuclear option.
 
 Auto-idle screensaver: `2h` on both USB and battery.
-
-## DOOM View
-
-The DOOM integration intentionally does **not** import all of `retro-go`. ScryBar vendors only the `prboom-go` core under `src/doom/prboom/` plus a local runtime shim. No emulation layers. No LVGL widgets. Direct framebuffer writes to the display controller.
-
-**HUD: "Bunker Console"** — Dark olive-black CRT scanline aesthetic with DOOM-authentic color palette: toxic green for movement, red for combat, amber for readouts. The side meters are deliberately oversized (36×100px vertical, 178×26px horizontal) because when you're dodging imps on a desk bar, you need to see that tilt indicator from across the room.
-
-- Donor baseline: `ducalex/retro-go` → `prboom-go` only
-- Render path: direct framebuffer blit, bypasses LVGL entirely
-- Live frame: `320×200` source → centered `229×172` 4:3 pillarbox
-- Touch zones:
-  - Left band = `USE` (doors, switches, elevators, the polite button)
-  - Right band = `FIRE` (the other one)
-  - Center tap = recenter IMU neutral point
-  - Swipe left = exit DOOM and return to WIKI
-- IMU (QMI8658):
-  - Active only inside DOOM, the rest of the UI ignores tilt
-  - Neutral orientation captured after a short stable settle window on entry
-  - Forward/backward tilt → move/retreat
-  - Left/right tilt → turn
-
-Boot flow: entering DOOM shows the title screen with live tilt meters. Tap `FIRE` to start the engine. This is deliberate: it gives you a moment to find a comfortable tilt angle before you're in a room full of demons.
-
----
 
 ## Word Clock Languages
 
@@ -233,7 +191,7 @@ arduino-cli upload -p <PORT> \
   .
 ```
 
-This repo ships a checked-in `partitions.csv` and uses `PartitionScheme=custom`. The standard presets ran out of room around the time DOOM moved in.
+This repo ships a checked-in `partitions.csv` and uses `PartitionScheme=custom`.
 
 If upload hangs on `Connecting...`, enter boot mode: hold `BOOT`, press and release `RST`, release `BOOT`. This is not a bug. It is a handshake.
 
@@ -264,11 +222,10 @@ Enable or disable subsystems in `config.h`. Nothing is compiled in unless explic
 | `TEST_BACKLIGHT` | Display backlight PWM test |
 | `TEST_I2C_SCAN` | I2C bus scan, prints found addresses |
 | `TEST_DISPLAY` | Display init via AXS15231B (Arduino_GFX) |
-| `TEST_IMU` | QMI8658 accelerometer + gyroscope (required for DOOM tilt controls) |
+| `TEST_IMU` | QMI8658 accelerometer + gyroscope |
 | `TEST_WIFI` | STA connection with multi-SSID retry |
 | `TEST_NTP` | NTP sync, prints `local_time=...` |
 | `TEST_BATTERY` | Battery monitoring via ADC (voltage, charge level, power source) |
-| `DOOM_SPIKE_ENABLED` | DOOM page + prboom donor runtime |
 | `TEST_TOUCH` | **Required for swipe navigation.** Boot log shows `[SKIP] TEST_TOUCH=0` if disabled. |
 | `DISPLAY_FLIP_180` | 180° rotation (USB-C left, speaker top). Default `1`. |
 | `WEB_CONFIG_ENABLED` | LAN web config UI on port 8080 when Wi-Fi is connected. |
@@ -311,14 +268,13 @@ Commands sent over Serial at 115200 baud. Case-insensitive.
 |---|---|
 | `VIEW` | Toggle HOME ↔ AUX |
 | `VIEWFIRST` | Jump to first main view (`HOME`, excludes INFO) |
-| `VIEWLAST` | Jump to last main view (`DOOM`) |
+| `VIEWLAST` | Jump to last main view |
 | `VIEW0` / `VIEWINFO` | Force INFO page |
 | `VIEW1` / `VIEWHOME` | Force HOME page |
 | `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
 | `VIEW3` / `VIEWWIKI` | Force WIKI page |
 | `VIEW4` / `VIEWNOW` / `VIEWNP` | Force NOW PLAYING page |
-| `VIEW5` / `VIEWDOOM` / `DOOM` | Force DOOM page |
-| `VIEW6` / `VIEWTRANSIT` / `TRANSIT` | Force TRANSIT page |
+| `VIEW5` / `VIEWTRANSIT` / `TRANSIT` | Force TRANSIT page |
 
 **Configuration:**
 
@@ -365,7 +321,7 @@ Capture live framebuffer snapshots over serial. Requires `ffmpeg` for the RGB565
 python3 tools/capture_snapshot.py --port <PORT> --out-dir screenshots
 
 # Capture a specific view
-python3 tools/capture_snapshot.py --port <PORT> --pre-cmd VIEWDOOM --out-dir screenshots
+python3 tools/capture_snapshot.py --port <PORT> --pre-cmd VIEWTRANSIT --out-dir screenshots
 ```
 
 The `--pre-cmd` flag sends a serial command before taking the snapshot, useful for switching views without touching the device. Add `--pre-wait` and `--pre-gap` to tune boot / settle timing.
@@ -391,10 +347,6 @@ The `archive/ansi/` directory contains the former ANSI/BBS art viewer: 27 embedd
 The ANSI parser was built with invaluable reference from **[icy_tools](https://github.com/mkrueger/icy_tools)** by Mike Krueger, the gold standard for ANSI art tooling. If you work with ANSI art on any platform, start there.
 
 ---
-
-## Acknowledgments
-
-The DOOM integration is based on `prboom-go` from **[ducalex/retro-go](https://github.com/ducalex/retro-go)**, but ScryBar vendors only the donor core and uses its own display/input glue. That separation is intentional: we wanted DOOM, not the entire retro-go ecosystem pretending to be DOOM.
 
 ## Open Source Spirit
 

@@ -4827,8 +4827,6 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) ? F("true") : F("false");
   out += F(",\"now_playing\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) ? F("true") : F("false");
-  out += F(",\"doom\":");
-  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? F("true") : F("false");
   out += F(",\"transit\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) ? F("true") : F("false");
   out += F("},\"themes\":[");
@@ -15625,12 +15623,12 @@ static void cmdWebCfg(const String &args) {
   if (runtimeLogoUrl()[0]) Serial.printf("[WEB] logo='%s'\n", runtimeLogoUrl());
   else Serial.println("[WEB] logo=''");
   Serial.printf("[WEB] theme='%s' (%s)\n", runtimeUiThemeId(), runtimeUiThemeLabel());
-  Serial.printf("[WEB] views info=%d home=1 aux=%d wiki=%d np=%d doom=%d\n",
+  Serial.printf("[WEB] views info=%d home=1 aux=%d wiki=%d np=%d transit=%d\n",
                 (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) ? 1 : 0,
                 (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) ? 1 : 0,
                 (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) ? 1 : 0,
                 (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) ? 1 : 0,
-                (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? 1 : 0);
+                (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) ? 1 : 0);
   Serial.printf("[WEB] lang='%s'\n", g_wordClockLang);
   Serial.printf("[WEB] wifi_setup_mode='%s' setup_ap=%d runtime_known=%u\n",
                 g_wifiSt.setupMode, g_wifiSt.setupApActive ? 1 : 0, (unsigned)g_wifiSt.runtimeCredCount);
