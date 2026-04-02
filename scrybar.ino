@@ -9960,10 +9960,26 @@ static uint32_t lvglScreenSaverRandNext() {
 
 static void lvglScreenSaverSetCowArt(int8_t dir) {
   if (!g_saver.cow) return;
+  if (g_saver.cowState == COW_SLEEP) {
+    static const char *kCowSleep =
+        "      Z z z\n"
+        "   __(o_o)__\n"
+        "  /__|__|__\\~\n"
+        "  ~~~~~~~~~~";
+    lv_label_set_text(g_saver.cow, kCowSleep);
+    return;
+  }
   static const char *kCowRight =
       " _(__)_        V\n"
       "'-e e -'__,--.__)\n"
       "(o_o)        )\n"
+      "   \\. /___.  |\n"
+      "   ||| _)/_)/\n"
+      "  //_(/_(/_(";
+  static const char *kCowRightChew =
+      " _(__)_        V\n"
+      "'-e e -'__,--.__)\n"
+      "(o-o)        )\n"
       "   \\. /___.  |\n"
       "   ||| _)/_)/\n"
       "  //_(/_(/_(";
@@ -9974,7 +9990,19 @@ static void lvglScreenSaverSetCowArt(int8_t dir) {
       "  |  .___\\ ./    \n"
       "   \\(_\\(_ |||    \n"
       "    )_\\)_\\)_\\\\";
-  lv_label_set_text(g_saver.cow, (dir >= 0) ? kCowLeft : kCowRight);
+  static const char *kCowLeftChew =
+      "V        _(__)_ \n"
+      "(__.--,__'-e e -'\n"
+      "  (        (o-o) \n"
+      "  |  .___\\ ./    \n"
+      "   \\(_\\(_ |||    \n"
+      "    )_\\)_\\)_\\\\";
+  const bool chew = (g_saver.cowChewFrame == 1 && g_saver.cowState == COW_GRAZE);
+  if (dir >= 0) {
+    lv_label_set_text(g_saver.cow, chew ? kCowLeftChew : kCowLeft);
+  } else {
+    lv_label_set_text(g_saver.cow, chew ? kCowRightChew : kCowRight);
+  }
 }
 
 static constexpr uint8_t kScreenSaverThoughtMaxLines = 4;
