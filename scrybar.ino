@@ -1277,6 +1277,39 @@ static LvglPageAnimState g_pageAnim;
 static constexpr uint8_t kSaverSkyRowsMax = 10;
 static constexpr uint8_t kSaverSkyColsMax = 80;
 static constexpr uint8_t kSaverStarsPerRow = 2;
+
+enum CowState : uint8_t {
+  COW_GRAZE    = 0,
+  COW_IDLE     = 1,
+  COW_SLEEP    = 2,
+  COW_RUN      = 3,
+  COW_STARE_UP = 4,
+};
+
+enum SaverEvent : uint8_t {
+  SAVER_EVENT_NONE          = 0,
+  SAVER_EVENT_SHOOTING_STAR = 1,
+  SAVER_EVENT_UFO           = 2,
+  SAVER_EVENT_SATELLITE     = 3,
+  SAVER_EVENT_RAIN          = 4,
+  SAVER_EVENT_MATRIX_GLITCH = 5,
+};
+
+enum SkyPhase : uint8_t {
+  SKY_NIGHT = 0,
+  SKY_DAWN  = 1,
+  SKY_DAY   = 2,
+  SKY_DUSK  = 3,
+};
+
+enum ThoughtCategory : uint8_t {
+  THOUGHT_PHILOSOPHY = 0,
+  THOUGHT_HACKER     = 1,
+  THOUGHT_META       = 2,
+  THOUGHT_WEATHER    = 3,
+  THOUGHT_EASTER_EGG = 4,
+};
+
 struct ScreensaverState {
   lv_obj_t *root = nullptr;
   lv_obj_t *sky = nullptr;
@@ -1312,6 +1345,23 @@ struct ScreensaverState {
   uint32_t fieldNextMs = 0;
   uint8_t fieldScroll = 0;
   char fieldBuf[256] = {0};
+  // --- Pasture Simulator additions ---
+  uint32_t skyNextMs = 0;
+  uint32_t cowChewNextMs = 0;
+  uint32_t cowStateNextMs = 0;
+  uint32_t eventEndMs = 0;
+  uint32_t eventCooldownMs = 0;
+  uint32_t starBorrowedMask = 0;
+  uint32_t cloudNextMs = 0;
+  int16_t  eventX = 0;
+  uint8_t  skyPhase = 0;
+  uint8_t  cowState = 0;
+  uint8_t  cowChewFrame = 0;
+  uint8_t  eventActive = 0;
+  int8_t   eventDir = 1;
+  uint8_t  thoughtCategory = 0;
+  uint8_t  cloudOffset = 0;
+  uint8_t  cowPrevState = 0;
 };
 static ScreensaverState g_saver;
 #endif
