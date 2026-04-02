@@ -10301,6 +10301,174 @@ static void lvglScreenSaverUpdateClouds(uint32_t nowMs) {
   }
 }
 
+// --- Pasture Simulator: star borrowing + event system ---
+
+static void lvglScreenSaverBorrowStar(uint8_t r, uint8_t s, const char *text,
+                                       int16_t x, int16_t y, uint32_t color) {
+  if (r >= kSaverSkyRowsMax || s >= kSaverStarsPerRow) return;
+  const uint32_t bit = 1UL << (r * kSaverStarsPerRow + s);
+  g_saver.starBorrowedMask |= bit;
+  lv_obj_t *obj = g_saver.starObj[r][s];
+  if (!obj) return;
+  lv_label_set_text(obj, text);
+  lv_obj_set_pos(obj, x, y);
+  lv_obj_set_style_text_color(obj, lv_color_hex(color), 0);
+  lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void lvglScreenSaverReleaseStar(uint8_t r, uint8_t s) {
+  if (r >= kSaverSkyRowsMax || s >= kSaverStarsPerRow) return;
+  const uint32_t bit = 1UL << (r * kSaverStarsPerRow + s);
+  g_saver.starBorrowedMask &= ~bit;
+  lv_obj_t *obj = g_saver.starObj[r][s];
+  if (!obj) return;
+  lv_label_set_text(obj, ".");
+  lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void lvglScreenSaverUpdateEvent(uint32_t nowMs) {
+  if (g_saver.eventActive != SAVER_EVENT_NONE) {
+    if (nowMs >= g_saver.eventEndMs) {
+      lvglScreenSaverEndEvent();
+      return;
+    }
+    const int16_t cW = canvasWidth();
+    const int16_t cH = canvasHeight();
+    switch (g_saver.eventActive) {
+      case SAVER_EVENT_SHOOTING_STAR: {
+        g_saver.eventX += 40 * g_saver.eventDir;
+        const uint32_t elapsed = nowMs - (g_saver.eventEndMs - 1500UL);
+        int16_t y = (int16_t)(8 + (elapsed / 55) * 4);
+        if (y > cH - 40) y = (int16_t)(cH - 40);
+        if (g_saver.eventX > cW || g_saver.eventX < -40) {
+          lvglScreenSaverEndEvent();
+          return;
+        }
+        lvglScreenSaverBorrowStar(g_saver.rows - 1, 0, "--*",
+            g_saver.eventX, y, activeUiTheme().lvgl.saverStarHigh);
+        break;
+      }
+      case SAVER_EVENT_UFO: {
+        g_saver.eventX += 3 * g_saver.eventDir;
+        if (g_saver.eventX > cW) g_saver.eventX = -30;
+        lvglScreenSaverBorrowStar(g_saver.rows - 1, 0, "<==>",
+            g_saver.eventX, 6, activeUiTheme().lvgl.saverStarHigh);
+        break;
+      }
+      case SAVER_EVENT_SATELLITE: {
+        g_saver.eventX += 2 * g_saver.eventDir;
+        if (g_saver.eventX > cW || g_saver.eventX < -10) {
+          lvglScreenSaverEndEvent();
+          return;
+        }
+        lvglScreenSaverBorrowStar(g_saver.rows - 1, 0, ".",
+            g_saver.eventX, 10, activeUiTheme().lvgl.saverStarMid);
+        break;
+      }
+      case SAVER_EVENT_RAIN: {
+        for (uint8_t i = 0; i < 4; ++i) {
+          uint8_t rr = (uint8_t)(g_saver.rows - 2 + (i / 2));
+          uint8_t ss = (uint8_t)(i % 2);
+          if (rr >= kSaverSkyRowsMax) rr = (uint8_t)(kSaverSkyRowsMax - 1);
+          lv_obj_t *obj = g_saver.starObj[rr][ss];
+          if (!obj) continue;
+          lv_coord_t cy = lv_obj_get_y(obj);
+          cy += 6;
+          if (cy > cH - 30) {
+            cy = 4;
+            lv_obj_set_x(obj, (lv_coord_t)(8 + (lvglScreenSaverRandNext() % (uint32_t)(cW - 20))));
+          }
+          const char *drop = ((lvglScreenSaverRandNext() & 1) == 0) ? "|" : "'";
+          lvglScreenSaverBorrowStar(rr, ss, drop,
+              lv_obj_get_x(obj), cy, activeUiTheme().lvgl.saverStarMid);
+        }
+        break;
+      }
+      case SAVER_EVENT_MATRIX_GLITCH: {
+        for (uint8_t i = 0; i < 2; ++i) {
+          uint8_t rr = (uint8_t)(g_saver.rows - 1);
+          uint8_t ss = (uint8_t)(i % kSaverStarsPerRow);
+          char ch[2] = { (char)('0' + (lvglScreenSaverRandNext() % 16)), '\0' };
+          if (ch[0] > '9') ch[0] = (char)('A' + (ch[0] - '9' - 1));
+          uint32_t color = lvglThemeIsCathodeRay() ? 0xFFAA00u : 0x00FF00u;
+          int16_t y = (int16_t)(20 + i * 14);
+          lvglScreenSaverBorrowStar(rr, ss, ch,
+              g_saver.eventX, y, color);
+        }
+        break;
+      }
+      default: break;
+    }
+    return;
+  }
+
+  // No event active — check cooldown and maybe start one
+  if (nowMs < g_saver.eventCooldownMs) return;
+
+  const uint32_t roll = lvglScreenSaverRandNext() % 1000;
+  const bool canNight = (g_saver.skyPhase == SKY_NIGHT || g_saver.skyPhase == SKY_DUSK);
+  const bool canDay = (g_saver.skyPhase == SKY_DAY);
+  const uint32_t baseWait = 300000UL + (lvglScreenSaverRandNext() % 300000UL);
+
+  if (canNight && roll < 300) {
+    g_saver.eventActive = SAVER_EVENT_SHOOTING_STAR;
+    g_saver.eventEndMs = nowMs + 1500UL;
+    g_saver.eventDir = ((lvglScreenSaverRandNext() & 1) == 0) ? 1 : -1;
+    g_saver.eventX = (g_saver.eventDir > 0) ? -30 : canvasWidth();
+    if (g_saver.cowState != COW_SLEEP) {
+      g_saver.cowPrevState = g_saver.cowState;
+      g_saver.cowState = COW_STARE_UP;
+      g_saver.cowStateNextMs = g_saver.eventEndMs;
+    }
+    Serial.println("[SCRNSVR] event=shooting_star");
+  } else if (canNight && roll < 350) {
+    g_saver.eventActive = SAVER_EVENT_SATELLITE;
+    g_saver.eventEndMs = nowMs + 20000UL;
+    g_saver.eventDir = ((lvglScreenSaverRandNext() & 1) == 0) ? 1 : -1;
+    g_saver.eventX = (g_saver.eventDir > 0) ? -10 : canvasWidth();
+    if ((lvglScreenSaverRandNext() % 100) < 30 && g_saver.cowState != COW_SLEEP) {
+      g_saver.cowPrevState = g_saver.cowState;
+      g_saver.cowState = COW_STARE_UP;
+      g_saver.cowStateNextMs = g_saver.eventEndMs;
+    }
+    Serial.println("[SCRNSVR] event=satellite");
+  } else if (roll < 380) {
+    g_saver.eventActive = SAVER_EVENT_UFO;
+    g_saver.eventEndMs = nowMs + 8000UL;
+    g_saver.eventDir = ((lvglScreenSaverRandNext() & 1) == 0) ? 1 : -1;
+    g_saver.eventX = (g_saver.eventDir > 0) ? -30 : canvasWidth();
+    if (g_saver.cowState != COW_SLEEP) {
+      g_saver.cowPrevState = g_saver.cowState;
+      g_saver.cowState = COW_STARE_UP;
+      g_saver.cowStateNextMs = g_saver.eventEndMs;
+    }
+    Serial.println("[SCRNSVR] event=ufo");
+  } else if (canDay && roll < 420) {
+    g_saver.eventActive = SAVER_EVENT_RAIN;
+    g_saver.eventEndMs = nowMs + 120000UL + (lvglScreenSaverRandNext() % 60000UL);
+    g_saver.eventX = 0;
+    for (uint8_t i = 0; i < 4; ++i) {
+      uint8_t rr = (uint8_t)(g_saver.rows - 2 + (i / 2));
+      uint8_t ss = (uint8_t)(i % 2);
+      if (rr >= kSaverSkyRowsMax) rr = (uint8_t)(kSaverSkyRowsMax - 1);
+      int16_t rx = (int16_t)(8 + (lvglScreenSaverRandNext() % (uint32_t)(canvasWidth() - 20)));
+      int16_t ry = (int16_t)(4 + (lvglScreenSaverRandNext() % 60));
+      lvglScreenSaverBorrowStar(rr, ss, "|", rx, ry,
+          activeUiTheme().lvgl.saverStarMid);
+    }
+    g_saver.cowState = COW_IDLE;
+    g_saver.cowStateNextMs = g_saver.eventEndMs;
+    Serial.println("[SCRNSVR] event=rain");
+  } else if (roll < 435) {
+    g_saver.eventActive = SAVER_EVENT_MATRIX_GLITCH;
+    g_saver.eventEndMs = nowMs + 3000UL;
+    g_saver.eventX = (int16_t)(40 + (lvglScreenSaverRandNext() % (uint32_t)(canvasWidth() - 80)));
+    Serial.println("[SCRNSVR] event=matrix_glitch");
+  } else {
+    g_saver.eventCooldownMs = nowMs + baseWait;
+  }
+}
+
 static const char *const kSaverQuotesIt[] = {
     "Mastico erba e penso a Nietzsche.",
     "Ho quattro stomaci e zero risposte.",
