@@ -10503,6 +10503,8 @@ static void lvglScreenSaverUpdateStars(uint32_t nowMs) {
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
   for (uint8_t r = 0; r < g_saver.rows; ++r) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
+      const uint32_t starBit = 1UL << (r * kSaverStarsPerRow + s);
+      if (g_saver.starBorrowedMask & starBit) continue;
       if (nowMs < g_saver.starNextMs[r][s]) continue;
       uint8_t &lvl = g_saver.starLevel[r][s];
       int8_t &dir = g_saver.starDir[r][s];
@@ -10523,6 +10525,8 @@ static void lvglScreenSaverUpdateStars(uint32_t nowMs) {
   }
   for (uint8_t r = 0; r < g_saver.rows; ++r) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
+      const uint32_t starBit = 1UL << (r * kSaverStarsPerRow + s);
+      if (g_saver.starBorrowedMask & starBit) continue;
       lv_obj_t *star = g_saver.starObj[r][s];
       if (!star) continue;
       const uint8_t lvl = g_saver.starLevel[r][s];
@@ -10535,6 +10539,39 @@ static void lvglScreenSaverUpdateStars(uint32_t nowMs) {
         else if (lvl >= 3) col = lv_color_hex(t.saverStarHigh);
         lv_label_set_text(star, (lvl >= 3) ? "o" : (lvl == 2 ? ":" : "."));
         lv_obj_set_style_text_color(star, col, 0);
+      }
+    }
+  }
+  // During day, hide all non-borrowed stars
+  if (g_saver.skyPhase == SKY_DAY) {
+    for (uint8_t r = 0; r < g_saver.rows; ++r) {
+      for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
+        const uint32_t bit = 1UL << (r * kSaverStarsPerRow + s);
+        if (g_saver.starBorrowedMask & bit) continue;
+        if (g_saver.starObj[r][s]) lv_obj_add_flag(g_saver.starObj[r][s], LV_OBJ_FLAG_HIDDEN);
+      }
+    }
+  }
+  // During dawn, cap max star brightness
+  if (g_saver.skyPhase == SKY_DAWN) {
+    for (uint8_t r = 0; r < g_saver.rows; ++r) {
+      for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
+        const uint32_t bit = 1UL << (r * kSaverStarsPerRow + s);
+        if (g_saver.starBorrowedMask & bit) continue;
+        if (g_saver.starLevel[r][s] > 2) g_saver.starLevel[r][s] = 2;
+      }
+    }
+  }
+  // During dusk, cap brightness and show fewer stars
+  if (g_saver.skyPhase == SKY_DUSK) {
+    for (uint8_t r = 0; r < g_saver.rows; ++r) {
+      for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
+        const uint32_t bit = 1UL << (r * kSaverStarsPerRow + s);
+        if (g_saver.starBorrowedMask & bit) continue;
+        if (g_saver.starLevel[r][s] > 2) g_saver.starLevel[r][s] = 2;
+        if (s == 1 && (r % 3) != 0 && g_saver.starObj[r][s]) {
+          lv_obj_add_flag(g_saver.starObj[r][s], LV_OBJ_FLAG_HIDDEN);
+        }
       }
     }
   }
