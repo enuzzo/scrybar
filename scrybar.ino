@@ -12634,7 +12634,7 @@ static const lv_font_t* lvglFontSmall()    { return &scry_font_funnel_display_18
 static const lv_font_t* lvglFontTiny()     { return &scry_font_funnel_display_14; }
 static const lv_font_t* lvglFontMini()     { return &scry_font_funnel_display_16; }
 static const lv_font_t* lvglFontMono()     { return &scry_font_funnel_display_16; }
-static const lv_font_t* lvglFontMonoTiny() { return &scry_font_funnel_display_12; }
+static const lv_font_t* lvglFontMonoTiny() { return &lv_font_unscii_8; }
 static const lv_font_t* lvglFontMeta()     { return &scry_font_funnel_display_20; }
 static const lv_font_t* lvglFontInfoBody() { return &scry_font_funnel_display_16; }
 static const lv_font_t* lvglFontRssNews()  { return &scry_font_funnel_display_22; }
