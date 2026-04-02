@@ -1,0 +1,28 @@
+---
+const steps = [
+  { num: '1', icon: '\u{1F50C}', title: 'Plug In',  desc: 'Connect USB-C to your device and computer.' },
+  { num: '2', icon: '\u{26A1}',  title: 'Flash',    desc: 'One click from your browser. No toolchain, no drivers.' },
+  { num: '3', icon: '\u{1F4F6}', title: 'Connect',  desc: 'Device creates a WiFi AP. Open the config page and set up.' },
+  { num: '4', icon: '\u{2705}',  title: 'Enjoy',    desc: 'Clock, weather, news, transit — all running on your desk.' },
+];
+---
+<section id="setup">
+  <div class="container">
+    <span class="section-label">Setup</span>
+    <h2>Up and running in minutes</h2>
+    <p class="section-sub">
+      No soldering, no SDK, no app store. Plug in, flash, configure.
+    </p>
+
+    <div class="steps-grid">
+      {steps.map((s) => (
+        <div class="vm-card step-card">
+          <span class="step-icon">{s.icon}</span>
+          <span class="step-num">Step {s.num}</span>
+          <h3>{s.title}</h3>
+          <p>{s.desc}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

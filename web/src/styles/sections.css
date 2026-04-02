@@ -403,6 +403,72 @@
 .view-lightbox__nav--prev { left: -60px; }
 .view-lightbox__nav--next { right: -60px; }
 
+/* ============ HOW IT WORKS ============ */
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.step-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px 22px;
+  text-align: center;
+}
+
+.step-icon {
+  font-size: 32px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.step-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-primary);
+}
+
+.step-card h3 {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.step-card p {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  line-height: 1.55;
+  transition: color 0.45s ease;
+}
+
+/* ============ COMPANION APP ============ */
+.companion-card-wrap {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.companion-card {
+  padding: 28px;
+}
+
+.companion-badges {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.companion-card__desc {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  line-height: 1.65;
+  margin-bottom: 20px;
+  transition: color 0.45s ease;
+}
+
 /* ============ FLASH ============ */
 .flash-cards {
   display: grid;
@@ -636,6 +702,9 @@ esp-web-install-button [slot="activate"] {
   .features-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .steps-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .specs-table {
     grid-template-columns: 1fr;
   }
@@ -659,6 +728,9 @@ esp-web-install-button [slot="activate"] {
     justify-content: center;
   }
   .features-grid {
+    grid-template-columns: 1fr;
+  }
+  .steps-grid {
     grid-template-columns: 1fr;
   }
   .views-grid {

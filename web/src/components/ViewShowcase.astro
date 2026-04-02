@@ -1,21 +1,22 @@
 ---
 import imgRss from '../assets/screenshots/aux_rss.png';
 import imgWiki from '../assets/screenshots/wiki_stream.png';
+import imgTransit from '../assets/screenshots/transit_board.png';
 import imgNowPlaying from '../assets/screenshots/now_playing.png';
 const views = [
-  { id: 'rss',  src: imgRss,        label: 'RSS Feeds',    desc: 'Live news with favicons, QR codes for mobile reading. Up to 5 configurable feeds.' },
-  { id: 'wiki', src: imgWiki,       label: 'Wikipedia',     desc: 'Featured articles, On This Day, random discoveries. Swipe through knowledge.' },
-  { id: 'np',   src: imgNowPlaying, label: 'Now Playing',   desc: 'Album art, progress bar, artist detection. Pushed live from macOS companion.' },
-  // TODO: add transit departure board screenshot (capture from device, save to assets/screenshots/transit_board.png)
+  { id: 'rss',     src: imgRss,        label: 'RSS Feeds',           desc: 'Live news with favicons, QR codes for mobile reading. Up to 5 configurable feeds.' },
+  { id: 'wiki',    src: imgWiki,       label: 'Wikipedia',            desc: 'Featured articles, On This Day, random discoveries. Swipe through knowledge.' },
+  { id: 'transit', src: imgTransit,    label: 'Transit Departures',   desc: 'Live departures worldwide via Transitous. Trains, metro, bus — no API key needed.' },
+  { id: 'np',      src: imgNowPlaying, label: 'Now Playing',          desc: 'Album art, progress bar, artist detection. Pushed live from macOS companion.' },
 ];
 ---
 <section id="views">
   <div class="container">
     <span class="section-label">Views</span>
-    <h2>Six views, one gesture away</h2>
+    <h2>Views worth swiping for</h2>
     <p class="section-sub">
-      Swipe left or right to switch between clock, news, Wikipedia,
-      Now Playing, and live transit departures.
+      Swipe left or right to switch between news, Wikipedia,
+      transit departures, and Now Playing.
     </p>
 
     <div class="views-grid">
