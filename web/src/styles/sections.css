@@ -446,13 +446,27 @@
 }
 
 /* ============ COMPANION APP ============ */
-.companion-card-wrap {
-  max-width: 480px;
-  margin: 0 auto;
+.companion-card {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 32px;
 }
 
-.companion-card {
-  padding: 28px;
+.companion-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.companion-card__screenshot {
+  flex-shrink: 0;
+}
+
+.companion-card__screenshot img {
+  display: block;
+  max-width: 380px;
+  height: auto;
+  border-radius: 10px;
 }
 
 .companion-badges {
@@ -732,6 +746,12 @@ esp-web-install-button [slot="activate"] {
   }
   .steps-grid {
     grid-template-columns: 1fr;
+  }
+  .companion-card {
+    flex-direction: column;
+  }
+  .companion-card__screenshot img {
+    max-width: 100%;
   }
   .views-grid {
     grid-template-columns: 1fr;
