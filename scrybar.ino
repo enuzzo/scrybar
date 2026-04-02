@@ -10985,6 +10985,21 @@ static void lvglSetScreenSaverActive(bool on) {
     lvglScreenSaverBuildFieldLine();
     lvglScreenSaverUpdateStars(millis());
     lvglScreenSaverRespawnCow();
+    // Pasture Simulator state init
+    g_saver.eventActive = SAVER_EVENT_NONE;
+    g_saver.eventEndMs = 0;
+    g_saver.eventCooldownMs = millis() + 30000UL;
+    g_saver.starBorrowedMask = 0;
+    g_saver.cowState = COW_GRAZE;
+    g_saver.cowChewFrame = 0;
+    g_saver.cowChewNextMs = millis() + 400UL;
+    g_saver.cowStateNextMs = millis() + 8000UL + (lvglScreenSaverRandNext() % 12000UL);
+    g_saver.thoughtCategory = THOUGHT_PHILOSOPHY;
+    g_saver.cloudOffset = 0;
+    g_saver.cloudNextMs = 0;
+    g_saver.cowPrevState = COW_GRAZE;
+    g_saver.skyNextMs = 0;
+    lvglScreenSaverUpdateSkyPhase(millis());
     lvglScreenSaverUpdateFooter(millis());
     g_saver.lastStepMs = millis();
     lv_obj_move_foreground(g_saver.root);
@@ -10998,6 +11013,8 @@ static void lvglSetScreenSaverActive(bool on) {
     if (g_saver.balloon) lv_obj_add_flag(g_saver.balloon, LV_OBJ_FLAG_HIDDEN);
     if (g_saver.balloonTail) lv_obj_add_flag(g_saver.balloonTail, LV_OBJ_FLAG_HIDDEN);
     g_saver.wakeGuardUntilMs = millis() + 900UL;
+    g_saver.eventActive = SAVER_EVENT_NONE;
+    g_saver.starBorrowedMask = 0;
     g_uiNeedsRedraw = true;
     Serial.println("[SCRNSVR] OFF");
   }
