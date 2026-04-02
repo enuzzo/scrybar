@@ -10745,6 +10745,59 @@ static void lvglScreenSaverUpdateStars(uint32_t nowMs) {
   }
 }
 
+// --- Pasture Simulator: cow state machine ---
+
+static void lvglScreenSaverTransitionCow(uint32_t nowMs) {
+  // Exiting STARE_UP: restore previous state
+  if (g_saver.cowState == COW_STARE_UP) {
+    uint8_t prev = g_saver.cowPrevState;
+    if (prev == COW_SLEEP && g_saver.skyPhase != SKY_NIGHT) prev = COW_GRAZE;
+    g_saver.cowState = prev;
+    g_saver.cowStateNextMs = nowMs + 3000UL + (lvglScreenSaverRandNext() % 5000UL);
+    lvglScreenSaverSetCowArt(g_saver.cowDir);
+    Serial.printf("[SCRNSVR] cowState=%u (restored)\n", prev);
+    return;
+  }
+
+  const uint32_t roll = lvglScreenSaverRandNext() % 100;
+  uint8_t newState;
+
+  if (g_saver.skyPhase == SKY_NIGHT) {
+    if (roll < 60)      newState = COW_SLEEP;
+    else if (roll < 80) newState = COW_IDLE;
+    else if (roll < 95) newState = COW_GRAZE;
+    else                newState = COW_RUN;
+  } else {
+    if (roll < 50)      newState = COW_GRAZE;
+    else if (roll < 80) newState = COW_IDLE;
+    else                newState = COW_RUN;
+  }
+
+  g_saver.cowState = newState;
+  lvglScreenSaverSetCowArt(g_saver.cowDir);
+
+  switch (newState) {
+    case COW_GRAZE:
+      g_saver.cowStateNextMs = nowMs + 8000UL + (lvglScreenSaverRandNext() % 12000UL);
+      g_saver.cowChewNextMs = nowMs + 400UL;
+      break;
+    case COW_IDLE:
+      g_saver.cowStateNextMs = nowMs + 3000UL + (lvglScreenSaverRandNext() % 5000UL);
+      g_saver.cowStepsLeft = 0;
+      break;
+    case COW_SLEEP:
+      g_saver.cowStateNextMs = nowMs + 30000UL + (lvglScreenSaverRandNext() % 90000UL);
+      g_saver.cowStepsLeft = 0;
+      break;
+    case COW_RUN:
+      g_saver.cowStateNextMs = nowMs + 3000UL + (lvglScreenSaverRandNext() % 2000UL);
+      g_saver.cowStepsLeft = 20;
+      break;
+    default: break;
+  }
+  Serial.printf("[SCRNSVR] cowState=%u\n", newState);
+}
+
 static void lvglScreenSaverRespawnCow() {
   const int16_t h = canvasHeight();
   g_saver.y = (h > 96) ? (h - 90) : 14;
@@ -10847,14 +10900,38 @@ static void handleScreenSaverLoop(uint32_t nowMs) {
 
   if ((nowMs - g_saver.lastStepMs) < SCREENSAVER_STEP_MS) return;
   g_saver.lastStepMs = nowMs;
+  lvglScreenSaverUpdateSkyPhase(nowMs);
+  lvglScreenSaverUpdateClouds(nowMs);
+  lvglScreenSaverUpdateEvent(nowMs);
   lvglScreenSaverUpdateStars(nowMs);
   lvglScreenSaverUpdateField(nowMs);
   lvglScreenSaverUpdateBalloon(nowMs);
   lvglScreenSaverUpdateFooter(nowMs);
-  if (nowMs >= g_saver.cowNextMoveMs) {
+
+  // Cow state machine transitions
+  if (nowMs >= g_saver.cowStateNextMs && g_saver.cowState != COW_STARE_UP) {
+    lvglScreenSaverTransitionCow(nowMs);
+  }
+  // STARE_UP exit when event ends
+  if (g_saver.cowState == COW_STARE_UP && nowMs >= g_saver.cowStateNextMs) {
+    lvglScreenSaverTransitionCow(nowMs);
+  }
+
+  // Chew animation (only during GRAZE)
+  if (g_saver.cowState == COW_GRAZE && nowMs >= g_saver.cowChewNextMs) {
+    g_saver.cowChewFrame = (uint8_t)(1 - g_saver.cowChewFrame);
+    g_saver.cowChewNextMs = nowMs + 400UL;
+    lvglScreenSaverSetCowArt(g_saver.cowDir);
+  }
+
+  // Movement (GRAZE and RUN move, others don't)
+  if ((g_saver.cowState == COW_GRAZE || g_saver.cowState == COW_RUN) &&
+      nowMs >= g_saver.cowNextMoveMs) {
+    const uint8_t stepPx = (g_saver.cowState == COW_RUN) ? 18 : 6;
+    const uint32_t stepMs = (g_saver.cowState == COW_RUN) ? 120UL : 180UL;
     bool dirChanged = false;
     if (g_saver.cowStepsLeft == 0) {
-      g_saver.cowStepsLeft = (uint8_t)(2U + (lvglScreenSaverRandNext() % 5U));  // short walk burst
+      g_saver.cowStepsLeft = (uint8_t)(2U + (lvglScreenSaverRandNext() % 5U));
       if ((lvglScreenSaverRandNext() % 5U) == 0U) {
         g_saver.cowDir = -g_saver.cowDir;
         dirChanged = true;
@@ -10862,7 +10939,7 @@ static void handleScreenSaverLoop(uint32_t nowMs) {
     }
     const int16_t minX = 8;
     const int16_t maxX = canvasWidth() - 250;
-    int16_t nx = (int16_t)(g_saver.x + (g_saver.cowDir * 6));
+    int16_t nx = (int16_t)(g_saver.x + (g_saver.cowDir * stepPx));
     if (nx < minX) {
       nx = minX;
       g_saver.cowDir = 1;
@@ -10875,8 +10952,16 @@ static void handleScreenSaverLoop(uint32_t nowMs) {
     if (dirChanged) lvglScreenSaverSetCowArt(g_saver.cowDir);
     g_saver.x = nx;
     if (g_saver.cowStepsLeft > 0) --g_saver.cowStepsLeft;
-    g_saver.cowNextMoveMs = nowMs + ((g_saver.cowStepsLeft > 0) ? 180UL : (1000UL + (lvglScreenSaverRandNext() % 5000UL)));
+    g_saver.cowNextMoveMs = nowMs + ((g_saver.cowStepsLeft > 0) ? stepMs :
+        (1000UL + (lvglScreenSaverRandNext() % 5000UL)));
   }
+
+  // IDLE: occasional head turn
+  if (g_saver.cowState == COW_IDLE && (lvglScreenSaverRandNext() % 200) == 0) {
+    g_saver.cowDir = -g_saver.cowDir;
+    lvglScreenSaverSetCowArt(g_saver.cowDir);
+  }
+
   if (g_saver.cow) {
     lv_obj_set_pos(g_saver.cow, g_saver.x, g_saver.y);
   }
