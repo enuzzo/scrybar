@@ -10212,6 +10212,95 @@ static void lvglScreenSaverInitStars() {
   }
 }
 
+// --- Pasture Simulator: event end, sky phase, clouds ---
+
+static void lvglScreenSaverEndEvent() {
+  if (g_saver.eventActive == SAVER_EVENT_NONE) return;
+  for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
+    for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
+      const uint32_t bit = 1UL << (r * kSaverStarsPerRow + s);
+      if (g_saver.starBorrowedMask & bit) {
+        if (g_saver.starObj[r][s]) {
+          lv_obj_add_flag(g_saver.starObj[r][s], LV_OBJ_FLAG_HIDDEN);
+          lv_label_set_text(g_saver.starObj[r][s], ".");
+        }
+      }
+    }
+  }
+  g_saver.starBorrowedMask = 0;
+  g_saver.eventActive = SAVER_EVENT_NONE;
+  g_saver.eventEndMs = 0;
+  g_saver.eventCooldownMs = millis() + 180000UL;
+  Serial.println("[SCRNSVR] event ended");
+}
+
+static void lvglScreenSaverUpdateSkyPhase(uint32_t nowMs) {
+  if (nowMs < g_saver.skyNextMs) return;
+  g_saver.skyNextMs = nowMs + 60000UL;
+
+  uint8_t newPhase = SKY_NIGHT;
+  if (g_clock.ntpSynced) {
+    struct tm tmNow;
+    if (getLocalTime(&tmNow, 20)) {
+      const uint8_t h = (uint8_t)tmNow.tm_hour;
+      if (h >= 5 && h < 7)       newPhase = SKY_DAWN;
+      else if (h >= 7 && h < 19) newPhase = SKY_DAY;
+      else if (h >= 19 && h < 21) newPhase = SKY_DUSK;
+      else                        newPhase = SKY_NIGHT;
+    }
+  }
+
+  if (newPhase == g_saver.skyPhase) return;
+  g_saver.skyPhase = newPhase;
+  Serial.printf("[SCRNSVR] skyPhase=%u\n", newPhase);
+
+  // Phase transition safety: force-end incompatible events
+  if (g_saver.eventActive != SAVER_EVENT_NONE) {
+    const uint8_t ev = g_saver.eventActive;
+    if (ev == SAVER_EVENT_RAIN && newPhase != SKY_DAY) lvglScreenSaverEndEvent();
+    if ((ev == SAVER_EVENT_SHOOTING_STAR || ev == SAVER_EVENT_SATELLITE) &&
+        (newPhase == SKY_DAY || newPhase == SKY_DAWN)) lvglScreenSaverEndEvent();
+  }
+
+  if (g_saver.sky) {
+    if (newPhase == SKY_NIGHT) {
+      lv_label_set_text(g_saver.sky, "");
+      lv_obj_add_flag(g_saver.sky, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_clear_flag(g_saver.sky, LV_OBJ_FLAG_HIDDEN);
+      if (newPhase == SKY_DAY) g_saver.cloudOffset = 0;
+    }
+  }
+}
+
+static void lvglScreenSaverUpdateClouds(uint32_t nowMs) {
+  if (!g_saver.sky) return;
+  if (nowMs < g_saver.cloudNextMs) return;
+  g_saver.cloudNextMs = nowMs + 2000UL;
+
+  char buf[128];
+  memset(buf, 0, sizeof(buf));
+
+  if (g_saver.skyPhase == SKY_DAY) {
+    const char *cloud = "_.--\"\"--._";
+    const uint8_t cloudLen = 10;
+    uint8_t spaces = g_saver.cloudOffset;
+    uint8_t i = 0;
+    buf[i++] = '\n';
+    for (uint8_t s = 0; s < spaces && i < 100; ++s) buf[i++] = ' ';
+    for (uint8_t c = 0; c < cloudLen && i < 115; ++c) buf[i++] = cloud[c];
+    buf[i] = '\0';
+    g_saver.cloudOffset = (uint8_t)((g_saver.cloudOffset + 1) % 60);
+    lv_label_set_text(g_saver.sky, buf);
+  } else if (g_saver.skyPhase == SKY_DAWN) {
+    snprintf(buf, sizeof(buf), "\n\n\n\n\n          ..:::::..::..");
+    lv_label_set_text(g_saver.sky, buf);
+  } else if (g_saver.skyPhase == SKY_DUSK) {
+    snprintf(buf, sizeof(buf), "\n\n\n\n\n          ::..:::..:::..");
+    lv_label_set_text(g_saver.sky, buf);
+  }
+}
+
 static const char *const kSaverQuotesIt[] = {
     "Mastico erba e penso a Nietzsche.",
     "Ho quattro stomaci e zero risposte.",
