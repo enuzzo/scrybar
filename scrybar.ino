@@ -10580,23 +10580,159 @@ static const char *const kSaverQuotesBellazio[] = {
     "Le stelle hypeano troppo, bro.",
 };
 
-static void lvglScreenSaverQuotePackForLang(const char *const **items, uint8_t *count) {
+// --- Hacker quotes ---
+static const char *const kSaverQuotesHackerEn[] = {
+    "sudo rm -rf /grass",
+    "my udder has 256 bits of entropy",
+    "is this the matrix or just good pasture",
+    "segfault in rumination module",
+    "404: meaning not found",
+    "I run on grass, not JavaScript",
+    "localhost:8080/pasture",
+    "have you tried turning the fence off and on",
+};
+static const char *const kSaverQuotesHackerIt[] = {
+    "sudo rm -rf /erba",
+    "la mia mammella ha 256 bit di entropia",
+    "segfault nel modulo ruminazione",
+    "404: senso non trovato",
+    "funziono a erba, non a JavaScript",
+    "hai provato a spegnere e riaccendere il recinto",
+};
+static const char *const kSaverQuotesHackerFr[] = {
+    "sudo rm -rf /herbe",
+    "mon pis a 256 bits d'entropie",
+    "segfault dans le module rumination",
+    "404: sens introuvable",
+    "je tourne a l'herbe, pas au JavaScript",
+};
+static const char *const kSaverQuotesHackerDe[] = {
+    "sudo rm -rf /gras",
+    "mein Euter hat 256 Bit Entropie",
+    "Segfault im Wiederkaumodul",
+    "404: Sinn nicht gefunden",
+    "ich laufe auf Gras, nicht JavaScript",
+};
+static const char *const kSaverQuotesHackerEs[] = {
+    "sudo rm -rf /hierba",
+    "mi ubre tiene 256 bits de entropia",
+    "segfault en modulo de ruminacion",
+    "404: sentido no encontrado",
+    "funciono con hierba, no con JavaScript",
+};
+static const char *const kSaverQuotesHackerPt[] = {
+    "sudo rm -rf /erva",
+    "meu ubre tem 256 bits de entropia",
+    "segfault no modulo de ruminacao",
+    "404: sentido nao encontrado",
+    "funciono com erva, nao com JavaScript",
+};
+static const char *const kSaverQuotesHackerLa[] = {
+    "sudo rm -rf /herba",
+    "uber meum CCLVI bits entropiae habet",
+    "segfault in modulo ruminationis",
+    "CDIV: sensus non inventus",
+};
+
+// --- Meta quotes ---
+static const char *const kSaverQuotesMetaEn[] = {
+    "I've been walking back and forth for hours",
+    "someone is watching me on a tiny screen",
+    "am I screensaver or screensavee",
+    "this field is exactly 640 pixels wide",
+    "the tree never moves. suspicious.",
+};
+static const char *const kSaverQuotesMetaIt[] = {
+    "cammino avanti e indietro da ore",
+    "qualcuno mi guarda su uno schermino",
+    "sono io lo screensaver o lo screensavato",
+    "questo campo e' largo esattamente 640 pixel",
+    "l'albero non si muove mai. sospetto.",
+};
+
+// --- Weather quotes (English, selected by skyPhase) ---
+static const char *const kSaverQuotesWeatherNightEn[] = {
+    "nice stars tonight",
+    "is that a satellite or a pixel",
+    "3 AM and still no answers",
+};
+static const char *const kSaverQuotesWeatherDawnEn[] = {
+    "another sunrise. still a cow.",
+    "the gradient is beautiful today",
+};
+static const char *const kSaverQuotesWeatherDayEn[] = {
+    "that cloud looks like a TCP packet",
+    "solar powered contemplation",
+};
+static const char *const kSaverQuotesWeatherDuskEn[] = {
+    "golden hour. still chewing.",
+    "sunset commits are the best",
+};
+static const char *const kSaverQuotesWeatherRainEn[] = {
+    "rain again. at least I'm not a server.",
+    "cloud computing, literally",
+};
+static const char *const kSaverQuotesWeatherUfoEn[] = {
+    "I saw something. nobody will believe me.",
+};
+
+// --- Easter egg quotes (shared across all languages) ---
+static const char *const kSaverQuotesEasterEn[] = {
+    "01101101 01101111 01101111",
+    "mooooo",
+    "< this space intentionally left blank >",
+};
+
+static void lvglScreenSaverQuotePackForLang(const char *const **items, uint8_t *count,
+                                             uint8_t category) {
   if (!items || !count) return;
+
+  #define QPACK(arr) do { *items = (arr); *count = (uint8_t)(sizeof(arr) / sizeof((arr)[0])); } while(0)
+
+  if (category == THOUGHT_EASTER_EGG) { QPACK(kSaverQuotesEasterEn); return; }
+
+  if (category == THOUGHT_WEATHER) {
+    if (g_saver.eventActive == SAVER_EVENT_RAIN)       { QPACK(kSaverQuotesWeatherRainEn); return; }
+    if (g_saver.eventActive == SAVER_EVENT_UFO)        { QPACK(kSaverQuotesWeatherUfoEn); return; }
+    if (g_saver.skyPhase == SKY_DAWN)                  { QPACK(kSaverQuotesWeatherDawnEn); return; }
+    if (g_saver.skyPhase == SKY_DAY)                   { QPACK(kSaverQuotesWeatherDayEn); return; }
+    if (g_saver.skyPhase == SKY_DUSK)                  { QPACK(kSaverQuotesWeatherDuskEn); return; }
+    QPACK(kSaverQuotesWeatherNightEn); return;
+  }
+
+  if (category == THOUGHT_META) {
+    if (strcmp(g_wordClockLang, "it") == 0) { QPACK(kSaverQuotesMetaIt); return; }
+    QPACK(kSaverQuotesMetaEn); return;
+  }
+
+  if (category == THOUGHT_HACKER) {
+    QPACK(kSaverQuotesHackerEn);
+    if (strcmp(g_wordClockLang, "it") == 0) QPACK(kSaverQuotesHackerIt);
+    else if (strcmp(g_wordClockLang, "fr") == 0) QPACK(kSaverQuotesHackerFr);
+    else if (strcmp(g_wordClockLang, "de") == 0) QPACK(kSaverQuotesHackerDe);
+    else if (strcmp(g_wordClockLang, "es") == 0) QPACK(kSaverQuotesHackerEs);
+    else if (strcmp(g_wordClockLang, "pt") == 0) QPACK(kSaverQuotesHackerPt);
+    else if (strcmp(g_wordClockLang, "la") == 0) QPACK(kSaverQuotesHackerLa);
+    return;
+  }
+
+  // Philosophy (default) — existing arrays
   *items = kSaverQuotesIt;
   *count = (uint8_t)(sizeof(kSaverQuotesIt) / sizeof(kSaverQuotesIt[0]));
-  if (strcmp(g_wordClockLang, "en") == 0) { *items = kSaverQuotesEn; *count = (uint8_t)(sizeof(kSaverQuotesEn) / sizeof(kSaverQuotesEn[0])); return; }
-  if (strcmp(g_wordClockLang, "fr") == 0) { *items = kSaverQuotesFr; *count = (uint8_t)(sizeof(kSaverQuotesFr) / sizeof(kSaverQuotesFr[0])); return; }
-  if (strcmp(g_wordClockLang, "de") == 0) { *items = kSaverQuotesDe; *count = (uint8_t)(sizeof(kSaverQuotesDe) / sizeof(kSaverQuotesDe[0])); return; }
-  if (strcmp(g_wordClockLang, "es") == 0) { *items = kSaverQuotesEs; *count = (uint8_t)(sizeof(kSaverQuotesEs) / sizeof(kSaverQuotesEs[0])); return; }
-  if (strcmp(g_wordClockLang, "pt") == 0) { *items = kSaverQuotesPt; *count = (uint8_t)(sizeof(kSaverQuotesPt) / sizeof(kSaverQuotesPt[0])); return; }
-  if (strcmp(g_wordClockLang, "la") == 0) { *items = kSaverQuotesLa; *count = (uint8_t)(sizeof(kSaverQuotesLa) / sizeof(kSaverQuotesLa[0])); return; }
-  if (strcmp(g_wordClockLang, "eo") == 0) { *items = kSaverQuotesEo; *count = (uint8_t)(sizeof(kSaverQuotesEo) / sizeof(kSaverQuotesEo[0])); return; }
+  if (strcmp(g_wordClockLang, "en") == 0) { QPACK(kSaverQuotesEn); return; }
+  if (strcmp(g_wordClockLang, "fr") == 0) { QPACK(kSaverQuotesFr); return; }
+  if (strcmp(g_wordClockLang, "de") == 0) { QPACK(kSaverQuotesDe); return; }
+  if (strcmp(g_wordClockLang, "es") == 0) { QPACK(kSaverQuotesEs); return; }
+  if (strcmp(g_wordClockLang, "pt") == 0) { QPACK(kSaverQuotesPt); return; }
+  if (strcmp(g_wordClockLang, "la") == 0) { QPACK(kSaverQuotesLa); return; }
+  if (strcmp(g_wordClockLang, "eo") == 0) { QPACK(kSaverQuotesEo); return; }
+  if (strcmp(g_wordClockLang, "tlh") == 0) { QPACK(kSaverQuotesTlh); return; }
+  if (strcmp(g_wordClockLang, "l33t") == 0) { QPACK(kSaverQuotesL33t); return; }
+  if (strcmp(g_wordClockLang, "sha") == 0) { QPACK(kSaverQuotesSha); return; }
+  if (strcmp(g_wordClockLang, "val") == 0) { QPACK(kSaverQuotesVal); return; }
+  if (strcmp(g_wordClockLang, "bellazio") == 0) { QPACK(kSaverQuotesBellazio); return; }
 
-  if (strcmp(g_wordClockLang, "tlh") == 0) { *items = kSaverQuotesTlh; *count = (uint8_t)(sizeof(kSaverQuotesTlh) / sizeof(kSaverQuotesTlh[0])); return; }
-  if (strcmp(g_wordClockLang, "l33t") == 0) { *items = kSaverQuotesL33t; *count = (uint8_t)(sizeof(kSaverQuotesL33t) / sizeof(kSaverQuotesL33t[0])); return; }
-  if (strcmp(g_wordClockLang, "sha") == 0) { *items = kSaverQuotesSha; *count = (uint8_t)(sizeof(kSaverQuotesSha) / sizeof(kSaverQuotesSha[0])); return; }
-  if (strcmp(g_wordClockLang, "val") == 0) { *items = kSaverQuotesVal; *count = (uint8_t)(sizeof(kSaverQuotesVal) / sizeof(kSaverQuotesVal[0])); return; }
-  if (strcmp(g_wordClockLang, "bellazio") == 0) { *items = kSaverQuotesBellazio; *count = (uint8_t)(sizeof(kSaverQuotesBellazio) / sizeof(kSaverQuotesBellazio[0])); return; }
+  #undef QPACK
 }
 
 static void toUpperAsciiInPlace(char *s) {
@@ -10611,7 +10747,16 @@ static void lvglScreenSaverSetBalloonText() {
   if (!g_saver.balloon) return;
   const char *const *quotes = nullptr;
   uint8_t n = 0;
-  lvglScreenSaverQuotePackForLang(&quotes, &n);
+  // Roll thought category with weighted probabilities
+  const uint32_t catRoll = lvglScreenSaverRandNext() % 100;
+  uint8_t cat;
+  if (catRoll < 30)      cat = THOUGHT_PHILOSOPHY;
+  else if (catRoll < 60) cat = THOUGHT_HACKER;
+  else if (catRoll < 75) cat = THOUGHT_META;
+  else if (catRoll < 90) cat = THOUGHT_WEATHER;
+  else                    cat = THOUGHT_EASTER_EGG;
+  g_saver.thoughtCategory = cat;
+  lvglScreenSaverQuotePackForLang(&quotes, &n, cat);
   if (!quotes || n == 0) return;
   if (g_saver.balloonIdx >= n) g_saver.balloonIdx = 0;
   if (n > 1U) {
