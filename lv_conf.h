@@ -3,6 +3,11 @@
 
 /* Keep this file minimal: lv_conf_internal.h will fill all missing options. */
 
+/* LVGL internal memory pool.  Default is 48 KB which is too tight for 7 pages
+   + screensaver (~90 % used at idle → crash on page transitions).  96 KB gives
+   comfortable headroom on ESP32-S3 (320 KB SRAM, 8 MB PSRAM). */
+#define LV_MEM_SIZE (96U * 1024U)
+
 #define LV_COLOR_DEPTH 16
 #define LV_COLOR_16_SWAP 1
 

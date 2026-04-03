@@ -16863,10 +16863,15 @@ void loop() {
 
   if ((now - lastHeartbeat) >= HEARTBEAT_INTERVAL_MS) {
     lastHeartbeat = now;
-    Serial.printf("[HEARTBEAT] uptime=%lu ms, free_heap=%u, free_psram=%u\n",
+    lv_mem_monitor_t lvMon;
+    lv_mem_monitor(&lvMon);
+    Serial.printf("[HEARTBEAT] uptime=%lu ms, free_heap=%u, free_psram=%u, lv_free=%u/%u%% lv_frag=%u%%\n",
                   now,
                   ESP.getFreeHeap(),
-                  ESP.getFreePsram());
+                  ESP.getFreePsram(),
+                  (unsigned)lvMon.free_size,
+                  (unsigned)lvMon.used_pct,
+                  (unsigned)lvMon.frag_pct);
   }
 
   if ((now - lastSummary) >= SUMMARY_INTERVAL_MS) {
