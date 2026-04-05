@@ -264,6 +264,26 @@ static const UiStrings kUiLang_bellazio = {
 };
 
 // ---------------------------------------------------------------------------
+// Pirate (pir) — over-the-top pirate English
+// ---------------------------------------------------------------------------
+static const UiStrings kUiLang_pir = {
+    /* windFmt              */ "Wind %.0f knots",
+    /* windNa               */ "Wind -- knots",
+    /* forecast3h           */ "In 3 bells: %s",
+    /* forecastNow          */ "Now: %s",
+    /* forecastNa           */ "In 3 bells: --",
+    /* weatherOffline       */ "Weather be offline, Cap'n",
+    /* wifiOff              */ "WiFi be down",
+    /* rssOffline           */ "RSS be offline.\nHoist the WiFi flag\nan' try again.",
+    /* rssFeedError         */ "Feed be lost at sea.\nSearchin' the horizon\nautomatically.",
+    /* rssSyncing           */ "Syncin' the RSS...\nHold fast, matey.\n",
+    /* rssDisabled          */ "RSS be disabled in config.",
+    /* touchToClose         */ "Tap to dismiss, ye scallywag",
+    /* touchToCloseAnywhere */ "Tap anywhere to dismiss, ye scallywag",
+    /* generatingQr         */ "Drawin' the treasure map...",
+};
+
+// ---------------------------------------------------------------------------
 // Klingon (tlh) — ASCII transliteration, no pIqaD font needed
 // ---------------------------------------------------------------------------
 static const UiStrings kUiLang_tlh = {

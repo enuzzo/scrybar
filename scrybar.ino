@@ -4459,6 +4459,7 @@ static void buildWebLangSelectors(String &html) {
       {"eo",   "Esperanto"},
       {"la",   "Latina"},
       {"tlh",  "tlhIngan Hol (Klingon)"},
+      {"pir",  "Pirate"},
     };
     struct { const char *code; const char *label; } kLangsStd[] = {
       {"en",  "English"},
@@ -5798,6 +5799,7 @@ static const WeatherShortLabels kWeatherShortL33t     = {"CL34R",     "CL0UDY", 
 static const WeatherShortLabels kWeatherShortSha      = {"Faire",     "Cloudie",   "Overcast",  "Mist",       "Raineth",  "Snoweth",  "Tempest",     "N/A"};
 static const WeatherShortLabels kWeatherShortVal      = {"Sunny!",    "Cloudy",    "Ugh Gray",  "Like Fog",   "Ugh Rain", "OMG Snow", "Storm!",      "N/A"};
 static const WeatherShortLabels kWeatherShortBellazio = {"Sereno",    "Nuvoloso",  "Coperto",   "Nebbia",     "Pioggia",  "Neve",     "Temporale",   "N/D"};
+static const WeatherShortLabels kWeatherShortPir      = {"Fair Winds","Gloomy",    "Grey Skies","Fog Bank",   "Squall",   "Blizzard", "Tempest",     "????"};
 
 // ---------------------------------------------------------------------------
 // Detailed WMO UI labels — indexed by WmoUiIdx
@@ -5956,6 +5958,15 @@ static const char* const kWeatherUiBellazio[WMO_UI_COUNT] = {
   "Rovesci lievi","Rovesci mid","Rovesci forti","Rovesci neve",
   "Temporale!","Temp.+grandine"
 };
+static const char* const kWeatherUiPir[WMO_UI_COUNT] = {
+  "Clear skies, smooth sailin'!","Mostly clear, fine day to plunder!","Partly cloudy, eyes peeled!","Grey as Davy Jones' locker!",
+  "Fog bank rollin' in!","Icy fog — the sea be cursed!",
+  "Light drizzle on the poop deck","Drizzle comin' down steady","Heavy drizzle, batten down!","Freezin' drizzle — riggin's icin'!",
+  "Light rain, nothin' fer a pirate","Rain like cannonballs!","Heavy rain — bilge pumps!","Freezin' rain — ship be glazed!",
+  "Light snow on the quarterdeck","Snow thick as stolen gold","Blizzard on the high seas!","Snow grains peltin' the crew",
+  "Light showers, spit from the sky","Showers blowin' sideways!","Deluge — all hands below!","Snow mixin' with the squall",
+  "Thunderin' tempest — all hands!","Tempest with cannonball hail!"
+};
 
 // ---------------------------------------------------------------------------
 // LangVtable — table-driven language dispatch (M2)
@@ -5976,6 +5987,7 @@ static void composeWordClockSentenceL33t(const tm&, char*, size_t);
 static void composeWordClockSentenceSha(const tm&, char*, size_t);
 static void composeWordClockSentenceVal(const tm&, char*, size_t);
 static void composeWordClockSentenceBellazio(const tm&, char*, size_t);
+static void composeWordClockSentencePir(const tm&, char*, size_t);
 static void formatDateIt(const tm&, char*, size_t);
 static void formatDateEn(const tm&, char*, size_t);
 static void formatDateFr(const tm&, char*, size_t);
@@ -5989,6 +6001,7 @@ static void formatDateL33t(const tm&, char*, size_t);
 static void formatDateSha(const tm&, char*, size_t);
 static void formatDateVal(const tm&, char*, size_t);
 static void formatDateBellazio(const tm&, char*, size_t);
+static void formatDatePir(const tm&, char*, size_t);
 
 static const LangVtable kLangTable[] = {
   {"it",       composeWordClockSentenceIt,       &kWeatherShortIt,       kWeatherUiIt,       "N/D", formatDateIt,       &kUiLang_it},
@@ -6004,6 +6017,7 @@ static const LangVtable kLangTable[] = {
   {"sha",      composeWordClockSentenceSha,      &kWeatherShortSha,      kWeatherUiSha,      "N/A", formatDateSha,      &kUiLang_sha},
   {"val",      composeWordClockSentenceVal,      &kWeatherShortVal,      kWeatherUiVal,      "N/A", formatDateVal,      &kUiLang_val},
   {"bellazio", composeWordClockSentenceBellazio, &kWeatherShortBellazio, kWeatherUiBellazio, "N/D", formatDateBellazio, &kUiLang_bellazio},
+  {"pir",      composeWordClockSentencePir,      &kWeatherShortPir,      kWeatherUiPir,      "????", formatDatePir,      &kUiLang_pir},
 };
 static constexpr size_t kLangCount = sizeof(kLangTable) / sizeof(kLangTable[0]);
 
@@ -13995,6 +14009,78 @@ static void formatDateBellazio(const tm &timeinfo, char *out, size_t outLen) {
   snprintf(out, outLen, "%s %d %s %d",
     (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
     timeinfo.tm_mday,
+    (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
+    timeinfo.tm_year+1900);
+}
+
+// --- Pirate word clock (over-the-top) ---
+
+static const char* wordHourPir(int h12) {
+  switch (h12) {
+    case 1:  return "one";
+    case 2:  return "two";
+    case 3:  return "three";
+    case 4:  return "four";
+    case 5:  return "five";
+    case 6:  return "six";
+    case 7:  return "seven";
+    case 8:  return "eight";
+    case 9:  return "nine";
+    case 10: return "ten";
+    case 11: return "eleven";
+    default: return "twelve";
+  }
+}
+
+static const char* pirateInsult(int m) {
+  switch (m % 4) {
+    case 0:  return "ye scurvy dog";
+    case 1:  return "ye landlubber";
+    case 2:  return "ye bilge rat";
+    default: return "ye barnacle brain";
+  }
+}
+
+static const char* pirateExclaim(int m) {
+  switch (m % 4) {
+    case 0:  return "Yarr";
+    case 1:  return "Ahoy";
+    case 2:  return "Avast";
+    default: return "Arrr";
+  }
+}
+
+static void composeWordClockSentencePir(const tm &timeinfo, char *out, size_t outLen) {
+  int h12 = timeinfo.tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  int m5 = ((timeinfo.tm_min + 2) / 5) * 5;
+  if (m5 >= 60) { m5 = 0; h12 = (h12 % 12) + 1; }
+  const char* ins = pirateInsult(timeinfo.tm_min);
+  const char* exc = pirateExclaim(timeinfo.tm_min);
+  if (m5 == 0)       snprintf(out, outLen, "Blimey! It be %s o'clock, %s!", wordHourPir(h12), ins);
+  else if (m5 == 15) snprintf(out, outLen, "Shiver me timbers! Quarter past %s!", wordHourPir(h12));
+  else if (m5 == 30) snprintf(out, outLen, "Arrr! Half past %s, %s!", wordHourPir(h12), ins);
+  else if (m5 == 45) { int nh = (h12 % 12) + 1; snprintf(out, outLen, "Avast! Quarter to %s, %s!", wordHourPir(nh), ins); }
+  else if (m5 < 30)  snprintf(out, outLen, "%s! It be %d past %s, %s!", exc, m5, wordHourPir(h12), ins);
+  else               { int nh = (h12 % 12) + 1; snprintf(out, outLen, "%s! It be %d to %s, %s!", exc, 60 - m5, wordHourPir(nh), ins); }
+}
+
+static const char* pirateDaySuffix(int day) {
+  if (day >= 11 && day <= 13) return "th";
+  switch (day % 10) {
+    case 1: return "st";
+    case 2: return "nd";
+    case 3: return "rd";
+    default: return "th";
+  }
+}
+
+static void formatDatePir(const tm &timeinfo, char *out, size_t outLen) {
+  static const char* kWeekday[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
+  static const char* kMonth[] = {"January","February","March","April","May","June","July","August","September","October","November","December"};
+  snprintf(out, outLen, "%s the %d%s of %s, Year of Our Plunder %d",
+    (timeinfo.tm_wday>=0&&timeinfo.tm_wday<7)?kWeekday[timeinfo.tm_wday]:"",
+    timeinfo.tm_mday, pirateDaySuffix(timeinfo.tm_mday),
     (timeinfo.tm_mon>=0&&timeinfo.tm_mon<12)?kMonth[timeinfo.tm_mon]:"",
     timeinfo.tm_year+1900);
 }
