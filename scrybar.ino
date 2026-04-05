@@ -726,7 +726,7 @@ static bool g_runtimeNetConfigNvsLoaded = false;
 static char g_wordClockLang[16] = WORD_CLOCK_LANG_DEFAULT;
 static char g_wikiLang[8] = "en";
 // ── Canonical language whitelist (single source of truth) ────────────────────
-static const char* const kAllowedLangs[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "l33t", "sha", "val", "bellazio", nullptr};
+static const char* const kAllowedLangs[] = {"it", "tlh", "en", "fr", "de", "es", "pt", "la", "eo", "l33t", "sha", "val", "bellazio", "pir", nullptr};
 static bool isValidLangCode(const String &code) {
   for (int i = 0; kAllowedLangs[i]; ++i) { if (code == kAllowedLangs[i]) return true; }
   return false;
