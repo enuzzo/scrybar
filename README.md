@@ -3,11 +3,11 @@
 [![Arduino](https://img.shields.io/badge/Arduino-Firmware-00979D?style=for-the-badge&logo=arduino&logoColor=white)](https://arduino.cc/)
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
-[![Languages](https://img.shields.io/badge/Word_Clock-13_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
+[![Languages](https://img.shields.io/badge/Word_Clock-14_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
 [![Views](https://img.shields.io/badge/Views-6_live_views-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
-**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, six swipeable views, a word clock that composes real sentences in thirteen languages (from Italian and Latin to Klingon, 1337 Speak, and Bellazio), actual grammar, not uppercase tiles, plus RSS feeds, a Wikipedia viewer, a `Now Playing` strip with cover art, a live transit departure board, and a LAN web config UI.
+**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, six swipeable views, a word clock that composes real sentences in fourteen languages (from Italian and Latin to Klingon, 1337 Speak, Bellazio, and Pirate), actual grammar, not uppercase tiles, plus RSS feeds, a Wikipedia viewer, a `Now Playing` strip with cover art, a live transit departure board, and a LAN web config UI.
 
 *Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls random Wikipedia facts nobody asked for, and shows live train departures you could just check on your phone. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
 
@@ -17,7 +17,7 @@
 <td width="55%"><img src="assets/readme_previews/home_weather_toxic-candy.png" alt="HOME view, Toxic Candy theme" width="100%"></td>
 <td>
 
-**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from OpenWeatherMap. Thirteen languages, seven themes, all switchable from the web UI without reflashing.
+**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from OpenWeatherMap. Fourteen languages, seven themes, all switchable from the web UI without reflashing.
 
 </td>
 </tr></table>
@@ -108,7 +108,7 @@ Six views, navigated by swipe.
   INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► TRANSIT
 ```
 
-**HOME** — Word clock in natural sentence form (13 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing. Themes switchable from the web UI without reflashing.
+**HOME** — Word clock in natural sentence form (14 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing. Themes switchable from the web UI without reflashing.
 
 **AUX** — RSS feed rotation with up to 5 configurable sources. `SKIP`/`NXT`/`QR` controls. Every headline gets a live QR code, because sometimes you want to read the full article on a real screen, and that's fine.
 
@@ -130,7 +130,7 @@ Auto-idle screensaver: `2h` on both USB and battery.
 
 ## Word Clock Languages
 
-13 languages, all selectable from the web UI without reflashing. Setting persists to NVS.
+14 languages, all selectable from the web UI without reflashing. Setting persists to NVS.
 
 **Creative & Constructed:**
 
@@ -143,6 +143,7 @@ Auto-idle screensaver: `2h` on both USB and battery.
 | `eo` | Esperanto | *estas kvarono post la tri* |
 | `la` | Latina | *hora tertia et quadrans* |
 | `tlh` | tlhIngan Hol (Klingon) | *wej rep wa'maH vagh tup* |
+| `pir` | Pirate | *Shiver me timbers! Quarter past three!* |
 
 **Modern Languages:**
 

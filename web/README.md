@@ -16,7 +16,7 @@ Opens on `http://localhost:5173`.
 
 - **Hero** — tagline, badges, CTA buttons (Flash Firmware / Explore Features)
 - **Device mockup** — real screenshots, theme selector, hover scale + glass glare
-- **Language preview** — rotating word-clock sentences in 13 languages
+- **Language preview** — rotating word-clock sentences in 14 languages
 - **Features grid** — highlights with icons
 - **Flash section** — ESP Web Tools integration (manifests in `public/`)
 - **Specs + Footer**

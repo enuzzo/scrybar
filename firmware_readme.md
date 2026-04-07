@@ -1,6 +1,6 @@
 # ScryBar Firmware (M0)
 
-> ScryBar is a mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture. It tells time in 13 languages like it's poetry, checks weather you could learn by opening a window, and scrolls news you'll swear you already read. All of this on an ESP32 that didn't ask for this life. We could have stopped at a blinking LED. We didn't. We gave it six live views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there.
+> ScryBar is a mass of sensors, pixels, and unresolved ambition sitting on your desk, pretending to be furniture. It tells time in 14 languages like it's poetry, checks weather you could learn by opening a window, and scrolls news you'll swear you already read. All of this on an ESP32 that didn't ask for this life. We could have stopped at a blinking LED. We didn't. We gave it six live views, a QR code generator, and an existential purpose. Is it overengineered? Absolutely. Does it do anything you couldn't do faster on your phone? Let's not go there.
 
 Minimal firmware sketch for incremental smoke testing on Waveshare ESP32-S3-Touch-LCD-3.49. ✨
 
