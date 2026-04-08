@@ -24,8 +24,8 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r251"
-#define FW_RELEASE_DATE "2026-04-05"
+#define FW_BUILD_TAG "r252"
+#define FW_RELEASE_DATE "2026-04-08"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
 typedef struct {
@@ -82,6 +82,41 @@ struct TransitConfig {
   char arrStation[TRANSIT_STATION_LEN];  // optional: filter by destination
   char stopId[TRANSIT_STOP_ID_LEN];      // Transitous GTFS stop ID
   bool configured;
+};
+
+// --- Launch Page (Rocket Launch Departure Board) ---
+#define LAUNCH_MAX_ITEMS        4
+#define LAUNCH_REFRESH_MS       300000UL   // 5 min
+#define LAUNCH_RETRY_MS         30000UL    // 30 s on error
+#define LAUNCH_HTTP_TIMEOUT_MS  8000
+#define LAUNCH_NAME_LEN         80
+#define LAUNCH_PROVIDER_LEN     32
+#define LAUNCH_VEHICLE_LEN      40
+#define LAUNCH_PAD_LEN          32
+#define LAUNCH_LOCATION_LEN     48
+#define LAUNCH_DESC_LEN         160
+#define LAUNCH_SLUG_LEN         64
+#define LAUNCH_WEATHER_LEN      32
+#define LAUNCH_TAG_LEN          24
+#define LAUNCH_MAX_TAGS         4
+
+struct LaunchItem {
+  char     name[LAUNCH_NAME_LEN];
+  char     provider[LAUNCH_PROVIDER_LEN];
+  char     providerSlug[LAUNCH_SLUG_LEN];
+  char     vehicle[LAUNCH_VEHICLE_LEN];
+  char     pad[LAUNCH_PAD_LEN];
+  char     location[LAUNCH_LOCATION_LEN];
+  char     country[32];
+  char     description[LAUNCH_DESC_LEN];
+  char     weatherCondition[LAUNCH_WEATHER_LEN];
+  char     weatherTemp[8];
+  char     tags[LAUNCH_MAX_TAGS][LAUNCH_TAG_LEN];
+  uint8_t  tagCount;
+  time_t   t0Epoch;            // 0 if TBD
+  time_t   winOpen, winClose;  // 0 if absent
+  int8_t   result;             // -1 pending, 0 unknown, 1 success, 2 failure
+  bool     hasT0;
 };
 
 // --- M0.2 Backlight test config ---
