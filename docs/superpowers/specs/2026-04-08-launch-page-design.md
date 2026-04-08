@@ -1,7 +1,7 @@
 # LAUNCH Page — Rocket Launch Departure Board
 
 **Date:** 2026-04-08
-**Status:** Draft
+**Status:** Reviewed
 **Page index:** 7 (UI_PAGE_LAUNCH), after TRANSIT in carousel
 
 ## Overview
@@ -25,6 +25,11 @@ tap-to-detail overlay modal.
   `weather_summary`, `weather_temp`, `weather_condition`,
   `weather_icon`, `result`, `sort_date`.
 - Rate limit: not documented; poll conservatively.
+- Root JSON shape: `{"valid_auth":...,"count":N,"result":[...]}`.
+  Each launch is a nested object with sub-objects `provider`, `vehicle`,
+  `pad`, `location`, `missions[]`, `tags[]`, `est_date`.
+- Free tier, no SLA. If API is down, show stale data with age indicator
+  (e.g. "last updated 2h ago").
 
 ## Layout (640x172 canvas)
 
@@ -36,7 +41,7 @@ tap-to-detail overlay modal.
 +-----------------------------+   QR     |
 | PROGRESS BAR (3px)          |  80x80   |
 +-----------------------------+          |
-| HERO ROW (~48px)            |          |
+| HERO ROW (49px)             |          |
 | [Provider]  Mission Name    |          |
 | Vehicle . Pad      T-HH:MM:SS         |
 +-----------------------------+          |
@@ -61,7 +66,8 @@ tap-to-detail overlay modal.
 - Fills over the last 24 h before hero T-0.
 - Color follows escalation tiers (see below).
 
-**Hero row (~48px, 2 display rows):**
+**Hero row (49px, 2 display rows):**
+Total vertical: 30 + 3 + 49 + 30 + 30 + 30 = 172px exactly.
 - Provider badge: pill background (`lv_obj` with rounded corners),
   colored per provider (SpaceX blue, RocketLab dark, ULA navy, etc.),
   or fallback to theme accent.
@@ -82,8 +88,10 @@ tap-to-detail overlay modal.
 ### QR column (84px wide)
 
 - 80x80 QR code vertically centered in the 172px height.
-- Encodes URL: `https://rocketlaunch.live/launch/<provider.slug>-<vehicle.slug>-...`
-  (derived from launch `slug` or fallback to provider+vehicle slug).
+- Uses `lv_qrcode_create()` (same approach as INFO page).
+- Encodes URL: `https://rocketlaunch.live/launch/<slug>` where slug
+  comes from the API `provider.slug` field (e.g. `spacex`). Concrete
+  example: `https://rocketlaunch.live/launch/spacex-falcon-9-crs2-ng-24`.
 - Regenerated when hero launch changes.
 
 ## Countdown Escalation
@@ -152,7 +160,7 @@ struct LaunchItem {
     char vehicle[LAUNCH_VEHICLE_LEN];
     char pad[LAUNCH_PAD_LEN];
     char location[LAUNCH_LOCATION_LEN];
-    char country[LAUNCH_PROVIDER_LEN];
+    char country[32];
     char description[LAUNCH_DESC_LEN];
     char weatherCondition[LAUNCH_WEATHER_LEN];
     char weatherTemp[8];
@@ -183,6 +191,8 @@ struct LaunchUi {
     // Compact rows [3]
     lv_obj_t *rowBg[3], *rowBadge[3], *rowBadgeLabel[3];
     lv_obj_t *rowName[3], *rowDate[3];
+    // No-data label
+    lv_obj_t *noData;
     // QR
     lv_obj_t *qrCode;
     // Detail overlay
@@ -200,11 +210,72 @@ struct LaunchUi {
 ## Page Registration
 
 1. Add `UI_PAGE_LAUNCH = 7` to `UiPageMode` enum.
-2. Add `UI_VIEW_FLAG_LAUNCH = 0x80` flag.
-3. Add to `UI_VIEW_FLAGS_ALL` bitmask.
-4. Always enabled when `TEST_WIFI` is set (no user config needed).
-5. Add `g_lvglLaunchRoot` to carousel in `lvglApplyPageVisibility()`.
-6. Add to ordinal/name helpers.
+2. **No bitmask flag needed.** LAUNCH is always enabled when WiFi is
+   connected — use a boolean check in `uiPageEnabledNoEnsure()`
+   (same pattern as Transit's `g_transitConfig.configured`, but
+   simply checking `g_wifiConnected`). This preserves the last
+   `uint8_t` bit (`0x80`) for a future page that needs a user toggle.
+3. Carousel integration — update all 4 locations:
+   a. `kSwipePageOrder[]` — add `UI_PAGE_LAUNCH` after TRANSIT.
+   b. `uiPageInSwipeCarousel()` — add case returning `true`.
+   c. `lvglHandleDragPages()` — add root to `pages[]` array.
+   d. `lvglApplyPageVisibility()` — add root + mode to `slots[]`.
+4. Create `g_lvglLaunchRoot` in page init block (after Transit init).
+5. Add to ordinal/name helpers.
+
+## Network Integration
+
+Follow Transit's background-task pattern:
+
+1. Add `NET_REQ_LAUNCH_POLL` to `NetRequestType` enum.
+2. Add `netFetchLaunchData()` — runs on Core 1 background task.
+   Performs HTTP GET, parses JSON, fills `g_launchState`.
+3. Add dispatch case in `netTaskHandler()` switch.
+4. `updateLaunchFromApi(bool force)` enqueues via
+   `netEnqueue(NET_REQ_LAUNCH_POLL, 0)` when `g_netTaskReady`.
+5. Forward declaration after existing `WeatherState`/`NetRequestType`
+   block (~line 880).
+
+## JSON Parsing Strategy
+
+Manual `strstr`/`memmem` parsing (no ArduinoJson), same as Transit.
+
+1. Find `"result":[` marker in response body.
+2. For each object in the array (max `LAUNCH_MAX_ITEMS`):
+   - Extract flat fields: `"name":"..."`, `"t0":"..."`, `"date_str":"..."`,
+     `"launch_description":"..."`, `"weather_condition":"..."`,
+     `"weather_temp":"..."`, `"result":N`, `"sort_date":"..."`.
+   - Extract nested sub-blocks:
+     - `"provider":{"name":"...","slug":"..."}` → provider, providerSlug.
+     - `"vehicle":{"name":"..."}` → vehicle.
+     - `"pad":{"name":"..."}` → pad.
+     - `"location":{"name":"...","country":"..."}` → location, country.
+     - `"tags":[{"text":"..."},...]` → tags array.
+   - `"win_open":"..."`, `"win_close":"..."` — optional, may be null.
+3. Skip entries where `"result":1` (already launched).
+4. Convert `t0` ISO 8601 (`"2026-04-10T12:03Z"`) to `time_t` using
+   existing `isoToEpoch()` helper or equivalent from Transit code.
+
+## Edge Cases
+
+**0 launches returned:** Show `noData` label centered in content area:
+"No upcoming launches". Hide hero row, compact rows, progress bar, QR.
+
+**Hero launch has no t0 (TBD date):** Display "TBD" in heroCountdown
+area instead of `T-HH:MM:SS`. Hide progress bar (or show it empty).
+Use `est_date` fields to show "~Apr 2026" if available.
+
+**Cancelled / failed launches (`result == 2`):** Show with dimmed
+opacity (50%) and strikethrough on mission name. Do not promote to
+hero position — prefer next non-failed launch as hero.
+
+**Very long countdown (T > 7 days):** Display as `T-DDd HH:MM`
+(e.g. `T-14d 08:30`). Cap display at `T-99d`; beyond that show
+the date string instead.
+
+**HTTP 429 / API errors:** Use `LAUNCH_RETRY_MS` (30 s) for retry,
+same as Transit error path. Show stale data with age indicator in
+header (e.g. "2h ago" instead of "14:32").
 
 ## Polling & Fetch Logic
 
@@ -220,8 +291,8 @@ struct LaunchUi {
 
 ## Countdown Timer
 
-- `lvglTickLaunchCountdown()` — called every 1 s from main loop
-  (only when LAUNCH page is visible).
+- `lvglTickLaunchCountdown()` — called from main loop tick using a
+  `millis()` check (1 s interval), only when LAUNCH page is visible.
 - Computes `delta = hero.t0Epoch - now()`.
 - Formats as `T-HH:MM:SS` (or `T-DDd HH:MM` if > 24 h).
 - Updates `heroCountdown` label text and color per escalation table.
@@ -233,9 +304,15 @@ struct LaunchUi {
 Uses standard theme tokens from `activeUiTheme().lvgl`:
 - `.panelBg`, `.headerBg`, `.headerText`, `.infoText`, `.auxMeta`,
   `.divider`.
-- Provider badge colors: hardcoded map for known providers (SpaceX,
-  RocketLab, ULA, ISRO, Arianespace, CASC, Roscosmos), fallback to
-  theme accent.
+- Provider badge colors (hardcoded map):
+  - SpaceX: `#005288` (blue)
+  - RocketLab: `#1A1A2E` (dark navy)
+  - ULA: `#0033A0` (navy)
+  - ISRO: `#FF6F00` (saffron)
+  - Arianespace: `#003399` (blue)
+  - CASC: `#DE2910` (red)
+  - Roscosmos: `#1B3A6B` (dark blue)
+  - Fallback: theme accent color.
 
 ## Future Work (out of scope)
 
