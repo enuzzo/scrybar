@@ -1136,7 +1136,6 @@ struct LvglLaunchUi {
   lv_obj_t *title = nullptr;
   lv_obj_t *headerCenter = nullptr;
   lv_obj_t *fetchTime = nullptr;
-  lv_obj_t *progressBar = nullptr;
   lv_obj_t *noData = nullptr;
   // View 0: Hero (two-column, full detail for next launch)
   lv_obj_t *heroBg = nullptr;
@@ -8787,18 +8786,59 @@ static void netFetchLaunchData() {
 
     LaunchItem item = {};
 
-    // Helper: extract flat string "key":"value"
+    // Find end of JSON string value, skipping escaped quotes (\")
+    auto jsonStrEnd = [&](const char *p, const char *limit) -> const char * {
+      for (; p < limit; p++) {
+        if (*p == '"') return p;
+        if (*p == '\\' && p + 1 < limit) p++;  // skip escaped char
+      }
+      return nullptr;
+    };
+
+    // Decode JSON string escapes: \" -> ", \\ -> \, \uXXXX -> UTF-8, strip others
+    auto jsonDecode = [&](const char *src, size_t srcLen, char *dst, size_t maxLen) {
+      size_t di = 0;
+      for (size_t si = 0; si < srcLen && di < maxLen - 1; si++) {
+        if (src[si] == '\\' && si + 1 < srcLen) {
+          si++;
+          if (src[si] == '"') dst[di++] = '"';
+          else if (src[si] == '\\') dst[di++] = '\\';
+          else if (src[si] == 'n') dst[di++] = ' ';
+          else if (src[si] == 'u' && si + 4 < srcLen) {
+            // Decode \uXXXX to UTF-8
+            char hex[5] = { src[si+1], src[si+2], src[si+3], src[si+4], 0 };
+            uint16_t cp = (uint16_t)strtol(hex, nullptr, 16);
+            si += 4;
+            if (cp < 0x80 && di < maxLen - 1) {
+              dst[di++] = (char)cp;
+            } else if (cp < 0x800 && di + 1 < maxLen - 1) {
+              dst[di++] = (char)(0xC0 | (cp >> 6));
+              dst[di++] = (char)(0x80 | (cp & 0x3F));
+            } else if (di + 2 < maxLen - 1) {
+              dst[di++] = (char)(0xE0 | (cp >> 12));
+              dst[di++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+              dst[di++] = (char)(0x80 | (cp & 0x3F));
+            }
+          } else {
+            dst[di++] = src[si];  // unknown escape, keep char
+          }
+        } else {
+          dst[di++] = src[si];
+        }
+      }
+      dst[di] = '\0';
+    };
+
+    // Helper: extract flat string "key":"value" with JSON unescape
     auto extractStr = [&](const char *key, char *dst, size_t maxLen) {
       char pattern[64];
       snprintf(pattern, sizeof(pattern), "\"%s\":\"", key);
       const char *p = strstr(objStart, pattern);
       if (!p || p > objEnd) { dst[0] = '\0'; return; }
       p += strlen(pattern);
-      const char *end = strchr(p, '"');
-      if (!end || end > objEnd) { dst[0] = '\0'; return; }
-      size_t len = min((size_t)(end - p), maxLen - 1);
-      memcpy(dst, p, len);
-      dst[len] = '\0';
+      const char *end = jsonStrEnd(p, objEnd);
+      if (!end) { dst[0] = '\0'; return; }
+      jsonDecode(p, (size_t)(end - p), dst, maxLen);
     };
 
     // Helper: extract nested "outerKey":{"innerKey":"value"}
@@ -8815,11 +8855,9 @@ static void netFetchLaunchData() {
       const char *q = strstr(p, innerPat);
       if (!q || q > subEnd) { dst[0] = '\0'; return; }
       q += strlen(innerPat);
-      const char *valEnd = strchr(q, '"');
-      if (!valEnd || valEnd > subEnd) { dst[0] = '\0'; return; }
-      size_t len = min((size_t)(valEnd - q), maxLen - 1);
-      memcpy(dst, q, len);
-      dst[len] = '\0';
+      const char *valEnd = jsonStrEnd(q, subEnd);
+      if (!valEnd) { dst[0] = '\0'; return; }
+      jsonDecode(q, (size_t)(valEnd - q), dst, maxLen);
     };
 
     extractStr("name", item.name, LAUNCH_NAME_LEN);
@@ -13985,27 +14023,19 @@ static void lvglInitLaunchUi() {
 
   g_launchUi.fetchTime = lv_label_create(g_launchUi.header);
   lv_label_set_text(g_launchUi.fetchTime, "--:--");
-  lv_obj_set_style_text_font(g_launchUi.fetchTime, lvglFontTiny(), 0);
+  lv_obj_set_style_text_font(g_launchUi.fetchTime, lvglFontSmall(), 0);
   lvglSetTextHex(g_launchUi.fetchTime, headerTxt);
   lv_obj_align(g_launchUi.fetchTime, LV_ALIGN_RIGHT_MID, -8, 2);
 
-  // ---- Progress bar (3px) ----
-  g_launchUi.progressBar = lv_bar_create(g_lvglLaunchRoot);
-  lv_obj_set_size(g_launchUi.progressBar, cW, 3);
-  lv_obj_set_pos(g_launchUi.progressBar, 0, 30);
-  lv_bar_set_range(g_launchUi.progressBar, 0, 1000);
-  lv_bar_set_value(g_launchUi.progressBar, 0, LV_ANIM_OFF);
-  lv_obj_set_style_bg_color(g_launchUi.progressBar, lv_color_hex(t.divider), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_launchUi.progressBar, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_launchUi.progressBar, lv_color_hex(t.headerBg), LV_PART_INDICATOR);
-  lv_obj_set_style_bg_opa(g_launchUi.progressBar, LV_OPA_COVER, LV_PART_INDICATOR);
-
-  const int16_t bodyY = 33;
+  const int16_t bodyY = 30;
   const int16_t bodyH = cH - bodyY;  // 139px
   const bool darkPanel = (lvglColorLuma(t.panelBg) < 128u);
   const uint32_t altTint = darkPanel ? 0xFFFFFF : 0x000000;
 
-  // ==== VIEW 0: Hero (two-column, full detail) ====
+  // ==== VIEW 0: Hero — "Mission Control" layout ====
+  // Top: badge + mission name + weather/vehicle info
+  // Center: BIG countdown (dominant element)
+  // Bottom: location + window details
   g_launchUi.heroBg = lv_obj_create(g_lvglLaunchRoot);
   lv_obj_set_size(g_launchUi.heroBg, cW, bodyH);
   lv_obj_set_pos(g_launchUi.heroBg, 0, bodyY);
@@ -14017,13 +14047,11 @@ static void lvglInitLaunchUi() {
   lv_obj_clear_flag(g_launchUi.heroBg, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(g_launchUi.heroBg, LV_OBJ_FLAG_CLICKABLE);
 
-  const int16_t leftW = 310, rightX = 320, rightW = cW - rightX - 8;
-
-  // Left column: badge, name, vehicle|pad, countdown
-  const int16_t heroBadgeW = 120, heroBadgeH = 30;
+  // ── Top zone (y=0..50): badge + mission name + right-side info ──
+  const int16_t heroBadgeW = 110, heroBadgeH = 28;
   g_launchUi.heroBadge = lv_obj_create(g_launchUi.heroBg);
   lv_obj_set_size(g_launchUi.heroBadge, heroBadgeW, heroBadgeH);
-  lv_obj_set_pos(g_launchUi.heroBadge, 6, 6);
+  lv_obj_set_pos(g_launchUi.heroBadge, 6, 4);
   lv_obj_set_style_radius(g_launchUi.heroBadge, 6, 0);
   lv_obj_set_style_border_width(g_launchUi.heroBadge, 0, LV_PART_MAIN);
   lvglSetBgFlat(g_launchUi.heroBadge, t.headerBg);
@@ -14040,58 +14068,77 @@ static void lvglInitLaunchUi() {
   lv_obj_set_style_text_align(g_launchUi.heroBadgeLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_anim_speed(g_launchUi.heroBadgeLabel, 15, 0);
 
+  // Mission name — 22px, right of badge
+  const int16_t nameX = heroBadgeW + 14;
   g_launchUi.heroName = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroName, "");
   lv_obj_set_style_text_font(g_launchUi.heroName, lvglFontRssNews(), 0);  // 22px
   lvglSetTextHex(g_launchUi.heroName, t.infoText);
-  lv_obj_set_pos(g_launchUi.heroName, 6, 40);
-  lv_obj_set_width(g_launchUi.heroName, leftW - 12);
+  lv_obj_set_pos(g_launchUi.heroName, nameX, 3);
+  lv_obj_set_width(g_launchUi.heroName, cW - nameX - 8);
   lv_label_set_long_mode(g_launchUi.heroName, LV_LABEL_LONG_SCROLL_CIRCULAR);
 
+  // Vehicle | Pad — 16px, below mission name
   g_launchUi.heroVehiclePad = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroVehiclePad, "");
-  lv_obj_set_style_text_font(g_launchUi.heroVehiclePad, lvglFontMini(), 0);  // 16px
+  lv_obj_set_style_text_font(g_launchUi.heroVehiclePad, lvglFontMini(), 0);
   lvglSetTextHex(g_launchUi.heroVehiclePad, t.auxMeta);
-  lv_obj_set_pos(g_launchUi.heroVehiclePad, 6, 66);
-  lv_obj_set_width(g_launchUi.heroVehiclePad, leftW - 12);
+  lv_obj_set_pos(g_launchUi.heroVehiclePad, nameX, 28);
+  lv_obj_set_width(g_launchUi.heroVehiclePad, cW - nameX - 180);
   lv_label_set_long_mode(g_launchUi.heroVehiclePad, LV_LABEL_LONG_DOT);
 
+  // Weather — 18px, top-right
+  g_launchUi.heroWeather = lv_label_create(g_launchUi.heroBg);
+  lv_label_set_text(g_launchUi.heroWeather, "");
+  lv_obj_set_style_text_font(g_launchUi.heroWeather, lvglFontSmall(), 0);
+  lvglSetTextHex(g_launchUi.heroWeather, t.infoText);
+  lv_obj_set_style_text_align(g_launchUi.heroWeather, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_set_pos(g_launchUi.heroWeather, cW - 190, 28);
+  lv_obj_set_width(g_launchUi.heroWeather, 182);
+
+  // ── Separator (1px at y=48) ──
+  lv_obj_t *heroSep = lv_obj_create(g_launchUi.heroBg);
+  lv_obj_set_size(heroSep, cW - 16, 1);
+  lv_obj_set_pos(heroSep, 8, 48);
+  lv_obj_set_style_bg_color(heroSep, lv_color_hex(t.divider), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(heroSep, LV_OPA_30, LV_PART_MAIN);
+  lv_obj_set_style_border_width(heroSep, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(heroSep, 0, LV_PART_MAIN);
+
+  // ── Center zone: BIG COUNTDOWN (dominant) ──
   g_launchUi.heroCountdown = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroCountdown, "T-00:00:00");
-  lv_obj_set_style_text_font(g_launchUi.heroCountdown, lvglFontBody(), 0);  // 24px
+  lv_obj_set_style_text_font(g_launchUi.heroCountdown, lvglFontTitle(), 0);  // 30px
   lvglSetTextHex(g_launchUi.heroCountdown, t.infoText);
-  lv_obj_set_pos(g_launchUi.heroCountdown, 6, bodyH - 32);
-  lv_obj_set_width(g_launchUi.heroCountdown, leftW - 12);
+  lv_obj_set_style_text_align(g_launchUi.heroCountdown, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_pos(g_launchUi.heroCountdown, 0, 58);
+  lv_obj_set_width(g_launchUi.heroCountdown, cW);
 
-  // Right column: location, country, weather, window
+  // ── Bottom zone (y=100..142): location + window ──
+  // Location + Country — left
   g_launchUi.heroLocation = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroLocation, "");
-  lv_obj_set_style_text_font(g_launchUi.heroLocation, lvglFontMeta(), 0);  // 20px
-  lvglSetTextHex(g_launchUi.heroLocation, t.infoText);
-  lv_obj_set_pos(g_launchUi.heroLocation, rightX, 6);
-  lv_obj_set_width(g_launchUi.heroLocation, rightW);
+  lv_obj_set_style_text_font(g_launchUi.heroLocation, lvglFontMini(), 0);  // 16px
+  lvglSetTextHex(g_launchUi.heroLocation, t.auxMeta);
+  lv_obj_set_pos(g_launchUi.heroLocation, 8, bodyH - 40);
+  lv_obj_set_width(g_launchUi.heroLocation, cW / 2 - 12);
   lv_label_set_long_mode(g_launchUi.heroLocation, LV_LABEL_LONG_DOT);
 
   g_launchUi.heroCountry = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroCountry, "");
-  lv_obj_set_style_text_font(g_launchUi.heroCountry, lvglFontMini(), 0);  // 16px
+  lv_obj_set_style_text_font(g_launchUi.heroCountry, lvglFontMini(), 0);
   lvglSetTextHex(g_launchUi.heroCountry, t.auxMeta);
-  lv_obj_set_pos(g_launchUi.heroCountry, rightX, 30);
-  lv_obj_set_width(g_launchUi.heroCountry, rightW);
+  lv_obj_set_pos(g_launchUi.heroCountry, 8, bodyH - 22);
+  lv_obj_set_width(g_launchUi.heroCountry, cW / 2 - 12);
 
-  g_launchUi.heroWeather = lv_label_create(g_launchUi.heroBg);
-  lv_label_set_text(g_launchUi.heroWeather, "");
-  lv_obj_set_style_text_font(g_launchUi.heroWeather, lvglFontSmall(), 0);  // 18px
-  lvglSetTextHex(g_launchUi.heroWeather, t.infoText);
-  lv_obj_set_pos(g_launchUi.heroWeather, rightX, 52);
-  lv_obj_set_width(g_launchUi.heroWeather, rightW);
-
+  // Window — right-aligned, bottom
   g_launchUi.heroWindow = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroWindow, "");
-  lv_obj_set_style_text_font(g_launchUi.heroWindow, lvglFontMini(), 0);  // 16px
+  lv_obj_set_style_text_font(g_launchUi.heroWindow, lvglFontMini(), 0);
   lvglSetTextHex(g_launchUi.heroWindow, t.auxMeta);
-  lv_obj_set_pos(g_launchUi.heroWindow, rightX, 74);
-  lv_obj_set_width(g_launchUi.heroWindow, rightW);
+  lv_obj_set_style_text_align(g_launchUi.heroWindow, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_set_pos(g_launchUi.heroWindow, cW / 2, bodyH - 40);
+  lv_obj_set_width(g_launchUi.heroWindow, cW / 2 - 8);
 
   // ==== VIEW 1: Compact (2 rows, missions 2-3) ====
   const int16_t compactRowH = bodyH / 2;  // ~69px each
@@ -14313,12 +14360,10 @@ static void lvglUpdateLaunchUi(bool force) {
     lv_obj_add_flag(g_launchUi.heroBg, LV_OBJ_FLAG_HIDDEN);
     for (int i = 0; i < 2; i++) lv_obj_add_flag(g_launchUi.compactBg[i], LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_launchUi.compactSep, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(g_launchUi.progressBar, LV_OBJ_FLAG_HIDDEN);
     return;
   }
 
   lv_obj_add_flag(g_launchUi.noData, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_launchUi.progressBar, LV_OBJ_FLAG_HIDDEN);
 
   // ---- View 0: Hero (mission 0, all details) ----
   const LaunchItem &hero = g_launchState.items[0];
@@ -14331,7 +14376,7 @@ static void lvglUpdateLaunchUi(bool force) {
   snprintf(vpBuf, sizeof(vpBuf), "%s | %s", hero.vehicle, hero.pad);
   lv_label_set_text(g_launchUi.heroVehiclePad, vpBuf);
 
-  // Right column: location, country, weather, window
+  // Bottom zone: location + country, window
   lv_label_set_text(g_launchUi.heroLocation, hero.location[0] ? hero.location : "");
   lv_label_set_text(g_launchUi.heroCountry, hero.country[0] ? hero.country : "");
 
@@ -14403,7 +14448,6 @@ static void lvglTickLaunchCountdown() {
   if (!g_lvglLaunchRoot || g_uiPageMode != UI_PAGE_LAUNCH) return;
   if (g_launchState.count == 0 || !g_launchState.items[0].hasT0) {
     lv_label_set_text(g_launchUi.heroCountdown, "TBD");
-    lv_bar_set_value(g_launchUi.progressBar, 0, LV_ANIM_OFF);
     return;
   }
 
@@ -14415,23 +14459,18 @@ static void lvglTickLaunchCountdown() {
 
   char buf[24];
   uint32_t textColor = t.infoText;
-  uint32_t barColor = t.headerBg;
 
   if (delta <= 0) {
     snprintf(buf, sizeof(buf), "LIFTOFF!");
     textColor = 0x00E676;
-    barColor = 0x00E676;
-    lv_bar_set_value(g_launchUi.progressBar, 1000, LV_ANIM_OFF);
   } else if (delta < 600) {
     int m = delta / 60, s = delta % 60;
     snprintf(buf, sizeof(buf), "T-%02d:%02d", m, s);
     textColor = 0xFF1744;
-    barColor = 0xFF1744;
   } else if (delta < 3600) {
     int m = delta / 60, s = delta % 60;
     snprintf(buf, sizeof(buf), "T-%02d:%02d", m, s);
     textColor = 0xFFD600;
-    barColor = 0xFFD600;
   } else if (delta < 86400) {
     int h = delta / 3600, m = (delta % 3600) / 60, s = delta % 60;
     snprintf(buf, sizeof(buf), "T-%02d:%02d:%02d", h, m, s);
@@ -14443,17 +14482,6 @@ static void lvglTickLaunchCountdown() {
 
   lv_label_set_text(g_launchUi.heroCountdown, buf);
   lvglSetTextHex(g_launchUi.heroCountdown, textColor);
-
-  // Progress bar: fills over last 24h
-  if (delta > 0 && delta < 86400) {
-    int32_t progress = 1000 - (delta * 1000 / 86400);
-    lv_bar_set_value(g_launchUi.progressBar, progress, LV_ANIM_OFF);
-  } else if (delta <= 0) {
-    lv_bar_set_value(g_launchUi.progressBar, 1000, LV_ANIM_OFF);
-  } else {
-    lv_bar_set_value(g_launchUi.progressBar, 0, LV_ANIM_OFF);
-  }
-  lv_obj_set_style_bg_color(g_launchUi.progressBar, lv_color_hex(barColor), LV_PART_INDICATOR);
 
   // Auto-rotate views every 10 seconds (pause while QR is open)
   if (!g_launchUi.qrModalOpen && g_launchState.count > 1 &&
