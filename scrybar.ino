@@ -1131,43 +1131,43 @@ struct LaunchState {
 static LaunchState g_launchState = {};
 
 struct LvglLaunchUi {
-  lv_obj_t *root = nullptr;
+  // Shared
   lv_obj_t *header = nullptr;
-  lv_obj_t *headerFill = nullptr;
   lv_obj_t *title = nullptr;
   lv_obj_t *headerCenter = nullptr;
   lv_obj_t *fetchTime = nullptr;
-  lv_obj_t *status = nullptr;
   lv_obj_t *progressBar = nullptr;
+  lv_obj_t *noData = nullptr;
+  // View 0: Hero (two-column, full detail for next launch)
   lv_obj_t *heroBg = nullptr;
   lv_obj_t *heroBadge = nullptr;
   lv_obj_t *heroBadgeLabel = nullptr;
   lv_obj_t *heroName = nullptr;
   lv_obj_t *heroVehiclePad = nullptr;
   lv_obj_t *heroCountdown = nullptr;
-  lv_obj_t *rowBg[3] = {};
-  lv_obj_t *rowBadge[3] = {};
-  lv_obj_t *rowBadgeLabel[3] = {};
-  lv_obj_t *rowName[3] = {};
-  lv_obj_t *rowDate[3] = {};
-  lv_obj_t *heroSep = nullptr;
-  lv_obj_t *rowSep[2] = {};
-  lv_obj_t *noData = nullptr;
-  lv_obj_t *qrCode = nullptr;
-  lv_obj_t *qrParent = nullptr;
-  lv_obj_t *detailBackdrop = nullptr;
-  lv_obj_t *detailOverlay = nullptr;
-  lv_obj_t *detailTitle = nullptr;
-  lv_obj_t *detailCountdown = nullptr;
-  lv_obj_t *detailClose = nullptr;
-  lv_obj_t *detailProvider = nullptr;
-  lv_obj_t *detailPadLocation = nullptr;
-  lv_obj_t *detailWindow = nullptr;
-  lv_obj_t *detailWeather = nullptr;
-  lv_obj_t *detailDesc = nullptr;
-  lv_obj_t *detailTags[LAUNCH_MAX_TAGS] = {};
-  lv_obj_t *detailQr = nullptr;
-  int8_t    detailIndex = -1;
+  lv_obj_t *heroLocation = nullptr;
+  lv_obj_t *heroCountry = nullptr;
+  lv_obj_t *heroWeather = nullptr;
+  lv_obj_t *heroWindow = nullptr;
+  // View 1: Compact (2 rows for missions 2-3)
+  lv_obj_t *compactBg[2] = {};
+  lv_obj_t *compactBadge[2] = {};
+  lv_obj_t *compactBadgeLabel[2] = {};
+  lv_obj_t *compactName[2] = {};
+  lv_obj_t *compactVehicle[2] = {};
+  lv_obj_t *compactLocation[2] = {};
+  lv_obj_t *compactDate[2] = {};
+  lv_obj_t *compactSep = nullptr;
+  // QR overlay (RSS-style)
+  lv_obj_t *qrOverlay = nullptr;
+  lv_obj_t *qr = nullptr;       // lv_canvas
+  lv_obj_t *qrHint = nullptr;
+  bool      qrModalOpen = false;
+  int8_t    qrItemIndex = -1;
+  char      lastQrPayload[128] = {};
+  // View state
+  uint8_t   viewIndex = 0;
+  uint32_t  lastViewRotateMs = 0;
 };
 static LvglLaunchUi g_launchUi;
 static lv_obj_t *g_lvglLaunchRoot = nullptr;
@@ -10099,20 +10099,17 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lvglSetTextHex(g_launchUi.heroVehiclePad, t.auxMeta);
     lvglSetTextHex(g_launchUi.heroCountdown, t.infoText);
     lvglSetTextHex(g_launchUi.noData, t.auxMeta);
-    for (int i = 0; i < 3; i++) {
-      lvglSetBgFlat(g_launchUi.rowBg[i], (i % 2 == 0) ? panelBg : t.divider);
-      lvglSetTextHex(g_launchUi.rowName[i], t.infoText);
-      lvglSetTextHex(g_launchUi.rowDate[i], t.auxMeta);
+    for (int i = 0; i < 2; i++) {
+      lvglSetTextHex(g_launchUi.compactName[i], t.infoText);
+      lvglSetTextHex(g_launchUi.compactVehicle[i], t.auxMeta);
+      lvglSetTextHex(g_launchUi.compactLocation[i], t.auxMeta);
+      lvglSetTextHex(g_launchUi.compactDate[i], t.infoText);
     }
-    if (g_launchUi.qrParent) lvglSetBgFlat(g_launchUi.qrParent, panelBg);
-    if (g_launchUi.detailOverlay) {
-      lvglSetBgFlat(g_launchUi.detailOverlay, panelBg);
-      lvglSetTextHex(g_launchUi.detailTitle, t.infoText);
-      lvglSetTextHex(g_launchUi.detailProvider, t.infoText);
-      lvglSetTextHex(g_launchUi.detailPadLocation, t.auxMeta);
-      lvglSetTextHex(g_launchUi.detailWindow, t.auxMeta);
-      lvglSetTextHex(g_launchUi.detailDesc, t.infoText);
-    }
+    lvglSetTextHex(g_launchUi.heroLocation, t.infoText);
+    lvglSetTextHex(g_launchUi.heroCountry, t.auxMeta);
+    lvglSetTextHex(g_launchUi.heroWeather, t.infoText);
+    lvglSetTextHex(g_launchUi.heroWindow, t.auxMeta);
+    if (g_launchUi.qrOverlay) lv_obj_set_style_bg_color(g_launchUi.qrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
   }
 
   if (!forceInvalidate) return;
@@ -11764,18 +11761,26 @@ static void handleFeedDeckTapRelease(const TouchReleaseInfo &r) {
   }
   // In AUX/WIKI, ignore neutral taps not on actionable regions.
   if (r.isTap && uiPageIsFeedDeck(g_uiPageMode)) return;
-  // LAUNCH: tap rows to open/close detail overlay.
+  // LAUNCH: tap to open/close QR overlay.
   if (r.isTap && g_uiPageMode == UI_PAGE_LAUNCH) {
-    if (g_launchUi.detailIndex >= 0) {
-      lvglCloseLaunchDetail();
+    if (g_launchUi.qrModalOpen) {
+      lvglCloseLaunchQr();
       g_uiNeedsRedraw = true;
+      Serial.println("[TOUCH] launch-qr-close");
       return;
     }
     const int16_t ty = g_touch.startY;
-    if (ty >= 33 && ty < 76) { lvglOpenLaunchDetail(0); g_uiNeedsRedraw = true; }
-    else if (ty >= 76 && ty < 108 && g_launchState.count > 1) { lvglOpenLaunchDetail(1); g_uiNeedsRedraw = true; }
-    else if (ty >= 108 && ty < 140 && g_launchState.count > 2) { lvglOpenLaunchDetail(2); g_uiNeedsRedraw = true; }
-    else if (ty >= 140 && ty < 172 && g_launchState.count > 3) { lvglOpenLaunchDetail(3); g_uiNeedsRedraw = true; }
+    if (ty < 33) return;  // header tap, ignore
+    if (g_launchUi.viewIndex == 0) {
+      // View 0: tap anywhere below header → QR for mission 0
+      lvglOpenLaunchQr(0);
+      g_uiNeedsRedraw = true;
+    } else {
+      // View 1: top half → mission 1, bottom half → mission 2
+      const int16_t midY = 33 + (canvasHeight() - 33) / 2;
+      if (ty < midY && g_launchState.count > 1) { lvglOpenLaunchQr(1); g_uiNeedsRedraw = true; }
+      else if (ty >= midY && g_launchState.count > 2) { lvglOpenLaunchQr(2); g_uiNeedsRedraw = true; }
+    }
     return;
   }
   // TRANSIT: tap anywhere toggles origin/terminus display (auto-reverts after 8 s).
@@ -13947,17 +13952,13 @@ static uint32_t launchProviderColor(const char *slug) {
   return 0xAB47BC;  // purple fallback (visible on any bg)
 }
 
-static void lvglInitLaunchDetail();  // forward
-
 static void lvglInitLaunchUi() {
   if (!g_lvglLaunchRoot) return;
   const int16_t cW = canvasWidth();
   const int16_t cH = canvasHeight();
-  const int16_t qrColW = 110;
-  const int16_t contentW = cW - qrColW;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
 
-  // ---- Header (30px, full width — uses resolved colors like Transit) ----
+  // ---- Header (30px, full width) ----
   const uint32_t headerBg  = lvglResolvedHeaderBg(t);
   const uint32_t headerTxt = lvglResolvedHeaderText(t);
 
@@ -13984,13 +13985,13 @@ static void lvglInitLaunchUi() {
 
   g_launchUi.fetchTime = lv_label_create(g_launchUi.header);
   lv_label_set_text(g_launchUi.fetchTime, "--:--");
-  lv_obj_set_style_text_font(g_launchUi.fetchTime, lvglFontSmall(), 0);
+  lv_obj_set_style_text_font(g_launchUi.fetchTime, lvglFontTiny(), 0);
   lvglSetTextHex(g_launchUi.fetchTime, headerTxt);
   lv_obj_align(g_launchUi.fetchTime, LV_ALIGN_RIGHT_MID, -8, 2);
 
   // ---- Progress bar (3px) ----
   g_launchUi.progressBar = lv_bar_create(g_lvglLaunchRoot);
-  lv_obj_set_size(g_launchUi.progressBar, contentW, 3);
+  lv_obj_set_size(g_launchUi.progressBar, cW, 3);
   lv_obj_set_pos(g_launchUi.progressBar, 0, 30);
   lv_bar_set_range(g_launchUi.progressBar, 0, 1000);
   lv_bar_set_value(g_launchUi.progressBar, 0, LV_ANIM_OFF);
@@ -13999,370 +14000,306 @@ static void lvglInitLaunchUi() {
   lv_obj_set_style_bg_color(g_launchUi.progressBar, lv_color_hex(t.headerBg), LV_PART_INDICATOR);
   lv_obj_set_style_bg_opa(g_launchUi.progressBar, LV_OPA_COVER, LV_PART_INDICATOR);
 
-  // ---- Hero row (43px, y=33) ----
-  const int16_t heroY = 33;
-  const int16_t heroH = 43;
+  const int16_t bodyY = 33;
+  const int16_t bodyH = cH - bodyY;  // 139px
   const bool darkPanel = (lvglColorLuma(t.panelBg) < 128u);
-  const uint32_t heroTint = darkPanel ? 0xFFFFFF : 0x000000;
-  g_launchUi.heroBg = lv_obj_create(g_lvglLaunchRoot);
-  lv_obj_remove_style_all(g_launchUi.heroBg);
-  lv_obj_set_size(g_launchUi.heroBg, contentW, heroH);
-  lv_obj_set_pos(g_launchUi.heroBg, 0, heroY);
-  lv_obj_set_style_bg_color(g_launchUi.heroBg, lv_color_hex(heroTint), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_launchUi.heroBg, 22, LV_PART_MAIN);  // subtle highlight
-  lv_obj_clear_flag(g_launchUi.heroBg, LV_OBJ_FLAG_SCROLLABLE);
+  const uint32_t altTint = darkPanel ? 0xFFFFFF : 0x000000;
 
-  // Provider badge (pill, 100x28, vertically centered)
-  const int16_t heroBadgeW = 110, heroBadgeH = 28;
-  const int16_t textStartX = heroBadgeW + 8;  // text starts after badge + gap
+  // ==== VIEW 0: Hero (two-column, full detail) ====
+  g_launchUi.heroBg = lv_obj_create(g_lvglLaunchRoot);
+  lv_obj_set_size(g_launchUi.heroBg, cW, bodyH);
+  lv_obj_set_pos(g_launchUi.heroBg, 0, bodyY);
+  lv_obj_set_style_border_width(g_launchUi.heroBg, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_launchUi.heroBg, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_launchUi.heroBg, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_launchUi.heroBg, lv_color_hex(altTint), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_launchUi.heroBg, 12, LV_PART_MAIN);
+  lv_obj_clear_flag(g_launchUi.heroBg, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(g_launchUi.heroBg, LV_OBJ_FLAG_CLICKABLE);
+
+  const int16_t leftW = 310, rightX = 320, rightW = cW - rightX - 8;
+
+  // Left column: badge, name, vehicle|pad, countdown
+  const int16_t heroBadgeW = 120, heroBadgeH = 30;
   g_launchUi.heroBadge = lv_obj_create(g_launchUi.heroBg);
-  lv_obj_remove_style_all(g_launchUi.heroBadge);
   lv_obj_set_size(g_launchUi.heroBadge, heroBadgeW, heroBadgeH);
-  lv_obj_set_pos(g_launchUi.heroBadge, 4, (heroH - heroBadgeH) / 2);
+  lv_obj_set_pos(g_launchUi.heroBadge, 6, 6);
   lv_obj_set_style_radius(g_launchUi.heroBadge, 6, 0);
+  lv_obj_set_style_border_width(g_launchUi.heroBadge, 0, LV_PART_MAIN);
   lvglSetBgFlat(g_launchUi.heroBadge, t.headerBg);
+  lv_obj_set_style_bg_opa(g_launchUi.heroBadge, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_clear_flag(g_launchUi.heroBadge, LV_OBJ_FLAG_SCROLLABLE);
 
   g_launchUi.heroBadgeLabel = lv_label_create(g_launchUi.heroBadge);
   lv_label_set_text(g_launchUi.heroBadgeLabel, "");
   lv_obj_set_style_text_font(g_launchUi.heroBadgeLabel, lvglFontMeta(), 0);
   lvglSetTextHex(g_launchUi.heroBadgeLabel, 0xFFFFFF);
-  lv_obj_set_size(g_launchUi.heroBadgeLabel, heroBadgeW - 6, 24);
+  lv_obj_set_size(g_launchUi.heroBadgeLabel, heroBadgeW - 6, heroBadgeH - 4);
   lv_obj_align(g_launchUi.heroBadgeLabel, LV_ALIGN_CENTER, 0, 3);
   lv_label_set_long_mode(g_launchUi.heroBadgeLabel, LV_LABEL_LONG_SCROLL);
   lv_obj_set_style_text_align(g_launchUi.heroBadgeLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_anim_speed(g_launchUi.heroBadgeLabel, 15, 0);
 
-  // Mission name (line 1) — 20px, right of badge
   g_launchUi.heroName = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroName, "");
-  lv_obj_set_style_text_font(g_launchUi.heroName, lvglFontMeta(), 0);
+  lv_obj_set_style_text_font(g_launchUi.heroName, lvglFontRssNews(), 0);  // 22px
   lvglSetTextHex(g_launchUi.heroName, t.infoText);
-  lv_obj_set_pos(g_launchUi.heroName, textStartX, 3);
-  lv_obj_set_width(g_launchUi.heroName, contentW - textStartX - 6);
+  lv_obj_set_pos(g_launchUi.heroName, 6, 40);
+  lv_obj_set_width(g_launchUi.heroName, leftW - 12);
   lv_label_set_long_mode(g_launchUi.heroName, LV_LABEL_LONG_SCROLL_CIRCULAR);
 
-  // Vehicle | Pad (line 2, right of badge)
   g_launchUi.heroVehiclePad = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroVehiclePad, "");
-  lv_obj_set_style_text_font(g_launchUi.heroVehiclePad, lvglFontMini(), 0);
+  lv_obj_set_style_text_font(g_launchUi.heroVehiclePad, lvglFontMini(), 0);  // 16px
   lvglSetTextHex(g_launchUi.heroVehiclePad, t.auxMeta);
-  lv_obj_set_pos(g_launchUi.heroVehiclePad, textStartX, 24);
-  lv_obj_set_width(g_launchUi.heroVehiclePad, contentW - textStartX - 150);
+  lv_obj_set_pos(g_launchUi.heroVehiclePad, 6, 66);
+  lv_obj_set_width(g_launchUi.heroVehiclePad, leftW - 12);
   lv_label_set_long_mode(g_launchUi.heroVehiclePad, LV_LABEL_LONG_DOT);
 
-  // Countdown (right-aligned, line 2) — 18px bold
   g_launchUi.heroCountdown = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroCountdown, "T-00:00:00");
-  lv_obj_set_style_text_font(g_launchUi.heroCountdown, lvglFontSmall(), 0);
+  lv_obj_set_style_text_font(g_launchUi.heroCountdown, lvglFontBody(), 0);  // 24px
   lvglSetTextHex(g_launchUi.heroCountdown, t.infoText);
-  lv_obj_set_style_text_align(g_launchUi.heroCountdown, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_set_pos(g_launchUi.heroCountdown, contentW - 140, 22);
-  lv_obj_set_width(g_launchUi.heroCountdown, 134);
+  lv_obj_set_pos(g_launchUi.heroCountdown, 6, bodyH - 32);
+  lv_obj_set_width(g_launchUi.heroCountdown, leftW - 12);
 
-  // ---- Hero separator (1px below hero) ----
-  const int16_t compactY = heroY + heroH;  // 76
-  g_launchUi.heroSep = lv_obj_create(g_lvglLaunchRoot);
-  lv_obj_remove_style_all(g_launchUi.heroSep);
-  lv_obj_set_size(g_launchUi.heroSep, contentW - 16, 1);
-  lv_obj_set_pos(g_launchUi.heroSep, 8, compactY - 1);
-  lv_obj_set_style_bg_color(g_launchUi.heroSep, lv_color_hex(t.divider), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_launchUi.heroSep, LV_OPA_30, LV_PART_MAIN);
+  // Right column: location, country, weather, window
+  g_launchUi.heroLocation = lv_label_create(g_launchUi.heroBg);
+  lv_label_set_text(g_launchUi.heroLocation, "");
+  lv_obj_set_style_text_font(g_launchUi.heroLocation, lvglFontMeta(), 0);  // 20px
+  lvglSetTextHex(g_launchUi.heroLocation, t.infoText);
+  lv_obj_set_pos(g_launchUi.heroLocation, rightX, 6);
+  lv_obj_set_width(g_launchUi.heroLocation, rightW);
+  lv_label_set_long_mode(g_launchUi.heroLocation, LV_LABEL_LONG_DOT);
 
-  // ---- Compact rows (32px each, y=76, 108, 140) — all same bg ----
-  const int16_t rowH = 32;
-  const int16_t badgeW = 110, badgeH = 26;
-  for (int i = 0; i < 3; i++) {
-    const int16_t ry = compactY + i * rowH;
+  g_launchUi.heroCountry = lv_label_create(g_launchUi.heroBg);
+  lv_label_set_text(g_launchUi.heroCountry, "");
+  lv_obj_set_style_text_font(g_launchUi.heroCountry, lvglFontMini(), 0);  // 16px
+  lvglSetTextHex(g_launchUi.heroCountry, t.auxMeta);
+  lv_obj_set_pos(g_launchUi.heroCountry, rightX, 30);
+  lv_obj_set_width(g_launchUi.heroCountry, rightW);
 
-    g_launchUi.rowBg[i] = lv_obj_create(g_lvglLaunchRoot);
-    lv_obj_remove_style_all(g_launchUi.rowBg[i]);
-    lv_obj_set_size(g_launchUi.rowBg[i], contentW, rowH);
-    lv_obj_set_pos(g_launchUi.rowBg[i], 0, ry);
-    lv_obj_set_style_bg_opa(g_launchUi.rowBg[i], LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_clear_flag(g_launchUi.rowBg[i], LV_OBJ_FLAG_SCROLLABLE);
+  g_launchUi.heroWeather = lv_label_create(g_launchUi.heroBg);
+  lv_label_set_text(g_launchUi.heroWeather, "");
+  lv_obj_set_style_text_font(g_launchUi.heroWeather, lvglFontSmall(), 0);  // 18px
+  lvglSetTextHex(g_launchUi.heroWeather, t.infoText);
+  lv_obj_set_pos(g_launchUi.heroWeather, rightX, 52);
+  lv_obj_set_width(g_launchUi.heroWeather, rightW);
 
-    // Provider badge (pill, 82x24, same width as Transit)
-    g_launchUi.rowBadge[i] = lv_obj_create(g_launchUi.rowBg[i]);
-    lv_obj_remove_style_all(g_launchUi.rowBadge[i]);
-    lv_obj_set_size(g_launchUi.rowBadge[i], badgeW, badgeH);
-    lv_obj_set_pos(g_launchUi.rowBadge[i], 4, (rowH - badgeH) / 2);
-    lv_obj_set_style_radius(g_launchUi.rowBadge[i], 6, 0);
-    lvglSetBgFlat(g_launchUi.rowBadge[i], t.headerBg);
-    lv_obj_clear_flag(g_launchUi.rowBadge[i], LV_OBJ_FLAG_SCROLLABLE);
+  g_launchUi.heroWindow = lv_label_create(g_launchUi.heroBg);
+  lv_label_set_text(g_launchUi.heroWindow, "");
+  lv_obj_set_style_text_font(g_launchUi.heroWindow, lvglFontMini(), 0);  // 16px
+  lvglSetTextHex(g_launchUi.heroWindow, t.auxMeta);
+  lv_obj_set_pos(g_launchUi.heroWindow, rightX, 74);
+  lv_obj_set_width(g_launchUi.heroWindow, rightW);
 
-    g_launchUi.rowBadgeLabel[i] = lv_label_create(g_launchUi.rowBadge[i]);
-    lv_label_set_text(g_launchUi.rowBadgeLabel[i], "");
-    lv_obj_set_style_text_font(g_launchUi.rowBadgeLabel[i], lvglFontMeta(), 0);
-    lvglSetTextHex(g_launchUi.rowBadgeLabel[i], 0xFFFFFF);
-    lv_obj_set_size(g_launchUi.rowBadgeLabel[i], badgeW - 6, badgeH - 4);
-    lv_obj_align(g_launchUi.rowBadgeLabel[i], LV_ALIGN_CENTER, 0, 3);
-    lv_label_set_long_mode(g_launchUi.rowBadgeLabel[i], LV_LABEL_LONG_SCROLL);
-    lv_obj_set_style_text_align(g_launchUi.rowBadgeLabel[i], LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_anim_speed(g_launchUi.rowBadgeLabel[i], 15, 0);
+  // ==== VIEW 1: Compact (2 rows, missions 2-3) ====
+  const int16_t compactRowH = bodyH / 2;  // ~69px each
+  const int16_t badgeW = 100, badgeH = 28;
+  for (int i = 0; i < 2; i++) {
+    const int16_t ry = bodyY + i * compactRowH;
 
-    // Mission name — 18px
-    const int16_t rowTextX = badgeW + 10;
-    g_launchUi.rowName[i] = lv_label_create(g_launchUi.rowBg[i]);
-    lv_label_set_text(g_launchUi.rowName[i], "");
-    lv_obj_set_style_text_font(g_launchUi.rowName[i], lvglFontSmall(), 0);
-    lvglSetTextHex(g_launchUi.rowName[i], t.infoText);
-    lv_obj_set_pos(g_launchUi.rowName[i], rowTextX, (rowH - 18) / 2 + 2);
-    lv_obj_set_width(g_launchUi.rowName[i], contentW - rowTextX - 110);
-    lv_label_set_long_mode(g_launchUi.rowName[i], LV_LABEL_LONG_DOT);
-
-    // Date/time (right-aligned) — 16px, readable
-    g_launchUi.rowDate[i] = lv_label_create(g_launchUi.rowBg[i]);
-    lv_label_set_text(g_launchUi.rowDate[i], "");
-    lv_obj_set_style_text_font(g_launchUi.rowDate[i], lvglFontMini(), 0);
-    lvglSetTextHex(g_launchUi.rowDate[i], t.auxMeta);
-    lv_obj_set_style_text_align(g_launchUi.rowDate[i], LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(g_launchUi.rowDate[i], contentW - 110, (rowH - 16) / 2 + 2);
-    lv_obj_set_width(g_launchUi.rowDate[i], 104);
-
-    // Row separator (between rows, not after last)
-    if (i < 2) {
-      g_launchUi.rowSep[i] = lv_obj_create(g_lvglLaunchRoot);
-      lv_obj_remove_style_all(g_launchUi.rowSep[i]);
-      lv_obj_set_size(g_launchUi.rowSep[i], contentW - 16, 1);
-      lv_obj_set_pos(g_launchUi.rowSep[i], 8, ry + rowH - 1);
-      lv_obj_set_style_bg_color(g_launchUi.rowSep[i], lv_color_hex(t.divider), LV_PART_MAIN);
-      lv_obj_set_style_bg_opa(g_launchUi.rowSep[i], LV_OPA_30, LV_PART_MAIN);
+    g_launchUi.compactBg[i] = lv_obj_create(g_lvglLaunchRoot);
+    lv_obj_set_size(g_launchUi.compactBg[i], cW, compactRowH);
+    lv_obj_set_pos(g_launchUi.compactBg[i], 0, ry);
+    lv_obj_set_style_border_width(g_launchUi.compactBg[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(g_launchUi.compactBg[i], 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(g_launchUi.compactBg[i], 0, LV_PART_MAIN);
+    lv_obj_clear_flag(g_launchUi.compactBg[i], LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(g_launchUi.compactBg[i], LV_OBJ_FLAG_CLICKABLE);
+    if (i & 1) {
+      lv_obj_set_style_bg_color(g_launchUi.compactBg[i], lv_color_hex(altTint), LV_PART_MAIN);
+      lv_obj_set_style_bg_opa(g_launchUi.compactBg[i], 22, LV_PART_MAIN);
+    } else {
+      lv_obj_set_style_bg_opa(g_launchUi.compactBg[i], LV_OPA_TRANSP, LV_PART_MAIN);
     }
+    // Start hidden (View 0 is default)
+    lv_obj_add_flag(g_launchUi.compactBg[i], LV_OBJ_FLAG_HIDDEN);
+
+    // Badge
+    g_launchUi.compactBadge[i] = lv_obj_create(g_launchUi.compactBg[i]);
+    lv_obj_set_size(g_launchUi.compactBadge[i], badgeW, badgeH);
+    lv_obj_set_pos(g_launchUi.compactBadge[i], 4, 4);
+    lv_obj_set_style_radius(g_launchUi.compactBadge[i], 6, 0);
+    lv_obj_set_style_border_width(g_launchUi.compactBadge[i], 0, LV_PART_MAIN);
+    lvglSetBgFlat(g_launchUi.compactBadge[i], t.headerBg);
+    lv_obj_set_style_bg_opa(g_launchUi.compactBadge[i], LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_clear_flag(g_launchUi.compactBadge[i], LV_OBJ_FLAG_SCROLLABLE);
+
+    g_launchUi.compactBadgeLabel[i] = lv_label_create(g_launchUi.compactBadge[i]);
+    lv_label_set_text(g_launchUi.compactBadgeLabel[i], "");
+    lv_obj_set_style_text_font(g_launchUi.compactBadgeLabel[i], lvglFontMeta(), 0);
+    lvglSetTextHex(g_launchUi.compactBadgeLabel[i], 0xFFFFFF);
+    lv_obj_set_size(g_launchUi.compactBadgeLabel[i], badgeW - 6, badgeH - 4);
+    lv_obj_align(g_launchUi.compactBadgeLabel[i], LV_ALIGN_CENTER, 0, 3);
+    lv_label_set_long_mode(g_launchUi.compactBadgeLabel[i], LV_LABEL_LONG_SCROLL);
+    lv_obj_set_style_text_align(g_launchUi.compactBadgeLabel[i], LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_anim_speed(g_launchUi.compactBadgeLabel[i], 15, 0);
+
+    // Mission name — 20px, line 1
+    const int16_t cTextX = badgeW + 10;
+    g_launchUi.compactName[i] = lv_label_create(g_launchUi.compactBg[i]);
+    lv_label_set_text(g_launchUi.compactName[i], "");
+    lv_obj_set_style_text_font(g_launchUi.compactName[i], lvglFontMeta(), 0);
+    lvglSetTextHex(g_launchUi.compactName[i], t.infoText);
+    lv_obj_set_pos(g_launchUi.compactName[i], cTextX, 4);
+    lv_obj_set_width(g_launchUi.compactName[i], cW - cTextX - 140);
+    lv_label_set_long_mode(g_launchUi.compactName[i], LV_LABEL_LONG_DOT);
+
+    // Vehicle | Pad — 16px, line 2
+    g_launchUi.compactVehicle[i] = lv_label_create(g_launchUi.compactBg[i]);
+    lv_label_set_text(g_launchUi.compactVehicle[i], "");
+    lv_obj_set_style_text_font(g_launchUi.compactVehicle[i], lvglFontMini(), 0);
+    lvglSetTextHex(g_launchUi.compactVehicle[i], t.auxMeta);
+    lv_obj_set_pos(g_launchUi.compactVehicle[i], cTextX, 26);
+    lv_obj_set_width(g_launchUi.compactVehicle[i], cW - cTextX - 140);
+    lv_label_set_long_mode(g_launchUi.compactVehicle[i], LV_LABEL_LONG_DOT);
+
+    // Location — 16px, line 3
+    g_launchUi.compactLocation[i] = lv_label_create(g_launchUi.compactBg[i]);
+    lv_label_set_text(g_launchUi.compactLocation[i], "");
+    lv_obj_set_style_text_font(g_launchUi.compactLocation[i], lvglFontMini(), 0);
+    lvglSetTextHex(g_launchUi.compactLocation[i], t.auxMeta);
+    lv_obj_set_pos(g_launchUi.compactLocation[i], cTextX, 46);
+    lv_obj_set_width(g_launchUi.compactLocation[i], cW - cTextX - 140);
+    lv_label_set_long_mode(g_launchUi.compactLocation[i], LV_LABEL_LONG_DOT);
+
+    // Date/time — 20px, right-aligned
+    g_launchUi.compactDate[i] = lv_label_create(g_launchUi.compactBg[i]);
+    lv_label_set_text(g_launchUi.compactDate[i], "");
+    lv_obj_set_style_text_font(g_launchUi.compactDate[i], lvglFontMeta(), 0);
+    lvglSetTextHex(g_launchUi.compactDate[i], t.infoText);
+    lv_obj_set_style_text_align(g_launchUi.compactDate[i], LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_pos(g_launchUi.compactDate[i], cW - 134, 4);
+    lv_obj_set_width(g_launchUi.compactDate[i], 128);
   }
+
+  // Compact separator (between the two rows)
+  g_launchUi.compactSep = lv_obj_create(g_lvglLaunchRoot);
+  lv_obj_set_size(g_launchUi.compactSep, cW - 16, 1);
+  lv_obj_set_pos(g_launchUi.compactSep, 8, bodyY + compactRowH - 1);
+  lv_obj_set_style_bg_color(g_launchUi.compactSep, lv_color_hex(t.divider), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_launchUi.compactSep, LV_OPA_30, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_launchUi.compactSep, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_launchUi.compactSep, 0, LV_PART_MAIN);
+  lv_obj_add_flag(g_launchUi.compactSep, LV_OBJ_FLAG_HIDDEN);
 
   // ---- No-data label ----
   g_launchUi.noData = lv_label_create(g_lvglLaunchRoot);
   lv_label_set_text(g_launchUi.noData, "No upcoming launches");
   lv_obj_set_style_text_font(g_launchUi.noData, lvglFontTiny(), 0);
   lvglSetTextHex(g_launchUi.noData, t.auxMeta);
-  lv_obj_set_pos(g_launchUi.noData, 0, 33);
-  lv_obj_set_size(g_launchUi.noData, contentW, 139);
+  lv_obj_set_pos(g_launchUi.noData, 0, bodyY);
+  lv_obj_set_size(g_launchUi.noData, cW, bodyH);
   lv_obj_set_style_text_align(g_launchUi.noData, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_pad_top(g_launchUi.noData, 50, 0);
   lv_obj_add_flag(g_launchUi.noData, LV_OBJ_FLAG_HIDDEN);
 
-  // ---- QR column (110px) ----
-  g_launchUi.qrParent = lv_obj_create(g_lvglLaunchRoot);
-  lv_obj_remove_style_all(g_launchUi.qrParent);
-  lv_obj_set_size(g_launchUi.qrParent, qrColW, cH);
-  lv_obj_set_pos(g_launchUi.qrParent, contentW, 0);
-  lvglSetBgFlat(g_launchUi.qrParent, t.panelBg);
-  lv_obj_clear_flag(g_launchUi.qrParent, LV_OBJ_FLAG_SCROLLABLE);
+  // ==== QR overlay (RSS-style: full-screen, big QR left, hint right) ====
+#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
+  const UiThemeLvglTokens &theme = t;
+  g_launchUi.qrOverlay = lvglCreatePanel(g_lvglLaunchRoot, cW, cH, 0, 0, lv_color_hex(theme.screenBg), 0);
+  lv_obj_set_style_layout(g_launchUi.qrOverlay, 0, 0);
+  lv_obj_add_flag(g_launchUi.qrOverlay, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_flag(g_launchUi.qrOverlay, LV_OBJ_FLAG_CLICKABLE);
 
-  const lv_color_t qrDark = lv_color_hex(t.infoText);
-  const lv_color_t qrLight = lv_color_hex(t.panelBg);
-  g_launchUi.qrCode = lv_qrcode_create(g_launchUi.qrParent, 96, qrDark, qrLight);
-  lv_obj_align(g_launchUi.qrCode, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_style_border_width(g_launchUi.qrCode, 2, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_launchUi.qrCode, qrLight, LV_PART_MAIN);
-
-  const char *defaultUrl = "https://rocketlaunch.live";
-  lv_qrcode_update(g_launchUi.qrCode, defaultUrl, strlen(defaultUrl));
-
-  // Touch: make rows clickable
-  lv_obj_add_flag(g_launchUi.heroBg, LV_OBJ_FLAG_CLICKABLE);
-  for (int i = 0; i < 3; i++)
-    lv_obj_add_flag(g_launchUi.rowBg[i], LV_OBJ_FLAG_CLICKABLE);
-
-  lvglInitLaunchDetail();
-}
-
-static void lvglInitLaunchDetail() {
-  const int16_t cW = canvasWidth();
-  const int16_t cH = canvasHeight();
-  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const int16_t margin = 20;
-  const int16_t panelW = cW - margin * 2;
-  const int16_t panelH = cH - margin * 2;
-
-  // ---- Full-screen opaque backdrop ----
-  g_launchUi.detailBackdrop = lv_obj_create(g_lvglLaunchRoot);
-  lv_obj_remove_style_all(g_launchUi.detailBackdrop);
-  lv_obj_set_size(g_launchUi.detailBackdrop, cW, cH);
-  lv_obj_set_pos(g_launchUi.detailBackdrop, 0, 0);
-  lv_obj_set_style_bg_color(g_launchUi.detailBackdrop, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_launchUi.detailBackdrop, 220, LV_PART_MAIN);  // ~86% opaque
-  lv_obj_add_flag(g_launchUi.detailBackdrop, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_launchUi.detailBackdrop, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_flag(g_launchUi.detailBackdrop, LV_OBJ_FLAG_CLICKABLE);
-
-  // ---- Lightbox panel (rounded, inset 12px) ----
-  const int16_t olMargin = 12;
-  const int16_t olW = cW - olMargin * 2;
-  const int16_t olH = cH - olMargin * 2;
-  g_launchUi.detailOverlay = lv_obj_create(g_lvglLaunchRoot);
-  lv_obj_remove_style_all(g_launchUi.detailOverlay);
-  lv_obj_set_size(g_launchUi.detailOverlay, olW, olH);
-  lv_obj_set_pos(g_launchUi.detailOverlay, olMargin, olMargin);
-  lvglSetBgFlat(g_launchUi.detailOverlay, t.screenBg);  // screenBg for max contrast
-  lv_obj_set_style_radius(g_launchUi.detailOverlay, 8, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_launchUi.detailOverlay, 2, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_launchUi.detailOverlay, lv_color_hex(t.divider), LV_PART_MAIN);
-  lv_obj_add_flag(g_launchUi.detailOverlay, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_launchUi.detailOverlay, LV_OBJ_FLAG_SCROLLABLE);
-
-  // Close button — X with background pill
-  lv_obj_t *closeBtn = lv_obj_create(g_launchUi.detailOverlay);
-  lv_obj_remove_style_all(closeBtn);
-  lv_obj_set_size(closeBtn, 28, 22);
-  lv_obj_set_pos(closeBtn, 6, 6);
-  lv_obj_set_style_radius(closeBtn, 4, 0);
-  lvglSetBgFlat(closeBtn, t.headerBg);
-  lv_obj_clear_flag(closeBtn, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_flag(closeBtn, LV_OBJ_FLAG_CLICKABLE);
-
-  g_launchUi.detailClose = lv_label_create(closeBtn);
-  lv_label_set_text(g_launchUi.detailClose, LV_SYMBOL_CLOSE);
-  lv_obj_set_style_text_font(g_launchUi.detailClose, lvglFontTiny(), 0);
-  lvglSetTextHex(g_launchUi.detailClose, 0xFFFFFF);
-  lv_obj_center(g_launchUi.detailClose);
-
-  // Title — 22px prominent
-  g_launchUi.detailTitle = lv_label_create(g_launchUi.detailOverlay);
-  lv_label_set_text(g_launchUi.detailTitle, "");
-  lv_obj_set_style_text_font(g_launchUi.detailTitle, lvglFontRssNews(), 0);  // 22px
-  lvglSetTextHex(g_launchUi.detailTitle, t.infoText);
-  lv_obj_set_pos(g_launchUi.detailTitle, 40, 6);
-  lv_obj_set_width(g_launchUi.detailTitle, olW - 40 - 150);
-  lv_label_set_long_mode(g_launchUi.detailTitle, LV_LABEL_LONG_DOT);
-
-  // Countdown — 20px right-aligned
-  g_launchUi.detailCountdown = lv_label_create(g_launchUi.detailOverlay);
-  lv_label_set_text(g_launchUi.detailCountdown, "");
-  lv_obj_set_style_text_font(g_launchUi.detailCountdown, lvglFontMeta(), 0);  // 20px
-  lvglSetTextHex(g_launchUi.detailCountdown, t.infoText);
-  lv_obj_set_style_text_align(g_launchUi.detailCountdown, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_set_pos(g_launchUi.detailCountdown, olW - 146, 6);
-  lv_obj_set_width(g_launchUi.detailCountdown, 140);
-
-  // Provider | Vehicle — 18px
-  g_launchUi.detailProvider = lv_label_create(g_launchUi.detailOverlay);
-  lv_label_set_text(g_launchUi.detailProvider, "");
-  lv_obj_set_style_text_font(g_launchUi.detailProvider, lvglFontSmall(), 0);  // 18px
-  lvglSetTextHex(g_launchUi.detailProvider, t.infoText);
-  lv_obj_set_pos(g_launchUi.detailProvider, 8, 32);
-  lv_obj_set_width(g_launchUi.detailProvider, olW - 16);
-
-  // Pad, Location, Country — 16px muted
-  g_launchUi.detailPadLocation = lv_label_create(g_launchUi.detailOverlay);
-  lv_label_set_text(g_launchUi.detailPadLocation, "");
-  lv_obj_set_style_text_font(g_launchUi.detailPadLocation, lvglFontMini(), 0);
-  lvglSetTextHex(g_launchUi.detailPadLocation, t.auxMeta);
-  lv_obj_set_pos(g_launchUi.detailPadLocation, 8, 52);
-  lv_obj_set_width(g_launchUi.detailPadLocation, olW - 16);
-
-  // Window / Weather — 16px muted
-  g_launchUi.detailWindow = lv_label_create(g_launchUi.detailOverlay);
-  lv_label_set_text(g_launchUi.detailWindow, "");
-  lv_obj_set_style_text_font(g_launchUi.detailWindow, lvglFontMini(), 0);  // 16px not 14
-  lvglSetTextHex(g_launchUi.detailWindow, t.auxMeta);
-  lv_obj_set_pos(g_launchUi.detailWindow, 8, 70);
-  lv_obj_set_width(g_launchUi.detailWindow, olW - 16);
-
-  // Description — 16px wrapping
-  g_launchUi.detailDesc = lv_label_create(g_launchUi.detailOverlay);
-  lv_label_set_text(g_launchUi.detailDesc, "");
-  lv_obj_set_style_text_font(g_launchUi.detailDesc, lvglFontMini(), 0);  // 16px not 14
-  lvglSetTextHex(g_launchUi.detailDesc, t.infoText);
-  lv_obj_set_pos(g_launchUi.detailDesc, 8, 88);
-  lv_obj_set_size(g_launchUi.detailDesc, olW - 110, olH - 92);
-  lv_label_set_long_mode(g_launchUi.detailDesc, LV_LABEL_LONG_WRAP);
-
-  // Tag pills
-  for (int i = 0; i < LAUNCH_MAX_TAGS; i++) {
-    g_launchUi.detailTags[i] = lv_obj_create(g_launchUi.detailOverlay);
-    lv_obj_remove_style_all(g_launchUi.detailTags[i]);
-    lv_obj_set_size(g_launchUi.detailTags[i], 1, 1);
-    lv_obj_set_pos(g_launchUi.detailTags[i], 0, 0);
-    lv_obj_add_flag(g_launchUi.detailTags[i], LV_OBJ_FLAG_HIDDEN);
+  int16_t qrSize = cH;
+  if (qrSize > cW) qrSize = cW;
+  if (qrSize < 90) qrSize = 90;
+  const lv_color_t qrDark  = lv_color_hex(theme.auxQrDark);
+  const lv_color_t qrLight = lv_color_hex(theme.auxQrLight);
+  {
+    uint32_t bufSz = LV_CANVAS_BUF_SIZE_INDEXED_1BIT(qrSize, qrSize);
+    uint8_t *psBuf = (uint8_t *)ps_calloc(1, bufSz);
+    if (!psBuf) psBuf = (uint8_t *)calloc(1, bufSz);
+    g_launchUi.qr = lv_canvas_create(g_launchUi.qrOverlay);
+    if (psBuf) {
+      lv_canvas_set_buffer(g_launchUi.qr, psBuf, qrSize, qrSize, LV_IMG_CF_INDEXED_1BIT);
+      lv_canvas_set_palette(g_launchUi.qr, 0, qrDark);
+      lv_canvas_set_palette(g_launchUi.qr, 1, qrLight);
+    }
+    if (!psBuf) Serial.println("[LAUNCH][QR][ERR] canvas buffer alloc failed");
   }
+  lv_obj_add_flag(g_launchUi.qr, LV_OBJ_FLAG_FLOATING);
+  lv_obj_set_pos(g_launchUi.qr, 0, 0);
+  lv_obj_set_style_border_width(g_launchUi.qr, 0, LV_PART_MAIN);
+  const char *qrFallback = "https://rocketlaunch.live";
+  lv_qrcode_update(g_launchUi.qr, qrFallback, strlen(qrFallback));
 
-  // QR code (bottom-right, 88px — large and scannable)
-  const lv_color_t qrDark = lv_color_hex(t.infoText);
-  const lv_color_t qrLight = lv_color_hex(t.screenBg);
-  g_launchUi.detailQr = lv_qrcode_create(g_launchUi.detailOverlay, 88, qrDark, qrLight);
-  lv_obj_set_pos(g_launchUi.detailQr, olW - 98, olH - 98);
-  lv_obj_set_style_border_width(g_launchUi.detailQr, 3, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_launchUi.detailQr, qrLight, LV_PART_MAIN);
+  const int16_t hintX = qrSize + 16;
+  const int16_t hintW = cW - hintX - 12;
+  g_launchUi.qrHint = lv_label_create(g_launchUi.qrOverlay);
+  lv_obj_set_style_text_font(g_launchUi.qrHint, lvglNowPlayingArtistFont(), 0);
+  lv_obj_set_style_text_color(g_launchUi.qrHint, lv_color_hex(theme.auxQrHint), 0);
+  lv_obj_set_size(g_launchUi.qrHint, hintW, LV_SIZE_CONTENT);
+  lv_label_set_long_mode(g_launchUi.qrHint, LV_LABEL_LONG_WRAP);
+  lv_label_set_text(g_launchUi.qrHint, "Tap anywhere\nto close");
+  lv_obj_add_flag(g_launchUi.qrHint, LV_OBJ_FLAG_FLOATING);
+  lv_obj_set_pos(g_launchUi.qrHint, hintX, (cH / 2) - 28);
+  lv_obj_add_flag(g_launchUi.qrHint, LV_OBJ_FLAG_HIDDEN);
+#endif
+
+  g_launchUi.viewIndex = 0;
+  g_launchUi.lastViewRotateMs = millis();
 }
 
-static void lvglOpenLaunchDetail(int8_t index) {
+static void lvglOpenLaunchQr(int8_t index) {
+#if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   if (index < 0 || index >= g_launchState.count) return;
-  g_launchUi.detailIndex = index;
+  if (g_launchUi.qrModalOpen) return;
+  g_launchUi.qrModalOpen = true;
+  g_launchUi.qrItemIndex = index;
   const LaunchItem &item = g_launchState.items[index];
-
-  lv_label_set_text(g_launchUi.detailTitle, item.name);
-
-  char provBuf[96];
-  snprintf(provBuf, sizeof(provBuf), "%s | %s", item.provider, item.vehicle);
-  lv_label_set_text(g_launchUi.detailProvider, provBuf);
-
-  char locBuf[128];
-  snprintf(locBuf, sizeof(locBuf), "%s, %s, %s", item.pad, item.location, item.country);
-  lv_label_set_text(g_launchUi.detailPadLocation, locBuf);
-
-  char winBuf[96] = {};
-  if (item.winOpen || item.winClose) {
-    struct tm wo = {}, wc = {};
-    if (item.winOpen) gmtime_r(&item.winOpen, &wo);
-    if (item.winClose) gmtime_r(&item.winClose, &wc);
-    if (item.winOpen && item.winClose)
-      snprintf(winBuf, sizeof(winBuf), "Window: %02d:%02d - %02d:%02d UTC",
-               wo.tm_hour, wo.tm_min, wc.tm_hour, wc.tm_min);
-    else if (item.winOpen)
-      snprintf(winBuf, sizeof(winBuf), "Window opens: %02d:%02d UTC", wo.tm_hour, wo.tm_min);
-  }
-  if (item.weatherCondition[0]) {
-    char wb[64];
-    const char *sep = winBuf[0] ? " | " : "";
-    snprintf(wb, sizeof(wb), "%s%s %sF", sep, item.weatherCondition, item.weatherTemp);
-    strncat(winBuf, wb, sizeof(winBuf) - strlen(winBuf) - 1);
-  }
-  lv_label_set_text(g_launchUi.detailWindow, winBuf);
-
-  lv_label_set_text(g_launchUi.detailDesc,
-                    item.description[0] ? item.description : "No description available");
 
   char qrUrl[128];
   snprintf(qrUrl, sizeof(qrUrl), "https://rocketlaunch.live/launch/%s",
            item.providerSlug[0] ? item.providerSlug : "upcoming");
-  lv_qrcode_update(g_launchUi.detailQr, qrUrl, strlen(qrUrl));
-
-  // Render tag pills
-  const UiThemeLvglTokens &dt = activeUiTheme().lvgl;
-  int16_t tagX = 8;
-  for (int i = 0; i < LAUNCH_MAX_TAGS; i++) {
-    if (i < item.tagCount && item.tags[i][0]) {
-      lv_obj_set_size(g_launchUi.detailTags[i], LV_SIZE_CONTENT, 18);
-      lv_obj_set_style_radius(g_launchUi.detailTags[i], 9, LV_PART_MAIN);
-      lv_obj_set_style_bg_color(g_launchUi.detailTags[i], lv_color_hex(dt.divider), LV_PART_MAIN);
-      lv_obj_set_style_bg_opa(g_launchUi.detailTags[i], LV_OPA_COVER, LV_PART_MAIN);
-      lv_obj_set_style_pad_hor(g_launchUi.detailTags[i], 8, LV_PART_MAIN);
-      lv_obj_set_style_pad_ver(g_launchUi.detailTags[i], 2, LV_PART_MAIN);
-      // Remove old children if any, add label
-      lv_obj_clean(g_launchUi.detailTags[i]);
-      lv_obj_t *tl = lv_label_create(g_launchUi.detailTags[i]);
-      lv_label_set_text(tl, item.tags[i]);
-      lv_obj_set_style_text_font(tl, lvglFontTiny(), 0);
-      lvglSetTextHex(tl, dt.infoText);
-      const int16_t panelH2 = canvasHeight() - 40;
-      lv_obj_set_pos(g_launchUi.detailTags[i], tagX, panelH2 - 24);
-      tagX += lv_obj_get_width(g_launchUi.detailTags[i]) + 6;
-      lv_obj_clear_flag(g_launchUi.detailTags[i], LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_add_flag(g_launchUi.detailTags[i], LV_OBJ_FLAG_HIDDEN);
-    }
+  if (strncmp(g_launchUi.lastQrPayload, qrUrl, sizeof(g_launchUi.lastQrPayload) - 1) != 0) {
+    lv_qrcode_update(g_launchUi.qr, qrUrl, strlen(qrUrl));
+    strncpy(g_launchUi.lastQrPayload, qrUrl, sizeof(g_launchUi.lastQrPayload) - 1);
+    g_launchUi.lastQrPayload[sizeof(g_launchUi.lastQrPayload) - 1] = '\0';
+    Serial.printf("[LAUNCH] qr %d -> %s\n", (int)index, qrUrl);
   }
 
-  lv_obj_clear_flag(g_launchUi.detailBackdrop, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_launchUi.detailOverlay, LV_OBJ_FLAG_HIDDEN);
+  if (g_launchUi.qrOverlay) {
+    lv_obj_clear_flag(g_launchUi.qrOverlay, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(g_launchUi.qrOverlay);
+  }
+  if (g_launchUi.qr) lv_obj_clear_flag(g_launchUi.qr, LV_OBJ_FLAG_HIDDEN);
+  if (g_launchUi.qrHint) lv_obj_clear_flag(g_launchUi.qrHint, LV_OBJ_FLAG_HIDDEN);
+  markUserInteraction(millis());
+#endif
 }
 
-static void lvglCloseLaunchDetail() {
-  g_launchUi.detailIndex = -1;
-  lv_obj_add_flag(g_launchUi.detailOverlay, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_add_flag(g_launchUi.detailBackdrop, LV_OBJ_FLAG_HIDDEN);
+static void lvglCloseLaunchQr() {
+  if (!g_launchUi.qrModalOpen) return;
+  g_launchUi.qrModalOpen = false;
+  g_launchUi.qrItemIndex = -1;
+  if (g_launchUi.qrOverlay) lv_obj_add_flag(g_launchUi.qrOverlay, LV_OBJ_FLAG_HIDDEN);
+  if (g_launchUi.qrHint) lv_obj_add_flag(g_launchUi.qrHint, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void lvglSetLaunchView(uint8_t view) {
+  g_launchUi.viewIndex = view;
+  if (view == 0) {
+    // Show hero, hide compact
+    lv_obj_clear_flag(g_launchUi.heroBg, LV_OBJ_FLAG_HIDDEN);
+    for (int i = 0; i < 2; i++) lv_obj_add_flag(g_launchUi.compactBg[i], LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_launchUi.compactSep, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    // Show compact, hide hero
+    lv_obj_add_flag(g_launchUi.heroBg, LV_OBJ_FLAG_HIDDEN);
+    for (int i = 0; i < 2; i++) {
+      if (i + 1 < g_launchState.count)
+        lv_obj_clear_flag(g_launchUi.compactBg[i], LV_OBJ_FLAG_HIDDEN);
+      else
+        lv_obj_add_flag(g_launchUi.compactBg[i], LV_OBJ_FLAG_HIDDEN);
+    }
+    if (g_launchState.count > 2)
+      lv_obj_clear_flag(g_launchUi.compactSep, LV_OBJ_FLAG_HIDDEN);
+    else
+      lv_obj_add_flag(g_launchUi.compactSep, LV_OBJ_FLAG_HIDDEN);
+  }
 }
 
 static void lvglUpdateLaunchUi(bool force) {
@@ -14374,16 +14311,16 @@ static void lvglUpdateLaunchUi(bool force) {
   if (!g_launchState.valid || g_launchState.count == 0) {
     lv_obj_clear_flag(g_launchUi.noData, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_launchUi.heroBg, LV_OBJ_FLAG_HIDDEN);
-    for (int i = 0; i < 3; i++) lv_obj_add_flag(g_launchUi.rowBg[i], LV_OBJ_FLAG_HIDDEN);
+    for (int i = 0; i < 2; i++) lv_obj_add_flag(g_launchUi.compactBg[i], LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_launchUi.compactSep, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_launchUi.progressBar, LV_OBJ_FLAG_HIDDEN);
     return;
   }
 
   lv_obj_add_flag(g_launchUi.noData, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(g_launchUi.heroBg, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_launchUi.progressBar, LV_OBJ_FLAG_HIDDEN);
 
-  // Hero row
+  // ---- View 0: Hero (mission 0, all details) ----
   const LaunchItem &hero = g_launchState.items[0];
   lv_label_set_text(g_launchUi.headerCenter, hero.name);
   lv_label_set_text(g_launchUi.heroBadgeLabel, hero.provider);
@@ -14394,41 +14331,70 @@ static void lvglUpdateLaunchUi(bool force) {
   snprintf(vpBuf, sizeof(vpBuf), "%s | %s", hero.vehicle, hero.pad);
   lv_label_set_text(g_launchUi.heroVehiclePad, vpBuf);
 
-  // QR
-  char qrUrl[128];
-  snprintf(qrUrl, sizeof(qrUrl), "https://rocketlaunch.live/launch/%s",
-           hero.providerSlug[0] ? hero.providerSlug : "upcoming");
-  lv_qrcode_update(g_launchUi.qrCode, qrUrl, strlen(qrUrl));
+  // Right column: location, country, weather, window
+  lv_label_set_text(g_launchUi.heroLocation, hero.location[0] ? hero.location : "");
+  lv_label_set_text(g_launchUi.heroCountry, hero.country[0] ? hero.country : "");
 
-  // Compact rows
-  for (int i = 0; i < 3; i++) {
+  char weatherBuf[48] = {};
+  if (hero.weatherCondition[0]) {
+    if (hero.weatherTemp[0])
+      snprintf(weatherBuf, sizeof(weatherBuf), "%s %sF", hero.weatherCondition, hero.weatherTemp);
+    else
+      snprintf(weatherBuf, sizeof(weatherBuf), "%s", hero.weatherCondition);
+  }
+  lv_label_set_text(g_launchUi.heroWeather, weatherBuf);
+
+  char winBuf[64] = {};
+  if (hero.winOpen || hero.winClose) {
+    struct tm wo = {}, wc = {};
+    if (hero.winOpen) gmtime_r(&hero.winOpen, &wo);
+    if (hero.winClose) gmtime_r(&hero.winClose, &wc);
+    if (hero.winOpen && hero.winClose)
+      snprintf(winBuf, sizeof(winBuf), "Window %02d:%02d-%02d:%02d UTC",
+               wo.tm_hour, wo.tm_min, wc.tm_hour, wc.tm_min);
+    else if (hero.winOpen)
+      snprintf(winBuf, sizeof(winBuf), "Window %02d:%02d UTC", wo.tm_hour, wo.tm_min);
+  }
+  lv_label_set_text(g_launchUi.heroWindow, winBuf);
+
+  // ---- View 1: Compact rows (missions 1-2) ----
+  static const char *months[] = {"Jan","Feb","Mar","Apr","May","Jun",
+                                   "Jul","Aug","Sep","Oct","Nov","Dec"};
+  for (int i = 0; i < 2; i++) {
     const int idx = i + 1;
     if (idx >= g_launchState.count) {
-      lv_obj_add_flag(g_launchUi.rowBg[i], LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(g_launchUi.compactBg[i], LV_OBJ_FLAG_HIDDEN);
       continue;
     }
-    lv_obj_clear_flag(g_launchUi.rowBg[i], LV_OBJ_FLAG_HIDDEN);
     const LaunchItem &item = g_launchState.items[idx];
 
-    lv_label_set_text(g_launchUi.rowBadgeLabel[i], item.provider);
-    lvglSetBgFlat(g_launchUi.rowBadge[i], launchProviderColor(item.providerSlug));
-    lv_label_set_text(g_launchUi.rowName[i], item.name);
+    lv_label_set_text(g_launchUi.compactBadgeLabel[i], item.provider);
+    lvglSetBgFlat(g_launchUi.compactBadge[i], launchProviderColor(item.providerSlug));
+    lv_label_set_text(g_launchUi.compactName[i], item.name);
+
+    char cvpBuf[96];
+    snprintf(cvpBuf, sizeof(cvpBuf), "%s | %s", item.vehicle, item.pad);
+    lv_label_set_text(g_launchUi.compactVehicle[i], cvpBuf);
+
+    char clocBuf[96];
+    snprintf(clocBuf, sizeof(clocBuf), "%s, %s", item.location, item.country);
+    lv_label_set_text(g_launchUi.compactLocation[i], clocBuf);
 
     if (item.hasT0) {
       struct tm ti;
       time_t epoch = item.t0Epoch;
       gmtime_r(&epoch, &ti);
       char dateBuf[20];
-      static const char *months[] = {"Jan","Feb","Mar","Apr","May","Jun",
-                                     "Jul","Aug","Sep","Oct","Nov","Dec"};
       snprintf(dateBuf, sizeof(dateBuf), "%s %02d %02d:%02d",
                months[ti.tm_mon], ti.tm_mday, ti.tm_hour, ti.tm_min);
-      lv_label_set_text(g_launchUi.rowDate[i], dateBuf);
+      lv_label_set_text(g_launchUi.compactDate[i], dateBuf);
     } else {
-      lv_label_set_text(g_launchUi.rowDate[i], "TBD");
+      lv_label_set_text(g_launchUi.compactDate[i], "TBD");
     }
-    lvglSetTextHex(g_launchUi.rowDate[i], t.auxMeta);
   }
+
+  // Apply current view visibility
+  lvglSetLaunchView(g_launchUi.viewIndex);
 
   g_launchState.dirty = false;
 }
@@ -14443,6 +14409,7 @@ static void lvglTickLaunchCountdown() {
 
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
   const time_t now = time(nullptr);
+  const uint32_t now32 = millis();
   const time_t t0 = g_launchState.items[0].t0Epoch;
   const int32_t delta = (int32_t)(t0 - now);
 
@@ -14488,20 +14455,14 @@ static void lvglTickLaunchCountdown() {
   }
   lv_obj_set_style_bg_color(g_launchUi.progressBar, lv_color_hex(barColor), LV_PART_INDICATOR);
 
-  // Update detail overlay countdown if open
-  if (g_launchUi.detailIndex >= 0 && g_launchUi.detailIndex < g_launchState.count) {
-    const LaunchItem &di = g_launchState.items[g_launchUi.detailIndex];
-    if (di.hasT0) {
-      const int32_t dd = (int32_t)(di.t0Epoch - now);
-      char dbuf[24];
-      if (dd <= 0) snprintf(dbuf, sizeof(dbuf), "LIFTOFF!");
-      else if (dd < 3600) snprintf(dbuf, sizeof(dbuf), "T-%02d:%02d", (int)(dd/60), (int)(dd%60));
-      else if (dd < 86400) snprintf(dbuf, sizeof(dbuf), "T-%02d:%02d:%02d", (int)(dd/3600), (int)((dd%3600)/60), (int)(dd%60));
-      else snprintf(dbuf, sizeof(dbuf), "T-%dd %02d:%02d", (int)(dd/86400), (int)((dd%86400)/3600), (int)((dd%3600)/60));
-      lv_label_set_text(g_launchUi.detailCountdown, dbuf);
-    } else {
-      lv_label_set_text(g_launchUi.detailCountdown, "TBD");
-    }
+  // Auto-rotate views every 10 seconds (pause while QR is open)
+  if (!g_launchUi.qrModalOpen && g_launchState.count > 1 &&
+      (now32 - g_launchUi.lastViewRotateMs) >= 10000UL) {
+    g_launchUi.lastViewRotateMs = now32;
+    uint8_t next = (g_launchUi.viewIndex + 1) % 2;
+    Serial.printf("[LAUNCH] view rotate %d -> %d (count=%d)\n",
+                  (int)g_launchUi.viewIndex, (int)next, (int)g_launchState.count);
+    lvglSetLaunchView(next);
   }
 }
 
@@ -16480,7 +16441,6 @@ static bool initLvglUi() {
 
   // Launch Page
   g_lvglLaunchRoot = lvglCreatePageRoot(scr, cW, cH);
-  g_launchUi.root = g_lvglLaunchRoot;
   lv_obj_set_pos(g_lvglLaunchRoot, cW, 0);
   lvglInitLaunchUi();
 
@@ -17118,12 +17078,14 @@ static void cmdViewLaunch(const String &args) {
 
 static void cmdLaunchDetail(const String &args) {
   int idx = args.length() ? args.toInt() : 0;
-  if (g_launchUi.detailIndex >= 0) {
-    lvglCloseLaunchDetail();
-    Serial.println("[LAUNCH] detail closed");
+  markUserInteraction(millis());
+  lvglSetScreenSaverActive(false);
+  if (g_launchUi.qrModalOpen) {
+    lvglCloseLaunchQr();
+    Serial.println("[LAUNCH] qr closed");
   } else {
-    lvglOpenLaunchDetail(idx);
-    Serial.printf("[LAUNCH] detail opened idx=%d\n", idx);
+    lvglOpenLaunchQr(idx);
+    Serial.printf("[LAUNCH] qr opened idx=%d\n", idx);
   }
   g_uiNeedsRedraw = true;
 }
