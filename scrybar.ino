@@ -89,6 +89,7 @@ LV_FONT_DECLARE(scry_font_funnel_display_25);
 LV_FONT_DECLARE(scry_font_funnel_display_30);
 LV_FONT_DECLARE(scry_font_funnel_display_32);
 LV_FONT_DECLARE(scry_font_funnel_display_38);
+LV_FONT_DECLARE(scry_font_funnel_display_countdown_60);
 #if __has_include("assets/weather_icons_min/generated/weather_icons_lvgl_min.h")
 #include "assets/weather_icons_min/generated/weather_icons_lvgl_min.h"
 #define DB_HAS_LVGL_WEATHER_MIN_IMAGES 1
@@ -13044,6 +13045,7 @@ static const lv_font_t* lvglFontInfoBody() { return &scry_font_funnel_display_16
 static const lv_font_t* lvglFontRssNews()  { return &scry_font_funnel_display_22; }
 static const lv_font_t* lvglFontClock()    { return &scry_font_funnel_display_32; }
 static const lv_font_t* lvglFontBig()      { return &scry_font_funnel_display_32; }
+static const lv_font_t* lvglFontCountdown(){ return &scry_font_funnel_display_countdown_60; }
 static const lv_font_t* lvglFontTemp()     { return &scry_font_funnel_display_24; }
 
 static const lv_font_t* lvglFontScreenSaverBalloonText() { return &scry_font_funnel_display_18; }
