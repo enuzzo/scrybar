@@ -14140,45 +14140,47 @@ static void lvglInitLaunchUi() {
   lv_label_set_long_mode(g_launchUi.heroCountry, LV_LABEL_LONG_DOT);
 
   // ── Right column ──────────────────────────────────────────────────────
-  // 1) "LIFTOFF IN" label
+  // 1) "LIFTOFF IN" label — 16px Mini, tracked caps, extra headroom above countdown
   g_launchUi.heroCountdownLabel = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroCountdownLabel, "LIFTOFF IN");
-  lv_obj_set_style_text_font(g_launchUi.heroCountdownLabel, lvglFontTiny(), 0);
+  lv_obj_set_style_text_font(g_launchUi.heroCountdownLabel, lvglFontMini(), 0);  // 16px (was Tiny 14)
   lvglSetTextHex(g_launchUi.heroCountdownLabel, t.auxMeta);
   lv_obj_set_style_text_letter_space(g_launchUi.heroCountdownLabel, 3, 0);
   lv_obj_set_style_text_align(g_launchUi.heroCountdownLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(g_launchUi.heroCountdownLabel, rightX, 12);
-  lv_obj_set_size(g_launchUi.heroCountdownLabel, rightW, 16);
+  lv_obj_set_pos(g_launchUi.heroCountdownLabel, rightX, 8);
+  lv_obj_set_size(g_launchUi.heroCountdownLabel, rightW, 18);
 
-  // 2) Countdown value — 60px SemiBold, no "T-" prefix, centered
+  // 2) Countdown value — 60px SemiBold, centered. Gap above: 8px (label bbox
+  // ends y=26, countdown starts y=34). Gap below: tuned with the weather line.
   g_launchUi.heroCountdown = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroCountdown, "--:--:--");
   lv_obj_set_style_text_font(g_launchUi.heroCountdown, lvglFontCountdown(), 0);
   lvglSetTextHex(g_launchUi.heroCountdown, t.infoText);
   lv_obj_set_style_text_letter_space(g_launchUi.heroCountdown, -2, 0);
   lv_obj_set_style_text_align(g_launchUi.heroCountdown, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(g_launchUi.heroCountdown, rightX, 32);
-  lv_obj_set_size(g_launchUi.heroCountdown, rightW, 68);
+  lv_obj_set_pos(g_launchUi.heroCountdown, rightX, 34);
+  lv_obj_set_size(g_launchUi.heroCountdown, rightW, 60);
 
-  // 3) Weather — warm amber accent, centered, 20px for readability
+  // 3) Weather — warm amber accent, centered, 20px for readability. Pulled
+  // up to y=92 so the gap under the countdown is tighter.
   g_launchUi.heroWeather = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroWeather, "");
   lv_obj_set_style_text_font(g_launchUi.heroWeather, lvglFontMeta(), 0);  // 20px
   lvglSetTextHex(g_launchUi.heroWeather, lvglLaunchWeatherAccent(t));
   lv_obj_set_style_text_align(g_launchUi.heroWeather, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(g_launchUi.heroWeather, rightX, 92);
+  lv_obj_set_pos(g_launchUi.heroWeather, rightX, 94);
   lv_obj_set_size(g_launchUi.heroWeather, rightW, 24);
 
-  // 4) QR tap hint — 12px muted, bottom-aligned with country
+  // 4) QR tap hint — 14px Tiny muted, bottom-aligned with country
   g_launchUi.heroQrHint = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroQrHint, "TAP \xC2\xB7 SCAN QR");
-  lv_obj_set_style_text_font(g_launchUi.heroQrHint, &scry_font_funnel_display_12, 0);
+  lv_obj_set_style_text_font(g_launchUi.heroQrHint, lvglFontTiny(), 0);  // 14px (was 12)
   lvglSetTextHex(g_launchUi.heroQrHint, t.auxMeta);
   lv_obj_set_style_text_opa(g_launchUi.heroQrHint, LV_OPA_70, 0);
   lv_obj_set_style_text_letter_space(g_launchUi.heroQrHint, 2, 0);
   lv_obj_set_style_text_align(g_launchUi.heroQrHint, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(g_launchUi.heroQrHint, rightX, 120);
-  lv_obj_set_size(g_launchUi.heroQrHint, rightW, 16);
+  lv_obj_set_pos(g_launchUi.heroQrHint, rightX, 122);
+  lv_obj_set_size(g_launchUi.heroQrHint, rightW, 18);
 
   // heroWindow is unused in the new hero layout — keep nullptr so the
   // existing struct definition stays binary-compatible and any accidental
@@ -17185,6 +17187,12 @@ static void cmdViewTransit(const String &args) {
 static void cmdViewLaunch(const String &args) {
   if (!uiPageEnabled(UI_PAGE_LAUNCH)) { Serial.println("[UI] LAUNCH disabled"); return; }
   setUiPage(UI_PAGE_LAUNCH);
+  // Reset carousel to View 0 (hero) on explicit navigation so `VIEW7` always
+  // lands on the hero — useful for screenshots and for users who want to see
+  // the featured mission on demand.
+  g_launchUi.viewIndex = 0;
+  g_launchUi.lastViewRotateMs = millis();
+  lvglSetLaunchView(0);
   Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
 }
 
