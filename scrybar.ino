@@ -14160,14 +14160,14 @@ static void lvglInitLaunchUi() {
   lv_obj_set_pos(g_launchUi.heroCountdown, rightX, 32);
   lv_obj_set_size(g_launchUi.heroCountdown, rightW, 68);
 
-  // 3) Weather — warm amber accent, centered
+  // 3) Weather — warm amber accent, centered, 20px for readability
   g_launchUi.heroWeather = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroWeather, "");
-  lv_obj_set_style_text_font(g_launchUi.heroWeather, lvglFontMini(), 0);
+  lv_obj_set_style_text_font(g_launchUi.heroWeather, lvglFontMeta(), 0);  // 20px
   lvglSetTextHex(g_launchUi.heroWeather, lvglLaunchWeatherAccent(t));
   lv_obj_set_style_text_align(g_launchUi.heroWeather, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(g_launchUi.heroWeather, rightX, 94);
-  lv_obj_set_size(g_launchUi.heroWeather, rightW, 20);
+  lv_obj_set_pos(g_launchUi.heroWeather, rightX, 92);
+  lv_obj_set_size(g_launchUi.heroWeather, rightW, 24);
 
   // 4) QR tap hint — 12px muted, bottom-aligned with country
   g_launchUi.heroQrHint = lv_label_create(g_launchUi.heroBg);
@@ -14539,26 +14539,26 @@ static void lvglTickLaunchCountdown() {
     uint32_t labelColor  = t.auxMeta;
 
     if (delta <= 0) {
-      // Liftoff or elapsed — red emphasis, value pinned at 00:00:00.
+      // Liftoff or elapsed — red emphasis, value pinned at 00:00:00 (no sign).
       snprintf(buf, sizeof(buf), "00:00:00");
       labelTxt   = "LIFTOFF";
       labelColor = 0xFF5252;
       textColor  = 0xFF5252;
     } else if (delta < 60) {
-      // Final minute — red tint, 00:00:SS.
-      snprintf(buf, sizeof(buf), "00:00:%02d", (int)delta);
+      // Final minute — red tint, T-00:00:SS.
+      snprintf(buf, sizeof(buf), "T-00:00:%02d", (int)delta);
       textColor = 0xFF5252;
     } else if (delta < 86400) {
       int h = delta / 3600;
       int m = (delta % 3600) / 60;
       int s = delta % 60;
-      snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
+      snprintf(buf, sizeof(buf), "T-%02d:%02d:%02d", h, m, s);
     } else {
       int d = delta / 86400;
       int h = (delta % 86400) / 3600;
       int m = (delta % 3600) / 60;
-      if (d > 99) snprintf(buf, sizeof(buf), "%dd", d);
-      else        snprintf(buf, sizeof(buf), "%dd %02d:%02d", d, h, m);
+      if (d > 99) snprintf(buf, sizeof(buf), "T-%dd", d);
+      else        snprintf(buf, sizeof(buf), "T-%dd %02d:%02d", d, h, m);
     }
 
     lv_label_set_text(g_launchUi.heroCountdownLabel, labelTxt);

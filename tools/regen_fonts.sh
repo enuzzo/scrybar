@@ -44,8 +44,10 @@ OUT_DIR="src/fonts"
 # Layout charset — used by every size except the narrow countdown font.
 LAYOUT_RANGES=(-r 0x20-0x7E -r 0xA0-0xFF -r 0x100-0x17F)
 
-# Countdown charset — only the glyphs actually used in "HH:MM:SS" / "Dd HH:MM".
-COUNTDOWN_RANGES=(-r 0x20 -r 0x2B -r 0x2D -r 0x30-0x39 -r 0x3A -r 0x64)
+# Countdown charset — only the glyphs actually used in "T-HH:MM:SS" /
+# "T-Dd HH:MM" / "LIFTOFF". Keeps the 60px file around 50 KB.
+# Glyphs: space, +, -, 0..9, :, T, d (rest of "LIFTOFF" still falls back).
+COUNTDOWN_RANGES=(-r 0x20 -r 0x2B -r 0x2D -r 0x30-0x39 -r 0x3A -r 0x54 -r 0x64)
 
 # Map each generated size to a size-matched lv_font_montserrat_* fallback. The
 # list on the right is what lv_conf.h currently enables (14/16/18/20/22/24/
