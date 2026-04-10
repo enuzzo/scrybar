@@ -14410,42 +14410,61 @@ static void lvglUpdateLaunchUi(bool force) {
 
   lv_obj_add_flag(g_launchUi.noData, LV_OBJ_FLAG_HIDDEN);
 
-  // ---- View 0: Hero (mission 0, all details) ----
+  // ---- View 0: Hero (mission 0) — Cinematic Asymmetric (r256) ----
   const LaunchItem &hero = g_launchState.items[0];
   lv_label_set_text(g_launchUi.headerCenter, hero.name);
-  lv_label_set_text(g_launchUi.heroBadgeLabel, hero.provider);
-  lv_label_set_text(g_launchUi.heroName, hero.name);
-  lvglSetBgFlat(g_launchUi.heroBadge, launchProviderColor(hero.providerSlug));
 
+  // Provider badge — auto-size to text + 28px horizontal padding (14 each side).
+  lv_label_set_text(g_launchUi.heroBadgeLabel, hero.provider);
+  lvglSetBgFlat(g_launchUi.heroBadge, launchProviderColor(hero.providerSlug));
+  lv_obj_set_style_bg_opa(g_launchUi.heroBadge, LV_OPA_COVER, LV_PART_MAIN);
+  {
+    const size_t plen = strlen(hero.provider);
+    lv_coord_t txtW = lv_txt_get_width(hero.provider, plen, lvglFontSmallBold(), 0, LV_TEXT_FLAG_NONE);
+    lv_coord_t badgeAutoW = txtW + 28;
+    if (badgeAutoW < 82)  badgeAutoW = 82;
+    if (badgeAutoW > 280) badgeAutoW = 280;
+    lv_obj_set_width(g_launchUi.heroBadge, badgeAutoW);
+  }
+
+  // Mission name (no quotes in rendered text; ellipsis via LV_LABEL_LONG_DOT).
+  lv_label_set_text(g_launchUi.heroName, hero.name);
+
+  // Vehicle | Pad (ASCII pipe separator).
   char vpBuf[96];
-  snprintf(vpBuf, sizeof(vpBuf), "%s | %s", hero.vehicle, hero.pad);
+  if (hero.vehicle[0] && hero.pad[0])
+    snprintf(vpBuf, sizeof(vpBuf), "%s | %s", hero.vehicle, hero.pad);
+  else if (hero.vehicle[0])
+    snprintf(vpBuf, sizeof(vpBuf), "%s", hero.vehicle);
+  else if (hero.pad[0])
+    snprintf(vpBuf, sizeof(vpBuf), "%s", hero.pad);
+  else
+    vpBuf[0] = '\0';
   lv_label_set_text(g_launchUi.heroVehiclePad, vpBuf);
 
-  // Bottom zone: location + country, window
+  // Left-column bottom: location + country.
   lv_label_set_text(g_launchUi.heroLocation, hero.location[0] ? hero.location : "");
-  lv_label_set_text(g_launchUi.heroCountry, hero.country[0] ? hero.country : "");
+  lv_label_set_text(g_launchUi.heroCountry,  hero.country[0]  ? hero.country  : "");
 
-  char weatherBuf[48] = {};
-  if (hero.weatherCondition[0]) {
-    if (hero.weatherTemp[0])
-      snprintf(weatherBuf, sizeof(weatherBuf), "%s %sF", hero.weatherCondition, hero.weatherTemp);
-    else
-      snprintf(weatherBuf, sizeof(weatherBuf), "%s", hero.weatherCondition);
+  // Right-column weather — warm amber accent.
+  lvglSetTextHex(g_launchUi.heroWeather, lvglLaunchWeatherAccent(t));
+  {
+    char weatherBuf[48] = {};
+    if (hero.weatherCondition[0]) {
+      if (hero.weatherTemp[0])
+        snprintf(weatherBuf, sizeof(weatherBuf), "%s %s\xC2\xB0""F", hero.weatherCondition, hero.weatherTemp);
+      else
+        snprintf(weatherBuf, sizeof(weatherBuf), "%s", hero.weatherCondition);
+    }
+    lv_label_set_text(g_launchUi.heroWeather, weatherBuf);
   }
-  lv_label_set_text(g_launchUi.heroWeather, weatherBuf);
 
-  char winBuf[64] = {};
-  if (hero.winOpen || hero.winClose) {
-    struct tm wo = {}, wc = {};
-    if (hero.winOpen) gmtime_r(&hero.winOpen, &wo);
-    if (hero.winClose) gmtime_r(&hero.winClose, &wc);
-    if (hero.winOpen && hero.winClose)
-      snprintf(winBuf, sizeof(winBuf), "Window %02d:%02d-%02d:%02d UTC",
-               wo.tm_hour, wo.tm_min, wc.tm_hour, wc.tm_min);
-    else if (hero.winOpen)
-      snprintf(winBuf, sizeof(winBuf), "Window %02d:%02d UTC", wo.tm_hour, wo.tm_min);
-  }
-  lv_label_set_text(g_launchUi.heroWindow, winBuf);
+  // Countdown label default — tick handler may override (NET, LIFTOFF).
+  lv_label_set_text(g_launchUi.heroCountdownLabel, "LIFTOFF IN");
+  lvglSetTextHex(g_launchUi.heroCountdownLabel, t.auxMeta);
+
+  // QR tap hint is a static affordance in View 0 — always visible.
+  lv_obj_clear_flag(g_launchUi.heroQrHint, LV_OBJ_FLAG_HIDDEN);
 
   // ---- View 1: Compact rows (missions 1-2) ----
   static const char *months[] = {"Jan","Feb","Mar","Apr","May","Jun",
@@ -14491,42 +14510,62 @@ static void lvglUpdateLaunchUi(bool force) {
 
 static void lvglTickLaunchCountdown() {
   if (!g_lvglLaunchRoot || g_uiPageMode != UI_PAGE_LAUNCH) return;
-  if (g_launchState.count == 0 || !g_launchState.items[0].hasT0) {
-    lv_label_set_text(g_launchUi.heroCountdown, "TBD");
-    return;
-  }
+  if (g_launchState.count == 0) return;
 
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
-  const time_t now = time(nullptr);
   const uint32_t now32 = millis();
-  const time_t t0 = g_launchState.items[0].t0Epoch;
-  const int32_t delta = (int32_t)(t0 - now);
+  const LaunchItem &hero = g_launchState.items[0];
 
-  char buf[24];
-  uint32_t textColor = t.infoText;
-
-  if (delta <= 0) {
-    snprintf(buf, sizeof(buf), "LIFTOFF!");
-    textColor = 0x00E676;
-  } else if (delta < 600) {
-    int m = delta / 60, s = delta % 60;
-    snprintf(buf, sizeof(buf), "T-%02d:%02d", m, s);
-    textColor = 0xFF1744;
-  } else if (delta < 3600) {
-    int m = delta / 60, s = delta % 60;
-    snprintf(buf, sizeof(buf), "T-%02d:%02d", m, s);
-    textColor = 0xFFD600;
-  } else if (delta < 86400) {
-    int h = delta / 3600, m = (delta % 3600) / 60, s = delta % 60;
-    snprintf(buf, sizeof(buf), "T-%02d:%02d:%02d", h, m, s);
+  if (!hero.hasT0) {
+    // NET state — no precise T-0, show a window hint or "TBD".
+    char netBuf[24] = "TBD";
+    if (hero.winOpen) {
+      struct tm wo = {};
+      gmtime_r(&hero.winOpen, &wo);
+      // Short form: "HH:MM UTC" (fits the narrow 60px charset via digits+colon+space).
+      snprintf(netBuf, sizeof(netBuf), "%02d:%02d", wo.tm_hour, wo.tm_min);
+    }
+    lv_label_set_text(g_launchUi.heroCountdownLabel, "NET");
+    lv_label_set_text(g_launchUi.heroCountdown, netBuf);
+    lvglSetTextHex(g_launchUi.heroCountdownLabel, t.auxMeta);
+    lvglSetTextHex(g_launchUi.heroCountdown, t.auxMeta);
   } else {
-    int d = delta / 86400, h = (delta % 86400) / 3600, m = (delta % 3600) / 60;
-    if (d > 99) snprintf(buf, sizeof(buf), "T-%dd", d);
-    else snprintf(buf, sizeof(buf), "T-%dd %02d:%02d", d, h, m);
-  }
+    const time_t now = time(nullptr);
+    const int32_t delta = (int32_t)(hero.t0Epoch - now);
 
-  lv_label_set_text(g_launchUi.heroCountdown, buf);
-  lvglSetTextHex(g_launchUi.heroCountdown, textColor);
+    char buf[24];
+    uint32_t textColor = t.infoText;
+    const char *labelTxt = "LIFTOFF IN";
+    uint32_t labelColor  = t.auxMeta;
+
+    if (delta <= 0) {
+      // Liftoff or elapsed — red emphasis, value pinned at 00:00:00.
+      snprintf(buf, sizeof(buf), "00:00:00");
+      labelTxt   = "LIFTOFF";
+      labelColor = 0xFF5252;
+      textColor  = 0xFF5252;
+    } else if (delta < 60) {
+      // Final minute — red tint, 00:00:SS.
+      snprintf(buf, sizeof(buf), "00:00:%02d", (int)delta);
+      textColor = 0xFF5252;
+    } else if (delta < 86400) {
+      int h = delta / 3600;
+      int m = (delta % 3600) / 60;
+      int s = delta % 60;
+      snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
+    } else {
+      int d = delta / 86400;
+      int h = (delta % 86400) / 3600;
+      int m = (delta % 3600) / 60;
+      if (d > 99) snprintf(buf, sizeof(buf), "%dd", d);
+      else        snprintf(buf, sizeof(buf), "%dd %02d:%02d", d, h, m);
+    }
+
+    lv_label_set_text(g_launchUi.heroCountdownLabel, labelTxt);
+    lv_label_set_text(g_launchUi.heroCountdown, buf);
+    lvglSetTextHex(g_launchUi.heroCountdownLabel, labelColor);
+    lvglSetTextHex(g_launchUi.heroCountdown, textColor);
+  }
 
   // Auto-rotate views every 10 seconds (pause while QR is open)
   if (!g_launchUi.qrModalOpen && g_launchState.count > 1 &&
