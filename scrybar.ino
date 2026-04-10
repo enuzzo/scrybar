@@ -1150,7 +1150,9 @@ struct LvglLaunchUi {
   lv_obj_t *heroBadgeLabel = nullptr;
   lv_obj_t *heroName = nullptr;
   lv_obj_t *heroVehiclePad = nullptr;
+  lv_obj_t *heroCountdownLabel = nullptr;  // "LIFTOFF IN" label above countdown
   lv_obj_t *heroCountdown = nullptr;
+  lv_obj_t *heroQrHint = nullptr;          // "tap · scan qr" affordance under weather
   lv_obj_t *heroLocation = nullptr;
   lv_obj_t *heroCountry = nullptr;
   lv_obj_t *heroWeather = nullptr;
@@ -9887,6 +9889,15 @@ static uint32_t lvglResolvedWeatherGlyphOffline(const UiThemeLvglTokens &t, uint
     return t.weatherGlyphOffline;
   }
   return weatherSecondary;
+}
+
+// Warm amber accent for the LAUNCH hero weather readout. Intentionally
+// theme-agnostic — the weather is a low-priority ambient hint that should
+// read as "friendly/warm" on every theme without competing with the
+// dominant countdown. If a future design needs per-theme tinting, add a
+// weatherHeroAccent field to UiThemeLvglTokens and switch this to use it.
+static inline uint32_t lvglLaunchWeatherAccent(const UiThemeLvglTokens & /*t*/) {
+  return 0xFFB74D;
 }
 
 // ── LVGL style helpers (M9) ─────────────────────────────────────────────────
