@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 18 px
  * Bpp: 4
- * Opts: --size 18 --bpp 4 --no-compress --format lvgl --lv-include lvgl.h --font assets/fonts/FunnelDisplay-Regular.ttf -r 0x20-0x7E -r 0xA0-0xFF -r 0x100-0x17F --lv-fallback lv_font_montserrat_24 --lv-font-name scry_font_funnel_display_18 -o src/fonts/scry_font_funnel_display_18.c
+ * Opts: --size 18 --bpp 4 --no-compress --format lvgl --lv-include lvgl.h --font assets/fonts/FunnelDisplay-Regular.ttf -r 0x20-0x7E -r 0xA0-0xFF -r 0x100-0x17F --lv-fallback lv_font_montserrat_18 --lv-font-name scry_font_funnel_display_18 -o src/fonts/scry_font_funnel_display_18.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
@@ -2370,7 +2370,7 @@ static lv_font_fmt_txt_dsc_t font_dsc = {
 #endif
 };
 
-extern const lv_font_t lv_font_montserrat_24;
+extern const lv_font_t lv_font_montserrat_18;
 
 
 /*-----------------
@@ -2396,7 +2396,7 @@ lv_font_t scry_font_funnel_display_18 = {
 #endif
     .dsc = &font_dsc,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
 #if LV_VERSION_CHECK(8, 2, 0) || LVGL_VERSION_MAJOR >= 9
-    .fallback = &lv_font_montserrat_24,
+    .fallback = &lv_font_montserrat_18,
 #endif
     .user_data = NULL,
 };
