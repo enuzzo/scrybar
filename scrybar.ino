@@ -14060,10 +14060,12 @@ static void lvglInitLaunchUi() {
   const bool darkPanel = (lvglColorLuma(t.panelBg) < 128u);
   const uint32_t altTint = darkPanel ? 0xFFFFFF : 0x000000;
 
-  // ==== VIEW 0: Hero — "Mission Control" layout ====
-  // Top: badge + mission name + weather/vehicle info
-  // Center: BIG countdown (dominant element)
-  // Bottom: location + window details
+  // ==== VIEW 0: Hero — "Cinematic Asymmetric" layout (r256) ====
+  // Two columns with a 16px gutter. Left col (x=0..312): provider badge /
+  // mission name / vehicle|pad / location / country. Right col (x=328..640):
+  // LIFTOFF IN label + dominant 60px countdown + weather + tap-for-QR hint.
+  // Coordinates inside the hero children are body-relative (y=0 at the top
+  // of heroBg, which sits at canvas y=bodyY=30).
   g_launchUi.heroBg = lv_obj_create(g_lvglLaunchRoot);
   lv_obj_set_size(g_launchUi.heroBg, cW, bodyH);
   lv_obj_set_pos(g_launchUi.heroBg, 0, bodyY);
@@ -14071,102 +14073,117 @@ static void lvglInitLaunchUi() {
   lv_obj_set_style_radius(g_launchUi.heroBg, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_all(g_launchUi.heroBg, 0, LV_PART_MAIN);
   lv_obj_set_style_bg_color(g_launchUi.heroBg, lv_color_hex(altTint), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_launchUi.heroBg, 12, LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_launchUi.heroBg, 20, LV_PART_MAIN);  // ~8% veil
   lv_obj_clear_flag(g_launchUi.heroBg, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(g_launchUi.heroBg, LV_OBJ_FLAG_CLICKABLE);
 
-  // ── Top zone (y=0..50): badge + mission name + right-side info ──
-  const int16_t heroBadgeW = 110, heroBadgeH = 28;
+  // Column geometry.
+  const int16_t leftX   = 16;
+  const int16_t leftW   = 296;   // left col width minus 2x inset
+  const int16_t rightX  = 328;
+  const int16_t rightW  = cW - rightX;  // 312 on a 640px canvas
+
+  // ── Left column ───────────────────────────────────────────────────────
+  // 1) Provider badge — pill, auto width set per-mission in update
+  const int16_t heroBadgeH = 30;
   g_launchUi.heroBadge = lv_obj_create(g_launchUi.heroBg);
-  lv_obj_set_size(g_launchUi.heroBadge, heroBadgeW, heroBadgeH);
-  lv_obj_set_pos(g_launchUi.heroBadge, 6, 4);
-  lv_obj_set_style_radius(g_launchUi.heroBadge, 6, 0);
+  lv_obj_set_size(g_launchUi.heroBadge, 180, heroBadgeH);
+  lv_obj_set_pos(g_launchUi.heroBadge, leftX, 8);
+  lv_obj_set_style_radius(g_launchUi.heroBadge, 8, 0);
   lv_obj_set_style_border_width(g_launchUi.heroBadge, 0, LV_PART_MAIN);
   lvglSetBgFlat(g_launchUi.heroBadge, t.headerBg);
   lv_obj_set_style_bg_opa(g_launchUi.heroBadge, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_launchUi.heroBadge, 0, LV_PART_MAIN);
   lv_obj_clear_flag(g_launchUi.heroBadge, LV_OBJ_FLAG_SCROLLABLE);
 
   g_launchUi.heroBadgeLabel = lv_label_create(g_launchUi.heroBadge);
   lv_label_set_text(g_launchUi.heroBadgeLabel, "");
-  lv_obj_set_style_text_font(g_launchUi.heroBadgeLabel, lvglFontMeta(), 0);
+  lv_obj_set_style_text_font(g_launchUi.heroBadgeLabel, lvglFontSmallBold(), 0);  // SemiBold 18
   lvglSetTextHex(g_launchUi.heroBadgeLabel, 0xFFFFFF);
-  lv_obj_set_size(g_launchUi.heroBadgeLabel, heroBadgeW - 6, heroBadgeH - 4);
-  lv_obj_align(g_launchUi.heroBadgeLabel, LV_ALIGN_CENTER, 0, 3);
-  lv_label_set_long_mode(g_launchUi.heroBadgeLabel, LV_LABEL_LONG_SCROLL);
   lv_obj_set_style_text_align(g_launchUi.heroBadgeLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_anim_speed(g_launchUi.heroBadgeLabel, 15, 0);
+  lv_obj_align(g_launchUi.heroBadgeLabel, LV_ALIGN_CENTER, 0, 2);
 
-  // Mission name — 22px, right of badge
-  const int16_t nameX = heroBadgeW + 14;
+  // 2) Mission name — SemiBold 25, LV_LABEL_LONG_DOT for ellipsis
   g_launchUi.heroName = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroName, "");
-  lv_obj_set_style_text_font(g_launchUi.heroName, lvglFontRssNews(), 0);  // 22px
+  lv_obj_set_style_text_font(g_launchUi.heroName, lvglFontLaunchName(), 0);  // SemiBold 25
   lvglSetTextHex(g_launchUi.heroName, t.infoText);
-  lv_obj_set_pos(g_launchUi.heroName, nameX, 3);
-  lv_obj_set_width(g_launchUi.heroName, cW - nameX - 8);
-  lv_label_set_long_mode(g_launchUi.heroName, LV_LABEL_LONG_SCROLL_CIRCULAR);
+  lv_obj_set_pos(g_launchUi.heroName, leftX, 42);
+  lv_obj_set_size(g_launchUi.heroName, leftW, 32);
+  lv_label_set_long_mode(g_launchUi.heroName, LV_LABEL_LONG_DOT);
 
-  // Vehicle | Pad — 16px, below mission name
+  // 3) Vehicle | Pad — 16px muted
   g_launchUi.heroVehiclePad = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroVehiclePad, "");
   lv_obj_set_style_text_font(g_launchUi.heroVehiclePad, lvglFontMini(), 0);
   lvglSetTextHex(g_launchUi.heroVehiclePad, t.auxMeta);
-  lv_obj_set_pos(g_launchUi.heroVehiclePad, nameX, 28);
-  lv_obj_set_width(g_launchUi.heroVehiclePad, cW - nameX - 180);
+  lv_obj_set_pos(g_launchUi.heroVehiclePad, leftX, 76);
+  lv_obj_set_size(g_launchUi.heroVehiclePad, leftW, 18);
   lv_label_set_long_mode(g_launchUi.heroVehiclePad, LV_LABEL_LONG_DOT);
 
-  // Weather — 18px, top-right
-  g_launchUi.heroWeather = lv_label_create(g_launchUi.heroBg);
-  lv_label_set_text(g_launchUi.heroWeather, "");
-  lv_obj_set_style_text_font(g_launchUi.heroWeather, lvglFontSmall(), 0);
-  lvglSetTextHex(g_launchUi.heroWeather, t.infoText);
-  lv_obj_set_style_text_align(g_launchUi.heroWeather, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_set_pos(g_launchUi.heroWeather, cW - 190, 28);
-  lv_obj_set_width(g_launchUi.heroWeather, 182);
-
-  // ── Separator (1px at y=48) ──
-  lv_obj_t *heroSep = lv_obj_create(g_launchUi.heroBg);
-  lv_obj_set_size(heroSep, cW - 16, 1);
-  lv_obj_set_pos(heroSep, 8, 48);
-  lv_obj_set_style_bg_color(heroSep, lv_color_hex(t.divider), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(heroSep, LV_OPA_30, LV_PART_MAIN);
-  lv_obj_set_style_border_width(heroSep, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(heroSep, 0, LV_PART_MAIN);
-
-  // ── Center zone: BIG COUNTDOWN (dominant) ──
-  g_launchUi.heroCountdown = lv_label_create(g_launchUi.heroBg);
-  lv_label_set_text(g_launchUi.heroCountdown, "T-00:00:00");
-  lv_obj_set_style_text_font(g_launchUi.heroCountdown, lvglFontTitle(), 0);  // 30px
-  lvglSetTextHex(g_launchUi.heroCountdown, t.infoText);
-  lv_obj_set_style_text_align(g_launchUi.heroCountdown, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(g_launchUi.heroCountdown, 0, 58);
-  lv_obj_set_width(g_launchUi.heroCountdown, cW);
-
-  // ── Bottom zone (y=100..142): location + window ──
-  // Location + Country — left
+  // 4) Location — 20px, info text color
   g_launchUi.heroLocation = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroLocation, "");
-  lv_obj_set_style_text_font(g_launchUi.heroLocation, lvglFontMini(), 0);  // 16px
-  lvglSetTextHex(g_launchUi.heroLocation, t.auxMeta);
-  lv_obj_set_pos(g_launchUi.heroLocation, 8, bodyH - 40);
-  lv_obj_set_width(g_launchUi.heroLocation, cW / 2 - 12);
+  lv_obj_set_style_text_font(g_launchUi.heroLocation, lvglFontMeta(), 0);
+  lvglSetTextHex(g_launchUi.heroLocation, t.infoText);
+  lv_obj_set_pos(g_launchUi.heroLocation, leftX, 96);
+  lv_obj_set_size(g_launchUi.heroLocation, leftW, 22);
   lv_label_set_long_mode(g_launchUi.heroLocation, LV_LABEL_LONG_DOT);
 
+  // 5) Country — 14px muted, 6px clear of body bottom
   g_launchUi.heroCountry = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroCountry, "");
-  lv_obj_set_style_text_font(g_launchUi.heroCountry, lvglFontMini(), 0);
+  lv_obj_set_style_text_font(g_launchUi.heroCountry, lvglFontTiny(), 0);
   lvglSetTextHex(g_launchUi.heroCountry, t.auxMeta);
-  lv_obj_set_pos(g_launchUi.heroCountry, 8, bodyH - 22);
-  lv_obj_set_width(g_launchUi.heroCountry, cW / 2 - 12);
+  lv_obj_set_pos(g_launchUi.heroCountry, leftX, 120);
+  lv_obj_set_size(g_launchUi.heroCountry, leftW, 16);
+  lv_label_set_long_mode(g_launchUi.heroCountry, LV_LABEL_LONG_DOT);
 
-  // Window — right-aligned, bottom
-  g_launchUi.heroWindow = lv_label_create(g_launchUi.heroBg);
-  lv_label_set_text(g_launchUi.heroWindow, "");
-  lv_obj_set_style_text_font(g_launchUi.heroWindow, lvglFontMini(), 0);
-  lvglSetTextHex(g_launchUi.heroWindow, t.auxMeta);
-  lv_obj_set_style_text_align(g_launchUi.heroWindow, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_set_pos(g_launchUi.heroWindow, cW / 2, bodyH - 40);
-  lv_obj_set_width(g_launchUi.heroWindow, cW / 2 - 8);
+  // ── Right column ──────────────────────────────────────────────────────
+  // 1) "LIFTOFF IN" label
+  g_launchUi.heroCountdownLabel = lv_label_create(g_launchUi.heroBg);
+  lv_label_set_text(g_launchUi.heroCountdownLabel, "LIFTOFF IN");
+  lv_obj_set_style_text_font(g_launchUi.heroCountdownLabel, lvglFontTiny(), 0);
+  lvglSetTextHex(g_launchUi.heroCountdownLabel, t.auxMeta);
+  lv_obj_set_style_text_letter_space(g_launchUi.heroCountdownLabel, 3, 0);
+  lv_obj_set_style_text_align(g_launchUi.heroCountdownLabel, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_pos(g_launchUi.heroCountdownLabel, rightX, 12);
+  lv_obj_set_size(g_launchUi.heroCountdownLabel, rightW, 16);
+
+  // 2) Countdown value — 60px SemiBold, no "T-" prefix, centered
+  g_launchUi.heroCountdown = lv_label_create(g_launchUi.heroBg);
+  lv_label_set_text(g_launchUi.heroCountdown, "--:--:--");
+  lv_obj_set_style_text_font(g_launchUi.heroCountdown, lvglFontCountdown(), 0);
+  lvglSetTextHex(g_launchUi.heroCountdown, t.infoText);
+  lv_obj_set_style_text_letter_space(g_launchUi.heroCountdown, -2, 0);
+  lv_obj_set_style_text_align(g_launchUi.heroCountdown, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_pos(g_launchUi.heroCountdown, rightX, 32);
+  lv_obj_set_size(g_launchUi.heroCountdown, rightW, 68);
+
+  // 3) Weather — warm amber accent, centered
+  g_launchUi.heroWeather = lv_label_create(g_launchUi.heroBg);
+  lv_label_set_text(g_launchUi.heroWeather, "");
+  lv_obj_set_style_text_font(g_launchUi.heroWeather, lvglFontMini(), 0);
+  lvglSetTextHex(g_launchUi.heroWeather, lvglLaunchWeatherAccent(t));
+  lv_obj_set_style_text_align(g_launchUi.heroWeather, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_pos(g_launchUi.heroWeather, rightX, 94);
+  lv_obj_set_size(g_launchUi.heroWeather, rightW, 20);
+
+  // 4) QR tap hint — 12px muted, bottom-aligned with country
+  g_launchUi.heroQrHint = lv_label_create(g_launchUi.heroBg);
+  lv_label_set_text(g_launchUi.heroQrHint, "TAP \xC2\xB7 SCAN QR");
+  lv_obj_set_style_text_font(g_launchUi.heroQrHint, &scry_font_funnel_display_12, 0);
+  lvglSetTextHex(g_launchUi.heroQrHint, t.auxMeta);
+  lv_obj_set_style_text_opa(g_launchUi.heroQrHint, LV_OPA_70, 0);
+  lv_obj_set_style_text_letter_space(g_launchUi.heroQrHint, 2, 0);
+  lv_obj_set_style_text_align(g_launchUi.heroQrHint, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_pos(g_launchUi.heroQrHint, rightX, 120);
+  lv_obj_set_size(g_launchUi.heroQrHint, rightW, 16);
+
+  // heroWindow is unused in the new hero layout — keep nullptr so the
+  // existing struct definition stays binary-compatible and any accidental
+  // reference crashes cleanly instead of silently rendering stale data.
+  g_launchUi.heroWindow = nullptr;
 
   // ==== VIEW 1: Compact (2 rows, missions 2-3) ====
   const int16_t compactRowH = bodyH / 2;  // ~69px each
