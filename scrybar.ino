@@ -89,6 +89,12 @@ LV_FONT_DECLARE(scry_font_funnel_display_25);
 LV_FONT_DECLARE(scry_font_funnel_display_30);
 LV_FONT_DECLARE(scry_font_funnel_display_32);
 LV_FONT_DECLARE(scry_font_funnel_display_38);
+// Funnel Display SemiBold — selective emphasis weight (r256)
+LV_FONT_DECLARE(scry_font_funnel_display_semibold_18);
+LV_FONT_DECLARE(scry_font_funnel_display_semibold_25);
+LV_FONT_DECLARE(scry_font_funnel_display_semibold_32);
+LV_FONT_DECLARE(scry_font_funnel_display_semibold_38);
+// Narrow 60px countdown (SemiBold, digits+colon+d only)
 LV_FONT_DECLARE(scry_font_funnel_display_countdown_60);
 #if __has_include("assets/weather_icons_min/generated/weather_icons_lvgl_min.h")
 #include "assets/weather_icons_min/generated/weather_icons_lvgl_min.h"
@@ -13047,6 +13053,15 @@ static const lv_font_t* lvglFontClock()    { return &scry_font_funnel_display_32
 static const lv_font_t* lvglFontBig()      { return &scry_font_funnel_display_32; }
 static const lv_font_t* lvglFontCountdown(){ return &scry_font_funnel_display_countdown_60; }
 static const lv_font_t* lvglFontTemp()     { return &scry_font_funnel_display_24; }
+
+// ── SemiBold emphasis family (r256) ─────────────────────────────────────────
+// Use these when you want typographic weight, not just larger size. Keep the
+// set small — every added size is extra flash. If you need a new SemiBold
+// size, add it to SEMIBOLD_SIZES in tools/regen_fonts.sh and regenerate.
+static const lv_font_t* lvglFontSmallBold()   { return &scry_font_funnel_display_semibold_18; }
+static const lv_font_t* lvglFontLaunchName()  { return &scry_font_funnel_display_semibold_25; }
+static const lv_font_t* lvglFontClockBold()   { return &scry_font_funnel_display_semibold_32; }
+static const lv_font_t* lvglFontBigBold()     { return &scry_font_funnel_display_semibold_38; }
 
 static const lv_font_t* lvglFontScreenSaverBalloonText() { return &scry_font_funnel_display_18; }
 static const lv_font_t* lvglFontScreenSaverFooterText()  { return &scry_font_funnel_display_24; }
