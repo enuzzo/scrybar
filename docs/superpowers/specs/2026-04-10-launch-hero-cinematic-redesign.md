@@ -108,6 +108,7 @@ Glyphs: 0 1 2 3 4 5 6 7 8 9 : d space + -
 Regenerate existing Funnel Display fonts used by location/country fields (and by extension anywhere text could include international place names) with **Latin-1 Supplement + Latin Extended-A**:
 
 Fonts to regenerate:
+- `scry_font_funnel_display_12` (QR tap hint — needs `·` from Latin-1)
 - `scry_font_funnel_display_14` (country)
 - `scry_font_funnel_display_16` (vehicle | pad, weather)
 - `scry_font_funnel_display_18` (header + badge)
