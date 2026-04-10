@@ -38,9 +38,11 @@ All coordinates are in **canvas space** (y measured from top of display).
 |---|-----------------|--------------|--------------|--------------------|----------------|-------|
 | 1 | Provider badge  | x=16, y=38   | auto × 30    | `lvglFontSmall()` 18 | white on provider color | pill radius 8, `bg_opa=COVER`, label padding 14px horizontal, auto width (scroll-clip if > 280) |
 | 2 | Mission name    | x=16, y=72   | 296 × 32     | **NEW** `lvglFontLaunchName()` 25 (Regular, alias for `scry_font_funnel_display_25` — or reuse existing `lvglNowPlayingTitleFont()` which already points to the same file) | `t.infoText` | `LV_LABEL_LONG_DOT` for ellipsis |
-| 3 | Vehicle \| Pad  | x=16, y=108  | 296 × 18     | `lvglFontMini()` 16 | `t.auxMeta`    | separator = ASCII `\|` (space-pipe-space). Never middle-dot. |
-| 4 | Location        | x=16, y=130  | 296 × 22     | `lvglFontMeta()` 20 | `t.infoText`   | launch pad location (e.g. "Andøya Space") |
-| 5 | Country         | x=16, y=154  | 296 × 16     | `lvglFontTiny()` 14 | `t.auxMeta`    | country name (bottom edge y=170, 2px clear of body) |
+| 3 | Vehicle \| Pad  | x=16, y=106  | 296 × 18     | `lvglFontMini()` 16 | `t.auxMeta`    | separator = ASCII `\|` (space-pipe-space). Never middle-dot. |
+| 4 | Location        | x=16, y=126  | 296 × 22     | `lvglFontMeta()` 20 | `t.infoText`   | launch pad location (e.g. "Andøya Space") |
+| 5 | Country         | x=16, y=150  | 296 × 16     | `lvglFontTiny()` 14 | `t.auxMeta`    | country name (bottom edge y=166, **6px clear of body bottom**) |
+
+Vertical gap budget left column: 8 above badge, 4 between badge/mission, 2 between mission/vehicle, 2 between vehicle/location, 2 between location/country, 6 below country. Tight but breathable.
 
 **Badge width:** auto-sized to text + 28px horizontal padding (14 left + 14 right), min 82, max 280. Provider color from `launchProviderColor()` (unchanged from r255). Radius 8 (slightly more rounded than r255's 6).
 
@@ -50,7 +52,10 @@ All coordinates are in **canvas space** (y measured from top of display).
 |---|-----------------|--------------|--------------|--------------------|---------------|-------|
 | 1 | LIFTOFF IN label | x=328, y=42 | 312 × 16     | `lvglFontTiny()` 14 | `t.auxMeta`   | uppercase, `letter-spacing` via `lv_obj_set_style_text_letter_space` = 3, centered |
 | 2 | Countdown value  | x=328, y=62 | 312 × 68     | `lvglFontCountdown()` **NEW 60** | `t.infoText` | tabular-nums-ish via `letter_space = -2`, centered, no "T-" prefix |
-| 3 | Weather          | x=328, y=134 | 312 × 20    | `lvglFontMini()` 16 | `lvglLaunchWeatherAccent()` **NEW helper** | centered, format `<glyph> <condition> <temp>` |
+| 3 | Weather          | x=328, y=124 | 312 × 20    | `lvglFontMini()` 16 | `lvglLaunchWeatherAccent()` **NEW helper** | centered, format `<glyph> <condition> <temp>` |
+| 4 | QR tap hint      | x=328, y=150 | 312 × 16    | `lvglFontMicro()` / `scry_font_funnel_display_12` | `t.auxMeta`, `LV_OPA_70` | uppercase, `letter_space = 2`, text `"tap · scan qr"` or `"TAP FOR QR"`, centered. **Bottom edge y=166, aligned with country bottom.** |
+
+**QR tap behaviour (already implemented, unchanged):** in View 0, tap anywhere below the header (y ≥ 33, both columns) calls `lvglOpenLaunchQr(0)` which opens the full-screen QR overlay. The hint label is a purely visual affordance — no new touch handler needed. See `scrybar.ino:11812-11815`.
 
 **Countdown value format:**
 - When `d > 0`: `"%dd %02d:%02d"` → e.g. `"2d 18:42"` (8 chars)
@@ -157,6 +162,7 @@ Existing `LvglLaunchUi` struct fields to keep (rename/repurpose where needed):
 | `heroCountdown`            | countdown value (new 60px font)             | keep, change font + pos + format |
 | `heroWeather`              | weather (new accent color, centered)        | keep, change pos + align |
 | **NEW** `heroCountdownLabel` | "LIFTOFF IN" label above countdown        | **add** |
+| **NEW** `heroQrHint`       | "tap · scan qr" affordance below weather   | **add** |
 | `heroWindow`               | (no longer used in hero)                   | **remove or hide** |
 
 The existing separator line at y=48 is **removed** — the gutter does the job.
