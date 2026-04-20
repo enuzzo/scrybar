@@ -440,6 +440,14 @@ Entry format:
 
 ---
 
+## 2026-04-20 - v0.5.0 / r256: First public web-flasher release with LAUNCH hero + first-install callout
+
+- Context: v0.4.0 (2026-04-02) shipped r244-era firmware. Since then: Funnel Display font unification (Regular + SemiBold from a single variable font, all sizes, Latin Extended-A charset), LAUNCH page Cinematic Asymmetric hero (two-column layout, 60px countdown with T- prefix, 20px amber weather, VIEW7 reset), and first-time user friction for web flasher (browser can't auto-detect factory firmware via DTR/RTS).
+- Decision: Tag v0.5.0 on HEAD (r256). Add a "First install?" callout above the Flash card in `FlashSection.astro` explaining the BOOT+RST+BOOT procedure — same wording as the dev-workflow gotcha in `project_knowledge.md`. Styled as a teal-bordered info strip using `--accent-secondary-rgb` tokens so it adapts to all themes. CI pipeline rebuilds Astro + firmware and deploys to GH Pages automatically on tag push.
+- Impact/Tradeoffs: Users who arrive with factory Waveshare firmware (which does not yield USB-CDC control to the browser) get the correct procedure without hunting for docs. Callout is above-the-fold in the Flash section — seen before clicking Install. No version field to manually maintain in Astro source: CI injects the tag into `manifest.json` at build time.
+
+---
+
 ## 2026-03-29 - r219-r225: Performance Overhaul — Network Isolation + Display Pipeline
 
 - Context: Swipe animations stuttered whenever network fetches ran on Core 0. RSS took 2-3s, Wiki 7-10s, weather up to 75s (streaming loop bug) — all blocking LVGL on Core 0. Display flush used a pixel-by-pixel copy loop, single LVGL buffer, and HTTP/1.0 with Connection:close.
