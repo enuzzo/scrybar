@@ -1,0 +1,170 @@
+---
+const releases = [
+  {
+    version: 'v0.6.0',
+    tag: 'r262',
+    date: '2026-04-21',
+    headline: 'Brightness control, unified screensaver, touch fix',
+    items: [
+      { label: 'New', text: 'Dual brightness sliders in the web UI — separate levels for USB-C and battery, live-apply while dragging.' },
+      { label: 'New', text: 'Unified Pasture screensaver. Nordic Night palette across every theme, four fixed zones, cow that grazes and sleeps. No more grass-vs-clock overlap.' },
+      { label: 'Fix', text: 'Rapid-tapping the Wikipedia page no longer sneaks the screensaver in. Root cause was a uint32_t underflow in a cross-handler race — fixed and flagged as a CRITICAL gotcha in the repo.' },
+      { label: 'Fix', text: 'Departures toggle in the web UI now actually disables the page. Launches gets its own checkbox (previously always-on).' },
+    ],
+  },
+  {
+    version: 'v0.5.0',
+    tag: 'r256',
+    date: '2026-04-10',
+    headline: 'Launches page, Cinematic hero, font unification',
+    items: [
+      { label: 'New', text: 'Rocket launches page with cinematic countdown hero, weather at the pad, and a QR jump to mission details.' },
+      { label: 'New', text: 'Typography unified on Funnel Display (Regular + SemiBold), with Latin Extended coverage for international station and mission names.' },
+      { label: 'Fix', text: 'Launch metadata parser handles the full Launch Library 2 shape — no more NET-only placeholders when precise T-0 data is available.' },
+    ],
+  },
+];
+---
+<section id="changelog">
+  <div class="container">
+    <span class="section-label">What's new</span>
+    <h2>Recent releases</h2>
+    <p class="section-sub">
+      Full history in <a href="https://github.com/enuzzo/scrybar/releases" target="_blank" rel="noopener noreferrer">GitHub Releases</a>.
+    </p>
+
+    <div class="releases">
+      {releases.map((r, idx) => (
+        <article class={`vm-card release ${idx === 0 ? 'release--latest' : ''}`}>
+          <header class="release__head">
+            <div class="release__title">
+              <h3>{r.version}</h3>
+              {idx === 0 && (
+                <span class="vm-badge vm-badge--success">latest</span>
+              )}
+              <span class="release__tag">{r.tag}</span>
+            </div>
+            <time class="release__date" datetime={r.date}>{r.date}</time>
+          </header>
+          <p class="release__headline">{r.headline}</p>
+          <ul class="release__items">
+            {r.items.map((item) => (
+              <li>
+                <span class={`release__label release__label--${item.label.toLowerCase()}`}>
+                  {item.label}
+                </span>
+                <span class="release__text">{item.text}</span>
+              </li>
+            ))}
+          </ul>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  #changelog { padding: 72px 0 32px; }
+  .releases {
+    display: grid;
+    gap: 18px;
+    margin-top: 28px;
+  }
+  .release {
+    padding: 20px 22px;
+  }
+  .release--latest {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 1px var(--accent-primary) inset, 0 8px 28px rgba(0,0,0,.22);
+  }
+  .release__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .release__title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .release__title h3 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .release__tag {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 12px;
+    color: var(--text-tertiary);
+    background: var(--bg-deepest);
+    border: 1px solid var(--stroke-soft);
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+  .release__date {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+  .release__headline {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 14px;
+    font-weight: 500;
+  }
+  .release__items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 8px;
+  }
+  .release__items li {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 12px;
+    align-items: baseline;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text-primary);
+  }
+  .release__label {
+    justify-self: start;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--bg-deepest);
+    border: 1px solid var(--stroke-soft);
+    color: var(--text-secondary);
+  }
+  .release__label--new {
+    color: #66d3a4;
+    border-color: rgba(102, 211, 164, 0.35);
+    background: rgba(102, 211, 164, 0.08);
+  }
+  .release__label--fix {
+    color: #f2b35c;
+    border-color: rgba(242, 179, 92, 0.35);
+    background: rgba(242, 179, 92, 0.08);
+  }
+  .release__text {
+    color: var(--text-primary);
+  }
+  @media (max-width: 640px) {
+    .release__items li {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+    .release__label {
+      justify-self: start;
+    }
+  }
+</style>
