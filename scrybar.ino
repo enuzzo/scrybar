@@ -710,13 +710,16 @@ static constexpr uint8_t UI_VIEW_FLAG_WIKI = 0x04;
 // 0x08 was UI_VIEW_FLAG_ANSI (archived)
 static constexpr uint8_t UI_VIEW_FLAG_DOOM        = 0x10;
 static constexpr uint8_t UI_VIEW_FLAG_NOW_PLAYING  = 0x20;
-static constexpr uint8_t UI_VIEW_FLAG_TRANSIT = 0x40;  // auto-enables via g_transitConfig.configured
+static constexpr uint8_t UI_VIEW_FLAG_TRANSIT = 0x40;  // gated AND on g_transitConfig.configured
+static constexpr uint8_t UI_VIEW_FLAG_LAUNCH  = 0x80;  // gated AND on g_wifiSt.connected (r262)
 static constexpr uint8_t UI_VIEW_MASK_DEFAULT =
     UI_VIEW_FLAG_INFO |
     UI_VIEW_FLAG_AUX |
     UI_VIEW_FLAG_WIKI |
     UI_VIEW_FLAG_DOOM |
-    UI_VIEW_FLAG_NOW_PLAYING;
+    UI_VIEW_FLAG_NOW_PLAYING |
+    UI_VIEW_FLAG_TRANSIT |
+    UI_VIEW_FLAG_LAUNCH;
 
 struct RuntimeNetConfig {
   char weatherCity[32];
@@ -4450,7 +4453,7 @@ function clearComposer(){editIndex=-1;rssName.value='';rssUrl.value='';rssMax.va
 function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML="RSS feeds "+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.textContent='';t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='vm-btn vm-btn--sm vm-btn--warn';bEdit.textContent='Edit';bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.textContent='Update';setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='vm-btn vm-btn--sm vm-btn--danger';bDel.textContent='Delete';bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}
 function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}
 function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}
-function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_transit','view_transit_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}
+function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_transit','view_transit_cb'],['view_launch','view_launch_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}
 if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();
 // Collapsible sections — start collapsed; ▶ = closed, ▼ = open
 document.querySelectorAll('.vm-card').forEach(function(card){
@@ -4551,6 +4554,7 @@ static void buildWebViewToggles(String &html) {
   const bool wikiViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) != 0;
   const bool nowPlayingViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) != 0;
   const bool transitViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) != 0;
+  const bool launchViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_LAUNCH) != 0;
   html += F("<div class='vm-card'><h2>&#x1F4F1;&ensp;Views</h2><div class='vm-views'>");
   html += F("<label class='vm-view'><input id='view_info_cb' type='checkbox'");
   if (infoViewOn) html += F(" checked");
@@ -4568,6 +4572,9 @@ static void buildWebViewToggles(String &html) {
   html += F("<label class='vm-view'><input id='view_transit_cb' type='checkbox'");
   if (transitViewOn) html += F(" checked");
   html += F("><span class='vm-view__copy'><strong>Departures</strong><small>Live transit departure board via Transitous API.</small></span></label>");
+  html += F("<label class='vm-view'><input id='view_launch_cb' type='checkbox'");
+  if (launchViewOn) html += F(" checked");
+  html += F("><span class='vm-view__copy'><strong>Launches</strong><small>Rocket launch countdown + mission info (Launch Library 2).</small></span></label>");
   html += F("</div><p class='vm-help'>Swipe navigation only includes enabled pages.</p><div id='view_hidden_inputs' class='hidden'></div></div>");
 }
 
@@ -5054,6 +5061,8 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) ? F("true") : F("false");
   out += F(",\"transit\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) ? F("true") : F("false");
+  out += F(",\"launch\":");
+  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_LAUNCH) ? F("true") : F("false");
   out += F("},\"themes\":[");
   for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
     if (i) out += ',';
@@ -5200,6 +5209,7 @@ static bool parseViewsConfig(RuntimeNetConfig &next, String &errorOut, bool &has
       {"view_wiki",        UI_VIEW_FLAG_WIKI},
       {"view_now_playing", UI_VIEW_FLAG_NOW_PLAYING},
       {"view_transit",     UI_VIEW_FLAG_TRANSIT},
+      {"view_launch",      UI_VIEW_FLAG_LAUNCH},
   };
   for (const ViewArgDef &viewArg : kViewArgs) {
     if (!g_webCfg.server.hasArg(viewArg.key)) continue;
@@ -5701,6 +5711,9 @@ static bool webRequestHasConfigParams() {
   if (g_webCfg.server.hasArg("view_info")) return true;
   if (g_webCfg.server.hasArg("view_aux")) return true;
   if (g_webCfg.server.hasArg("view_wiki")) return true;
+  if (g_webCfg.server.hasArg("view_now_playing")) return true;
+  if (g_webCfg.server.hasArg("view_transit")) return true;
+  if (g_webCfg.server.hasArg("view_launch")) return true;
   if (g_webCfg.server.hasArg("rss_feed_url")) return true;
   if (g_webCfg.server.hasArg("logo_url")) return true;
   if (g_webCfg.server.hasArg("transit_from")) return true;
@@ -9373,7 +9386,7 @@ static uint8_t uiViewFlagForPage(UiPageMode mode) {
     case UI_PAGE_DOOM:        return UI_VIEW_FLAG_DOOM;
     case UI_PAGE_NOW_PLAYING: return UI_VIEW_FLAG_NOW_PLAYING;
     case UI_PAGE_TRANSIT:     return UI_VIEW_FLAG_TRANSIT;
-    case UI_PAGE_LAUNCH:      return 0;  // no bitmask — always on with WiFi
+    case UI_PAGE_LAUNCH:      return UI_VIEW_FLAG_LAUNCH;
     case UI_PAGE_HOME:
     default:
       return 0;
@@ -9389,8 +9402,14 @@ static bool uiPageEnabledNoEnsure(UiPageMode mode) {
     return false;
 #endif
   }
-  if (mode == UI_PAGE_TRANSIT) return g_transitConfig.configured;
-  if (mode == UI_PAGE_LAUNCH) return g_wifiSt.connected;
+  if (mode == UI_PAGE_TRANSIT) {
+    const bool flagOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) != 0;
+    return flagOn && g_transitConfig.configured;
+  }
+  if (mode == UI_PAGE_LAUNCH) {
+    const bool flagOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_LAUNCH) != 0;
+    return flagOn && g_wifiSt.connected;
+  }
   const uint8_t flag = uiViewFlagForPage(mode);
   return (flag != 0) && ((g_runtimeNetConfig.enabledViewsMask & flag) != 0);
 }
