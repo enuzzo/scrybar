@@ -1345,6 +1345,31 @@ static constexpr uint8_t kSaverSkyRowsMax = 10;
 static constexpr uint8_t kSaverSkyColsMax = 80;
 static constexpr uint8_t kSaverStarsPerRow = 2;
 
+// Unified screensaver palette (Nordic Night, r260). Theme-independent.
+// Every per-theme saverXxx field on UiThemeLvglTokens is ignored by the saver
+// code path — kept on the struct only for ABI stability with existing themes.
+// See docs/superpowers/specs/2026-04-21-screensaver-unified-redesign.md.
+static constexpr uint32_t kSaverPaletteBg       = 0x0A0F1E;  // deep indigo
+static constexpr uint32_t kSaverPaletteStarHi   = 0xFFFFFF;  // brightest flicker
+static constexpr uint32_t kSaverPaletteStarMid  = 0xB8D0FF;  // mid brightness
+static constexpr uint32_t kSaverPaletteStarLo   = 0x4A5878;  // dim slate base
+static constexpr uint32_t kSaverPaletteCow      = 0xE8EEFF;  // cream white
+static constexpr uint32_t kSaverPaletteGrass    = 0x2F5940;  // muted teal-green
+static constexpr uint32_t kSaverPaletteBalloon  = 0x9FB0D6;  // soft blue-gray
+static constexpr uint32_t kSaverPaletteClock    = 0xC8D6FF;  // cool white
+
+// Unified layout zones (r260). Canvas is 640x172; these are the vertical bands.
+static constexpr int16_t  kSaverZoneSkyTop      = 0;
+static constexpr int16_t  kSaverZoneSkyBot      = 72;
+static constexpr int16_t  kSaverZoneCowTop      = 72;
+static constexpr int16_t  kSaverZoneCowBot      = 132;
+static constexpr int16_t  kSaverZoneGrassTop    = 132;
+static constexpr int16_t  kSaverZoneGrassBot    = 150;
+static constexpr int16_t  kSaverZoneClockTop    = 150;
+static constexpr uint8_t  kSaverSkyRowCount     = 6;   // rows fit in 72px at 12px pitch
+static constexpr int16_t  kSaverSkyRowPitch     = 12;
+static constexpr int16_t  kSaverSkyRowTopY      = 4;
+
 enum CowState : uint8_t {
   COW_GRAZE    = 0,
   COW_IDLE     = 1,
@@ -9807,32 +9832,9 @@ static uint32_t lvglResolvedAuxButtonText(uint32_t preferred, uint32_t bg) {
   return (lvglColorLuma(bg) >= 128u) ? 0x111111 : 0xF5F5F5;
 }
 
-static uint32_t lvglResolvedSaverReadableText(const UiThemeLvglTokens &t) {
-  const bool light = lvglColorLuma(t.screenBg) >= 128u;
-  const uint32_t fallback = light ? 0x111111 : 0xFFFFFF;
-  const uint32_t bg = t.screenBg;
-  const uint32_t candidates[] = {
-      t.saverBalloon,
-      t.saverFooter,
-      t.infoText,
-      t.auxSourceText,
-      t.headerText,
-      fallback,
-  };
-  uint32_t best = fallback;
-  uint16_t bestScore = 0;
-  for (size_t i = 0; i < (sizeof(candidates) / sizeof(candidates[0])); ++i) {
-    const uint32_t c = candidates[i];
-    if (c == t.saverCow) continue;
-    const uint16_t score = lvglColorContrastLuma(c, bg);
-    if (score > bestScore) {
-      bestScore = score;
-      best = c;
-    }
-  }
-  if (bestScore < 95u) return fallback;
-  return best;
-}
+// lvglResolvedSaverReadableText removed in r260 — unified screensaver uses the
+// hardcoded kSaverPaletteBalloon / kSaverPaletteClock constants instead of
+// deriving contrast-safe colors from the active theme.
 
 static uint32_t lvglResolvedPanelBg(const UiThemeLvglTokens &t) {
   // Cyberpunk on ESP should stay deep navy/teal, not electric blue.
@@ -10010,7 +10012,6 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   const uint32_t forecastText = lvglResolvedForecastText(t, weatherBg, weatherTextPrimary);
   const uint32_t weatherGlyphOnline = lvglResolvedWeatherGlyphOnline(t, weatherBg, weatherTextPrimary);
   const uint32_t weatherGlyphOffline = lvglResolvedWeatherGlyphOffline(t, weatherBg, weatherTextSecondary);
-  const uint32_t saverReadableText = lvglResolvedSaverReadableText(t);
   const bool light = lvglThemeIsLight();
   uint32_t clockLine1 = cyberpunk ? t.infoText : (light ? t.infoText : t.headerText);
   uint32_t clockLine2 = t.infoText;
@@ -10117,16 +10118,19 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   lvglCenterClockSentenceLabel();
 
 #if SCREENSAVER_ENABLED
-  if (g_saver.root) lv_obj_set_style_bg_color(g_saver.root, lv_color_hex(t.screenBg), LV_PART_MAIN);
-  lvglSetTextHex(g_saver.sky, t.saverSky);
-  lvglSetTextHex(g_saver.field, t.saverField);
-  lvglSetTextHex(g_saver.cow, t.saverCow);
-  lvglSetTextHex(g_saver.balloon, saverReadableText);
-  lvglSetTextHex(g_saver.balloonTail, saverReadableText);
-  lvglSetTextHex(g_saver.footer, saverReadableText);
+  // Unified screensaver (r260): palette is theme-independent, always Nordic Night.
+  // We still reach applyTheme on theme switch to refresh in case the root was
+  // re-created, but the colors no longer depend on `t`.
+  if (g_saver.root) lv_obj_set_style_bg_color(g_saver.root, lv_color_hex(kSaverPaletteBg), LV_PART_MAIN);
+  lvglSetTextHex(g_saver.sky, kSaverPaletteStarLo);
+  lvglSetTextHex(g_saver.field, kSaverPaletteGrass);
+  lvglSetTextHex(g_saver.cow, kSaverPaletteCow);
+  lvglSetTextHex(g_saver.balloon, kSaverPaletteBalloon);
+  lvglSetTextHex(g_saver.balloonTail, kSaverPaletteBalloon);
+  lvglSetTextHex(g_saver.footer, kSaverPaletteClock);
   for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r)
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s)
-      lvglSetTextHex(g_saver.starObj[r][s], t.saverStarLow);
+      lvglSetTextHex(g_saver.starObj[r][s], kSaverPaletteStarLo);
 #endif
 
   g_clockUi.wifiMask = 0xFFFF;
@@ -10593,8 +10597,8 @@ static void lvglScreenSaverInitStars() {
       if (g_saver.starObj[r][s]) lv_obj_add_flag(g_saver.starObj[r][s], LV_OBJ_FLAG_HIDDEN);
     }
   }
-  const int16_t rowPitch = 12;
-  const int16_t topY = 8;
+  const int16_t rowPitch = kSaverSkyRowPitch;
+  const int16_t topY = kSaverSkyRowTopY;
   for (uint8_t r = 0; r < g_saver.rows; ++r) {
     const uint8_t seg = (uint8_t)(g_saver.cols / kSaverStarsPerRow);
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
@@ -10644,21 +10648,13 @@ static void lvglScreenSaverUpdateSkyPhase(uint32_t nowMs) {
   if (nowMs < g_saver.skyNextMs) return;
   g_saver.skyNextMs = nowMs + 60000UL;
 
-  uint8_t newPhase = SKY_NIGHT;
-  if (g_clock.ntpSynced) {
-    struct tm tmNow;
-    if (getLocalTime(&tmNow, 20)) {
-      const uint8_t h = (uint8_t)tmNow.tm_hour;
-      if (h >= 5 && h < 7)       newPhase = SKY_DAWN;
-      else if (h >= 7 && h < 19) newPhase = SKY_DAY;
-      else if (h >= 19 && h < 21) newPhase = SKY_DUSK;
-      else                        newPhase = SKY_NIGHT;
-    }
-  }
+  // Balanced scope (r260): sky is always NIGHT — the unified screensaver is a
+  // night scene by design. Dawn/Day/Dusk transitions are parked in memory.
+  const uint8_t newPhase = SKY_NIGHT;
 
   if (newPhase == g_saver.skyPhase) return;
   g_saver.skyPhase = newPhase;
-  Serial.printf("[SCRNSVR] skyPhase=%u\n", newPhase);
+  Serial.printf("[SCRNSVR] skyPhase=%u (forced NIGHT)\n", newPhase);
 
   // Phase transition safety: force-end incompatible events
   if (g_saver.eventActive != SAVER_EVENT_NONE) {
@@ -10751,14 +10747,14 @@ static void lvglScreenSaverUpdateEvent(uint32_t nowMs) {
           return;
         }
         lvglScreenSaverBorrowStar(g_saver.rows - 1, 0, "--*",
-            g_saver.eventX, y, activeUiTheme().lvgl.saverStarHigh);
+            g_saver.eventX, y, kSaverPaletteStarHi);
         break;
       }
       case SAVER_EVENT_UFO: {
         g_saver.eventX += 3 * g_saver.eventDir;
         if (g_saver.eventX > cW) g_saver.eventX = -30;
         lvglScreenSaverBorrowStar(g_saver.rows - 1, 0, "<==>",
-            g_saver.eventX, 6, activeUiTheme().lvgl.saverStarHigh);
+            g_saver.eventX, 6, kSaverPaletteStarHi);
         break;
       }
       case SAVER_EVENT_SATELLITE: {
@@ -10768,7 +10764,7 @@ static void lvglScreenSaverUpdateEvent(uint32_t nowMs) {
           return;
         }
         lvglScreenSaverBorrowStar(g_saver.rows - 1, 0, ".",
-            g_saver.eventX, 10, activeUiTheme().lvgl.saverStarMid);
+            g_saver.eventX, 10, kSaverPaletteStarMid);
         break;
       }
       case SAVER_EVENT_RAIN: {
@@ -10786,7 +10782,7 @@ static void lvglScreenSaverUpdateEvent(uint32_t nowMs) {
           }
           const char *drop = ((lvglScreenSaverRandNext() & 1) == 0) ? "|" : "'";
           lvglScreenSaverBorrowStar(rr, ss, drop,
-              lv_obj_get_x(obj), cy, activeUiTheme().lvgl.saverStarMid);
+              lv_obj_get_x(obj), cy, kSaverPaletteStarMid);
         }
         break;
       }
@@ -10812,64 +10808,25 @@ static void lvglScreenSaverUpdateEvent(uint32_t nowMs) {
   if (nowMs < g_saver.eventCooldownMs) return;
 
   const uint32_t roll = lvglScreenSaverRandNext() % 1000;
-  const bool canNight = (g_saver.skyPhase == SKY_NIGHT || g_saver.skyPhase == SKY_DUSK);
-  const bool canDay = (g_saver.skyPhase == SKY_DAY);
   const uint32_t baseWait = 300000UL + (lvglScreenSaverRandNext() % 300000UL);
 
-  if (canNight && roll < 300) {
+  // Balanced scope (r260): only SHOOTING_STAR and SATELLITE can fire.
+  // Sky phase is forced to NIGHT (saver is a night scene), so skipping the
+  // canNight/canDay gates — UFO/RAIN/MATRIX_GLITCH paths are parked, see
+  // memory/screensaver_deferred_features.md. STARE_UP transitions removed
+  // with the rest of the Rich-tier cow state machine.
+  if (roll < 300) {
     g_saver.eventActive = SAVER_EVENT_SHOOTING_STAR;
     g_saver.eventEndMs = nowMs + 1500UL;
     g_saver.eventDir = ((lvglScreenSaverRandNext() & 1) == 0) ? 1 : -1;
     g_saver.eventX = (g_saver.eventDir > 0) ? -30 : canvasWidth();
-    if (g_saver.cowState != COW_SLEEP) {
-      g_saver.cowPrevState = g_saver.cowState;
-      g_saver.cowState = COW_STARE_UP;
-      g_saver.cowStateNextMs = g_saver.eventEndMs;
-    }
     Serial.println("[SCRNSVR] event=shooting_star");
-  } else if (canNight && roll < 350) {
+  } else if (roll < 350) {
     g_saver.eventActive = SAVER_EVENT_SATELLITE;
     g_saver.eventEndMs = nowMs + 20000UL;
     g_saver.eventDir = ((lvglScreenSaverRandNext() & 1) == 0) ? 1 : -1;
     g_saver.eventX = (g_saver.eventDir > 0) ? -10 : canvasWidth();
-    if ((lvglScreenSaverRandNext() % 100) < 30 && g_saver.cowState != COW_SLEEP) {
-      g_saver.cowPrevState = g_saver.cowState;
-      g_saver.cowState = COW_STARE_UP;
-      g_saver.cowStateNextMs = g_saver.eventEndMs;
-    }
     Serial.println("[SCRNSVR] event=satellite");
-  } else if (roll < 380) {
-    g_saver.eventActive = SAVER_EVENT_UFO;
-    g_saver.eventEndMs = nowMs + 8000UL;
-    g_saver.eventDir = ((lvglScreenSaverRandNext() & 1) == 0) ? 1 : -1;
-    g_saver.eventX = (g_saver.eventDir > 0) ? -30 : canvasWidth();
-    if (g_saver.cowState != COW_SLEEP) {
-      g_saver.cowPrevState = g_saver.cowState;
-      g_saver.cowState = COW_STARE_UP;
-      g_saver.cowStateNextMs = g_saver.eventEndMs;
-    }
-    Serial.println("[SCRNSVR] event=ufo");
-  } else if (canDay && roll < 420) {
-    g_saver.eventActive = SAVER_EVENT_RAIN;
-    g_saver.eventEndMs = nowMs + 120000UL + (lvglScreenSaverRandNext() % 60000UL);
-    g_saver.eventX = 0;
-    for (uint8_t i = 0; i < 4; ++i) {
-      uint8_t rr = (uint8_t)(g_saver.rows - 2 + (i / 2));
-      uint8_t ss = (uint8_t)(i % 2);
-      if (rr >= kSaverSkyRowsMax) rr = (uint8_t)(kSaverSkyRowsMax - 1);
-      int16_t rx = (int16_t)(8 + (lvglScreenSaverRandNext() % (uint32_t)(canvasWidth() - 20)));
-      int16_t ry = (int16_t)(4 + (lvglScreenSaverRandNext() % 60));
-      lvglScreenSaverBorrowStar(rr, ss, "|", rx, ry,
-          activeUiTheme().lvgl.saverStarMid);
-    }
-    g_saver.cowState = COW_IDLE;
-    g_saver.cowStateNextMs = g_saver.eventEndMs;
-    Serial.println("[SCRNSVR] event=rain");
-  } else if (roll < 435) {
-    g_saver.eventActive = SAVER_EVENT_MATRIX_GLITCH;
-    g_saver.eventEndMs = nowMs + 3000UL;
-    g_saver.eventX = (int16_t)(40 + (lvglScreenSaverRandNext() % (uint32_t)(canvasWidth() - 80)));
-    Serial.println("[SCRNSVR] event=matrix_glitch");
   } else {
     g_saver.eventCooldownMs = nowMs + baseWait;
   }
@@ -11153,14 +11110,12 @@ static void lvglScreenSaverSetBalloonText() {
   if (!g_saver.balloon) return;
   const char *const *quotes = nullptr;
   uint8_t n = 0;
-  // Roll thought category with weighted probabilities
+  // Balanced scope (r260): only PHILOSOPHY + EASTER_EGG (see memory entry
+  // screensaver_deferred_features). 70/30 bias toward philosophy — the
+  // easter-egg pool is smaller and self-referential, so it reads better when
+  // it's a rare surprise.
   const uint32_t catRoll = lvglScreenSaverRandNext() % 100;
-  uint8_t cat;
-  if (catRoll < 30)      cat = THOUGHT_PHILOSOPHY;
-  else if (catRoll < 60) cat = THOUGHT_HACKER;
-  else if (catRoll < 75) cat = THOUGHT_META;
-  else if (catRoll < 90) cat = THOUGHT_WEATHER;
-  else                    cat = THOUGHT_EASTER_EGG;
+  const uint8_t cat = (catRoll < 70) ? THOUGHT_PHILOSOPHY : THOUGHT_EASTER_EGG;
   g_saver.thoughtCategory = cat;
   lvglScreenSaverQuotePackForLang(&quotes, &n, cat);
   if (!quotes || n == 0) return;
@@ -11253,9 +11208,9 @@ static void lvglScreenSaverUpdateStars(uint32_t nowMs) {
         lv_obj_add_flag(star, LV_OBJ_FLAG_HIDDEN);
       } else {
         lv_obj_clear_flag(star, LV_OBJ_FLAG_HIDDEN);
-        lv_color_t col = lv_color_hex(t.saverStarLow);
-        if (lvl == 2) col = lv_color_hex(t.saverStarMid);
-        else if (lvl >= 3) col = lv_color_hex(t.saverStarHigh);
+        lv_color_t col = lv_color_hex(kSaverPaletteStarLo);
+        if (lvl == 2) col = lv_color_hex(kSaverPaletteStarMid);
+        else if (lvl >= 3) col = lv_color_hex(kSaverPaletteStarHi);
         lv_label_set_text(star, (lvl >= 3) ? "o" : (lvl == 2 ? ":" : "."));
         lv_obj_set_style_text_color(star, col, 0);
       }
@@ -11299,30 +11254,14 @@ static void lvglScreenSaverUpdateStars(uint32_t nowMs) {
 // --- Pasture Simulator: cow state machine ---
 
 static void lvglScreenSaverTransitionCow(uint32_t nowMs) {
-  // Exiting STARE_UP: restore previous state
-  if (g_saver.cowState == COW_STARE_UP) {
-    uint8_t prev = g_saver.cowPrevState;
-    if (prev == COW_SLEEP && g_saver.skyPhase != SKY_NIGHT) prev = COW_GRAZE;
-    g_saver.cowState = prev;
-    g_saver.cowStateNextMs = nowMs + 3000UL + (lvglScreenSaverRandNext() % 5000UL);
-    lvglScreenSaverSetCowArt(g_saver.cowDir);
-    Serial.printf("[SCRNSVR] cowState=%u (restored)\n", prev);
-    return;
-  }
-
+  // Balanced scope (r260): COW_RUN and COW_STARE_UP are parked (see memory
+  // entry). Sky phase is forced to NIGHT so the transition table simplifies
+  // to GRAZE / IDLE / SLEEP with a bias toward SLEEP (matches the night scene).
   const uint32_t roll = lvglScreenSaverRandNext() % 100;
   uint8_t newState;
-
-  if (g_saver.skyPhase == SKY_NIGHT) {
-    if (roll < 60)      newState = COW_SLEEP;
-    else if (roll < 80) newState = COW_IDLE;
-    else if (roll < 95) newState = COW_GRAZE;
-    else                newState = COW_RUN;
-  } else {
-    if (roll < 50)      newState = COW_GRAZE;
-    else if (roll < 80) newState = COW_IDLE;
-    else                newState = COW_RUN;
-  }
+  if (roll < 55)      newState = COW_SLEEP;
+  else if (roll < 80) newState = COW_GRAZE;
+  else                newState = COW_IDLE;
 
   g_saver.cowState = newState;
   lvglScreenSaverSetCowArt(g_saver.cowDir);
@@ -11340,10 +11279,6 @@ static void lvglScreenSaverTransitionCow(uint32_t nowMs) {
       g_saver.cowStateNextMs = nowMs + 30000UL + (lvglScreenSaverRandNext() % 90000UL);
       g_saver.cowStepsLeft = 0;
       break;
-    case COW_RUN:
-      g_saver.cowStateNextMs = nowMs + 3000UL + (lvglScreenSaverRandNext() % 2000UL);
-      g_saver.cowStepsLeft = 20;
-      break;
     default: break;
   }
   Serial.printf("[SCRNSVR] cowState=%u\n", newState);
@@ -11359,7 +11294,7 @@ static void lvglScreenSaverRespawnCow() {
   if (g_saver.cow) {
     const UiThemeLvglTokens &t = activeUiTheme().lvgl;
     (void)g_saver.colorIdx;
-    lv_obj_set_style_text_color(g_saver.cow, lv_color_hex(t.saverCow), 0);
+    lv_obj_set_style_text_color(g_saver.cow, lv_color_hex(kSaverPaletteCow), 0);
     lvglScreenSaverSetCowArt(g_saver.cowDir);
     lv_obj_set_pos(g_saver.cow, g_saver.x, g_saver.y);
   }
@@ -11380,7 +11315,10 @@ static void lvglSetScreenSaverActive(bool on) {
     g_saver.cols = (uint8_t)((canvasWidth() / 8) - 2);
     if (g_saver.cols > kSaverSkyColsMax) g_saver.cols = kSaverSkyColsMax;
     if (g_saver.cols < 36) g_saver.cols = 36;
-    g_saver.rows = (uint8_t)(((canvasHeight() - 68) / 12));
+    // Fixed 6 rows to fit the 72-px sky band exactly at 12-px pitch (r260
+    // unified layout). The previous (canvasHeight() - 68) / 12 formula gave 8
+    // rows for a 172-px canvas, which pushed stars into the cow band.
+    g_saver.rows = kSaverSkyRowCount;
     if (g_saver.rows > kSaverSkyRowsMax) g_saver.rows = kSaverSkyRowsMax;
     if (g_saver.rows < 4) g_saver.rows = 4;
     lvglScreenSaverInitStars();
@@ -16409,14 +16347,13 @@ static void initLvglWeatherPanel(lv_obj_t* homeRoot) {
 static void initLvglScreensaverUi(lv_obj_t* scr) {
   const int16_t cW = canvasWidth();
   const int16_t cH = canvasHeight();
-  const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
-  const uint32_t saverReadableText = lvglResolvedSaverReadableText(theme);
-
+  // Unified screensaver (r260): no longer reads theme colors. See
+  // docs/superpowers/specs/2026-04-21-screensaver-unified-redesign.md.
   g_saver.root = lv_obj_create(scr);
   lv_obj_set_size(g_saver.root, cW, cH);
   lv_obj_set_pos(g_saver.root, 0, 0);
   lv_obj_set_style_radius(g_saver.root, 0, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(g_saver.root, lv_color_hex(theme.screenBg), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_saver.root, lv_color_hex(kSaverPaletteBg), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_saver.root, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_saver.root, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_saver.root, 0, LV_PART_MAIN);
@@ -16427,10 +16364,10 @@ static void initLvglScreensaverUi(lv_obj_t* scr) {
 
   g_saver.sky = lv_label_create(g_saver.root);
   lv_obj_set_style_text_font(g_saver.sky, lvglFontMono(), 0);
-  lv_obj_set_style_text_color(g_saver.sky, lv_color_hex(theme.saverSky), 0);
+  lv_obj_set_style_text_color(g_saver.sky, lv_color_hex(kSaverPaletteStarLo), 0);
   lv_label_set_long_mode(g_saver.sky, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(g_saver.sky, cW - 8, cH - 68);
-  lv_obj_set_pos(g_saver.sky, 4, 4);
+  lv_obj_set_size(g_saver.sky, cW - 8, kSaverZoneSkyBot - kSaverZoneSkyTop);
+  lv_obj_set_pos(g_saver.sky, 4, kSaverZoneSkyTop);
   lv_label_set_text(g_saver.sky, "");
   lvglForceLabelVisible(g_saver.sky);
   lv_obj_add_flag(g_saver.sky, LV_OBJ_FLAG_HIDDEN);
@@ -16439,7 +16376,7 @@ static void initLvglScreensaverUi(lv_obj_t* scr) {
     for (uint8_t s = 0; s < kSaverStarsPerRow; ++s) {
       g_saver.starObj[r][s] = lv_label_create(g_saver.root);
       lv_obj_set_style_text_font(g_saver.starObj[r][s], lvglFontMonoTiny(), 0);
-      lv_obj_set_style_text_color(g_saver.starObj[r][s], lv_color_hex(theme.saverStarLow), 0);
+      lv_obj_set_style_text_color(g_saver.starObj[r][s], lv_color_hex(kSaverPaletteStarLo), 0);
       lv_label_set_text(g_saver.starObj[r][s], ".");
       lv_obj_set_pos(g_saver.starObj[r][s], 8, 8);
       lv_obj_add_flag(g_saver.starObj[r][s], LV_OBJ_FLAG_HIDDEN);
@@ -16449,25 +16386,26 @@ static void initLvglScreensaverUi(lv_obj_t* scr) {
 
   g_saver.field = lv_label_create(g_saver.root);
   lv_obj_set_style_text_font(g_saver.field, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_saver.field, lv_color_hex(theme.saverField), 0);
+  lv_obj_set_style_text_color(g_saver.field, lv_color_hex(kSaverPaletteGrass), 0);
   lv_label_set_long_mode(g_saver.field, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(g_saver.field, cW - 8, 12);
-  lv_obj_set_pos(g_saver.field, 4, cH - 24);
+  lv_obj_set_size(g_saver.field, cW - 8, kSaverZoneGrassBot - kSaverZoneGrassTop);
+  lv_obj_set_pos(g_saver.field, 4, kSaverZoneGrassTop);
   lv_label_set_text(g_saver.field, "");
   lvglForceLabelVisible(g_saver.field);
 
   g_saver.cow = lv_label_create(g_saver.root);
   lv_obj_set_style_text_font(g_saver.cow, lvglFontMonoTiny(), 0);
-  lv_obj_set_style_text_color(g_saver.cow, lv_color_hex(theme.saverCow), 0);
+  lv_obj_set_style_text_color(g_saver.cow, lv_color_hex(kSaverPaletteCow), 0);
   lv_obj_set_style_text_letter_space(g_saver.cow, 0, 0);
   lv_obj_set_style_text_line_space(g_saver.cow, 0, 0);
   lvglScreenSaverSetCowArt(1);
+  // Cow anchored inside cow band (72..132) with 3 rows ~36px: y=82 centers it.
   lv_obj_set_pos(g_saver.cow, 20, cH - 90);
   lvglForceLabelVisible(g_saver.cow);
 
   g_saver.balloon = lv_label_create(g_saver.root);
   lv_obj_set_style_text_font(g_saver.balloon, lvglFontScreenSaverBalloonText(), 0);
-  lv_obj_set_style_text_color(g_saver.balloon, lv_color_hex(saverReadableText), 0);
+  lv_obj_set_style_text_color(g_saver.balloon, lv_color_hex(kSaverPaletteBalloon), 0);
   lv_obj_set_style_bg_opa(g_saver.balloon, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(g_saver.balloon, 0, 0);
   lv_obj_set_style_pad_hor(g_saver.balloon, 0, 0);
@@ -16476,6 +16414,8 @@ static void initLvglScreensaverUi(lv_obj_t* scr) {
   lv_obj_set_style_text_line_space(g_saver.balloon, 0, 0);
   lv_label_set_long_mode(g_saver.balloon, LV_LABEL_LONG_CLIP);
   lv_obj_set_size(g_saver.balloon, (cW * 56) / 100, LV_SIZE_CONTENT);
+  // Balloon floats as a "thought bubble" above the cow, inside the sky band,
+  // so the dominant night scene stays clean when no balloon is visible.
   lv_obj_set_pos(g_saver.balloon, 166, cH - 126);
   lv_label_set_text(g_saver.balloon, "");
   lvglForceLabelVisible(g_saver.balloon);
@@ -16483,7 +16423,7 @@ static void initLvglScreensaverUi(lv_obj_t* scr) {
 
   g_saver.balloonTail = lv_label_create(g_saver.root);
   lv_obj_set_style_text_font(g_saver.balloonTail, lvglFontScreenSaverTail(), 0);
-  lv_obj_set_style_text_color(g_saver.balloonTail, lv_color_hex(saverReadableText), 0);
+  lv_obj_set_style_text_color(g_saver.balloonTail, lv_color_hex(kSaverPaletteBalloon), 0);
   lv_label_set_text(g_saver.balloonTail, "- - - - -");
   lv_obj_set_pos(g_saver.balloonTail, 200, cH - 64);
   lvglForceLabelVisible(g_saver.balloonTail);
@@ -16491,8 +16431,10 @@ static void initLvglScreensaverUi(lv_obj_t* scr) {
 
   g_saver.footer = lv_label_create(g_saver.root);
   lv_obj_set_style_text_font(g_saver.footer, lvglFontScreenSaverFooterText(), 0);
-  lv_obj_set_style_text_color(g_saver.footer, lv_color_hex(saverReadableText), 0);
+  lv_obj_set_style_text_color(g_saver.footer, lv_color_hex(kSaverPaletteClock), 0);
   lv_label_set_text(g_saver.footer, "--:--  --/--");
+  // Clock in its own strip (y=150..172), bottom-right with small jitter for
+  // anti burn-in — never overlaps grass (strip above ends at y=150).
   lv_obj_align(g_saver.footer, LV_ALIGN_BOTTOM_RIGHT, -10, -4);
   lvglForceLabelVisible(g_saver.footer);
 }
