@@ -726,6 +726,11 @@ struct RuntimeNetConfig {
   char logoUrl[220];
   char uiTheme[UI_THEME_ID_LEN];
   uint8_t enabledViewsMask = UI_VIEW_MASK_DEFAULT;
+  // Backlight user settings (r261): clamped 10..100, applied by applyEnergyPolicy
+  // based on the detected power source. Defaults match the pre-r261 hardcoded
+  // behavior so existing devices see no visible change until moved.
+  uint8_t backlightUsbPct = 100;
+  uint8_t backlightBatPct = ENERGY_BACKLIGHT_ON_BATTERY;
   bool ready = false;
 };
 static RuntimeNetConfig g_runtimeNetConfig = {};
@@ -1703,9 +1708,13 @@ static void applyEnergyPolicy(uint32_t nowMs, bool force) {
   if (!force && (nowMs - g_batt.energyLastEvalMs) < 2000UL) return;
   g_batt.energyLastEvalMs = nowMs;
   const bool nextBatteryMode = g_batt.hasSample && !batteryExternalPowerLikelyNow(nowMs);
+  // force=true path is also used by /api/brightness to immediately push live
+  // slider updates, so we can't early-return when the mode is unchanged.
   if (!force && nextBatteryMode == g_batt.energySaverActive) return;
   g_batt.energySaverActive = nextBatteryMode;
-  const uint8_t targetBacklight = g_batt.energySaverActive ? ENERGY_BACKLIGHT_ON_BATTERY : 100;
+  const uint8_t targetBacklight = g_batt.energySaverActive
+      ? g_runtimeNetConfig.backlightBatPct
+      : g_runtimeNetConfig.backlightUsbPct;
   setBacklightPercent(targetBacklight);
   Serial.printf("[ENERGY] mode=%s backlight=%u%% batt=%d%% src=%s\n",
                 g_batt.energySaverActive ? "BATTERY" : "USB-C",
@@ -4003,6 +4012,18 @@ static void loadRuntimeNetConfigFromNvs() {
       loadedAny = true;
     }
   }
+  if (prefs.isKey("bl_usb")) {
+    uint8_t v = prefs.getUChar("bl_usb", 100);
+    if (v < 10) v = 10; else if (v > 100) v = 100;
+    g_runtimeNetConfig.backlightUsbPct = v;
+    loadedAny = true;
+  }
+  if (prefs.isKey("bl_batt")) {
+    uint8_t v = prefs.getUChar("bl_batt", ENERGY_BACKLIGHT_ON_BATTERY);
+    if (v < 10) v = 10; else if (v > 100) v = 100;
+    g_runtimeNetConfig.backlightBatPct = v;
+    loadedAny = true;
+  }
   if (prefs.isKey("ui_views")) {
     uint8_t stored = prefs.getUChar("ui_views", UI_VIEW_MASK_DEFAULT);
     // Which flags were known when this value was last saved?
@@ -4115,6 +4136,8 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n7 = prefs.putString("ui_theme", g_runtimeNetConfig.uiTheme);
   const size_t nViewMask = prefs.putUChar("ui_views", normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask));
   prefs.putUChar("ui_views_gen", UI_VIEW_MASK_DEFAULT);  // track known flags for future migrations
+  prefs.putUChar("bl_usb",  g_runtimeNetConfig.backlightUsbPct);
+  prefs.putUChar("bl_batt", g_runtimeNetConfig.backlightBatPct);
   const size_t nWikiLang = prefs.putString("wiki_lang", g_wikiLang);
   const size_t n8 = prefs.putString("wifi_pref", g_wifiSt.preferredSsid);
   const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSt.setupMode);
@@ -4393,6 +4416,12 @@ a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(5
 .geo-status{margin:2px 0 8px;color:var(--text-tertiary);font-size:12px;min-height:16px}
 @media(max-width:768px){.vm-wrap{padding:12px 10px 24px}.vm-card{padding:14px 12px}.vm-grid{grid-template-columns:1fr;gap:8px}.vm-rss-composer{grid-template-columns:1fr;gap:8px}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions,.vm-actions-sticky{flex-direction:column}.vm-actions .vm-btn,.vm-actions-sticky .vm-btn{width:100%;justify-content:center}.logo{height:40px}}
 small{color:var(--text-tertiary)}code{color:var(--text-secondary)}
+.vm-bright{display:flex;flex-direction:column;gap:14px;margin-top:10px}
+.vm-bright__row{display:grid;grid-template-columns:120px 1fr 56px;align-items:center;gap:12px}
+.vm-bright__label{font-size:13px;color:var(--text-secondary);font-weight:500}
+.vm-bright__row input[type=range]{width:100%;accent-color:var(--accent-primary)}
+.vm-bright__val{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;color:var(--text-primary);text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:520px){.vm-bright__row{grid-template-columns:1fr 56px;gap:6px}.vm-bright__label{grid-column:1/-1;margin-bottom:-4px}}
 )rawliteral";
 
 // ── M3 PROGMEM: static JS (before initialFeeds injection) ──
@@ -4468,6 +4497,52 @@ static void buildWebThemeSelector(String &html) {
     html += F("</option>");
   }
   html += F("</select><p class='vm-help'>One selector drives both interfaces: this web control surface and the ESP32 display UI. Switching theme applies instantly and persists in NVS.</p></div>");
+}
+
+static void buildWebBrightnessSection(String &html) {
+  const uint8_t blUsb  = g_runtimeNetConfig.backlightUsbPct;
+  const uint8_t blBatt = g_runtimeNetConfig.backlightBatPct;
+  html += F("<div class='vm-card'><h2>&#x1F506;&ensp;Display Brightness</h2>"
+            "<p class='vm-help' style='margin-top:-4px'>Slider applies live on the device while you drag. Press <em>Save Config</em> at the bottom to persist.</p>"
+            "<div class='vm-bright'>"
+              "<label class='vm-bright__row'>"
+                "<span class='vm-bright__label'>USB-C (cavo)</span>"
+                "<input type='range' min='10' max='100' step='1' name='bl_usb' id='bl_usb' value='");
+  html += String((unsigned)blUsb);
+  html += F("'>"
+                "<output class='vm-bright__val' for='bl_usb' id='bl_usb_out'>");
+  html += String((unsigned)blUsb);
+  html += F("%</output>"
+              "</label>"
+              "<label class='vm-bright__row'>"
+                "<span class='vm-bright__label'>Batteria</span>"
+                "<input type='range' min='10' max='100' step='1' name='bl_batt' id='bl_batt' value='");
+  html += String((unsigned)blBatt);
+  html += F("'>"
+                "<output class='vm-bright__val' for='bl_batt' id='bl_batt_out'>");
+  html += String((unsigned)blBatt);
+  html += F("%</output>"
+              "</label>"
+            "</div></div>"
+            "<script>(function(){"
+              "var u=document.getElementById('bl_usb'),uo=document.getElementById('bl_usb_out');"
+              "var b=document.getElementById('bl_batt'),bo=document.getElementById('bl_batt_out');"
+              "if(!u||!b)return;"
+              "var t=null;"
+              "function push(){"
+                "t=null;"
+                "var body='usb='+u.value+'&batt='+b.value;"
+                "fetch('/api/brightness',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body}).catch(function(){});"
+              "}"
+              "function bind(el,out){"
+                "el.addEventListener('input',function(){"
+                  "out.textContent=el.value+'%';"
+                  "if(t)clearTimeout(t);"
+                  "t=setTimeout(push,120);"
+                "});"
+              "}"
+              "bind(u,uo);bind(b,bo);"
+            "})();</script>");
 }
 
 static void buildWebViewToggles(String &html) {
@@ -4872,6 +4947,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   buildWebHeroSection(html, statusMsg);
   html += F("<form id='cfg_form' method='post' action='/config'>");
   buildWebThemeSelector(html);
+  buildWebBrightnessSection(html);
   buildWebViewToggles(html);
 #if TEST_WIFI
   buildWebWifiSection(html);
@@ -5097,6 +5173,21 @@ static bool parseThemeConfig(RuntimeNetConfig &next, String &errorOut, bool &has
     if (findUiThemeIndexById(theme.c_str()) < 0) { errorOut = "ui_theme non valido"; return false; }
     copyStringSafe(next.uiTheme, sizeof(next.uiTheme), theme.c_str());
   }
+  return true;
+}
+
+static bool parseBrightnessConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
+  auto parseOne = [&](const char *key, uint8_t &dst) -> bool {
+    if (!g_webCfg.server.hasArg(key)) return true;
+    hasInput = true;
+    const String raw = g_webCfg.server.arg(key);
+    int v = raw.toInt();
+    if (v < 10 || v > 100) { errorOut = String(key) + " 10..100"; return false; }
+    dst = (uint8_t)v;
+    return true;
+  };
+  if (!parseOne("bl_usb",  next.backlightUsbPct))  return false;
+  if (!parseOne("bl_batt", next.backlightBatPct))  return false;
   return true;
 }
 
@@ -5358,6 +5449,7 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   if (!parseRssFeedConfig(next, errorOut, hasInput)) return false;
   if (!parseLogoConfig(next, errorOut, hasInput)) return false;
   if (!parseThemeConfig(next, errorOut, hasInput)) return false;
+  if (!parseBrightnessConfig(next, errorOut, hasInput)) return false;
   if (!parseViewsConfig(next, errorOut, hasInput)) return false;
   if (!parseWifiSetupModeConfig(errorOut, hasInput, wifiSetupModeChanged)) return false;
   if (!parseWifiCredentialConfig(errorOut, hasInput, wifiPrefChanged, wifiProvisioned, wifiPrefIdx)) return false;
@@ -5635,6 +5727,35 @@ static void handleWebReloadForm() {
   webConfigRedirect("reloaded");
 }
 
+// Live brightness endpoint (r261): apply slider values to device RAM + backlight
+// without writing NVS. Form save path persists. Accepts usb / batt integers
+// 10..100 — clamps silently since this fires during drag.
+static void handleWebBrightnessApi() {
+  auto clamp10_100 = [](int v) -> uint8_t {
+    if (v < 10) return 10;
+    if (v > 100) return 100;
+    return (uint8_t)v;
+  };
+  bool any = false;
+  if (g_webCfg.server.hasArg("usb")) {
+    g_runtimeNetConfig.backlightUsbPct = clamp10_100(g_webCfg.server.arg("usb").toInt());
+    any = true;
+  }
+  if (g_webCfg.server.hasArg("batt")) {
+    g_runtimeNetConfig.backlightBatPct = clamp10_100(g_webCfg.server.arg("batt").toInt());
+    any = true;
+  }
+  if (!any) {
+    sendWebConfigJson(400, false, "missing usb or batt");
+    return;
+  }
+  applyEnergyPolicy(millis(), true);
+  Serial.printf("[BRIGHT] live usb=%u batt=%u\n",
+                (unsigned)g_runtimeNetConfig.backlightUsbPct,
+                (unsigned)g_runtimeNetConfig.backlightBatPct);
+  sendWebConfigJson(200, true, "applied");
+}
+
 static void handleWebReloadApi() {
   if (webRequestHasConfigParams()) {
     String err;
@@ -5683,6 +5804,7 @@ static void ensureWebConfigServerStarted() {
     g_webCfg.server.on("/api/wifi/scan", HTTP_GET, handleWebWifiScanApi);
     g_webCfg.server.on("/api/wifi/setup-qr.svg", HTTP_GET, handleWebWifiSetupQrSvgApi);
     g_webCfg.server.on("/api/reload", HTTP_POST, handleWebReloadApi);
+    g_webCfg.server.on("/api/brightness", HTTP_POST, handleWebBrightnessApi);
     g_webCfg.server.onNotFound([]() {
       if (g_wifiSt.setupApActive) {
         sendWebCaptiveRedirect();
