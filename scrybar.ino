@@ -2109,6 +2109,7 @@ static void onPowerButtonShortPress(uint32_t nowMs) {
   }
   markUserInteraction(nowMs);
   const bool nextSaverState = !g_saver.active;
+  Serial.printf("[SCRNSVR] %s reason=pwr_short_press\n", nextSaverState ? "ON" : "OFF");
   lvglSetScreenSaverActive(nextSaverState);
   Serial.printf("[PWR] Short press: screensaver %s.\n", nextSaverState ? "ON" : "OFF");
 #else
@@ -3382,6 +3383,11 @@ static void wifiPrepareCredentialCache() {
 static bool wifiIsConnectedNow();
 
 static void wifiHandleSetupModeLoop(uint32_t nowMs) {
+  // Refresh nowMs: g_wifiSt.noLinkSinceMs can be stamped async by onWiFiEvent
+  // with a fresher millis() than the stale loop snapshot, causing uint32_t
+  // underflow in the idle subtraction below. See knowledge/project_knowledge.md
+  // "uint32_t millis() underflow gotcha".
+  nowMs = millis();
   if (wifiSetupModeIsOn()) {
     (void)wifiStartSetupAp(false);
     if (wifiIsConnectedNow()) g_wifiSt.noLinkSinceMs = 0;
@@ -11422,6 +11428,12 @@ static void lvglSetScreenSaverActive(bool on) {
 
 static void handleScreenSaverLoop(uint32_t nowMs) {
   if (!g_lvglReady || !g_saver.root) return;
+  // Always use a fresh millis() here. loop() captures `now` once at the top,
+  // but earlier handlers (handleTouchSwipeInput, runImuLoop) may stamp
+  // timestamp fields with a newer millis(), making the stale snapshot UNDERFLOW
+  // when subtracted — which falsely triggers idle activation. See knowledge/
+  // project_knowledge.md "uint32_t millis() underflow gotcha".
+  nowMs = millis();
 #if TEST_TOUCH
   const bool rawTouch = isAnyTouchPresentRaw();
   if (rawTouch) {
@@ -11441,7 +11453,16 @@ static void handleScreenSaverLoop(uint32_t nowMs) {
     // Never activate screensaver while a QR modal overlay is open
     if (g_auxDeck.qrModalOpen || g_wikiDeck.qrModalOpen) return;
     const uint32_t idleTargetMs = lvglScreenSaverIdleTargetMs(nowMs);
-    if (!rawTouch && !touching && (nowMs - g_saver.lastUserInteractionMs) >= idleTargetMs) {
+    // Guard against uint32_t underflow: loop() freezes `nowMs` early, but
+    // handleTouchSwipeInput() reads a fresher millis() and may stamp
+    // lastUserInteractionMs a few ms ahead of nowMs. Without this clamp,
+    // the subtraction wraps to ~4.29e9 and trips the 2h idle check, which
+    // is the real cause of the rapid-tap-triggers-screensaver bug.
+    const uint32_t lastInteract = g_saver.lastUserInteractionMs;
+    const uint32_t idleMs = (nowMs >= lastInteract) ? (nowMs - lastInteract) : 0;
+    if (!rawTouch && !touching && idleMs >= idleTargetMs) {
+      Serial.printf("[SCRNSVR] ON reason=idle idleMs=%lu targetMs=%lu\n",
+                    (unsigned long)idleMs, (unsigned long)idleTargetMs);
       lvglSetScreenSaverActive(true);
     }
     return;
@@ -13444,7 +13465,12 @@ static bool wifiIsReconnectingUiState() {
   if (g_wifiSt.reconnectAttemptActive) return true;
   if (g_wifiSt.everConnected) return true;
   const uint32_t now = millis();
-  if (g_wifiSt.lastDisconnectMs > 0 && (now - g_wifiSt.lastDisconnectMs) < 20000UL) return true;
+  // Clamp subtraction: lastDisconnectMs is stamped async by onWiFiEvent and may
+  // briefly be newer than `now` on the event task's schedule window. Guard the
+  // uint32_t to avoid underflow. See knowledge/project_knowledge.md gotcha.
+  const uint32_t sinceDisc = (now >= g_wifiSt.lastDisconnectMs)
+                             ? (now - g_wifiSt.lastDisconnectMs) : 0;
+  if (g_wifiSt.lastDisconnectMs > 0 && sinceDisc < 20000UL) return true;
 #endif
   return false;
 }
@@ -17284,7 +17310,10 @@ static void cmdQrToggle(const String &args) {
 }
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
-static void cmdSaverOn(const String &args) { lvglSetScreenSaverActive(true); }
+static void cmdSaverOn(const String &args) {
+  Serial.println("[SCRNSVR] ON reason=cmd");
+  lvglSetScreenSaverActive(true);
+}
 
 static void cmdSaverOff(const String &args) {
   lvglSetScreenSaverActive(false);
