@@ -87,6 +87,25 @@ import imgIcon from '../assets/scrybar-icon.png';
       </span>
     </div>
 
+    <!-- Prerequisite: macmon for CPU/GPU temps on Apple Silicon -->
+    <aside class="companion-prereq">
+      <span class="companion-prereq__tag">heads up</span>
+      <div class="companion-prereq__body">
+        <strong>Live CPU/GPU temperatures need one Homebrew dependency.</strong>
+        On Apple Silicon, install
+        <a
+          href="https://github.com/vladkens/macmon"
+          target="_blank"
+          rel="noopener"
+        >macmon</a> — a small open-source CLI that reads M1–M4 sensors
+        through the same IOKit channel Apple uses internally, no
+        <code>sudo</code>, no kernel extension:
+        <pre class="companion-prereq__cmd"><code>brew install macmon</code></pre>
+        Without it the popover still streams CPU/GPU <em>usage %</em>, RAM,
+        and disk — temperatures just read as <code>—</code>.
+      </div>
+    </aside>
+
     <!-- First-launch flow -->
     <div class="companion-flow">
       <div class="companion-flow__head">
@@ -148,21 +167,6 @@ import imgIcon from '../assets/scrybar-icon.png';
         <pre class="companion-terminal__body"><code><span class="companion-terminal__prompt">$</span> xattr -dr com.apple.quarantine /Applications/ScryBarCompanion.app
 <span class="companion-terminal__prompt">$</span> open /Applications/ScryBarCompanion.app</code></pre>
       </div>
-
-      <!-- Optional macmon tip -->
-      <aside class="companion-aside">
-        <span class="companion-aside__tag">optional</span>
-        <div class="companion-aside__body">
-          <strong>Live CPU/GPU °C on Apple Silicon.</strong>
-          Install <a
-            href="https://github.com/vladkens/macmon"
-            target="_blank"
-            rel="noopener"
-          >macmon</a> for per-core temperatures —
-          <code>brew install macmon</code>, no <code>sudo</code> required.
-          Without it you still get usage %, RAM, and disk.
-        </div>
-      </aside>
     </div>
   </div>
 </section>
