@@ -3666,6 +3666,45 @@ static void copyStringSafe(char *dst, size_t dstLen, const char *src) {
   dst[dstLen - 1] = '\0';
 }
 
+// Replace common typographic Unicode characters with ASCII equivalents.
+// Handles E2 80 xx sequences (General Punctuation block) in-place.
+//   U+2018/2019  '' → '    (curly single quotes / apostrophe)
+//   U+201C/201D  "" → "    (curly double quotes)
+//   U+2013/2014  –— → -    (en-dash / em-dash)
+//   U+2026       …  → ...  (ellipsis, 3→3 bytes, length-neutral)
+// Call after copyStringSafe() for any string displayed via LVGL.
+static void sanitizeTypographicChars(char *s, size_t maxLen) {
+  if (!s || maxLen < 2) return;
+  size_t r = 0, w = 0;
+  while (r < maxLen - 1 && s[r]) {
+    if ((uint8_t)s[r] == 0xE2 && r + 2 < maxLen &&
+        (uint8_t)s[r+1] == 0x80 && s[r+2]) {
+      const uint8_t b2 = (uint8_t)s[r+2];
+      char repl = 0;
+      bool isEllipsis = false;
+      switch (b2) {
+        case 0x98: case 0x99: repl = '\''; break;
+        case 0x9C: case 0x9D: repl = '"';  break;
+        case 0x93: case 0x94: repl = '-';  break;
+        case 0xA6: isEllipsis = true;      break;
+        default:   break;
+      }
+      if (repl) {
+        s[w++] = repl;
+        r += 3;
+        continue;
+      }
+      if (isEllipsis && w + 3 < maxLen) {
+        s[w++] = '.'; s[w++] = '.'; s[w++] = '.';
+        r += 3;
+        continue;
+      }
+    }
+    s[w++] = s[r++];
+  }
+  s[w] = '\0';
+}
+
 #if WEB_CONFIG_ENABLED && DB_HAS_MDNS
 static void buildScryBarMdnsIdentity(char *hostOut, size_t hostLen, char *instanceOut, size_t instanceLen) {
   const uint64_t mac = ESP.getEfuseMac();
@@ -6765,12 +6804,14 @@ static uint8_t parseRssItems(const String &xml, RssItem *items, uint8_t maxItems
     }
     strncpy(items[count].title, title.c_str(), sizeof(items[count].title) - 1);
     items[count].title[sizeof(items[count].title) - 1] = '\0';
+    sanitizeTypographicChars(items[count].title, sizeof(items[count].title));
     strncpy(items[count].link, link.c_str(), sizeof(items[count].link) - 1);
     items[count].link[sizeof(items[count].link) - 1] = '\0';
     strncpy(items[count].pubDate, pubDate.c_str(), sizeof(items[count].pubDate) - 1);
     items[count].pubDate[sizeof(items[count].pubDate) - 1] = '\0';
     strncpy(items[count].summary, summary.c_str(), sizeof(items[count].summary) - 1);
     items[count].summary[sizeof(items[count].summary) - 1] = '\0';
+    sanitizeTypographicChars(items[count].summary, sizeof(items[count].summary));
     items[count].wikiMetaReady = false;
     items[count].wikiMetaTried = false;
     ++count;
@@ -6919,6 +6960,9 @@ static bool applyNowPlayingPayloadJson(const String &body, String &err) {
   copyStringSafe(next.title, sizeof(next.title), title.c_str());
   copyStringSafe(next.artist, sizeof(next.artist), artist.c_str());
   copyStringSafe(next.album, sizeof(next.album), album.c_str());
+  sanitizeTypographicChars(next.title,  sizeof(next.title));
+  sanitizeTypographicChars(next.artist, sizeof(next.artist));
+  sanitizeTypographicChars(next.album,  sizeof(next.album));
   copyStringSafe(next.source, sizeof(next.source), source.c_str());
   copyStringSafe(next.appName, sizeof(next.appName), appName.c_str());
   copyStringSafe(next.artworkUrl, sizeof(next.artworkUrl), artworkUrl.c_str());
