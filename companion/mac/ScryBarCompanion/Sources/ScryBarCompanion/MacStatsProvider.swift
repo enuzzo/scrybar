@@ -14,8 +14,9 @@ final class MacStatsProvider: @unchecked Sendable {
     func snapshot() -> MacStatsPayload {
         let ram  = sampleRAM()
         let disk = sampleDisk()
-        let cpu  = smcReader.flatMap { $0.readTemp(keys: ["TC0P", "TC0D", "TC0E", "Tp09", "Tp0P"]) }
-        let gpu  = smcReader.flatMap { $0.readTemp(keys: ["TGDD", "TG0D", "TGOP", "Tg05", "Tg0f"]) }
+        // Apple Silicon first (M-series), then Intel fallbacks
+        let cpu  = smcReader.flatMap { $0.readTemp(keys: ["Tp01", "Tp05", "Tp0D", "Tp0b", "Tp09", "Tp0P", "TC0P", "TC0D", "TC0E"]) }
+        let gpu  = smcReader.flatMap { $0.readTemp(keys: ["Tg05", "Tg0T", "Tg0b", "Tg0d", "Tg0f", "TGDD", "TG0D", "TGOP"]) }
 
         return MacStatsPayload(
             cpuTempC:   cpu,
@@ -135,17 +136,29 @@ final class SMCReader: @unchecked Sendable {
         // 1. Get key info (size + type)
         guard let info = getKeyInfo(key) else { return nil }
 
-        // We only handle sp78 (signed 8.8 fixed-point, 2 bytes) for temp sensors
         let sp78type = fourCC("sp78")
-        guard info.dataType == sp78type, info.dataSize >= 2 else { return nil }
+        let fltType  = fourCC("flt ")   // IEEE 754 float — used on Apple Silicon M-series
 
-        // 2. Read raw bytes
-        guard let bytes = readKey(key, dataType: info.dataType, dataSize: info.dataSize),
-              bytes.count >= 2 else { return nil }
+        let celsius: Float
 
-        // sp78: big-endian signed fixed-point 8.8
-        let raw = Int16(bitPattern: UInt16(bytes[0]) << 8 | UInt16(bytes[1]))
-        let celsius = Float(raw) / 256.0
+        if info.dataType == sp78type, info.dataSize >= 2 {
+            // sp78: big-endian signed 8.8 fixed-point (2 bytes) — Intel + some Apple Silicon
+            guard let bytes = readKey(key, dataType: info.dataType, dataSize: info.dataSize),
+                  bytes.count >= 2 else { return nil }
+            let raw = Int16(bitPattern: UInt16(bytes[0]) << 8 | UInt16(bytes[1]))
+            celsius = Float(raw) / 256.0
+
+        } else if info.dataType == fltType, info.dataSize >= 4 {
+            // flt : IEEE 754 float, big-endian (4 bytes) — Apple Silicon M-series
+            guard let bytes = readKey(key, dataType: info.dataType, dataSize: info.dataSize),
+                  bytes.count >= 4 else { return nil }
+            let bits = UInt32(bytes[0]) << 24 | UInt32(bytes[1]) << 16
+                     | UInt32(bytes[2]) <<  8 | UInt32(bytes[3])
+            celsius = Float(bitPattern: bits)
+
+        } else {
+            return nil
+        }
 
         // Sanity range: 0..150°C
         guard celsius > 0 && celsius < 150 else { return nil }
