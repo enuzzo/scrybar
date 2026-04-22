@@ -1104,7 +1104,8 @@ struct MacStatsUi {
   lv_obj_t *header      = nullptr;
   lv_obj_t *headerFill  = nullptr;
   lv_obj_t *title       = nullptr;
-  lv_obj_t *ageLabel    = nullptr;
+  lv_obj_t *statusDot   = nullptr;   // semaphore circle (green=LIVE, amber=stale, grey=no data)
+  lv_obj_t *statusLabel = nullptr;   // "LIVE" / "Xs ago" / "--"
   // CPU tile
   lv_obj_t *cpuBg       = nullptr;
   lv_obj_t *cpuLabel    = nullptr;
@@ -1236,7 +1237,8 @@ struct LvglLaunchUi {
 static LvglLaunchUi g_launchUi;
 static lv_obj_t *g_lvglLaunchRoot = nullptr;
 static constexpr uint32_t NOW_PLAYING_FAKE_ROTATE_MS = 18000UL;
-static constexpr uint32_t NOW_PLAYING_SYNC_TTL_MS = 5000UL;
+static constexpr uint32_t NOW_PLAYING_SYNC_TTL_MS  = 5000UL;
+static constexpr uint32_t MAC_STATS_SYNC_TTL_MS    = 15000UL;  // 3 missed 5s polls → stale
 static const lv_img_dsc_t kNowPlayingRealCover150 = {
     .header = {
         .cf = LV_IMG_CF_TRUE_COLOR,
@@ -10427,7 +10429,7 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lvglSetBgFlat(g_lvglMacStatsRoot, panelBg);
     if (g_macStatsUi.headerFill) lvglSetBgFlat(g_macStatsUi.headerFill, headerBg);
     lvglSetTextHex(g_macStatsUi.title,     headerText);
-    lvglSetTextHex(g_macStatsUi.ageLabel,  t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.statusLabel, t.auxMeta);  // baseline; update() overrides with data-driven color
     lvglSetTextHex(g_macStatsUi.cpuLabel,  t.auxMeta);
     lvglSetTextHex(g_macStatsUi.cpuValue,  t.infoText);
     lvglSetTextHex(g_macStatsUi.cpuSub,    t.auxMeta);
@@ -14858,11 +14860,16 @@ static void lvglInitMacStatsUi() {
   lv_label_set_text(g_macStatsUi.title, "MAC STATS");
   lv_obj_align(g_macStatsUi.title, LV_ALIGN_LEFT_MID, 8, 2);
 
-  g_macStatsUi.ageLabel = lv_label_create(g_macStatsUi.headerFill);
-  lv_obj_set_style_text_font(g_macStatsUi.ageLabel, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(g_macStatsUi.ageLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
-  lv_label_set_text(g_macStatsUi.ageLabel, "--");
-  lv_obj_align(g_macStatsUi.ageLabel, LV_ALIGN_RIGHT_MID, -8, 2);
+  // Status semaphore — same pattern as Now Playing header
+  g_macStatsUi.statusDot = lvglCreatePanel(g_macStatsUi.headerFill, 8, 8, 0, 0,
+      lv_color_hex(0x444444), LV_RADIUS_CIRCLE);
+  lv_obj_align(g_macStatsUi.statusDot, LV_ALIGN_RIGHT_MID, -10, 2);
+
+  g_macStatsUi.statusLabel = lv_label_create(g_macStatsUi.headerFill);
+  lv_obj_set_style_text_font(g_macStatsUi.statusLabel, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.statusLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.statusLabel, "--");
+  lv_obj_align(g_macStatsUi.statusLabel, LV_ALIGN_RIGHT_MID, -26, 2);
 
   // Helper lambda-like macro: create a tile background panel
   const lv_coord_t tileW = cW / 2;           // 320
@@ -15033,18 +15040,39 @@ static void lvglUpdateMacStatsUi(bool force) {
   setTileVisible(g_macStatsUi.diskBg, hasData);
   (void)tileVis;
 
-  if (!hasData) return;
-
-  // ── Age label ────────────────────────────────────────────────────────────
-  if (g_macStatsUi.ageLabel) {
+  // ── Status semaphore (runs even when !hasData) ────────────────────────────
+  {
     const uint32_t nowMs = millis();
-    const uint32_t ageMs = (nowMs >= s.receivedAtMs) ? (nowMs - s.receivedAtMs) : 0;
-    const uint32_t ageSec = ageMs / 1000;
-    char ageBuf[20];
-    if (ageSec < 60) snprintf(ageBuf, sizeof(ageBuf), "%us ago", (unsigned)ageSec);
-    else snprintf(ageBuf, sizeof(ageBuf), "%um ago", (unsigned)(ageSec / 60));
-    lv_label_set_text(g_macStatsUi.ageLabel, ageBuf);
+    const uint32_t ageMs = (s.valid && nowMs >= s.receivedAtMs)
+        ? (nowMs - s.receivedAtMs) : 0;
+    const bool isLive = s.valid && ageMs <= MAC_STATS_SYNC_TTL_MS;
+    if (g_macStatsUi.statusDot) {
+      lv_obj_set_style_bg_color(g_macStatsUi.statusDot,
+          lv_color_hex(s.valid ? (isLive ? 0x7CFF9D : 0xFFC857) : 0x444444),
+          LV_PART_MAIN);
+    }
+    if (g_macStatsUi.statusLabel) {
+      if (!s.valid) {
+        lv_label_set_text(g_macStatsUi.statusLabel, "--");
+        lv_obj_set_style_text_color(g_macStatsUi.statusLabel,
+            lv_color_hex(t.auxMeta), LV_PART_MAIN);
+      } else if (isLive) {
+        lv_label_set_text(g_macStatsUi.statusLabel, "LIVE");
+        lv_obj_set_style_text_color(g_macStatsUi.statusLabel,
+            lv_color_hex(0xB8F7D4), LV_PART_MAIN);
+      } else {
+        char ageBuf[16];
+        const uint32_t ageSec = ageMs / 1000;
+        if (ageSec < 60) snprintf(ageBuf, sizeof(ageBuf), "%us ago", (unsigned)ageSec);
+        else             snprintf(ageBuf, sizeof(ageBuf), "%um ago", (unsigned)(ageSec/60));
+        lv_label_set_text(g_macStatsUi.statusLabel, ageBuf);
+        lv_obj_set_style_text_color(g_macStatsUi.statusLabel,
+            lv_color_hex(0xFFE0A0), LV_PART_MAIN);
+      }
+    }
   }
+
+  if (!hasData) return;
 
   // ── CPU temperature ──────────────────────────────────────────────────────
   if (g_macStatsUi.cpuValue) {
