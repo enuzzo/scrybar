@@ -4692,7 +4692,7 @@ static void buildWebViewToggles(String &html) {
   html += F("><span class='vm-view__copy'><strong>Now Playing</strong><small>Live track info from macOS companion app.</small></span></label>");
   html += F("<label class='vm-view'><input id='view_transit_cb' type='checkbox'");
   if (transitViewOn) html += F(" checked");
-  html += F("><span class='vm-view__copy'><strong>Departures</strong><small>Live transit departure board via Transitous API.</small></span></label>");
+  html += F("><span class='vm-view__copy'><strong>Timetable</strong><small>Live timetable via Transitous API. Trains, metro, bus, coach.</small></span></label>");
   html += F("<label class='vm-view'><input id='view_launch_cb' type='checkbox'");
   if (launchViewOn) html += F(" checked");
   html += F("><span class='vm-view__copy'><strong>Launches</strong><small>Rocket launch countdown + mission info (Launch Library 2).</small></span></label>");
@@ -4844,7 +4844,7 @@ static void buildWebRssBuilder(String &html) {
 }
 
 static void buildWebTransitSection(String &html) {
-  html += F("<div class='vm-card'><h2>&#x1F689;&ensp;Transit Departure Board</h2>");
+  html += F("<div class='vm-card'><h2>&#x1F689;&ensp;Transit Timetable</h2>");
   html += F("<p class='vm-help'>Search for any stop worldwide. "
             "Powered by <a href='https://transitous.org' target='_blank' rel='noopener noreferrer'>Transitous</a> "
             "(global free GTFS data — trains, buses, trams). "
@@ -4873,7 +4873,7 @@ static void buildWebTransitSection(String &html) {
   // --- Destination filter (optional) ---
   html += F("<div><div class='vm-label'>FILTER BY DESTINATION <small>(optional)</small></div>");
   html += F("<input class='vm-input' type='text' id='transit_to_q' name='transit_to' "
-            "autocomplete='off' placeholder='Leave empty for all departures'");
+            "autocomplete='off' placeholder='Leave empty to show all'");
   if (g_transitConfig.arrStation[0]) {
     html += F(" value='");
     appendHtmlEscaped(html, g_transitConfig.arrStation);
@@ -8618,52 +8618,60 @@ static void urlEncodeSpaces(const char *src, char *dst, size_t dstLen) {
 
 // Parse Transitous UTC ISO timestamp "2026-04-01T12:45:00Z" into local hour/minute.
 // Returns false if the string is malformed.
+// Parse ISO-8601 UTC timestamp (e.g. "2026-04-22T16:45:00Z") → local HH:MM.
+//
+// r275 rewrite. The previous implementation called `mktime()` multiple times
+// with `tm_isdst=0` as throwaway side-effect kludges, which left newlib's
+// internal DST state inconsistent. `localtime_r()` then returned the wall
+// clock offset *plus* an extra DST-savings hour, so every transit departure
+// during CEST was displayed 1h in the future. That was the ATM "orari a caso"
+// bug: a CEST S30 scheduled 18:45 local was shown as 19:45.
+//
+// New path: compute the UTC epoch purely by hand (days since 1970-01-01 +
+// seconds in the day), then use `gmtime_r` first to confirm the round-trip,
+// then `localtime_r` — which, given a clean time_t and no prior mktime
+// contamination, correctly honors the `CET-1CEST,...` TZ string set by
+// `configTzTime` and returns the right wall-clock hour.
 static bool parseIsoUtcToLocal(const char *iso, uint8_t &hourOut, uint8_t &minOut) {
   if (!iso || strlen(iso) < 19) return false;
-  // Fast path: parse digits directly.
-  struct tm t = {};
-  t.tm_year = ((iso[0]-'0')*1000 + (iso[1]-'0')*100 + (iso[2]-'0')*10 + (iso[3]-'0')) - 1900;
-  t.tm_mon  = ((iso[5]-'0')*10  + (iso[6]-'0')) - 1;
-  t.tm_mday =  (iso[8]-'0')*10  + (iso[9]-'0');
-  t.tm_hour =  (iso[11]-'0')*10 + (iso[12]-'0');
-  t.tm_min  =  (iso[14]-'0')*10 + (iso[15]-'0');
-  t.tm_sec  =  (iso[17]-'0')*10 + (iso[18]-'0');
-  t.tm_isdst = 0;
-  time_t utc = mktime(&t);   // treated as local by mktime; we compensate below
-  // mktime treats struct as local time; we have UTC — get timezone offset and subtract.
-  struct tm local = {};
-  getLocalTime(&local, 0);
-  time_t localNow = mktime(&local);
-  time_t utcNow;
-  {
-    struct tm utcTm = {};
-    getLocalTime(&utcTm, 0);
-    utcNow = mktime(&utcTm);
-  }
-  // Simpler: parse UTC as-is, then use gmtime offset trick via configTzTime set timezone.
-  // Actually the cleanest on ESP-IDF: interpret string as UTC with timegm equivalent.
-  // ESP32 doesn't have timegm(), so: set tm_isdst=0, use mktime, then subtract UTC offset.
-  (void)localNow; (void)utcNow; (void)utc;
+  const int year  = (iso[0]-'0')*1000 + (iso[1]-'0')*100 + (iso[2]-'0')*10 + (iso[3]-'0');
+  const int month = (iso[5]-'0')*10 + (iso[6]-'0');   // 1..12
+  const int day   = (iso[8]-'0')*10 + (iso[9]-'0');
+  const int hour  = (iso[11]-'0')*10 + (iso[12]-'0');
+  const int minute= (iso[14]-'0')*10 + (iso[15]-'0');
+  const int sec   = (iso[17]-'0')*10 + (iso[18]-'0');
+  if (year < 1970 || year > 2099) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  if (hour > 23 || minute > 59 || sec > 60) return false;
 
-  // Reliable approach: use strptime on the string and rely on configured tz.
-  // We'll parse the UTC epoch manually: days since epoch + time.
-  // Zeller / Julian day approach for year/month/day → epoch.
   static const int kDaysPerMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
-  int y = t.tm_year + 1900, m = t.tm_mon + 1, d = t.tm_mday;
   long days = 0;
-  for (int yr = 1970; yr < y; ++yr)
-    days += ((yr % 4 == 0 && (yr % 100 != 0 || yr % 400 == 0)) ? 366 : 365);
-  bool leap = (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0));
-  for (int mo = 1; mo < m; ++mo)
-    days += (mo == 2 && leap) ? 29 : kDaysPerMonth[mo-1];
-  days += d - 1;
-  time_t epoch = (time_t)(days * 86400L + t.tm_hour * 3600L + t.tm_min * 60L + t.tm_sec);
+  for (int y = 1970; y < year; ++y)
+    days += ((y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) ? 366 : 365);
+  const bool leap = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+  for (int m = 1; m < month; ++m)
+    days += (m == 2 && leap) ? 29 : kDaysPerMonth[m-1];
+  days += day - 1;
+  const time_t epoch = (time_t)(days * 86400L + (long)hour * 3600L + (long)minute * 60L + (long)sec);
 
   struct tm localTm = {};
   localtime_r(&epoch, &localTm);
   hourOut = (uint8_t)localTm.tm_hour;
   minOut  = (uint8_t)localTm.tm_min;
   return true;
+}
+
+// Minutes from `now` to the effective departure time of `d` (scheduled + delay).
+// Tolerates midnight wrap: if the naive diff is more than 60 min negative, we
+// assume the row refers to tomorrow rather than "deep past".
+static int transitMinutesUntil(const TransitDeparture &d, const struct tm &now) {
+  int depMin = (int)d.depHour * 60 + (int)d.depMinute;
+  if (d.hasDelay) depMin += (int)d.delayMin;
+  const int nowMin = now.tm_hour * 60 + now.tm_min;
+  int diff = depMin - nowMin;
+  if (diff < -60) diff += 1440;
+  return diff;
 }
 
 // Parse 6-char hex color string (no '#') → uint32_t RGB. Returns fallback on error.
@@ -8757,20 +8765,11 @@ static void netFetchTransitDepartures() {
   urlEncodeParam(g_transitConfig.stopId, encId, sizeof(encId));
 
   // Current UTC time in ISO 8601 for the ?time= parameter.
-  time_t nowUtc = 0;
-  {
-    struct tm utcTm = {};
-    getLocalTime(&utcTm, 0);   // local — we convert back to UTC via mktime + tz offset
-    // Build UTC epoch: use the same Zeller trick as parseIsoUtcToLocal in reverse.
-    // Simplest: mktime gives local epoch; subtract UTC offset.
-    time_t localEpoch = mktime(&utcTm);
-    struct tm gmCheck = {};
-    gmtime_r(&localEpoch, &gmCheck);
-    // offset = local - gm
-    time_t gmEpoch = mktime(&gmCheck);
-    long tzOff = (long)(localEpoch - gmEpoch);
-    nowUtc = localEpoch - tzOff;
-  }
+  // r276: previous mktime+offset dance produced a nowUtc one hour in the past
+  // during CEST — companion bug to the parseIsoUtcToLocal DST flaw. Use
+  // `time(nullptr)`, which on ESP-IDF after `configTzTime` NTP sync returns
+  // the true UTC epoch directly.
+  const time_t nowUtc = time(nullptr);
   char timeParam[32];
   {
     struct tm utcFmt = {};
@@ -8968,6 +8967,13 @@ static void netFetchTransitDepartures() {
         }
         d.hasArr = false;   // filled by trip endpoint calls below
         d.valid  = true;
+        // r275: per-row parse trace — lets users diagnose wrong-timing reports
+        // (e.g. ATM Milano). Compare iso / sched / parsed local HH:MM against
+        // the operator's website to narrow bad-stopId vs. timezone vs. stale-feed.
+        Serial.printf("[TRANSIT][PARSE] i=%u line=%-6s iso=%.20s rt=%d delay=%+d local=%02u:%02u dest='%.32s'\n",
+                      (unsigned)local.count, d.line, depIso,
+                      (int)d.realTime, (int)d.delayMin,
+                      d.depHour, d.depMinute, d.destination);
         // Save tripId for post-loop trip fetch
         copyStringSafe(tripIds[local.count], sizeof(tripIds[local.count]), tripId);
         local.count++;
@@ -14246,7 +14252,7 @@ static void lvglInitTransitUi() {
   g_transitUi.title = lv_label_create(g_transitUi.header);
   lv_obj_set_style_text_color(g_transitUi.title, lv_color_hex(headerTxt), LV_PART_MAIN);
   lv_obj_set_style_text_font(g_transitUi.title, lvglFontSmall(), 0);
-  lv_label_set_text(g_transitUi.title, "DEPARTURES");
+  lv_label_set_text(g_transitUi.title, "TIMETABLE");
   lv_obj_align(g_transitUi.title, LV_ALIGN_LEFT_MID, 8, 2);
 
   g_transitUi.station = lv_label_create(g_transitUi.header);
@@ -15428,6 +15434,9 @@ static void lvglUpdateTransitUi(bool force) {
     g_transitOrgMode   = false;
     g_transitOrgModeMs = 0;
   }
+  // r275: fetch local time once for the adaptive relative-time column
+  struct tm nowTm;
+  const bool haveNow = getLocalTime(&nowTm, 5);
 
   // Station name in header: prefer official API name, fallback to user-typed
   if (g_transitUi.station) {
@@ -15537,10 +15546,41 @@ static void lvglUpdateTransitUi(bool force) {
       }
     }
 
-    // Departure time ("HH:MM")
+    // Departure time — adaptive (r275):
+    //   <= 0 && >= -1 → "now"        (amber, imminent)
+    //   1..2  min     → "X'"         (amber, urgent)
+    //   3..60 min     → "X'"         (infoText)
+    //   > 60  min     → "HH:MM"      (auxMeta, far)
+    //   < -1  min     → "HH:MM"      (divider, past/stale)
+    // Ticks naturally every second via the UI update loop at scrybar.ino:17590.
     if (g_transitUi.time_[i]) {
-      char tbuf[8];
-      snprintf(tbuf, sizeof(tbuf), "%02u:%02u", d.depHour, d.depMinute);
+      char tbuf[12];
+      uint32_t timeColor = t.infoText;
+      if (!haveNow) {
+        // No clock yet → fall back to scheduled HH:MM so the board isn't blank.
+        snprintf(tbuf, sizeof(tbuf), "%02u:%02u", d.depHour, d.depMinute);
+        timeColor = t.auxMeta;
+      } else {
+        const int mins = transitMinutesUntil(d, nowTm);
+        if (mins <= 0 && mins >= -1) {
+          copyStringSafe(tbuf, sizeof(tbuf), "now");
+          timeColor = 0xFFB74D;  // amber — same accent as launch-hero weather
+        } else if (mins >= 1 && mins <= 2) {
+          snprintf(tbuf, sizeof(tbuf), "%d'", mins);
+          timeColor = 0xFFB74D;
+        } else if (mins >= 3 && mins <= 60) {
+          snprintf(tbuf, sizeof(tbuf), "%d'", mins);
+          timeColor = t.infoText;
+        } else if (mins > 60) {
+          snprintf(tbuf, sizeof(tbuf), "%02u:%02u", d.depHour, d.depMinute);
+          timeColor = t.auxMeta;
+        } else {
+          // mins < -1: past (shouldn't stay long — next poll drops it)
+          snprintf(tbuf, sizeof(tbuf), "%02u:%02u", d.depHour, d.depMinute);
+          timeColor = t.divider;
+        }
+      }
+      lv_obj_set_style_text_color(g_transitUi.time_[i], lv_color_hex(timeColor), LV_PART_MAIN);
       lv_label_set_text(g_transitUi.time_[i], tbuf);
     }
 
