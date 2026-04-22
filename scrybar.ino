@@ -15045,12 +15045,13 @@ static void lvglInitMacStatsUi() {
     return bg;
   };
 
-  // Create a metric label (tiny, muted) and a big value (semibold 25px)
+  // Create a metric label (mini 16px, muted) and a big value (semibold 25px).
+  // Value y=24 leaves breathing room below the 16px label (top y=4 → bottom y=20).
   auto makeMetricLabels = [&](lv_obj_t *bg,
                                lv_obj_t *&labelOut, lv_obj_t *&valueOut,
                                const char *labelStr, const char *initVal) {
     labelOut = lv_label_create(bg);
-    lv_obj_set_style_text_font(labelOut, lvglFontTiny(), 0);
+    lv_obj_set_style_text_font(labelOut, lvglFontMini(), 0);
     lv_obj_set_style_text_color(labelOut, lv_color_hex(t.auxMeta), LV_PART_MAIN);
     lv_label_set_text(labelOut, labelStr);
     lv_obj_set_pos(labelOut, 8, 4);
@@ -15059,7 +15060,7 @@ static void lvglInitMacStatsUi() {
     lv_obj_set_style_text_font(valueOut, lvglFontLaunchName(), 0);  // SemiBold 25px
     lv_obj_set_style_text_color(valueOut, lv_color_hex(t.infoText), LV_PART_MAIN);
     lv_label_set_text(valueOut, initVal);
-    lv_obj_set_pos(valueOut, 8, 18);
+    lv_obj_set_pos(valueOut, 8, 24);
   };
 
   // ── CPU Usage tile (top, column 0) ────────────────────────────────────────
@@ -15104,32 +15105,35 @@ static void lvglInitMacStatsUi() {
   makeMetricLabels(g_macStatsUi.cpuTBg,
                    g_macStatsUi.cpuTLabel, g_macStatsUi.cpuTempVal,
                    "CPU", "--");
-  g_macStatsUi.cpuTempDot = lvglCreatePanel(g_macStatsUi.cpuTBg, 6, 6, 8, row1H - 16,
+  // Dot 8×8 at y=row1H-15 → center y=row1H-11; label 16px at y=row1H-21,
+  // visible cap height spans y=row1H-17..row1H-7 → center y=row1H-12.
+  // Dot center and text center align within ±1px.
+  g_macStatsUi.cpuTempDot = lvglCreatePanel(g_macStatsUi.cpuTBg, 8, 8, 8, row1H - 15,
       lv_color_hex(0x64B5F6), LV_RADIUS_CIRCLE);
   g_macStatsUi.cpuTempStatus = lv_label_create(g_macStatsUi.cpuTBg);
-  lv_obj_set_style_text_font(g_macStatsUi.cpuTempStatus, lvglFontTiny(), 0);
+  lv_obj_set_style_text_font(g_macStatsUi.cpuTempStatus, lvglFontMini(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.cpuTempStatus, lv_color_hex(0x64B5F6), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.cpuTempStatus, "");
-  lv_obj_set_pos(g_macStatsUi.cpuTempStatus, 18, row1H - 18);
+  lv_obj_set_pos(g_macStatsUi.cpuTempStatus, 20, row1H - 21);
 
   // ── GPU Temp tile (top, column 3) ─────────────────────────────────────────
   g_macStatsUi.gpuTBg = makeTileBg(tile4W * 3, row1Y, tile4W, row1H);
   makeMetricLabels(g_macStatsUi.gpuTBg,
                    g_macStatsUi.gpuTLabel, g_macStatsUi.gpuTempVal,
                    "GPU", "--");
-  g_macStatsUi.gpuTempDot = lvglCreatePanel(g_macStatsUi.gpuTBg, 6, 6, 8, row1H - 16,
+  g_macStatsUi.gpuTempDot = lvglCreatePanel(g_macStatsUi.gpuTBg, 8, 8, 8, row1H - 15,
       lv_color_hex(0x64B5F6), LV_RADIUS_CIRCLE);
   g_macStatsUi.gpuTempStatus = lv_label_create(g_macStatsUi.gpuTBg);
-  lv_obj_set_style_text_font(g_macStatsUi.gpuTempStatus, lvglFontTiny(), 0);
+  lv_obj_set_style_text_font(g_macStatsUi.gpuTempStatus, lvglFontMini(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.gpuTempStatus, lv_color_hex(0x64B5F6), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.gpuTempStatus, "");
-  lv_obj_set_pos(g_macStatsUi.gpuTempStatus, 18, row1H - 18);
+  lv_obj_set_pos(g_macStatsUi.gpuTempStatus, 20, row1H - 21);
 
   // ── RAM tile (bottom-left 320px) ──────────────────────────────────────────
   g_macStatsUi.ramBg = makeTileBg(0, row2Y, tile2W, row2H);
 
   g_macStatsUi.ramLabel = lv_label_create(g_macStatsUi.ramBg);
-  lv_obj_set_style_text_font(g_macStatsUi.ramLabel, lvglFontTiny(), 0);
+  lv_obj_set_style_text_font(g_macStatsUi.ramLabel, lvglFontMini(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.ramLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.ramLabel, "RAM");
   lv_obj_set_pos(g_macStatsUi.ramLabel, 8, 4);
@@ -15138,13 +15142,13 @@ static void lvglInitMacStatsUi() {
   lv_obj_set_style_text_font(g_macStatsUi.ramValue, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.ramValue, lv_color_hex(t.infoText), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.ramValue, "-- / -- GB");
-  lv_obj_set_pos(g_macStatsUi.ramValue, 8, 18);
+  lv_obj_set_pos(g_macStatsUi.ramValue, 8, 24);
 
   g_macStatsUi.ramPct = lv_label_create(g_macStatsUi.ramBg);
   lv_obj_set_style_text_font(g_macStatsUi.ramPct, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.ramPct, lv_color_hex(t.auxMeta), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.ramPct, "");
-  lv_obj_align(g_macStatsUi.ramPct, LV_ALIGN_TOP_RIGHT, -8, 18);
+  lv_obj_align(g_macStatsUi.ramPct, LV_ALIGN_TOP_RIGHT, -8, 24);
 
   // Segmented bar for RAM (16 chunky blocks)
   for (uint8_t i = 0; i < MAC_STATS_SEG_COUNT; ++i) {
@@ -15164,7 +15168,7 @@ static void lvglInitMacStatsUi() {
   g_macStatsUi.diskBg = makeTileBg(tile2W, row2Y, tile2W, row2H);
 
   g_macStatsUi.diskLabel = lv_label_create(g_macStatsUi.diskBg);
-  lv_obj_set_style_text_font(g_macStatsUi.diskLabel, lvglFontTiny(), 0);
+  lv_obj_set_style_text_font(g_macStatsUi.diskLabel, lvglFontMini(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.diskLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.diskLabel, "DISK");
   lv_obj_set_pos(g_macStatsUi.diskLabel, 8, 4);
@@ -15173,13 +15177,13 @@ static void lvglInitMacStatsUi() {
   lv_obj_set_style_text_font(g_macStatsUi.diskValue, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.diskValue, lv_color_hex(t.infoText), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.diskValue, "-- / -- GB");
-  lv_obj_set_pos(g_macStatsUi.diskValue, 8, 18);
+  lv_obj_set_pos(g_macStatsUi.diskValue, 8, 24);
 
   g_macStatsUi.diskPct = lv_label_create(g_macStatsUi.diskBg);
   lv_obj_set_style_text_font(g_macStatsUi.diskPct, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.diskPct, lv_color_hex(t.auxMeta), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.diskPct, "");
-  lv_obj_align(g_macStatsUi.diskPct, LV_ALIGN_TOP_RIGHT, -8, 18);
+  lv_obj_align(g_macStatsUi.diskPct, LV_ALIGN_TOP_RIGHT, -8, 24);
 
   for (uint8_t i = 0; i < MAC_STATS_SEG_COUNT; ++i) {
     lv_obj_t *seg = lv_obj_create(g_macStatsUi.diskBg);

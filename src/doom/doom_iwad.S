@@ -4,5 +4,5 @@
 .global scrybar_doom1_wad_end
 
 scrybar_doom1_wad_start:
-  .incbin "src/doom/doom1.wad"
+  .incbin "/Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar/src/doom/doom1.wad"
 scrybar_doom1_wad_end:

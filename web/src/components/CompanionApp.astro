@@ -1,42 +1,168 @@
 ---
+import { Image } from 'astro:assets';
 import imgCompanion from '../assets/screenshots/companion-app.png';
+import imgIcon from '../assets/scrybar-icon.png';
 ---
-<section id="companion">
-  <div class="container">
-    <span class="section-label">Companion</span>
-    <h2>macOS menu bar app</h2>
-    <p class="section-sub">
-      Push what's playing to your ScryBar — album art, progress bar,
-      and source detection, live from your Mac.
-    </p>
+<section id="companion" class="companion">
+  <div class="container companion-container">
+    <!-- Atmospheric backdrop -->
+    <div class="companion-atmos" aria-hidden="true">
+      <span class="companion-atmos__halo companion-atmos__halo--cyan"></span>
+      <span class="companion-atmos__halo companion-atmos__halo--magenta"></span>
+      <span class="companion-atmos__grid"></span>
+    </div>
 
-    <div class="vm-card companion-card">
-      <div class="companion-card__body">
-        <div class="companion-badges">
-          <span class="vm-badge vm-badge--brand">macOS</span>
-          <span class="vm-badge vm-badge--info">v0.2.0</span>
-        </div>
-        <p class="companion-card__desc">
-          A lightweight menu bar app that detects music from Apple Music,
-          Spotify, TIDAL, and other sources — then pushes track info and
-          album art to your ScryBar over the local network.
-        </p>
-        <a
-          href="https://github.com/enuzzo/scrybar/raw/main/companion/mac/ScryBarCompanion-0.2.0.dmg"
-          class="vm-btn vm-btn--primary"
-        >
-          Download DMG
-        </a>
+    <!-- Intro -->
+    <header class="companion-intro">
+      <span class="section-label">Companion</span>
+      <h2 class="companion-headline">
+        A menu bar app that makes ScryBar
+        <em>know you</em>.
+      </h2>
+      <p class="companion-lede">
+        Live Now Playing metadata, album art, CPU/GPU temperature, RAM and
+        disk usage — streamed from your Mac to the strip over your LAN.
+      </p>
+      <div class="companion-meta">
+        <span class="vm-badge vm-badge--brand">macOS 14+</span>
+        <span class="vm-badge vm-badge--info">v0.2.1</span>
+        <span class="companion-meta__sep" aria-hidden="true"></span>
+        <span class="companion-meta__note">Menu bar · ~6 MB · Swift 6</span>
       </div>
-      <div class="companion-card__screenshot">
-        <img
-          src={imgCompanion.src}
-          alt="ScryBar Companion app showing Now Playing"
-          width={imgCompanion.width}
-          height={imgCompanion.height}
+    </header>
+
+    <!-- Hero stage: icon + popover -->
+    <div class="companion-stage">
+      <div class="companion-stage__icon">
+        <div class="companion-stage__iconglow" aria-hidden="true"></div>
+        <Image
+          src={imgIcon}
+          alt="ScryBar Companion app icon"
+          width={560}
+          height={560}
           loading="lazy"
+          class="companion-stage__iconimg"
         />
+        <div class="companion-stage__iconplate" aria-hidden="true">
+          <span class="companion-stage__iconplate-dot"></span>
+          ScryBarCompanion.app
+        </div>
       </div>
+
+      <div class="companion-stage__bridge" aria-hidden="true">
+        <span class="companion-stage__beam"></span>
+      </div>
+
+      <figure class="companion-stage__popover">
+        <div class="companion-stage__chrome" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <Image
+          src={imgCompanion}
+          alt="ScryBar Companion popover: Now Playing + live Mac Stats"
+          width={345}
+          height={377}
+          loading="lazy"
+          class="companion-stage__popoverimg"
+        />
+        <figcaption class="companion-stage__caption">
+          <span class="companion-stage__pulse" aria-hidden="true"></span>
+          Pushing to ScryBar over LAN
+        </figcaption>
+      </figure>
+    </div>
+
+    <!-- Primary CTA row -->
+    <div class="companion-cta">
+      <a
+        href="https://github.com/enuzzo/scrybar/raw/main/companion/mac/ScryBarCompanion-0.2.1.dmg"
+        class="vm-btn vm-btn--primary vm-btn--lg companion-cta__btn"
+      >
+        <span class="companion-cta__arrow" aria-hidden="true">↓</span>
+        Download DMG
+        <span class="companion-cta__ver">v0.2.1</span>
+      </a>
+      <span class="companion-cta__hint">
+        Ad-hoc signed · Apple Silicon + Intel · ~6 MB
+      </span>
+    </div>
+
+    <!-- First-launch flow -->
+    <div class="companion-flow">
+      <div class="companion-flow__head">
+        <span class="companion-flow__kicker">First launch</span>
+        <h3 class="companion-flow__title">Four taps to menu bar.</h3>
+        <p class="companion-flow__sub">
+          The app is ad-hoc signed (no paid Developer ID), so Gatekeeper
+          blocks it on first open. This is a one-time step — after that,
+          launches are instant.
+        </p>
+      </div>
+
+      <ol class="companion-steps">
+        <li class="companion-step">
+          <span class="companion-step__num">01</span>
+          <h4 class="companion-step__title">Mount &amp; drag</h4>
+          <p class="companion-step__body">
+            Open the <code>.dmg</code> and drop
+            <strong>ScryBarCompanion.app</strong> into
+            <code>/Applications</code>.
+          </p>
+        </li>
+        <li class="companion-step">
+          <span class="companion-step__num">02</span>
+          <h4 class="companion-step__title">First launch blocked</h4>
+          <p class="companion-step__body">
+            Double-click — macOS says <em>"cannot be opened because Apple
+            cannot check it for malicious software."</em> Expected.
+          </p>
+        </li>
+        <li class="companion-step">
+          <span class="companion-step__num">03</span>
+          <h4 class="companion-step__title">Open Anyway</h4>
+          <p class="companion-step__body">
+            <strong>System Settings → Privacy &amp; Security</strong>,
+            scroll to the blocked-app notice, click
+            <strong>Open Anyway</strong>, confirm with password.
+          </p>
+        </li>
+        <li class="companion-step">
+          <span class="companion-step__num">04</span>
+          <h4 class="companion-step__title">It lives in your menu bar</h4>
+          <p class="companion-step__body">
+            The ScryBar glyph appears top-right. Future launches are
+            instant. Quit from the popover menu anytime.
+          </p>
+        </li>
+      </ol>
+
+      <!-- Mini terminal shortcut -->
+      <div class="companion-terminal">
+        <div class="companion-terminal__bar">
+          <span class="companion-terminal__dots" aria-hidden="true">
+            <i></i><i></i><i></i>
+          </span>
+          <span class="companion-terminal__title">zsh — shortcut</span>
+          <span class="companion-terminal__badge">skip Gatekeeper</span>
+        </div>
+        <pre class="companion-terminal__body"><code><span class="companion-terminal__prompt">$</span> xattr -dr com.apple.quarantine /Applications/ScryBarCompanion.app
+<span class="companion-terminal__prompt">$</span> open /Applications/ScryBarCompanion.app</code></pre>
+      </div>
+
+      <!-- Optional macmon tip -->
+      <aside class="companion-aside">
+        <span class="companion-aside__tag">optional</span>
+        <div class="companion-aside__body">
+          <strong>Live CPU/GPU °C on Apple Silicon.</strong>
+          Install <a
+            href="https://github.com/vladkens/macmon"
+            target="_blank"
+            rel="noopener"
+          >macmon</a> for per-core temperatures —
+          <code>brew install macmon</code>, no <code>sudo</code> required.
+          Without it you still get usage %, RAM, and disk.
+        </div>
+      </aside>
     </div>
   </div>
 </section>
