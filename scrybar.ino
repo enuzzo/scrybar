@@ -1088,6 +1088,16 @@ struct LiveNowPlayingArtwork {
   uint32_t bgColor = 0x101418;
   char artworkId[256] = {0};
 };
+// Mac Stats sparkline + segmented-bar constants
+#define MAC_STATS_HISTORY_SIZE  12   // bars in the CPU/GPU usage sparkline
+#define MAC_STATS_SEG_COUNT     16   // chunky blocks in the RAM/DISK bar
+#define MAC_STATS_SEG_W         17   // px per segment  (17×16 + 2×15 = 302px ≤ 304 avail)
+#define MAC_STATS_SEG_GAP        2   // px gap between segments
+#define MAC_STATS_SEG_H         14   // px tall per segment
+#define MAC_STATS_SPARK_BAR_W    9   // px wide per sparkline bar
+#define MAC_STATS_SPARK_GAP      2   // px gap between sparkline bars
+#define MAC_STATS_SPARK_MAXH    18   // px maximum bar height
+
 struct MacStatsState {
   bool     valid        = false;
   uint32_t receivedAtMs = 0;
@@ -1104,38 +1114,48 @@ struct MacStatsState {
   bool     hasCpuUsage  = false;
   bool     hasGpuUsage  = false;
 };
+
 struct MacStatsUi {
-  lv_obj_t *header      = nullptr;
   lv_obj_t *headerFill  = nullptr;
   lv_obj_t *title       = nullptr;
-  lv_obj_t *statusDot   = nullptr;   // semaphore circle (green=LIVE, amber=stale, grey=no data)
-  lv_obj_t *statusLabel = nullptr;   // "LIVE" / "Xs ago" / "--"
-  // USAGE tile (top-left) — CPU% left half, GPU% right half
-  lv_obj_t *usageBg       = nullptr;
-  lv_obj_t *cpuUsageLabel = nullptr;   // "CPU"
-  lv_obj_t *cpuUsageValue = nullptr;   // "24%" or "N/A"
-  lv_obj_t *gpuUsageLabel = nullptr;   // "GPU"
-  lv_obj_t *gpuUsageValue = nullptr;   // "13%" or "N/A"
-  // TEMP tile (top-right) — CPU°C left half, GPU°C right half
-  lv_obj_t *tempBg        = nullptr;
-  lv_obj_t *cpuTempLabel  = nullptr;   // "CPU"
-  lv_obj_t *cpuTempValue  = nullptr;   // "72.3°C" or "N/A"
-  lv_obj_t *gpuTempLabel  = nullptr;   // "GPU"
-  lv_obj_t *gpuTempValue  = nullptr;   // "65.0°C" or "N/A"
-  // RAM tile
-  lv_obj_t *ramBg       = nullptr;
-  lv_obj_t *ramLabel    = nullptr;
-  lv_obj_t *ramValue    = nullptr;
-  lv_obj_t *ramBar      = nullptr;
-  lv_obj_t *ramBarFill  = nullptr;
-  // Disk tile
-  lv_obj_t *diskBg      = nullptr;
-  lv_obj_t *diskLabel   = nullptr;
-  lv_obj_t *diskValue   = nullptr;
-  lv_obj_t *diskBar     = nullptr;
-  lv_obj_t *diskBarFill = nullptr;
+  lv_obj_t *statusDot   = nullptr;
+  lv_obj_t *statusLabel = nullptr;
+  // CPU Usage tile — top-left (160px wide)
+  lv_obj_t *cpuBg        = nullptr;
+  lv_obj_t *cpuLabel     = nullptr;   // "CPU"
+  lv_obj_t *cpuUsageVal  = nullptr;   // "22%" | "N/A"
+  lv_obj_t *cpuSpark[MAC_STATS_HISTORY_SIZE] = {};
+  // GPU Usage tile — second from left (160px wide)
+  lv_obj_t *gpuBg        = nullptr;
+  lv_obj_t *gpuLabel     = nullptr;
+  lv_obj_t *gpuUsageVal  = nullptr;
+  lv_obj_t *gpuSpark[MAC_STATS_HISTORY_SIZE] = {};
+  // CPU Temp tile — second from right (160px wide)
+  lv_obj_t *cpuTBg        = nullptr;
+  lv_obj_t *cpuTLabel     = nullptr;  // "CPU"
+  lv_obj_t *cpuTempVal    = nullptr;  // "41°C" | "N/A"
+  lv_obj_t *cpuTempDot    = nullptr;  // colored status dot
+  lv_obj_t *cpuTempStatus = nullptr;  // "Good" / "Warm" / "Hot"
+  // GPU Temp tile — top-right (160px wide)
+  lv_obj_t *gpuTBg        = nullptr;
+  lv_obj_t *gpuTLabel     = nullptr;
+  lv_obj_t *gpuTempVal    = nullptr;
+  lv_obj_t *gpuTempDot    = nullptr;
+  lv_obj_t *gpuTempStatus = nullptr;
+  // RAM tile — bottom-left (320px wide)
+  lv_obj_t *ramBg      = nullptr;
+  lv_obj_t *ramLabel   = nullptr;
+  lv_obj_t *ramValue   = nullptr;   // "38.8 / 64 GB"
+  lv_obj_t *ramPct     = nullptr;   // "61%"
+  lv_obj_t *ramSegs[MAC_STATS_SEG_COUNT] = {};
+  // Disk tile — bottom-right (320px wide)
+  lv_obj_t *diskBg     = nullptr;
+  lv_obj_t *diskLabel  = nullptr;
+  lv_obj_t *diskValue  = nullptr;
+  lv_obj_t *diskPct    = nullptr;
+  lv_obj_t *diskSegs[MAC_STATS_SEG_COUNT] = {};
   // No-data placeholder
-  lv_obj_t *noData      = nullptr;
+  lv_obj_t *noData     = nullptr;
 };
 struct FakeNowPlayingTrack {
   const char *title;
@@ -1160,7 +1180,12 @@ static LiveNowPlayingState g_liveNowPlaying = {};
 static LiveNowPlayingArtwork g_liveNowPlayingArtwork = {};
 static uint32_t g_liveNowPlayingTokenSeq = 0;
 static MacStatsState g_macStats = {};
-static MacStatsUi g_macStatsUi;
+static MacStatsUi    g_macStatsUi;
+// Circular history buffers for the CPU/GPU sparkline (updated every API push, ~5 s cadence)
+static uint8_t g_cpuUsageHistory[MAC_STATS_HISTORY_SIZE] = {};
+static uint8_t g_gpuUsageHistory[MAC_STATS_HISTORY_SIZE] = {};
+static uint8_t g_statsHistHead  = 0;
+static uint8_t g_statsHistCount = 0;
 static lv_obj_t *g_lvglMacStatsRoot = nullptr;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
@@ -7143,6 +7168,13 @@ static void handleWebMacStatsPostApi() {
   tmp = 0.0f; extractJsonNumberField(body.c_str(), "\"diskUsedGB\"",  tmp); next.diskUsedGB  = tmp;
   tmp = 0.0f; extractJsonNumberField(body.c_str(), "\"diskTotalGB\"", tmp); next.diskTotalGB = tmp;
   g_macStats = next;
+  // Push to sparkline history (both channels advance together)
+  if (next.hasCpuUsage || next.hasGpuUsage) {
+    g_cpuUsageHistory[g_statsHistHead] = next.hasCpuUsage ? (uint8_t)lroundf(next.cpuUsagePct) : 0u;
+    g_gpuUsageHistory[g_statsHistHead] = next.hasGpuUsage ? (uint8_t)lroundf(next.gpuUsagePct) : 0u;
+    g_statsHistHead = (g_statsHistHead + 1u) % MAC_STATS_HISTORY_SIZE;
+    if (g_statsHistCount < MAC_STATS_HISTORY_SIZE) ++g_statsHistCount;
+  }
   Serial.printf("[MACSTATS][API] cpu=%.0f%%(ok=%d) gpu=%.0f%%(ok=%d) "
                 "cpuT=%.1f(ok=%d) gpuT=%.1f(ok=%d) ram=%.1f/%.1f disk=%.1f/%.1f\n",
                 next.cpuUsagePct, (int)next.hasCpuUsage,
@@ -10491,36 +10523,49 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglMacStatsRoot) {
     lvglSetBgFlat(g_lvglMacStatsRoot, panelBg);
     if (g_macStatsUi.headerFill) lvglSetBgFlat(g_macStatsUi.headerFill, headerBg);
-    // Tile backgrounds + borders — must be updated on theme change (not just at init)
+    // Tile backgrounds + borders
     auto applyTileBg = [&](lv_obj_t *tile) {
       if (!tile) return;
       lvglSetBgFlat(tile, panelBg);
       lv_obj_set_style_border_color(tile, lv_color_hex(t.divider), LV_PART_MAIN);
     };
-    applyTileBg(g_macStatsUi.usageBg);
-    applyTileBg(g_macStatsUi.tempBg);
+    applyTileBg(g_macStatsUi.cpuBg);
+    applyTileBg(g_macStatsUi.gpuBg);
+    applyTileBg(g_macStatsUi.cpuTBg);
+    applyTileBg(g_macStatsUi.gpuTBg);
     applyTileBg(g_macStatsUi.ramBg);
     applyTileBg(g_macStatsUi.diskBg);
-    // RAM/Disk bar tracks
-    if (g_macStatsUi.ramBar)
-      lv_obj_set_style_bg_color(g_macStatsUi.ramBar,  lv_color_hex(t.divider), LV_PART_MAIN);
-    if (g_macStatsUi.diskBar)
-      lv_obj_set_style_bg_color(g_macStatsUi.diskBar, lv_color_hex(t.divider), LV_PART_MAIN);
-    lvglSetTextHex(g_macStatsUi.title,     headerText);
-    lvglSetTextHex(g_macStatsUi.statusLabel,   t.auxMeta);  // baseline; update() overrides with data-driven color
-    lvglSetTextHex(g_macStatsUi.cpuUsageLabel, t.auxMeta);
-    lvglSetTextHex(g_macStatsUi.cpuUsageValue, t.infoText);
-    lvglSetTextHex(g_macStatsUi.gpuUsageLabel, t.auxMeta);
-    lvglSetTextHex(g_macStatsUi.gpuUsageValue, t.infoText);
-    lvglSetTextHex(g_macStatsUi.cpuTempLabel,  t.auxMeta);
-    lvglSetTextHex(g_macStatsUi.cpuTempValue,  t.infoText);
-    lvglSetTextHex(g_macStatsUi.gpuTempLabel,  t.auxMeta);
-    lvglSetTextHex(g_macStatsUi.gpuTempValue,  t.infoText);
-    lvglSetTextHex(g_macStatsUi.ramLabel,      t.auxMeta);
-    lvglSetTextHex(g_macStatsUi.ramValue,      t.infoText);
-    lvglSetTextHex(g_macStatsUi.diskLabel,     t.auxMeta);
-    lvglSetTextHex(g_macStatsUi.diskValue,     t.infoText);
-    lvglSetTextHex(g_macStatsUi.noData,        t.auxMeta);
+    // Sparkline empty bars — reset to divider color (filled bars are updated by lvglUpdateMacStatsUi)
+    for (uint8_t i = 0; i < MAC_STATS_HISTORY_SIZE; ++i) {
+      if (g_macStatsUi.cpuSpark[i])
+        lv_obj_set_style_bg_color(g_macStatsUi.cpuSpark[i], lv_color_hex(t.divider), LV_PART_MAIN);
+      if (g_macStatsUi.gpuSpark[i])
+        lv_obj_set_style_bg_color(g_macStatsUi.gpuSpark[i], lv_color_hex(t.divider), LV_PART_MAIN);
+    }
+    // Segmented bar empty slots
+    for (uint8_t i = 0; i < MAC_STATS_SEG_COUNT; ++i) {
+      if (g_macStatsUi.ramSegs[i])
+        lv_obj_set_style_bg_color(g_macStatsUi.ramSegs[i], lv_color_hex(t.divider), LV_PART_MAIN);
+      if (g_macStatsUi.diskSegs[i])
+        lv_obj_set_style_bg_color(g_macStatsUi.diskSegs[i], lv_color_hex(t.divider), LV_PART_MAIN);
+    }
+    lvglSetTextHex(g_macStatsUi.title,       headerText);
+    lvglSetTextHex(g_macStatsUi.statusLabel, t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.cpuLabel,    t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.cpuUsageVal, t.infoText);
+    lvglSetTextHex(g_macStatsUi.gpuLabel,    t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.gpuUsageVal, t.infoText);
+    lvglSetTextHex(g_macStatsUi.cpuTLabel,   t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.cpuTempVal,  t.infoText);
+    lvglSetTextHex(g_macStatsUi.gpuTLabel,   t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.gpuTempVal,  t.infoText);
+    lvglSetTextHex(g_macStatsUi.ramLabel,    t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.ramValue,    t.infoText);
+    lvglSetTextHex(g_macStatsUi.ramPct,      t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.diskLabel,   t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.diskValue,   t.infoText);
+    lvglSetTextHex(g_macStatsUi.diskPct,     t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.noData,      t.auxMeta);
   }
 
   if (!forceInvalidate) return;
@@ -14919,12 +14964,20 @@ static void lvglInitMacStatsUi() {
   const uint32_t panelBg  = lvglResolvedPanelBg(t);
   const uint32_t headerBg = lvglResolvedHeaderBg(t);
   const uint32_t headerTx = lvglResolvedHeaderText(t);
-  const lv_coord_t hdrH  = 30;
+  const lv_coord_t hdrH   = 24;
+  const lv_coord_t contentH = cH - hdrH;              // 148
+  const lv_coord_t row1H    = contentH / 2;            // 74
+  const lv_coord_t row2H    = contentH - row1H;        // 74
+  const lv_coord_t row1Y    = hdrH;                    // 24
+  const lv_coord_t row2Y    = hdrH + row1H;            // 98
+  const lv_coord_t tile4W   = cW / 4;                  // 160 — top row tile width
+  const lv_coord_t tile2W   = cW / 2;                  // 320 — bottom row tile width
+  (void)row2H;
 
   lvglSetBgFlat(root, panelBg);
   lv_obj_set_style_bg_opa(root, LV_OPA_COVER, LV_PART_MAIN);
 
-  // Header
+  // ── Header ────────────────────────────────────────────────────────────────
   g_macStatsUi.headerFill = lv_obj_create(root);
   lv_obj_set_size(g_macStatsUi.headerFill, cW, hdrH);
   lv_obj_set_pos(g_macStatsUi.headerFill, 0, 0);
@@ -14935,31 +14988,26 @@ static void lvglInitMacStatsUi() {
   lv_obj_set_style_pad_all(g_macStatsUi.headerFill, 0, LV_PART_MAIN);
 
   g_macStatsUi.title = lv_label_create(g_macStatsUi.headerFill);
-  lv_obj_set_style_text_font(g_macStatsUi.title, lvglFontSmall(), 0);
+  lv_obj_set_style_text_font(g_macStatsUi.title, lvglFontSmallBold(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.title, lv_color_hex(headerTx), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.title, "MAC STATS");
-  lv_obj_align(g_macStatsUi.title, LV_ALIGN_LEFT_MID, 8, 2);
+  lv_obj_align(g_macStatsUi.title, LV_ALIGN_LEFT_MID, 8, 0);
 
-  // Status semaphore — same pattern as Now Playing header
   g_macStatsUi.statusDot = lvglCreatePanel(g_macStatsUi.headerFill, 8, 8, 0, 0,
       lv_color_hex(0x444444), LV_RADIUS_CIRCLE);
-  lv_obj_align(g_macStatsUi.statusDot, LV_ALIGN_RIGHT_MID, -10, 2);
+  lv_obj_align(g_macStatsUi.statusDot, LV_ALIGN_RIGHT_MID, -10, 0);
 
   g_macStatsUi.statusLabel = lv_label_create(g_macStatsUi.headerFill);
   lv_obj_set_style_text_font(g_macStatsUi.statusLabel, lvglFontTiny(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.statusLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.statusLabel, "--");
-  lv_obj_align(g_macStatsUi.statusLabel, LV_ALIGN_RIGHT_MID, -26, 2);
+  lv_obj_align(g_macStatsUi.statusLabel, LV_ALIGN_RIGHT_MID, -26, 0);
 
-  // Helper lambda-like macro: create a tile background panel
-  const lv_coord_t tileW = cW / 2;           // 320
-  const lv_coord_t tileH = (cH - hdrH) / 2;  // ~71
-  const lv_coord_t row1Y = hdrH;
-  const lv_coord_t row2Y = hdrH + tileH;
-
-  auto makeTileBg = [&](lv_coord_t x, lv_coord_t y) -> lv_obj_t* {
+  // ── Shared helpers ────────────────────────────────────────────────────────
+  // Create a tile bg panel (border only on right and bottom edges for grid feel)
+  auto makeTileBg = [&](lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h) -> lv_obj_t* {
     lv_obj_t *bg = lv_obj_create(root);
-    lv_obj_set_size(bg, tileW, tileH);
+    lv_obj_set_size(bg, w, h);
     lv_obj_set_pos(bg, x, y);
     lvglSetBgFlat(bg, panelBg);
     lv_obj_set_style_bg_opa(bg, LV_OPA_COVER, LV_PART_MAIN);
@@ -14970,140 +15018,156 @@ static void lvglInitMacStatsUi() {
     return bg;
   };
 
-  // Sub-half width inside a tile (320 / 2 = 160)
-  const lv_coord_t halfW = tileW / 2;
-
-  // Helper to stamp one metric sub-half (label + big value) inside a tile bg.
-  // xOff = 0 for left half, halfW for right half.
-  auto makeSubHalf = [&](lv_obj_t *bg,
-                         lv_obj_t *&labelOut, lv_obj_t *&valueOut,
-                         lv_coord_t xOff,
-                         const char *labelStr, const char *valueStr) {
+  // Create a metric label (tiny, muted) and a big value (semibold 25px)
+  auto makeMetricLabels = [&](lv_obj_t *bg,
+                               lv_obj_t *&labelOut, lv_obj_t *&valueOut,
+                               const char *labelStr, const char *initVal) {
     labelOut = lv_label_create(bg);
     lv_obj_set_style_text_font(labelOut, lvglFontTiny(), 0);
     lv_obj_set_style_text_color(labelOut, lv_color_hex(t.auxMeta), LV_PART_MAIN);
     lv_label_set_text(labelOut, labelStr);
-    lv_obj_set_pos(labelOut, xOff + 8, 6);
+    lv_obj_set_pos(labelOut, 8, 4);
 
     valueOut = lv_label_create(bg);
     lv_obj_set_style_text_font(valueOut, lvglFontLaunchName(), 0);  // SemiBold 25px
     lv_obj_set_style_text_color(valueOut, lv_color_hex(t.infoText), LV_PART_MAIN);
-    lv_label_set_text(valueOut, valueStr);
-    lv_obj_set_pos(valueOut, xOff + 8, 26);
+    lv_label_set_text(valueOut, initVal);
+    lv_obj_set_pos(valueOut, 8, 18);
   };
 
-  // ── USAGE tile (top-left): CPU% | GPU% ──────────────────────────────────
-  g_macStatsUi.usageBg = makeTileBg(0, row1Y);
-  // Vertical divider between halves
-  {
-    lv_obj_t *div = lv_obj_create(g_macStatsUi.usageBg);
-    lv_obj_set_size(div, 1, tileH - 12);
-    lv_obj_set_pos(div, halfW - 1, 6);
-    lv_obj_set_style_bg_color(div, lv_color_hex(t.divider), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(div, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(div, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(div, LV_OBJ_FLAG_SCROLLABLE);
+  // ── CPU Usage tile (top, column 0) ────────────────────────────────────────
+  g_macStatsUi.cpuBg = makeTileBg(0, row1Y, tile4W, row1H);
+  makeMetricLabels(g_macStatsUi.cpuBg,
+                   g_macStatsUi.cpuLabel, g_macStatsUi.cpuUsageVal,
+                   "CPU", "--");
+  // Sparkline bars (bottom-anchored, bar chart style)
+  for (uint8_t i = 0; i < MAC_STATS_HISTORY_SIZE; ++i) {
+    lv_obj_t *bar = lv_obj_create(g_macStatsUi.cpuBg);
+    const lv_coord_t bx = 8 + (lv_coord_t)i * (MAC_STATS_SPARK_BAR_W + MAC_STATS_SPARK_GAP);
+    lv_obj_set_size(bar, MAC_STATS_SPARK_BAR_W, 2);
+    lv_obj_set_pos(bar, bx, row1H - 6 - 2);  // parked at bottom-min
+    lvglSetBgFlatR(bar, t.divider, 1);
+    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(bar, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+    g_macStatsUi.cpuSpark[i] = bar;
   }
-  makeSubHalf(g_macStatsUi.usageBg,
-              g_macStatsUi.cpuUsageLabel, g_macStatsUi.cpuUsageValue,
-              0, "CPU", "--");
-  makeSubHalf(g_macStatsUi.usageBg,
-              g_macStatsUi.gpuUsageLabel, g_macStatsUi.gpuUsageValue,
-              halfW, "GPU", "--");
 
-  // ── TEMP tile (top-right): CPU°C | GPU°C ────────────────────────────────
-  g_macStatsUi.tempBg = makeTileBg(tileW, row1Y);
-  {
-    lv_obj_t *div = lv_obj_create(g_macStatsUi.tempBg);
-    lv_obj_set_size(div, 1, tileH - 12);
-    lv_obj_set_pos(div, halfW - 1, 6);
-    lv_obj_set_style_bg_color(div, lv_color_hex(t.divider), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(div, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(div, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(div, LV_OBJ_FLAG_SCROLLABLE);
+  // ── GPU Usage tile (top, column 1) ────────────────────────────────────────
+  g_macStatsUi.gpuBg = makeTileBg(tile4W, row1Y, tile4W, row1H);
+  makeMetricLabels(g_macStatsUi.gpuBg,
+                   g_macStatsUi.gpuLabel, g_macStatsUi.gpuUsageVal,
+                   "GPU", "--");
+  for (uint8_t i = 0; i < MAC_STATS_HISTORY_SIZE; ++i) {
+    lv_obj_t *bar = lv_obj_create(g_macStatsUi.gpuBg);
+    const lv_coord_t bx = 8 + (lv_coord_t)i * (MAC_STATS_SPARK_BAR_W + MAC_STATS_SPARK_GAP);
+    lv_obj_set_size(bar, MAC_STATS_SPARK_BAR_W, 2);
+    lv_obj_set_pos(bar, bx, row1H - 6 - 2);
+    lvglSetBgFlatR(bar, t.divider, 1);
+    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(bar, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+    g_macStatsUi.gpuSpark[i] = bar;
   }
-  makeSubHalf(g_macStatsUi.tempBg,
-              g_macStatsUi.cpuTempLabel, g_macStatsUi.cpuTempValue,
-              0, "CPU", "--");
-  makeSubHalf(g_macStatsUi.tempBg,
-              g_macStatsUi.gpuTempLabel, g_macStatsUi.gpuTempValue,
-              halfW, "GPU", "--");
 
-  // ── RAM tile (bottom-left) ──────────────────────────────────────────────
-  g_macStatsUi.ramBg = makeTileBg(0, row2Y);
+  // ── CPU Temp tile (top, column 2) ─────────────────────────────────────────
+  g_macStatsUi.cpuTBg = makeTileBg(tile4W * 2, row1Y, tile4W, row1H);
+  makeMetricLabels(g_macStatsUi.cpuTBg,
+                   g_macStatsUi.cpuTLabel, g_macStatsUi.cpuTempVal,
+                   "CPU", "--");
+  g_macStatsUi.cpuTempDot = lvglCreatePanel(g_macStatsUi.cpuTBg, 6, 6, 8, row1H - 16,
+      lv_color_hex(0x64B5F6), LV_RADIUS_CIRCLE);
+  g_macStatsUi.cpuTempStatus = lv_label_create(g_macStatsUi.cpuTBg);
+  lv_obj_set_style_text_font(g_macStatsUi.cpuTempStatus, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.cpuTempStatus, lv_color_hex(0x64B5F6), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.cpuTempStatus, "");
+  lv_obj_set_pos(g_macStatsUi.cpuTempStatus, 18, row1H - 18);
+
+  // ── GPU Temp tile (top, column 3) ─────────────────────────────────────────
+  g_macStatsUi.gpuTBg = makeTileBg(tile4W * 3, row1Y, tile4W, row1H);
+  makeMetricLabels(g_macStatsUi.gpuTBg,
+                   g_macStatsUi.gpuTLabel, g_macStatsUi.gpuTempVal,
+                   "GPU", "--");
+  g_macStatsUi.gpuTempDot = lvglCreatePanel(g_macStatsUi.gpuTBg, 6, 6, 8, row1H - 16,
+      lv_color_hex(0x64B5F6), LV_RADIUS_CIRCLE);
+  g_macStatsUi.gpuTempStatus = lv_label_create(g_macStatsUi.gpuTBg);
+  lv_obj_set_style_text_font(g_macStatsUi.gpuTempStatus, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.gpuTempStatus, lv_color_hex(0x64B5F6), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.gpuTempStatus, "");
+  lv_obj_set_pos(g_macStatsUi.gpuTempStatus, 18, row1H - 18);
+
+  // ── RAM tile (bottom-left 320px) ──────────────────────────────────────────
+  g_macStatsUi.ramBg = makeTileBg(0, row2Y, tile2W, row2H);
 
   g_macStatsUi.ramLabel = lv_label_create(g_macStatsUi.ramBg);
   lv_obj_set_style_text_font(g_macStatsUi.ramLabel, lvglFontTiny(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.ramLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.ramLabel, "RAM");
-  lv_obj_set_pos(g_macStatsUi.ramLabel, 8, 6);
+  lv_obj_set_pos(g_macStatsUi.ramLabel, 8, 4);
 
   g_macStatsUi.ramValue = lv_label_create(g_macStatsUi.ramBg);
-  lv_obj_set_style_text_font(g_macStatsUi.ramValue, lvglFontMeta(), 0);
+  lv_obj_set_style_text_font(g_macStatsUi.ramValue, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.ramValue, lv_color_hex(t.infoText), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.ramValue, "-- / -- GB");
-  lv_obj_set_pos(g_macStatsUi.ramValue, 8, 22);
+  lv_obj_set_pos(g_macStatsUi.ramValue, 8, 18);
 
-  // Bar track
-  g_macStatsUi.ramBar = lv_obj_create(g_macStatsUi.ramBg);
-  lv_obj_set_size(g_macStatsUi.ramBar, tileW - 16, 5);
-  lv_obj_set_pos(g_macStatsUi.ramBar, 8, 48);
-  lv_obj_set_style_bg_color(g_macStatsUi.ramBar, lv_color_hex(t.divider), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_macStatsUi.ramBar, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_macStatsUi.ramBar, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_macStatsUi.ramBar, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_macStatsUi.ramBar, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_radius(g_macStatsUi.ramBar, 2, LV_PART_MAIN);
+  g_macStatsUi.ramPct = lv_label_create(g_macStatsUi.ramBg);
+  lv_obj_set_style_text_font(g_macStatsUi.ramPct, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.ramPct, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.ramPct, "");
+  lv_obj_align(g_macStatsUi.ramPct, LV_ALIGN_TOP_RIGHT, -8, 18);
 
-  // Bar fill (child of ramBar, sized to ratio in update)
-  g_macStatsUi.ramBarFill = lv_obj_create(g_macStatsUi.ramBar);
-  lv_obj_set_size(g_macStatsUi.ramBarFill, 0, 5);
-  lv_obj_set_pos(g_macStatsUi.ramBarFill, 0, 0);
-  lv_obj_set_style_bg_color(g_macStatsUi.ramBarFill, lv_color_hex(0x5599FF), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_macStatsUi.ramBarFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_macStatsUi.ramBarFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_macStatsUi.ramBarFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_macStatsUi.ramBarFill, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_radius(g_macStatsUi.ramBarFill, 2, LV_PART_MAIN);
+  // Segmented bar for RAM (16 chunky blocks)
+  for (uint8_t i = 0; i < MAC_STATS_SEG_COUNT; ++i) {
+    lv_obj_t *seg = lv_obj_create(g_macStatsUi.ramBg);
+    const lv_coord_t sx = 8 + (lv_coord_t)i * (MAC_STATS_SEG_W + MAC_STATS_SEG_GAP);
+    lv_obj_set_size(seg, MAC_STATS_SEG_W, MAC_STATS_SEG_H);
+    lv_obj_set_pos(seg, sx, row2H - MAC_STATS_SEG_H - 8);
+    lvglSetBgFlatR(seg, t.divider, 2);
+    lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(seg, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(seg, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(seg, LV_OBJ_FLAG_SCROLLABLE);
+    g_macStatsUi.ramSegs[i] = seg;
+  }
 
-  // ── Disk tile (bottom-right) ─────────────────────────────────────────────
-  g_macStatsUi.diskBg = makeTileBg(tileW, row2Y);
+  // ── Disk tile (bottom-right 320px) ────────────────────────────────────────
+  g_macStatsUi.diskBg = makeTileBg(tile2W, row2Y, tile2W, row2H);
 
   g_macStatsUi.diskLabel = lv_label_create(g_macStatsUi.diskBg);
   lv_obj_set_style_text_font(g_macStatsUi.diskLabel, lvglFontTiny(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.diskLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.diskLabel, "DISK");
-  lv_obj_set_pos(g_macStatsUi.diskLabel, 8, 6);
+  lv_obj_set_pos(g_macStatsUi.diskLabel, 8, 4);
 
   g_macStatsUi.diskValue = lv_label_create(g_macStatsUi.diskBg);
-  lv_obj_set_style_text_font(g_macStatsUi.diskValue, lvglFontMeta(), 0);
+  lv_obj_set_style_text_font(g_macStatsUi.diskValue, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.diskValue, lv_color_hex(t.infoText), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.diskValue, "-- / -- GB");
-  lv_obj_set_pos(g_macStatsUi.diskValue, 8, 22);
+  lv_obj_set_pos(g_macStatsUi.diskValue, 8, 18);
 
-  // Bar track
-  g_macStatsUi.diskBar = lv_obj_create(g_macStatsUi.diskBg);
-  lv_obj_set_size(g_macStatsUi.diskBar, tileW - 16, 5);
-  lv_obj_set_pos(g_macStatsUi.diskBar, 8, 48);
-  lv_obj_set_style_bg_color(g_macStatsUi.diskBar, lv_color_hex(t.divider), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_macStatsUi.diskBar, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_macStatsUi.diskBar, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_macStatsUi.diskBar, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_macStatsUi.diskBar, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_radius(g_macStatsUi.diskBar, 2, LV_PART_MAIN);
+  g_macStatsUi.diskPct = lv_label_create(g_macStatsUi.diskBg);
+  lv_obj_set_style_text_font(g_macStatsUi.diskPct, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.diskPct, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.diskPct, "");
+  lv_obj_align(g_macStatsUi.diskPct, LV_ALIGN_TOP_RIGHT, -8, 18);
 
-  // Bar fill
-  g_macStatsUi.diskBarFill = lv_obj_create(g_macStatsUi.diskBar);
-  lv_obj_set_size(g_macStatsUi.diskBarFill, 0, 5);
-  lv_obj_set_pos(g_macStatsUi.diskBarFill, 0, 0);
-  lv_obj_set_style_bg_color(g_macStatsUi.diskBarFill, lv_color_hex(0x5599FF), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(g_macStatsUi.diskBarFill, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_border_width(g_macStatsUi.diskBarFill, 0, LV_PART_MAIN);
-  lv_obj_set_style_pad_all(g_macStatsUi.diskBarFill, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(g_macStatsUi.diskBarFill, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_radius(g_macStatsUi.diskBarFill, 2, LV_PART_MAIN);
+  for (uint8_t i = 0; i < MAC_STATS_SEG_COUNT; ++i) {
+    lv_obj_t *seg = lv_obj_create(g_macStatsUi.diskBg);
+    const lv_coord_t sx = 8 + (lv_coord_t)i * (MAC_STATS_SEG_W + MAC_STATS_SEG_GAP);
+    lv_obj_set_size(seg, MAC_STATS_SEG_W, MAC_STATS_SEG_H);
+    lv_obj_set_pos(seg, sx, row2H - MAC_STATS_SEG_H - 8);
+    lvglSetBgFlatR(seg, t.divider, 2);
+    lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(seg, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(seg, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(seg, LV_OBJ_FLAG_SCROLLABLE);
+    g_macStatsUi.diskSegs[i] = seg;
+  }
 
-  // No-data placeholder (shown when valid=false)
+  // ── No-data placeholder ────────────────────────────────────────────────────
   g_macStatsUi.noData = lv_label_create(root);
   lv_obj_set_style_text_font(g_macStatsUi.noData, lvglFontSmall(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.noData, lv_color_hex(t.auxMeta), LV_PART_MAIN);
@@ -15118,148 +15182,200 @@ static void lvglUpdateMacStatsUi(bool force) {
   const MacStatsState &s = g_macStats;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
 
-  // Show/hide no-data vs tiles
+  // ── Show / hide tiles vs no-data placeholder ─────────────────────────────
   const bool hasData = s.valid;
-  if (g_macStatsUi.noData) {
-    if (hasData) lv_obj_add_flag(g_macStatsUi.noData, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_clear_flag(g_macStatsUi.noData, LV_OBJ_FLAG_HIDDEN);
-  }
-  const lv_obj_flag_t tileVis = hasData ? LV_OBJ_FLAG_HIDDEN : (lv_obj_flag_t)0;
-  // (invert: hidden when no data)
-  auto setTileVisible = [](lv_obj_t *obj, bool show) {
+  auto setVis = [](lv_obj_t *obj, bool show) {
     if (!obj) return;
     if (show) lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
     else      lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
   };
-  setTileVisible(g_macStatsUi.usageBg, hasData);
-  setTileVisible(g_macStatsUi.tempBg,  hasData);
-  setTileVisible(g_macStatsUi.ramBg,   hasData);
-  setTileVisible(g_macStatsUi.diskBg,  hasData);
-  (void)tileVis;
+  setVis(g_macStatsUi.noData,   !hasData);
+  setVis(g_macStatsUi.cpuBg,    hasData);
+  setVis(g_macStatsUi.gpuBg,    hasData);
+  setVis(g_macStatsUi.cpuTBg,   hasData);
+  setVis(g_macStatsUi.gpuTBg,   hasData);
+  setVis(g_macStatsUi.ramBg,    hasData);
+  setVis(g_macStatsUi.diskBg,   hasData);
 
-  // ── Status semaphore (runs even when !hasData) ────────────────────────────
+  // ── Status semaphore ──────────────────────────────────────────────────────
   {
     const uint32_t nowMs = millis();
     const uint32_t ageMs = (s.valid && nowMs >= s.receivedAtMs)
-        ? (nowMs - s.receivedAtMs) : 0;
+        ? (nowMs - s.receivedAtMs) : 0u;
     const bool isLive = s.valid && ageMs <= MAC_STATS_SYNC_TTL_MS;
-    if (g_macStatsUi.statusDot) {
+    if (g_macStatsUi.statusDot)
       lv_obj_set_style_bg_color(g_macStatsUi.statusDot,
-          lv_color_hex(s.valid ? (isLive ? 0x7CFF9D : 0xFFC857) : 0x444444),
-          LV_PART_MAIN);
-    }
+          lv_color_hex(s.valid ? (isLive ? 0x7CFF9D : 0xFFC857) : 0x444444), LV_PART_MAIN);
     if (g_macStatsUi.statusLabel) {
       if (!s.valid) {
         lv_label_set_text(g_macStatsUi.statusLabel, "--");
-        lv_obj_set_style_text_color(g_macStatsUi.statusLabel,
-            lv_color_hex(t.auxMeta), LV_PART_MAIN);
+        lv_obj_set_style_text_color(g_macStatsUi.statusLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
       } else if (isLive) {
         lv_label_set_text(g_macStatsUi.statusLabel, "LIVE");
-        lv_obj_set_style_text_color(g_macStatsUi.statusLabel,
-            lv_color_hex(0xB8F7D4), LV_PART_MAIN);
+        lv_obj_set_style_text_color(g_macStatsUi.statusLabel, lv_color_hex(0xB8F7D4), LV_PART_MAIN);
       } else {
         char ageBuf[16];
-        const uint32_t ageSec = ageMs / 1000;
-        if (ageSec < 60) snprintf(ageBuf, sizeof(ageBuf), "%us ago", (unsigned)ageSec);
-        else             snprintf(ageBuf, sizeof(ageBuf), "%um ago", (unsigned)(ageSec/60));
+        const uint32_t ageSec = ageMs / 1000u;
+        if (ageSec < 60u) snprintf(ageBuf, sizeof(ageBuf), "%us ago", (unsigned)ageSec);
+        else              snprintf(ageBuf, sizeof(ageBuf), "%um ago", (unsigned)(ageSec/60u));
         lv_label_set_text(g_macStatsUi.statusLabel, ageBuf);
-        lv_obj_set_style_text_color(g_macStatsUi.statusLabel,
-            lv_color_hex(0xFFE0A0), LV_PART_MAIN);
+        lv_obj_set_style_text_color(g_macStatsUi.statusLabel, lv_color_hex(0xFFE0A0), LV_PART_MAIN);
       }
     }
   }
 
   if (!hasData) return;
 
-  // ── CPU usage ────────────────────────────────────────────────────────────
-  if (g_macStatsUi.cpuUsageValue) {
+  // ── CPU usage big value + color-code ─────────────────────────────────────
+  auto usageTone = [](float pct) -> uint32_t {
+    if (pct >= 80.0f) return 0xFF5252u;
+    if (pct >= 60.0f) return 0xFFB74Du;
+    return 0u;  // 0 = use theme default
+  };
+  if (g_macStatsUi.cpuUsageVal) {
     char buf[8];
     if (s.hasCpuUsage) snprintf(buf, sizeof(buf), "%.0f%%", s.cpuUsagePct);
     else copyStringSafe(buf, sizeof(buf), "N/A");
-    lv_label_set_text(g_macStatsUi.cpuUsageValue, buf);
-    // Color-code: >80% red, >60% amber, else normal
-    uint32_t col = t.infoText;
-    if (s.hasCpuUsage) {
-      if (s.cpuUsagePct >= 80.0f)      col = 0xFF5252;
-      else if (s.cpuUsagePct >= 60.0f) col = 0xFFB74D;
-    }
-    lv_obj_set_style_text_color(g_macStatsUi.cpuUsageValue, lv_color_hex(col), LV_PART_MAIN);
+    lv_label_set_text(g_macStatsUi.cpuUsageVal, buf);
+    const uint32_t c = s.hasCpuUsage ? usageTone(s.cpuUsagePct) : 0u;
+    lv_obj_set_style_text_color(g_macStatsUi.cpuUsageVal,
+        lv_color_hex(c ? c : t.infoText), LV_PART_MAIN);
   }
 
-  // ── GPU usage ────────────────────────────────────────────────────────────
-  if (g_macStatsUi.gpuUsageValue) {
+  // ── GPU usage ─────────────────────────────────────────────────────────────
+  if (g_macStatsUi.gpuUsageVal) {
     char buf[8];
     if (s.hasGpuUsage) snprintf(buf, sizeof(buf), "%.0f%%", s.gpuUsagePct);
     else copyStringSafe(buf, sizeof(buf), "N/A");
-    lv_label_set_text(g_macStatsUi.gpuUsageValue, buf);
-    uint32_t col = t.infoText;
-    if (s.hasGpuUsage) {
-      if (s.gpuUsagePct >= 80.0f)      col = 0xFF5252;
-      else if (s.gpuUsagePct >= 60.0f) col = 0xFFB74D;
-    }
-    lv_obj_set_style_text_color(g_macStatsUi.gpuUsageValue, lv_color_hex(col), LV_PART_MAIN);
+    lv_label_set_text(g_macStatsUi.gpuUsageVal, buf);
+    const uint32_t c = s.hasGpuUsage ? usageTone(s.gpuUsagePct) : 0u;
+    lv_obj_set_style_text_color(g_macStatsUi.gpuUsageVal,
+        lv_color_hex(c ? c : t.infoText), LV_PART_MAIN);
   }
 
-  // ── CPU temperature ──────────────────────────────────────────────────────
-  if (g_macStatsUi.cpuTempValue) {
+  // ── CPU/GPU sparklines ────────────────────────────────────────────────────
+  // Draw bars bottom-anchored: tallest = MAC_STATS_SPARK_MAXH, shortest = 2
+  // row1H = (cH - hdrH) / 2 = (172-24)/2 = 74;  sparkBottom = row1H - 6 = 68
+  const lv_coord_t sparkBottom = (canvasHeight() - 24) / 2 - 6;  // = 68
+  for (uint8_t i = 0; i < MAC_STATS_HISTORY_SIZE; ++i) {
+    // Map history slot: oldest bar at left, newest at right (circular buffer)
+    const uint8_t histSlot = (g_statsHistCount < MAC_STATS_HISTORY_SIZE)
+        ? i
+        : (uint8_t)((g_statsHistHead + i) % MAC_STATS_HISTORY_SIZE);
+    const bool hasSample = (i < g_statsHistCount);
+
+    const lv_coord_t bx = 8 + (lv_coord_t)i * (MAC_STATS_SPARK_BAR_W + MAC_STATS_SPARK_GAP);
+
+    // CPU bar
+    if (g_macStatsUi.cpuSpark[i]) {
+      const uint8_t val = hasSample ? g_cpuUsageHistory[histSlot] : 0u;
+      const lv_coord_t bh = hasSample ? (lv_coord_t)(2 + (MAC_STATS_SPARK_MAXH - 2) * val / 100u) : 2;
+      const lv_coord_t by = sparkBottom - bh;
+      const uint32_t col = (val >= 80u) ? 0xFF5252u : (val >= 60u) ? 0xFFB74Du : 0x5599FFu;
+      lv_obj_set_size(g_macStatsUi.cpuSpark[i], MAC_STATS_SPARK_BAR_W, bh);
+      lv_obj_set_pos(g_macStatsUi.cpuSpark[i], bx, by);
+      lv_obj_set_style_bg_color(g_macStatsUi.cpuSpark[i],
+          lv_color_hex(hasSample ? col : t.divider), LV_PART_MAIN);
+    }
+    // GPU bar
+    if (g_macStatsUi.gpuSpark[i]) {
+      const uint8_t val = hasSample ? g_gpuUsageHistory[histSlot] : 0u;
+      const lv_coord_t bh = hasSample ? (lv_coord_t)(2 + (MAC_STATS_SPARK_MAXH - 2) * val / 100u) : 2;
+      const lv_coord_t by = sparkBottom - bh;
+      const uint32_t col = (val >= 80u) ? 0xFF5252u : (val >= 60u) ? 0xFFB74Du : 0x55CC88u;
+      lv_obj_set_size(g_macStatsUi.gpuSpark[i], MAC_STATS_SPARK_BAR_W, bh);
+      lv_obj_set_pos(g_macStatsUi.gpuSpark[i], bx, by);
+      lv_obj_set_style_bg_color(g_macStatsUi.gpuSpark[i],
+          lv_color_hex(hasSample ? col : t.divider), LV_PART_MAIN);
+    }
+  }
+
+  // ── Temperature tiles: value + status dot/label ───────────────────────────
+  auto tempColor = [](float c, bool has) -> uint32_t {
+    if (!has)          return 0x666666u;
+    if (c >= 85.0f)    return 0xFF5252u;
+    if (c >= 70.0f)    return 0xFFB74Du;
+    return 0x64B5F6u;
+  };
+  auto tempLabel = [](float c, bool has) -> const char* {
+    if (!has)          return "";
+    if (c >= 85.0f)    return "Hot";
+    if (c >= 70.0f)    return "Warm";
+    return "Good";
+  };
+
+  if (g_macStatsUi.cpuTempVal) {
     char buf[12];
     if (s.hasCpuTemp) snprintf(buf, sizeof(buf), "%.0f\xC2\xB0""C", s.cpuTempC);
-    else copyStringSafe(buf, sizeof(buf), "N/A");
-    lv_label_set_text(g_macStatsUi.cpuTempValue, buf);
-    uint32_t col = t.infoText;
-    if (s.hasCpuTemp) {
-      if (s.cpuTempC >= 85.0f)      col = 0xFF5252;
-      else if (s.cpuTempC >= 70.0f) col = 0xFFB74D;
+    else copyStringSafe(buf, sizeof(buf), "--");
+    lv_label_set_text(g_macStatsUi.cpuTempVal, buf);
+    const uint32_t tc = tempColor(s.cpuTempC, s.hasCpuTemp);
+    lv_obj_set_style_text_color(g_macStatsUi.cpuTempVal, lv_color_hex(tc), LV_PART_MAIN);
+    if (g_macStatsUi.cpuTempDot)
+      lv_obj_set_style_bg_color(g_macStatsUi.cpuTempDot, lv_color_hex(tc), LV_PART_MAIN);
+    if (g_macStatsUi.cpuTempStatus) {
+      lv_label_set_text(g_macStatsUi.cpuTempStatus, tempLabel(s.cpuTempC, s.hasCpuTemp));
+      lv_obj_set_style_text_color(g_macStatsUi.cpuTempStatus, lv_color_hex(tc), LV_PART_MAIN);
     }
-    lv_obj_set_style_text_color(g_macStatsUi.cpuTempValue, lv_color_hex(col), LV_PART_MAIN);
   }
-
-  // ── GPU temperature ──────────────────────────────────────────────────────
-  if (g_macStatsUi.gpuTempValue) {
+  if (g_macStatsUi.gpuTempVal) {
     char buf[12];
     if (s.hasGpuTemp) snprintf(buf, sizeof(buf), "%.0f\xC2\xB0""C", s.gpuTempC);
-    else copyStringSafe(buf, sizeof(buf), "N/A");
-    lv_label_set_text(g_macStatsUi.gpuTempValue, buf);
-    uint32_t col = t.infoText;
-    if (s.hasGpuTemp) {
-      if (s.gpuTempC >= 85.0f)      col = 0xFF5252;
-      else if (s.gpuTempC >= 70.0f) col = 0xFFB74D;
+    else copyStringSafe(buf, sizeof(buf), "--");
+    lv_label_set_text(g_macStatsUi.gpuTempVal, buf);
+    const uint32_t tc = tempColor(s.gpuTempC, s.hasGpuTemp);
+    lv_obj_set_style_text_color(g_macStatsUi.gpuTempVal, lv_color_hex(tc), LV_PART_MAIN);
+    if (g_macStatsUi.gpuTempDot)
+      lv_obj_set_style_bg_color(g_macStatsUi.gpuTempDot, lv_color_hex(tc), LV_PART_MAIN);
+    if (g_macStatsUi.gpuTempStatus) {
+      lv_label_set_text(g_macStatsUi.gpuTempStatus, tempLabel(s.gpuTempC, s.hasGpuTemp));
+      lv_obj_set_style_text_color(g_macStatsUi.gpuTempStatus, lv_color_hex(tc), LV_PART_MAIN);
     }
-    lv_obj_set_style_text_color(g_macStatsUi.gpuTempValue, lv_color_hex(col), LV_PART_MAIN);
   }
 
-  // ── RAM ──────────────────────────────────────────────────────────────────
+  // ── RAM segmented bar + percentage ────────────────────────────────────────
+  const float ramRatio = (s.ramTotalGB > 0.0f)
+      ? fminf(s.ramUsedGB / s.ramTotalGB, 1.0f) : 0.0f;
   if (g_macStatsUi.ramValue) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%.1f / %.0f GB", s.ramUsedGB, s.ramTotalGB);
     lv_label_set_text(g_macStatsUi.ramValue, buf);
   }
-  if (g_macStatsUi.ramBar && g_macStatsUi.ramBarFill) {
-    const lv_coord_t barW = lv_obj_get_width(g_macStatsUi.ramBar);
-    const float ratio = (s.ramTotalGB > 0.0f)
-        ? fminf(s.ramUsedGB / s.ramTotalGB, 1.0f) : 0.0f;
-    lv_obj_set_width(g_macStatsUi.ramBarFill, (lv_coord_t)(barW * ratio));
+  if (g_macStatsUi.ramPct) {
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%.0f%%", ramRatio * 100.0f);
+    lv_label_set_text(g_macStatsUi.ramPct, buf);
+  }
+  for (uint8_t i = 0; i < MAC_STATS_SEG_COUNT; ++i) {
+    if (!g_macStatsUi.ramSegs[i]) continue;
+    const float thresh = (float)i / MAC_STATS_SEG_COUNT;
+    const bool filled = (ramRatio > thresh);
+    lv_obj_set_style_bg_color(g_macStatsUi.ramSegs[i],
+        lv_color_hex(filled ? 0x5599FFu : t.divider), LV_PART_MAIN);
   }
 
-  // ── Disk ─────────────────────────────────────────────────────────────────
+  // ── Disk segmented bar + percentage ───────────────────────────────────────
+  const float diskRatio = (s.diskTotalGB > 0.0f)
+      ? fminf(s.diskUsedGB / s.diskTotalGB, 1.0f) : 0.0f;
   if (g_macStatsUi.diskValue) {
     char buf[32];
-    if (s.diskTotalGB >= 1000.0f)
-      snprintf(buf, sizeof(buf), "%.0f / %.0f GB", s.diskUsedGB, s.diskTotalGB);
-    else
-      snprintf(buf, sizeof(buf), "%.0f / %.0f GB", s.diskUsedGB, s.diskTotalGB);
+    snprintf(buf, sizeof(buf), "%.0f / %.0f GB", s.diskUsedGB, s.diskTotalGB);
     lv_label_set_text(g_macStatsUi.diskValue, buf);
   }
-  if (g_macStatsUi.diskBar && g_macStatsUi.diskBarFill) {
-    const lv_coord_t barW = lv_obj_get_width(g_macStatsUi.diskBar);
-    const float ratio = (s.diskTotalGB > 0.0f)
-        ? fminf(s.diskUsedGB / s.diskTotalGB, 1.0f) : 0.0f;
-    // Color: >90% red, >75% amber, else accent
-    uint32_t fillCol = 0x5599FF;
-    if (ratio >= 0.90f)      fillCol = 0xFF5252;
-    else if (ratio >= 0.75f) fillCol = 0xFFB74D;
-    lv_obj_set_style_bg_color(g_macStatsUi.diskBarFill, lv_color_hex(fillCol), LV_PART_MAIN);
-    lv_obj_set_width(g_macStatsUi.diskBarFill, (lv_coord_t)(barW * ratio));
+  if (g_macStatsUi.diskPct) {
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%.0f%%", diskRatio * 100.0f);
+    lv_label_set_text(g_macStatsUi.diskPct, buf);
+  }
+  const uint32_t diskFillCol = (diskRatio >= 0.90f) ? 0xFF5252u
+                             : (diskRatio >= 0.75f) ? 0xFFB74Du
+                             : 0x55CC88u;  // green for disk
+  for (uint8_t i = 0; i < MAC_STATS_SEG_COUNT; ++i) {
+    if (!g_macStatsUi.diskSegs[i]) continue;
+    const float thresh = (float)i / MAC_STATS_SEG_COUNT;
+    const bool filled = (diskRatio > thresh);
+    lv_obj_set_style_bg_color(g_macStatsUi.diskSegs[i],
+        lv_color_hex(filled ? diskFillCol : t.divider), LV_PART_MAIN);
   }
 }
 
