@@ -1,6 +1,19 @@
 ---
 const releases = [
   {
+    version: 'v0.7.0',
+    tag: 'r274',
+    date: '2026-04-22',
+    headline: 'Mac Stats page, Companion v0.2.1, landing redesign',
+    items: [
+      { label: 'New', text: 'Mac Stats page — live CPU/GPU usage and temperature, RAM and disk bars, pushed from the companion app over LAN. Sparkline history, chunky segmented bars, color-coded Good/Warm/Hot status.' },
+      { label: 'New', text: 'ScryBar Companion v0.2.1 with a synthwave app icon, Mac Stats section in the menu-bar popover, and macmon integration for Apple Silicon CPU/GPU temperatures (no sudo).' },
+      { label: 'New', text: 'Landing page Companion section redesigned: cinematic icon hero, faux-macOS popover window, four-step first-launch flow, Terminal shortcut for skipping Gatekeeper.' },
+      { label: 'Fix', text: 'Curly quotes, em-dashes, and ellipsis in podcast and RSS titles no longer render as tofu squares — sanitized to ASCII before LVGL display.' },
+      { label: 'Fix', text: 'Mac Stats sparklines and progress bars were invisible at boot (LVGL bg_opa default). Contrast tuned across all seven themes — LIVE label and track segments always legible.' },
+    ],
+  },
+  {
     version: 'v0.6.0',
     tag: 'r262',
     date: '2026-04-21',
@@ -24,6 +37,8 @@ const releases = [
     ],
   },
 ];
+
+const [latest, ...older] = releases;
 ---
 <section id="changelog">
   <div class="container">
@@ -34,31 +49,69 @@ const releases = [
     </p>
 
     <div class="releases">
-      {releases.map((r, idx) => (
-        <article class={`vm-card release ${idx === 0 ? 'release--latest' : ''}`}>
-          <header class="release__head">
-            <div class="release__title">
-              <h3>{r.version}</h3>
-              {idx === 0 && (
-                <span class="vm-badge vm-badge--success">latest</span>
-              )}
-              <span class="release__tag">{r.tag}</span>
-            </div>
-            <time class="release__date" datetime={r.date}>{r.date}</time>
-          </header>
-          <p class="release__headline">{r.headline}</p>
-          <ul class="release__items">
-            {r.items.map((item) => (
-              <li>
-                <span class={`release__label release__label--${item.label.toLowerCase()}`}>
-                  {item.label}
-                </span>
-                <span class="release__text">{item.text}</span>
-              </li>
+      <article class="vm-card release release--latest">
+        <header class="release__head">
+          <div class="release__title">
+            <h3>{latest.version}</h3>
+            <span class="vm-badge vm-badge--success">latest</span>
+            <span class="release__tag">{latest.tag}</span>
+          </div>
+          <time class="release__date" datetime={latest.date}>{latest.date}</time>
+        </header>
+        <p class="release__headline">{latest.headline}</p>
+        <ul class="release__items">
+          {latest.items.map((item) => (
+            <li>
+              <span class={`release__label release__label--${item.label.toLowerCase()}`}>
+                {item.label}
+              </span>
+              <span class="release__text">{item.text}</span>
+            </li>
+          ))}
+        </ul>
+      </article>
+
+      {older.length > 0 && (
+        <details class="releases__older">
+          <summary class="releases__toggle">
+            <span class="releases__toggle-label">
+              Show {older.length} previous release{older.length === 1 ? '' : 's'}
+            </span>
+            <span class="releases__toggle-versions">
+              {older.map((r, i) => (
+                <span>{i > 0 ? ' · ' : ''}{r.version}</span>
+              ))}
+            </span>
+            <svg class="releases__toggle-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </summary>
+          <div class="releases__older-list">
+            {older.map((r) => (
+              <article class="vm-card release">
+                <header class="release__head">
+                  <div class="release__title">
+                    <h3>{r.version}</h3>
+                    <span class="release__tag">{r.tag}</span>
+                  </div>
+                  <time class="release__date" datetime={r.date}>{r.date}</time>
+                </header>
+                <p class="release__headline">{r.headline}</p>
+                <ul class="release__items">
+                  {r.items.map((item) => (
+                    <li>
+                      <span class={`release__label release__label--${item.label.toLowerCase()}`}>
+                        {item.label}
+                      </span>
+                      <span class="release__text">{item.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
             ))}
-          </ul>
-        </article>
-      ))}
+          </div>
+        </details>
+      )}
     </div>
   </div>
 </section>
@@ -158,6 +211,65 @@ const releases = [
   .release__text {
     color: var(--text-primary);
   }
+
+  /* ── Collapsible older releases ───────────────────────────────────── */
+  .releases__older {
+    display: block;
+  }
+  .releases__older[open] .releases__toggle-chevron {
+    transform: rotate(180deg);
+  }
+  .releases__toggle {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border: 1px dashed var(--stroke-soft);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  }
+  .releases__toggle:hover {
+    border-color: rgba(var(--accent-primary-rgb), 0.5);
+    background: rgba(var(--accent-primary-rgb), 0.04);
+    color: var(--text-primary);
+  }
+  .releases__toggle::-webkit-details-marker { display: none; }
+  .releases__toggle::marker { content: ''; }
+  .releases__toggle-label {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .releases__toggle-versions {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 12px;
+    color: var(--text-tertiary);
+    padding-left: 10px;
+    border-left: 1px solid var(--stroke-soft);
+    flex: 1;
+  }
+  .releases__toggle-chevron {
+    color: var(--text-tertiary);
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+  }
+  .releases__older-list {
+    display: grid;
+    gap: 18px;
+    margin-top: 14px;
+    animation: releasesReveal 0.32s ease-out;
+  }
+  @keyframes releasesReveal {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
   @media (max-width: 640px) {
     .release__items li {
       grid-template-columns: 1fr;
@@ -165,6 +277,14 @@ const releases = [
     }
     .release__label {
       justify-self: start;
+    }
+    .releases__toggle {
+      flex-wrap: wrap;
+    }
+    .releases__toggle-versions {
+      padding-left: 0;
+      border-left: 0;
+      flex-basis: 100%;
     }
   }
 </style>
