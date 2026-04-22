@@ -14951,14 +14951,6 @@ static void lvglInitMacStatsUi() {
   makeSubHalf(g_macStatsUi.usageBg,
               g_macStatsUi.gpuUsageLabel, g_macStatsUi.gpuUsageValue,
               halfW, "GPU", "--");
-  // "usage" sub-label centred at bottom
-  {
-    lv_obj_t *sub = lv_label_create(g_macStatsUi.usageBg);
-    lv_obj_set_style_text_font(sub, lvglFontTiny(), 0);
-    lv_obj_set_style_text_color(sub, lv_color_hex(t.auxMeta), LV_PART_MAIN);
-    lv_label_set_text(sub, "usage");
-    lv_obj_align(sub, LV_ALIGN_BOTTOM_MID, 0, -5);
-  }
 
   // ── TEMP tile (top-right): CPU°C | GPU°C ────────────────────────────────
   g_macStatsUi.tempBg = makeTileBg(tileW, row1Y);
@@ -14977,13 +14969,6 @@ static void lvglInitMacStatsUi() {
   makeSubHalf(g_macStatsUi.tempBg,
               g_macStatsUi.gpuTempLabel, g_macStatsUi.gpuTempValue,
               halfW, "GPU", "--");
-  {
-    lv_obj_t *sub = lv_label_create(g_macStatsUi.tempBg);
-    lv_obj_set_style_text_font(sub, lvglFontTiny(), 0);
-    lv_obj_set_style_text_color(sub, lv_color_hex(t.auxMeta), LV_PART_MAIN);
-    lv_label_set_text(sub, "temperature");
-    lv_obj_align(sub, LV_ALIGN_BOTTOM_MID, 0, -5);
-  }
 
   // ── RAM tile (bottom-left) ──────────────────────────────────────────────
   g_macStatsUi.ramBg = makeTileBg(0, row2Y);
