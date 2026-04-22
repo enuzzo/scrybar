@@ -3,13 +3,15 @@ import Foundation
 // MARK: - Mac Stats
 
 struct MacStatsPayload: Codable {
-    var cpuTempC: Float?
-    var gpuTempC: Float?
-    var ramUsedGB: Float
-    var ramTotalGB: Float
-    var diskUsedGB: Float
+    var cpuTempC:    Float?   // nil = not available on this hardware
+    var gpuTempC:    Float?
+    var cpuUsagePct: Float?   // 0–100, delta between consecutive host_processor_info polls
+    var gpuUsagePct: Float?   // 0–100, from IOAccelerator PerformanceStatistics
+    var ramUsedGB:   Float
+    var ramTotalGB:  Float
+    var diskUsedGB:  Float
     var diskTotalGB: Float
-    var updatedAt: Date
+    var updatedAt:   Date
 }
 
 // MARK: -

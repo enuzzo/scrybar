@@ -6,27 +6,126 @@ import IOKit
 /// Samples macOS system statistics and returns a MacStatsPayload.
 /// - RAM: via host_statistics64 (vm_statistics64_data_t)
 /// - Disk: via FileManager.attributesOfFileSystem
+/// - CPU usage: via host_processor_info (PROCESSOR_CPU_LOAD_INFO) delta between polls
+/// - GPU usage: via IOKit IOAccelerator PerformanceStatistics ("Device Utilization %")
 /// - CPU/GPU temp: via IOKit SMC (Intel + Apple Silicon best-effort; returns nil if key absent)
 final class MacStatsProvider: @unchecked Sendable {
 
     private let smcReader = SMCReader.open()  // nil on unsupported hardware
 
+    /// Previous CPU tick snapshot for delta-based usage calculation.
+    private var lastCPUTicks: [(user: UInt32, sys: UInt32, idle: UInt32, nice: UInt32)] = []
+
     func snapshot() -> MacStatsPayload {
-        let ram  = sampleRAM()
-        let disk = sampleDisk()
+        let ram      = sampleRAM()
+        let disk     = sampleDisk()
+        let cpuUsage = sampleCPUUsage()
+        let gpuUsage = sampleGPUUsage()
         // Apple Silicon first (M-series), then Intel fallbacks
-        let cpu  = smcReader.flatMap { $0.readTemp(keys: ["Tp01", "Tp05", "Tp0D", "Tp0b", "Tp09", "Tp0P", "TC0P", "TC0D", "TC0E"]) }
-        let gpu  = smcReader.flatMap { $0.readTemp(keys: ["Tg05", "Tg0T", "Tg0b", "Tg0d", "Tg0f", "TGDD", "TG0D", "TGOP"]) }
+        let cpuTemp  = smcReader.flatMap { $0.readTemp(keys: ["Tp01", "Tp05", "Tp0D", "Tp0b", "Tp09", "Tp0P", "TC0P", "TC0D", "TC0E"]) }
+        let gpuTemp  = smcReader.flatMap { $0.readTemp(keys: ["Tg05", "Tg0T", "Tg0b", "Tg0d", "Tg0f", "TGDD", "TG0D", "TGOP"]) }
 
         return MacStatsPayload(
-            cpuTempC:   cpu,
-            gpuTempC:   gpu,
-            ramUsedGB:  ram.usedGB,
-            ramTotalGB: ram.totalGB,
-            diskUsedGB: disk.usedGB,
+            cpuTempC:    cpuTemp,
+            gpuTempC:    gpuTemp,
+            cpuUsagePct: cpuUsage,
+            gpuUsagePct: gpuUsage,
+            ramUsedGB:   ram.usedGB,
+            ramTotalGB:  ram.totalGB,
+            diskUsedGB:  disk.usedGB,
             diskTotalGB: disk.totalGB,
-            updatedAt: Date()
+            updatedAt:   Date()
         )
+    }
+
+    // MARK: CPU Usage
+
+    /// Returns overall CPU usage in % (0–100) using tick deltas from `host_processor_info`.
+    /// Returns nil on the very first call (no previous baseline yet).
+    private func sampleCPUUsage() -> Float? {
+        var cpuInfoArray: processor_info_array_t?
+        var cpuInfoCount: mach_msg_type_number_t = 0
+        var numCPUs: natural_t = 0
+
+        let kr = host_processor_info(mach_host_self(),
+                                     PROCESSOR_CPU_LOAD_INFO,
+                                     &numCPUs,
+                                     &cpuInfoArray,
+                                     &cpuInfoCount)
+        guard kr == KERN_SUCCESS, let info = cpuInfoArray, numCPUs > 0 else { return nil }
+        defer {
+            let size = vm_size_t(Int(cpuInfoCount) * MemoryLayout<integer_t>.size)
+            vm_deallocate(mach_task_self_, vm_address_t(bitPattern: info), size)
+        }
+
+        let stride = Int(CPU_STATE_MAX)
+        var current: [(user: UInt32, sys: UInt32, idle: UInt32, nice: UInt32)] = []
+        for i in 0..<Int(numCPUs) {
+            let base = i * stride
+            let u = UInt32(bitPattern: info[base + Int(CPU_STATE_USER)])
+            let s = UInt32(bitPattern: info[base + Int(CPU_STATE_SYSTEM)])
+            let d = UInt32(bitPattern: info[base + Int(CPU_STATE_IDLE)])
+            let n = UInt32(bitPattern: info[base + Int(CPU_STATE_NICE)])
+            current.append((u, s, d, n))
+        }
+
+        guard !lastCPUTicks.isEmpty, lastCPUTicks.count == current.count else {
+            lastCPUTicks = current
+            return nil
+        }
+
+        var totalActive: UInt64 = 0
+        var totalAll:    UInt64 = 0
+        for i in 0..<current.count {
+            let dUser = UInt64(current[i].user &- lastCPUTicks[i].user)
+            let dSys  = UInt64(current[i].sys  &- lastCPUTicks[i].sys)
+            let dIdle = UInt64(current[i].idle &- lastCPUTicks[i].idle)
+            let dNice = UInt64(current[i].nice &- lastCPUTicks[i].nice)
+            let active = dUser + dSys + dNice
+            totalActive += active
+            totalAll    += active + dIdle
+        }
+        lastCPUTicks = current
+        guard totalAll > 0 else { return nil }
+        return Float(totalActive) / Float(totalAll) * 100.0
+    }
+
+    // MARK: GPU Usage
+
+    /// Returns GPU utilisation % via IOAccelerator PerformanceStatistics.
+    /// Works on Apple Silicon and Intel Macs without entitlements.
+    private func sampleGPUUsage() -> Float? {
+        var iter: io_iterator_t = IO_OBJECT_NULL
+        let kr = IOServiceGetMatchingServices(kIOMainPortDefault,
+                                              IOServiceMatching("IOAccelerator"),
+                                              &iter)
+        guard kr == KERN_SUCCESS else { return nil }
+        defer { IOObjectRelease(iter) }
+
+        var best: Float? = nil
+        var service = IOIteratorNext(iter)
+        while service != IO_OBJECT_NULL {
+            defer { IOObjectRelease(service) }
+            var props: Unmanaged<CFMutableDictionary>?
+            if IORegistryEntryCreateCFProperties(service, &props, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+               let dict = props?.takeRetainedValue() as? [String: Any],
+               let perfStats = dict["PerformanceStatistics"] as? [String: Any] {
+                // "Device Utilization %" is the primary key; some older drivers use "GPU Activity(%)"
+                let val: Float?
+                if let v = perfStats["Device Utilization %"] as? NSNumber {
+                    val = v.floatValue
+                } else if let v = perfStats["GPU Activity(%)"] as? NSNumber {
+                    val = v.floatValue
+                } else {
+                    val = nil
+                }
+                if let v = val {
+                    best = max(best ?? 0, v)
+                }
+            }
+            service = IOIteratorNext(iter)
+        }
+        return best
     }
 
     // MARK: RAM
