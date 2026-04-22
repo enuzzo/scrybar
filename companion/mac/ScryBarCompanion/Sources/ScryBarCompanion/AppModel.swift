@@ -16,6 +16,11 @@ final class AppModel: ObservableObject {
     }()
     @Published var showSettingsOnOpen = false
     @Published var lastSendStatus = "Idle"
+    @Published var latestMacStats: MacStatsPayload? = nil
+    let macmonAvailable: Bool = {
+        FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/macmon") ||
+        FileManager.default.isExecutableFile(atPath: "/usr/local/bin/macmon")
+    }()
 
     private let discovery = ScryBarDiscovery()
     private let client = ScryBarClient()
@@ -150,6 +155,9 @@ final class AppModel: ObservableObject {
                 let payload: MacStatsPayload = await Task.detached(priority: .background) {
                     self.macStatsProvider.snapshot()
                 }.value
+
+                // Store locally for popover display
+                await MainActor.run { self.latestMacStats = payload }
 
                 if self.autoSendEnabled, !self.macStatsSendInFlight,
                    let endpoint = self.selectedEndpoint {

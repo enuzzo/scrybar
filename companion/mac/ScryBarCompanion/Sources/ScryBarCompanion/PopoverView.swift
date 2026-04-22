@@ -121,6 +121,14 @@ struct NowPlayingPopoverView: View {
 
                 Spacer()
             }
+
+            // ── Mac Stats section ─────────────────────────────────────────
+            Divider()
+                .background(CompanionTheme.dividerStrong)
+                .padding(.vertical, 2)
+
+            MacStatsPopoverSection()
+                .environmentObject(model)
         }
         .padding(12)
         .frame(width: 300)
@@ -214,6 +222,7 @@ struct ArtworkView: View {
             return NSImage(contentsOf: url)
         }
 
+
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
             return nil
         }
@@ -224,5 +233,194 @@ struct ArtworkView: View {
         } catch {
             return nil
         }
+    }
+}
+
+// MARK: - Mac Stats popover section
+
+struct MacStatsPopoverSection: View {
+    @EnvironmentObject var model: AppModel
+
+    private var stats: MacStatsPayload? { model.latestMacStats }
+    private var isStale: Bool {
+        guard let s = stats else { return true }
+        return Date().timeIntervalSince(s.updatedAt) > 15
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+
+            // Header row
+            HStack {
+                Text("MAC STATS")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(CompanionTheme.textTertiary)
+                    .tracking(0.8)
+                Spacer()
+                if stats != nil {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(isStale ? CompanionTheme.warning : CompanionTheme.success)
+                            .frame(width: 5, height: 5)
+                        Text(isStale ? "Stale" : "Live")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(isStale ? CompanionTheme.warning : CompanionTheme.success)
+                    }
+                }
+            }
+
+            if let s = stats {
+                // ── Usage + Temp: 2×2 compact grid ──────────────────────
+                HStack(spacing: 8) {
+                    MacStatCell(
+                        label: "CPU",
+                        primary: s.cpuUsagePct.map { String(format: "%.0f%%", $0) } ?? "—",
+                        secondary: s.cpuTempC.map   { tempString($0) },
+                        primaryTone: s.cpuUsagePct.map { usageTone($0) } ?? .neutral,
+                        secondaryTone: s.cpuTempC.map  { tempTone($0)  } ?? .neutral
+                    )
+                    Rectangle()
+                        .fill(CompanionTheme.divider)
+                        .frame(width: 1)
+                    MacStatCell(
+                        label: "GPU",
+                        primary: s.gpuUsagePct.map { String(format: "%.0f%%", $0) } ?? "—",
+                        secondary: s.gpuTempC.map   { tempString($0) },
+                        primaryTone: s.gpuUsagePct.map { usageTone($0) } ?? .neutral,
+                        secondaryTone: s.gpuTempC.map  { tempTone($0)  } ?? .neutral
+                    )
+                }
+                .frame(maxWidth: .infinity)
+
+                // ── RAM bar ──────────────────────────────────────────────
+                MacStatBar(
+                    label: "RAM",
+                    used: s.ramUsedGB, total: s.ramTotalGB,
+                    unit: "GB", tone: .accent
+                )
+
+                // ── Disk bar ─────────────────────────────────────────────
+                MacStatBar(
+                    label: "DISK",
+                    used: s.diskUsedGB, total: s.diskTotalGB,
+                    unit: "GB",
+                    tone: s.diskTotalGB > 0 && (s.diskUsedGB / s.diskTotalGB) > 0.9 ? .danger
+                        : s.diskTotalGB > 0 && (s.diskUsedGB / s.diskTotalGB) > 0.75 ? .warning
+                        : .accent
+                )
+
+                // macmon hint if temps unavailable
+                if s.cpuTempC == nil && !model.macmonAvailable {
+                    Text("Install macmon for temperatures: brew install macmon")
+                        .font(.system(size: 9))
+                        .foregroundStyle(CompanionTheme.textDisabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+            } else {
+                Text("Waiting for first sample…")
+                    .font(.system(size: 11))
+                    .foregroundStyle(CompanionTheme.textDisabled)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 6)
+            }
+        }
+    }
+
+    // MARK: Helpers
+
+    private func tempString(_ c: Float) -> String { String(format: "%.0f°C", c) }
+
+    private func usageTone(_ pct: Float) -> CompanionPalette.Tone {
+        pct >= 80 ? .danger : pct >= 60 ? .warning : .neutral
+    }
+
+    private func tempTone(_ c: Float) -> CompanionPalette.Tone {
+        c >= 85 ? .danger : c >= 70 ? .warning : .neutral
+    }
+}
+
+/// Compact cell showing label + big primary value + optional small secondary value.
+private struct MacStatCell: View {
+    let label: String
+    let primary: String
+    let secondary: String?
+    var primaryTone: CompanionPalette.Tone = .neutral
+    var secondaryTone: CompanionPalette.Tone = .neutral
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(CompanionTheme.textTertiary)
+                .tracking(0.5)
+            Text(primary)
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .foregroundStyle(CompanionTheme.toneColor(primaryTone) == CompanionTheme.textSecondary
+                                 ? CompanionTheme.textPrimary
+                                 : CompanionTheme.toneColor(primaryTone))
+            if let secondary {
+                Text(secondary)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(secondaryTone == .neutral
+                                     ? CompanionTheme.textTertiary
+                                     : CompanionTheme.toneColor(secondaryTone))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Compact labeled progress bar.
+private struct MacStatBar: View {
+    let label: String
+    let used: Float
+    let total: Float
+    let unit: String
+    var tone: CompanionPalette.Tone = .accent
+
+    private var ratio: Double {
+        guard total > 0 else { return 0 }
+        return min(Double(used / total), 1.0)
+    }
+
+    private var barColor: Color {
+        switch tone {
+        case .danger:  return CompanionTheme.danger
+        case .warning: return CompanionTheme.warning
+        default:       return CompanionTheme.accent
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(label)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(CompanionTheme.textTertiary)
+                    .tracking(0.5)
+                Spacer()
+                Text(barLabel)
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(CompanionTheme.textDisabled)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(CompanionTheme.surfaceElevated)
+                        .frame(height: 4)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(barColor)
+                        .frame(width: geo.size.width * CGFloat(ratio), height: 4)
+                }
+            }
+            .frame(height: 4)
+        }
+    }
+
+    private var barLabel: String {
+        let u = used >= 1000 ? String(format: "%.0f", used) : String(format: "%.1f", used)
+        let t = total >= 1000 ? String(format: "%.0f", total) : String(format: "%.0f", total)
+        return "\(u) / \(t) \(unit)"
     }
 }

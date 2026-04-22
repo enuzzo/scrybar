@@ -10447,6 +10447,21 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglMacStatsRoot) {
     lvglSetBgFlat(g_lvglMacStatsRoot, panelBg);
     if (g_macStatsUi.headerFill) lvglSetBgFlat(g_macStatsUi.headerFill, headerBg);
+    // Tile backgrounds + borders — must be updated on theme change (not just at init)
+    auto applyTileBg = [&](lv_obj_t *tile) {
+      if (!tile) return;
+      lvglSetBgFlat(tile, panelBg);
+      lv_obj_set_style_border_color(tile, lv_color_hex(t.divider), LV_PART_MAIN);
+    };
+    applyTileBg(g_macStatsUi.usageBg);
+    applyTileBg(g_macStatsUi.tempBg);
+    applyTileBg(g_macStatsUi.ramBg);
+    applyTileBg(g_macStatsUi.diskBg);
+    // RAM/Disk bar tracks
+    if (g_macStatsUi.ramBar)
+      lv_obj_set_style_bg_color(g_macStatsUi.ramBar,  lv_color_hex(t.divider), LV_PART_MAIN);
+    if (g_macStatsUi.diskBar)
+      lv_obj_set_style_bg_color(g_macStatsUi.diskBar, lv_color_hex(t.divider), LV_PART_MAIN);
     lvglSetTextHex(g_macStatsUi.title,     headerText);
     lvglSetTextHex(g_macStatsUi.statusLabel,   t.auxMeta);  // baseline; update() overrides with data-driven color
     lvglSetTextHex(g_macStatsUi.cpuUsageLabel, t.auxMeta);
