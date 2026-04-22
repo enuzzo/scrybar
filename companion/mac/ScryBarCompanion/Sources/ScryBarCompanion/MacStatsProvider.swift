@@ -8,22 +8,31 @@ import IOKit
 /// - Disk: via FileManager.attributesOfFileSystem
 /// - CPU usage: via host_processor_info (PROCESSOR_CPU_LOAD_INFO) delta between polls
 /// - GPU usage: via IOKit IOAccelerator PerformanceStatistics ("Device Utilization %")
-/// - CPU/GPU temp: via IOKit SMC (Intel + Apple Silicon best-effort; returns nil if key absent)
+/// - CPU/GPU temp: via `macmon pipe` subprocess (brew install macmon) — works on M1–M5 without sudo.
+///   Falls back to SMC reader for Intel Macs. Returns nil if macmon is absent.
 final class MacStatsProvider: @unchecked Sendable {
 
-    private let smcReader = SMCReader.open()  // nil on unsupported hardware
+    private let smcReader = SMCReader.open()  // Intel fallback; nil on Apple Silicon
 
     /// Previous CPU tick snapshot for delta-based usage calculation.
     private var lastCPUTicks: [(user: UInt32, sys: UInt32, idle: UInt32, nice: UInt32)] = []
+
+    /// Resolved path to macmon binary (searched once at init).
+    private let macmonPath: String? = {
+        for p in ["/opt/homebrew/bin/macmon", "/usr/local/bin/macmon"] {
+            if FileManager.default.isExecutableFile(atPath: p) { return p }
+        }
+        return nil
+    }()
 
     func snapshot() -> MacStatsPayload {
         let ram      = sampleRAM()
         let disk     = sampleDisk()
         let cpuUsage = sampleCPUUsage()
         let gpuUsage = sampleGPUUsage()
-        // Apple Silicon first (M-series), then Intel fallbacks
-        let cpuTemp  = smcReader.flatMap { $0.readTemp(keys: ["Tp01", "Tp05", "Tp0D", "Tp0b", "Tp09", "Tp0P", "TC0P", "TC0D", "TC0E"]) }
-        let gpuTemp  = smcReader.flatMap { $0.readTemp(keys: ["Tg05", "Tg0T", "Tg0b", "Tg0d", "Tg0f", "TGDD", "TG0D", "TGOP"]) }
+
+        // Temperatures: try macmon first (Apple Silicon M1–M5), then SMC (Intel)
+        let (cpuTemp, gpuTemp) = sampleTemps()
 
         return MacStatsPayload(
             cpuTempC:    cpuTemp,
@@ -36,6 +45,45 @@ final class MacStatsProvider: @unchecked Sendable {
             diskTotalGB: disk.totalGB,
             updatedAt:   Date()
         )
+    }
+
+    // MARK: Temperatures
+
+    /// Returns (cpuTemp, gpuTemp) in °C.
+    /// Uses `macmon pipe -s 1 -i 200` if available, otherwise falls back to SMC.
+    private func sampleTemps() -> (cpu: Float?, gpu: Float?) {
+        if let path = macmonPath, let result = runMacmon(path) {
+            return result
+        }
+        // Intel SMC fallback
+        let cpu = smcReader.flatMap { $0.readTemp(keys: ["TC0P","TC0D","TC0E"]) }
+        let gpu = smcReader.flatMap { $0.readTemp(keys: ["TGDD","TG0D","TGOP"]) }
+        return (cpu, gpu)
+    }
+
+    /// Runs `macmon pipe -s 1 -i 200`, reads one JSON line, extracts cpu_temp_avg + gpu_temp_avg.
+    private func runMacmon(_ path: String) -> (cpu: Float?, gpu: Float?)? {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: path)
+        proc.arguments = ["pipe", "-s", "1", "-i", "200"]
+
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = Pipe()  // suppress stderr
+
+        do { try proc.run() } catch { return nil }
+
+        // Read up to 4 KB (one JSON line is ~400 bytes)
+        let data = pipe.fileHandleForReading.readData(ofLength: 4096)
+        proc.terminate()
+
+        guard !data.isEmpty,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let temp = json["temp"] as? [String: Any] else { return nil }
+
+        let cpu = (temp["cpu_temp_avg"] as? NSNumber).map { Float($0.doubleValue) }
+        let gpu = (temp["gpu_temp_avg"] as? NSNumber).map { Float($0.doubleValue) }
+        return (cpu, gpu)
     }
 
     // MARK: CPU Usage
