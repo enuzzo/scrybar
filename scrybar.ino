@@ -9893,6 +9893,32 @@ static uint32_t lvglLightenRgb(uint32_t rgb, uint8_t amount) {
   return lvglBlendRgb(rgb, 0xFFFFFF, amount);
 }
 
+// Rec. 709 luma (0..255). Used to pick light-vs-dark adaptations.
+static uint16_t lvglRgbLuma(uint32_t rgb) {
+  const uint8_t r = (uint8_t)((rgb >> 16) & 0xFFu);
+  const uint8_t g = (uint8_t)((rgb >>  8) & 0xFFu);
+  const uint8_t b = (uint8_t)( rgb        & 0xFFu);
+  return (uint16_t)((r * 299u + g * 587u + b * 114u) / 1000u);
+}
+
+// Subtle "track" color for progress-bar empty slots / histogram parked bars.
+// Offsets from the panel background by ~19% luminance so it reads as a
+// muted rail without competing with bright filled segments of any hue.
+static uint32_t lvglMutedTrack(uint32_t panelBg) {
+  return (lvglRgbLuma(panelBg) >= 128u)
+      ? lvglDarkenRgb(panelBg, 48)
+      : lvglLightenRgb(panelBg, 48);
+}
+
+// Darken a semantic accent (live-green / stale-amber) when it would land
+// on a light header background — guarantees the status dot pops on yellow,
+// pale mint, or white headers without losing the hue on dark themes.
+static uint32_t lvglAdaptDotForHeader(uint32_t dotColor, uint32_t headerBg) {
+  return (lvglRgbLuma(headerBg) >= 128u)
+      ? lvglDarkenRgb(dotColor, 110)
+      : dotColor;
+}
+
 static uint8_t lvglRgbChroma(uint32_t rgb) {
   const uint8_t r = (uint8_t)((rgb >> 16) & 0xFFu);
   const uint8_t g = (uint8_t)((rgb >> 8) & 0xFFu);
@@ -10535,22 +10561,23 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     applyTileBg(g_macStatsUi.gpuTBg);
     applyTileBg(g_macStatsUi.ramBg);
     applyTileBg(g_macStatsUi.diskBg);
-    // Sparkline empty bars — reset to divider color (filled bars are updated by lvglUpdateMacStatsUi)
+    // Sparkline empty bars + segmented empty slots — parked at muted track
+    // (filled bars/segments are overwritten every tick by lvglUpdateMacStatsUi)
+    const uint32_t trackCol = lvglMutedTrack(panelBg);
     for (uint8_t i = 0; i < MAC_STATS_HISTORY_SIZE; ++i) {
       if (g_macStatsUi.cpuSpark[i])
-        lv_obj_set_style_bg_color(g_macStatsUi.cpuSpark[i], lv_color_hex(t.divider), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(g_macStatsUi.cpuSpark[i], lv_color_hex(trackCol), LV_PART_MAIN);
       if (g_macStatsUi.gpuSpark[i])
-        lv_obj_set_style_bg_color(g_macStatsUi.gpuSpark[i], lv_color_hex(t.divider), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(g_macStatsUi.gpuSpark[i], lv_color_hex(trackCol), LV_PART_MAIN);
     }
-    // Segmented bar empty slots
     for (uint8_t i = 0; i < MAC_STATS_SEG_COUNT; ++i) {
       if (g_macStatsUi.ramSegs[i])
-        lv_obj_set_style_bg_color(g_macStatsUi.ramSegs[i], lv_color_hex(t.divider), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(g_macStatsUi.ramSegs[i], lv_color_hex(trackCol), LV_PART_MAIN);
       if (g_macStatsUi.diskSegs[i])
-        lv_obj_set_style_bg_color(g_macStatsUi.diskSegs[i], lv_color_hex(t.divider), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(g_macStatsUi.diskSegs[i], lv_color_hex(trackCol), LV_PART_MAIN);
     }
     lvglSetTextHex(g_macStatsUi.title,       headerText);
-    lvglSetTextHex(g_macStatsUi.statusLabel, t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.statusLabel, headerText);
     lvglSetTextHex(g_macStatsUi.cpuLabel,    t.auxMeta);
     lvglSetTextHex(g_macStatsUi.cpuUsageVal, t.infoText);
     lvglSetTextHex(g_macStatsUi.gpuLabel,    t.auxMeta);
@@ -15046,7 +15073,7 @@ static void lvglInitMacStatsUi() {
     const lv_coord_t bx = 8 + (lv_coord_t)i * (MAC_STATS_SPARK_BAR_W + MAC_STATS_SPARK_GAP);
     lv_obj_set_size(bar, MAC_STATS_SPARK_BAR_W, 2);
     lv_obj_set_pos(bar, bx, row1H - 6 - 2);  // parked at bottom-min
-    lvglSetBgFlatR(bar, t.divider, 1);
+    lvglSetBgFlatR(bar, lvglMutedTrack(panelBg), 1);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(bar, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(bar, 0, LV_PART_MAIN);
@@ -15064,7 +15091,7 @@ static void lvglInitMacStatsUi() {
     const lv_coord_t bx = 8 + (lv_coord_t)i * (MAC_STATS_SPARK_BAR_W + MAC_STATS_SPARK_GAP);
     lv_obj_set_size(bar, MAC_STATS_SPARK_BAR_W, 2);
     lv_obj_set_pos(bar, bx, row1H - 6 - 2);
-    lvglSetBgFlatR(bar, t.divider, 1);
+    lvglSetBgFlatR(bar, lvglMutedTrack(panelBg), 1);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(bar, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(bar, 0, LV_PART_MAIN);
@@ -15125,7 +15152,7 @@ static void lvglInitMacStatsUi() {
     const lv_coord_t sx = 8 + (lv_coord_t)i * (MAC_STATS_SEG_W + MAC_STATS_SEG_GAP);
     lv_obj_set_size(seg, MAC_STATS_SEG_W, MAC_STATS_SEG_H);
     lv_obj_set_pos(seg, sx, row2H - MAC_STATS_SEG_H - 8);
-    lvglSetBgFlatR(seg, t.divider, 2);
+    lvglSetBgFlatR(seg, lvglMutedTrack(panelBg), 2);
     lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(seg, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(seg, 0, LV_PART_MAIN);
@@ -15159,7 +15186,7 @@ static void lvglInitMacStatsUi() {
     const lv_coord_t sx = 8 + (lv_coord_t)i * (MAC_STATS_SEG_W + MAC_STATS_SEG_GAP);
     lv_obj_set_size(seg, MAC_STATS_SEG_W, MAC_STATS_SEG_H);
     lv_obj_set_pos(seg, sx, row2H - MAC_STATS_SEG_H - 8);
-    lvglSetBgFlatR(seg, t.divider, 2);
+    lvglSetBgFlatR(seg, lvglMutedTrack(panelBg), 2);
     lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(seg, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(seg, 0, LV_PART_MAIN);
@@ -15198,29 +15225,33 @@ static void lvglUpdateMacStatsUi(bool force) {
   setVis(g_macStatsUi.diskBg,   hasData);
 
   // ── Status semaphore ──────────────────────────────────────────────────────
+  // Dot carries the semantic state (live/stale/none) with hue + auto-dim on
+  // light headers. Label always uses the theme's headerText so "LIVE" stays
+  // legible on yellow (cyberpunk), mint (mint-protocol), etc.
   {
     const uint32_t nowMs = millis();
     const uint32_t ageMs = (s.valid && nowMs >= s.receivedAtMs)
         ? (nowMs - s.receivedAtMs) : 0u;
     const bool isLive = s.valid && ageMs <= MAC_STATS_SYNC_TTL_MS;
+    const uint32_t headerBg = lvglResolvedHeaderBg(t);
+    const uint32_t headerTx = lvglResolvedHeaderText(t);
+    const uint32_t dotRaw   = s.valid ? (isLive ? 0x3CE078u : 0xFFA000u) : 0x7A7A7Au;
     if (g_macStatsUi.statusDot)
       lv_obj_set_style_bg_color(g_macStatsUi.statusDot,
-          lv_color_hex(s.valid ? (isLive ? 0x7CFF9D : 0xFFC857) : 0x444444), LV_PART_MAIN);
+          lv_color_hex(lvglAdaptDotForHeader(dotRaw, headerBg)), LV_PART_MAIN);
     if (g_macStatsUi.statusLabel) {
       if (!s.valid) {
         lv_label_set_text(g_macStatsUi.statusLabel, "--");
-        lv_obj_set_style_text_color(g_macStatsUi.statusLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
       } else if (isLive) {
         lv_label_set_text(g_macStatsUi.statusLabel, "LIVE");
-        lv_obj_set_style_text_color(g_macStatsUi.statusLabel, lv_color_hex(0xB8F7D4), LV_PART_MAIN);
       } else {
         char ageBuf[16];
         const uint32_t ageSec = ageMs / 1000u;
         if (ageSec < 60u) snprintf(ageBuf, sizeof(ageBuf), "%us ago", (unsigned)ageSec);
         else              snprintf(ageBuf, sizeof(ageBuf), "%um ago", (unsigned)(ageSec/60u));
         lv_label_set_text(g_macStatsUi.statusLabel, ageBuf);
-        lv_obj_set_style_text_color(g_macStatsUi.statusLabel, lv_color_hex(0xFFE0A0), LV_PART_MAIN);
       }
+      lv_obj_set_style_text_color(g_macStatsUi.statusLabel, lv_color_hex(headerTx), LV_PART_MAIN);
     }
   }
 
@@ -15257,6 +15288,8 @@ static void lvglUpdateMacStatsUi(bool force) {
   // Draw bars bottom-anchored: tallest = MAC_STATS_SPARK_MAXH, shortest = 2
   // row1H = (cH - hdrH) / 2 = (172-24)/2 = 74;  sparkBottom = row1H - 6 = 68
   const lv_coord_t sparkBottom = (canvasHeight() - 24) / 2 - 6;  // = 68
+  const uint32_t panelBgLocal = lvglResolvedPanelBg(t);
+  const uint32_t trackColor   = lvglMutedTrack(panelBgLocal);
   for (uint8_t i = 0; i < MAC_STATS_HISTORY_SIZE; ++i) {
     // Map history slot: oldest bar at left, newest at right (circular buffer)
     const uint8_t histSlot = (g_statsHistCount < MAC_STATS_HISTORY_SIZE)
@@ -15275,7 +15308,7 @@ static void lvglUpdateMacStatsUi(bool force) {
       lv_obj_set_size(g_macStatsUi.cpuSpark[i], MAC_STATS_SPARK_BAR_W, bh);
       lv_obj_set_pos(g_macStatsUi.cpuSpark[i], bx, by);
       lv_obj_set_style_bg_color(g_macStatsUi.cpuSpark[i],
-          lv_color_hex(hasSample ? col : t.divider), LV_PART_MAIN);
+          lv_color_hex(hasSample ? col : trackColor), LV_PART_MAIN);
     }
     // GPU bar
     if (g_macStatsUi.gpuSpark[i]) {
@@ -15286,7 +15319,7 @@ static void lvglUpdateMacStatsUi(bool force) {
       lv_obj_set_size(g_macStatsUi.gpuSpark[i], MAC_STATS_SPARK_BAR_W, bh);
       lv_obj_set_pos(g_macStatsUi.gpuSpark[i], bx, by);
       lv_obj_set_style_bg_color(g_macStatsUi.gpuSpark[i],
-          lv_color_hex(hasSample ? col : t.divider), LV_PART_MAIN);
+          lv_color_hex(hasSample ? col : trackColor), LV_PART_MAIN);
     }
   }
 
@@ -15351,7 +15384,7 @@ static void lvglUpdateMacStatsUi(bool force) {
     const float thresh = (float)i / MAC_STATS_SEG_COUNT;
     const bool filled = (ramRatio > thresh);
     lv_obj_set_style_bg_color(g_macStatsUi.ramSegs[i],
-        lv_color_hex(filled ? 0x5599FFu : t.divider), LV_PART_MAIN);
+        lv_color_hex(filled ? 0x5599FFu : trackColor), LV_PART_MAIN);
   }
 
   // ── Disk segmented bar + percentage ───────────────────────────────────────
@@ -15375,7 +15408,7 @@ static void lvglUpdateMacStatsUi(bool force) {
     const float thresh = (float)i / MAC_STATS_SEG_COUNT;
     const bool filled = (diskRatio > thresh);
     lv_obj_set_style_bg_color(g_macStatsUi.diskSegs[i],
-        lv_color_hex(filled ? diskFillCol : t.divider), LV_PART_MAIN);
+        lv_color_hex(filled ? diskFillCol : trackColor), LV_PART_MAIN);
   }
 }
 
