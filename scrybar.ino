@@ -707,7 +707,7 @@ struct RuntimeRssFeedConfig {
 static constexpr uint8_t UI_VIEW_FLAG_INFO = 0x01;
 static constexpr uint8_t UI_VIEW_FLAG_AUX  = 0x02;
 static constexpr uint8_t UI_VIEW_FLAG_WIKI = 0x04;
-// 0x08 was UI_VIEW_FLAG_ANSI (archived)
+static constexpr uint8_t UI_VIEW_FLAG_MAC_STATS = 0x08;  // reused from archived ANSI (r263)
 static constexpr uint8_t UI_VIEW_FLAG_DOOM        = 0x10;
 static constexpr uint8_t UI_VIEW_FLAG_NOW_PLAYING  = 0x20;
 static constexpr uint8_t UI_VIEW_FLAG_TRANSIT = 0x40;  // gated AND on g_transitConfig.configured
@@ -716,6 +716,7 @@ static constexpr uint8_t UI_VIEW_MASK_DEFAULT =
     UI_VIEW_FLAG_INFO |
     UI_VIEW_FLAG_AUX |
     UI_VIEW_FLAG_WIKI |
+    UI_VIEW_FLAG_MAC_STATS |
     UI_VIEW_FLAG_DOOM |
     UI_VIEW_FLAG_NOW_PLAYING |
     UI_VIEW_FLAG_TRANSIT |
@@ -785,6 +786,7 @@ static bool runWiFiConnectTest();
 static void handleWebNowPlayingGetApi();
 static void handleWebNowPlayingPostApi();
 static bool applyNowPlayingPayloadJson(const String &body, String &err);
+static void handleWebMacStatsPostApi();
 static void ensureScryBarMdnsStarted();
 static void stopScryBarMdns();
 #endif
@@ -933,6 +935,7 @@ enum UiPageMode : uint8_t {
   UI_PAGE_DOOM = 5,
   UI_PAGE_TRANSIT = 6,
   UI_PAGE_LAUNCH  = 7,
+  UI_PAGE_MAC_STATS = 8,
 };
 static UiPageMode g_uiPageMode = UI_PAGE_HOME;
 static bool g_uiNeedsRedraw = true;
@@ -1085,6 +1088,48 @@ struct LiveNowPlayingArtwork {
   uint32_t bgColor = 0x101418;
   char artworkId[256] = {0};
 };
+struct MacStatsState {
+  bool     valid        = false;
+  uint32_t receivedAtMs = 0;
+  float    cpuTempC     = 0.0f;   // 0 = not available (key absent on this hardware)
+  float    gpuTempC     = 0.0f;
+  float    ramUsedGB    = 0.0f;
+  float    ramTotalGB   = 0.0f;
+  float    diskUsedGB   = 0.0f;
+  float    diskTotalGB  = 0.0f;
+  bool     hasCpuTemp   = false;
+  bool     hasGpuTemp   = false;
+};
+struct MacStatsUi {
+  lv_obj_t *header      = nullptr;
+  lv_obj_t *headerFill  = nullptr;
+  lv_obj_t *title       = nullptr;
+  lv_obj_t *ageLabel    = nullptr;
+  // CPU tile
+  lv_obj_t *cpuBg       = nullptr;
+  lv_obj_t *cpuLabel    = nullptr;
+  lv_obj_t *cpuValue    = nullptr;
+  lv_obj_t *cpuSub      = nullptr;
+  // GPU tile
+  lv_obj_t *gpuBg       = nullptr;
+  lv_obj_t *gpuLabel    = nullptr;
+  lv_obj_t *gpuValue    = nullptr;
+  lv_obj_t *gpuSub      = nullptr;
+  // RAM tile
+  lv_obj_t *ramBg       = nullptr;
+  lv_obj_t *ramLabel    = nullptr;
+  lv_obj_t *ramValue    = nullptr;
+  lv_obj_t *ramBar      = nullptr;
+  lv_obj_t *ramBarFill  = nullptr;
+  // Disk tile
+  lv_obj_t *diskBg      = nullptr;
+  lv_obj_t *diskLabel   = nullptr;
+  lv_obj_t *diskValue   = nullptr;
+  lv_obj_t *diskBar     = nullptr;
+  lv_obj_t *diskBarFill = nullptr;
+  // No-data placeholder
+  lv_obj_t *noData      = nullptr;
+};
 struct FakeNowPlayingTrack {
   const char *title;
   const char *artist;
@@ -1107,6 +1152,9 @@ static NowPlayingUi g_nowPlayingUi;
 static LiveNowPlayingState g_liveNowPlaying = {};
 static LiveNowPlayingArtwork g_liveNowPlayingArtwork = {};
 static uint32_t g_liveNowPlayingTokenSeq = 0;
+static MacStatsState g_macStats = {};
+static MacStatsUi g_macStatsUi;
+static lv_obj_t *g_lvglMacStatsRoot = nullptr;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
 static lv_obj_t *g_lvglNowPlayingRoot = nullptr;
@@ -4453,7 +4501,7 @@ function clearComposer(){editIndex=-1;rssName.value='';rssUrl.value='';rssMax.va
 function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML="RSS feeds "+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.textContent='';t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='vm-btn vm-btn--sm vm-btn--warn';bEdit.textContent='Edit';bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.textContent='Update';setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='vm-btn vm-btn--sm vm-btn--danger';bDel.textContent='Delete';bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}
 function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}
 function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}
-function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_transit','view_transit_cb'],['view_launch','view_launch_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}
+function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_transit','view_transit_cb'],['view_launch','view_launch_cb'],['view_mac_stats','view_mac_stats_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}
 if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();
 // Collapsible sections — start collapsed; ▶ = closed, ▼ = open
 document.querySelectorAll('.vm-card').forEach(function(card){
@@ -4549,12 +4597,13 @@ static void buildWebBrightnessSection(String &html) {
 }
 
 static void buildWebViewToggles(String &html) {
-  const bool infoViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) != 0;
-  const bool auxViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) != 0;
-  const bool wikiViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) != 0;
+  const bool infoViewOn       = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) != 0;
+  const bool auxViewOn        = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) != 0;
+  const bool wikiViewOn       = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) != 0;
   const bool nowPlayingViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) != 0;
-  const bool transitViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) != 0;
-  const bool launchViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_LAUNCH) != 0;
+  const bool transitViewOn    = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) != 0;
+  const bool launchViewOn     = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_LAUNCH) != 0;
+  const bool macStatsViewOn   = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_MAC_STATS) != 0;
   html += F("<div class='vm-card'><h2>&#x1F4F1;&ensp;Views</h2><div class='vm-views'>");
   html += F("<label class='vm-view'><input id='view_info_cb' type='checkbox'");
   if (infoViewOn) html += F(" checked");
@@ -4575,6 +4624,9 @@ static void buildWebViewToggles(String &html) {
   html += F("<label class='vm-view'><input id='view_launch_cb' type='checkbox'");
   if (launchViewOn) html += F(" checked");
   html += F("><span class='vm-view__copy'><strong>Launches</strong><small>Rocket launch countdown + mission info (Launch Library 2).</small></span></label>");
+  html += F("<label class='vm-view'><input id='view_mac_stats_cb' type='checkbox'");
+  if (macStatsViewOn) html += F(" checked");
+  html += F("><span class='vm-view__copy'><strong>Mac Stats</strong><small>CPU/GPU temp, RAM and Disk from macOS companion app.</small></span></label>");
   html += F("</div><p class='vm-help'>Swipe navigation only includes enabled pages.</p><div id='view_hidden_inputs' class='hidden'></div></div>");
 }
 
@@ -5063,6 +5115,8 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) ? F("true") : F("false");
   out += F(",\"launch\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_LAUNCH) ? F("true") : F("false");
+  out += F(",\"mac_stats\":");
+  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_MAC_STATS) ? F("true") : F("false");
   out += F("},\"themes\":[");
   for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
     if (i) out += ',';
@@ -5210,6 +5264,7 @@ static bool parseViewsConfig(RuntimeNetConfig &next, String &errorOut, bool &has
       {"view_now_playing", UI_VIEW_FLAG_NOW_PLAYING},
       {"view_transit",     UI_VIEW_FLAG_TRANSIT},
       {"view_launch",      UI_VIEW_FLAG_LAUNCH},
+      {"view_mac_stats",   UI_VIEW_FLAG_MAC_STATS},
   };
   for (const ViewArgDef &viewArg : kViewArgs) {
     if (!g_webCfg.server.hasArg(viewArg.key)) continue;
@@ -5714,6 +5769,7 @@ static bool webRequestHasConfigParams() {
   if (g_webCfg.server.hasArg("view_now_playing")) return true;
   if (g_webCfg.server.hasArg("view_transit")) return true;
   if (g_webCfg.server.hasArg("view_launch")) return true;
+  if (g_webCfg.server.hasArg("view_mac_stats")) return true;
   if (g_webCfg.server.hasArg("rss_feed_url")) return true;
   if (g_webCfg.server.hasArg("logo_url")) return true;
   if (g_webCfg.server.hasArg("transit_from")) return true;
@@ -5818,6 +5874,7 @@ static void ensureWebConfigServerStarted() {
     g_webCfg.server.on("/api/wifi/setup-qr.svg", HTTP_GET, handleWebWifiSetupQrSvgApi);
     g_webCfg.server.on("/api/reload", HTTP_POST, handleWebReloadApi);
     g_webCfg.server.on("/api/brightness", HTTP_POST, handleWebBrightnessApi);
+    g_webCfg.server.on("/api/mac-stats", HTTP_POST, handleWebMacStatsPostApi);
     g_webCfg.server.onNotFound([]() {
       if (g_wifiSt.setupApActive) {
         sendWebCaptiveRedirect();
@@ -6996,6 +7053,41 @@ static void handleWebNowPlayingPostApi() {
   out += F("\"}");
   g_webCfg.server.sendHeader("Cache-Control", "no-store", true);
   g_webCfg.server.send(200, "application/json", out);
+}
+
+static void handleWebMacStatsPostApi() {
+  const String body = g_webCfg.server.arg("plain");
+  if (body.length() == 0) {
+    g_webCfg.server.send(400, "application/json", "{\"ok\":false,\"message\":\"Empty body\"}");
+    return;
+  }
+  MacStatsState next = {};
+  next.valid        = true;
+  next.receivedAtMs = millis();
+  // Temperatures are optional (SMC key absent on some hardware → omitted / null in JSON).
+  // extractJsonNumberField returns false if the key is absent, nan, or non-numeric.
+  float tmp = 0.0f;
+  if (extractJsonNumberField(body.c_str(), "\"cpuTempC\"", tmp) && tmp > 0.0f && tmp < 150.0f) {
+    next.cpuTempC   = tmp;
+    next.hasCpuTemp = true;
+  }
+  tmp = 0.0f;
+  if (extractJsonNumberField(body.c_str(), "\"gpuTempC\"", tmp) && tmp > 0.0f && tmp < 150.0f) {
+    next.gpuTempC   = tmp;
+    next.hasGpuTemp = true;
+  }
+  tmp = 0.0f; extractJsonNumberField(body.c_str(), "\"ramUsedGB\"",   tmp); next.ramUsedGB   = tmp;
+  tmp = 0.0f; extractJsonNumberField(body.c_str(), "\"ramTotalGB\"",  tmp); next.ramTotalGB  = tmp;
+  tmp = 0.0f; extractJsonNumberField(body.c_str(), "\"diskUsedGB\"",  tmp); next.diskUsedGB  = tmp;
+  tmp = 0.0f; extractJsonNumberField(body.c_str(), "\"diskTotalGB\"", tmp); next.diskTotalGB = tmp;
+  g_macStats = next;
+  Serial.printf("[MACSTATS][API] cpu=%.1f(ok=%d) gpu=%.1f(ok=%d) ram=%.1f/%.1f disk=%.1f/%.1f\n",
+                next.cpuTempC, (int)next.hasCpuTemp,
+                next.gpuTempC, (int)next.hasGpuTemp,
+                next.ramUsedGB, next.ramTotalGB,
+                next.diskUsedGB, next.diskTotalGB);
+  g_webCfg.server.sendHeader("Cache-Control", "no-store", true);
+  g_webCfg.server.send(200, "application/json", "{\"ok\":true}");
 }
 #endif
 
@@ -9348,6 +9440,8 @@ static void lvglUpdateFeedDeck(FeedDeckUi &d, RssState &content, bool isWiki, bo
 static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki);
 static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root);
 static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force);
+static void lvglInitMacStatsUi();
+static void lvglUpdateMacStatsUi(bool force);
 #endif
 
 // Returns true for pages that have a feed deck (AUX/RSS and WIKI).
@@ -9372,6 +9466,8 @@ static const char* uiPageName(UiPageMode mode) {
       return "TRANSIT";
     case UI_PAGE_LAUNCH:
       return "LAUNCH";
+    case UI_PAGE_MAC_STATS:
+      return "MACSTATS";
     case UI_PAGE_HOME:
     default:
       return "HOME";
@@ -9385,8 +9481,9 @@ static uint8_t uiViewFlagForPage(UiPageMode mode) {
     case UI_PAGE_WIKI: return UI_VIEW_FLAG_WIKI;
     case UI_PAGE_DOOM:        return UI_VIEW_FLAG_DOOM;
     case UI_PAGE_NOW_PLAYING: return UI_VIEW_FLAG_NOW_PLAYING;
-    case UI_PAGE_TRANSIT:     return UI_VIEW_FLAG_TRANSIT;
-    case UI_PAGE_LAUNCH:      return UI_VIEW_FLAG_LAUNCH;
+    case UI_PAGE_TRANSIT:    return UI_VIEW_FLAG_TRANSIT;
+    case UI_PAGE_LAUNCH:     return UI_VIEW_FLAG_LAUNCH;
+    case UI_PAGE_MAC_STATS:  return UI_VIEW_FLAG_MAC_STATS;
     case UI_PAGE_HOME:
     default:
       return 0;
@@ -9410,6 +9507,10 @@ static bool uiPageEnabledNoEnsure(UiPageMode mode) {
     const bool flagOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_LAUNCH) != 0;
     return flagOn && g_wifiSt.connected;
   }
+  if (mode == UI_PAGE_MAC_STATS) {
+    const bool flagOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_MAC_STATS) != 0;
+    return flagOn && g_wifiSt.connected;
+  }
   const uint8_t flag = uiViewFlagForPage(mode);
   return (flag != 0) && ((g_runtimeNetConfig.enabledViewsMask & flag) != 0);
 }
@@ -9429,6 +9530,7 @@ static bool uiPageInSwipeCarousel(UiPageMode mode) {
     case UI_PAGE_DOOM:
     case UI_PAGE_TRANSIT:
     case UI_PAGE_LAUNCH:
+    case UI_PAGE_MAC_STATS:
       return true;
     default:
       return false;
@@ -9444,6 +9546,7 @@ static const UiPageMode kSwipePageOrder[] = {
     UI_PAGE_DOOM,
     UI_PAGE_TRANSIT,
     UI_PAGE_LAUNCH,
+    UI_PAGE_MAC_STATS,
 };
 
 static int8_t uiSwipePageCountNoEnsure() {
@@ -10319,6 +10422,25 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     if (g_launchUi.qrOverlay) lv_obj_set_style_bg_color(g_launchUi.qrOverlay, lv_color_hex(t.screenBg), LV_PART_MAIN);
   }
 
+  // Mac Stats theme colors
+  if (g_lvglMacStatsRoot) {
+    lvglSetBgFlat(g_lvglMacStatsRoot, panelBg);
+    if (g_macStatsUi.headerFill) lvglSetBgFlat(g_macStatsUi.headerFill, headerBg);
+    lvglSetTextHex(g_macStatsUi.title,     headerText);
+    lvglSetTextHex(g_macStatsUi.ageLabel,  t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.cpuLabel,  t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.cpuValue,  t.infoText);
+    lvglSetTextHex(g_macStatsUi.cpuSub,    t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.gpuLabel,  t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.gpuValue,  t.infoText);
+    lvglSetTextHex(g_macStatsUi.gpuSub,    t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.ramLabel,  t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.ramValue,  t.infoText);
+    lvglSetTextHex(g_macStatsUi.diskLabel, t.auxMeta);
+    lvglSetTextHex(g_macStatsUi.diskValue, t.infoText);
+    lvglSetTextHex(g_macStatsUi.noData,    t.auxMeta);
+  }
+
   if (!forceInvalidate) return;
   g_uiNeedsRedraw = true;
   if (g_infoUi.root) lv_obj_invalidate(g_infoUi.root);
@@ -10326,6 +10448,7 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglAuxRoot) lv_obj_invalidate(g_lvglAuxRoot);
   if (g_lvglTransitRoot) lv_obj_invalidate(g_lvglTransitRoot);
   if (g_lvglLaunchRoot) lv_obj_invalidate(g_lvglLaunchRoot);
+  if (g_lvglMacStatsRoot) lv_obj_invalidate(g_lvglMacStatsRoot);
 #if SCREENSAVER_ENABLED
   if (g_saver.root) lv_obj_invalidate(g_saver.root);
 #endif
@@ -14687,6 +14810,308 @@ static void lvglTickLaunchCountdown() {
 
 // ── End Launch Page LVGL ───────────────────────────────────────────────────
 
+// ── Mac Stats Page LVGL ───────────────────────────────────────────────────
+//
+// Layout (640 × 172 canvas):
+//
+//  ┌──────────────────────────────────────────────────────────────────────┐
+//  │  HEADER 30px: "MAC STATS" left | age label right                     │
+//  ├─────────────────────────┬────────────────────────────────────────────┤
+//  │   CPU TILE (320 × 71)   │   GPU TILE (320 × 71)                      │
+//  │   label "CPU"  (14px)   │   label "GPU"  (14px)                      │
+//  │   value "48.2°C" (28px) │   value "62.5°C" (28px)                   │
+//  │   sub "temperature"(11) │   sub "temperature" (11)                   │
+//  ├─────────────────────────┼────────────────────────────────────────────┤
+//  │   RAM TILE (320 × 71)   │   DISK TILE (320 × 71)                     │
+//  │   label "RAM"  (14px)   │   label "DISK" (14px)                      │
+//  │   value "10.2 / 16 GB"  │   value "312 / 500 GB"                     │
+//  │   bar (fill)            │   bar (fill)                               │
+//  └─────────────────────────┴────────────────────────────────────────────┘
+
+static void lvglInitMacStatsUi() {
+  if (!g_lvglMacStatsRoot) return;
+  lv_obj_t *root = g_lvglMacStatsRoot;
+  const lv_coord_t cW = canvasWidth();
+  const lv_coord_t cH = canvasHeight();
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const uint32_t panelBg  = lvglResolvedPanelBg(t);
+  const uint32_t headerBg = lvglResolvedHeaderBg(t);
+  const uint32_t headerTx = lvglResolvedHeaderText(t);
+  const lv_coord_t hdrH  = 30;
+
+  lvglSetBgFlat(root, panelBg);
+  lv_obj_set_style_bg_opa(root, LV_OPA_COVER, LV_PART_MAIN);
+
+  // Header
+  g_macStatsUi.headerFill = lv_obj_create(root);
+  lv_obj_set_size(g_macStatsUi.headerFill, cW, hdrH);
+  lv_obj_set_pos(g_macStatsUi.headerFill, 0, 0);
+  lvglSetBgFlat(g_macStatsUi.headerFill, headerBg);
+  lv_obj_set_style_bg_opa(g_macStatsUi.headerFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_clear_flag(g_macStatsUi.headerFill, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_border_width(g_macStatsUi.headerFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_macStatsUi.headerFill, 0, LV_PART_MAIN);
+
+  g_macStatsUi.title = lv_label_create(g_macStatsUi.headerFill);
+  lv_obj_set_style_text_font(g_macStatsUi.title, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.title, lv_color_hex(headerTx), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.title, "MAC STATS");
+  lv_obj_align(g_macStatsUi.title, LV_ALIGN_LEFT_MID, 8, 2);
+
+  g_macStatsUi.ageLabel = lv_label_create(g_macStatsUi.headerFill);
+  lv_obj_set_style_text_font(g_macStatsUi.ageLabel, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.ageLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.ageLabel, "--");
+  lv_obj_align(g_macStatsUi.ageLabel, LV_ALIGN_RIGHT_MID, -8, 2);
+
+  // Helper lambda-like macro: create a tile background panel
+  const lv_coord_t tileW = cW / 2;           // 320
+  const lv_coord_t tileH = (cH - hdrH) / 2;  // ~71
+  const lv_coord_t row1Y = hdrH;
+  const lv_coord_t row2Y = hdrH + tileH;
+
+  auto makeTileBg = [&](lv_coord_t x, lv_coord_t y) -> lv_obj_t* {
+    lv_obj_t *bg = lv_obj_create(root);
+    lv_obj_set_size(bg, tileW, tileH);
+    lv_obj_set_pos(bg, x, y);
+    lvglSetBgFlat(bg, panelBg);
+    lv_obj_set_style_bg_opa(bg, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_clear_flag(bg, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_border_width(bg, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(bg, lv_color_hex(t.divider), LV_PART_MAIN);
+    lv_obj_set_style_pad_all(bg, 0, LV_PART_MAIN);
+    return bg;
+  };
+
+  // ── CPU tile (top-left) ──────────────────────────────────────────────────
+  g_macStatsUi.cpuBg = makeTileBg(0, row1Y);
+
+  g_macStatsUi.cpuLabel = lv_label_create(g_macStatsUi.cpuBg);
+  lv_obj_set_style_text_font(g_macStatsUi.cpuLabel, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.cpuLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.cpuLabel, "CPU");
+  lv_obj_set_pos(g_macStatsUi.cpuLabel, 8, 6);
+
+  g_macStatsUi.cpuValue = lv_label_create(g_macStatsUi.cpuBg);
+  lv_obj_set_style_text_font(g_macStatsUi.cpuValue, lvglFontClockBold(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.cpuValue, lv_color_hex(t.infoText), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.cpuValue, "--");
+  lv_obj_set_pos(g_macStatsUi.cpuValue, 8, 22);
+
+  g_macStatsUi.cpuSub = lv_label_create(g_macStatsUi.cpuBg);
+  lv_obj_set_style_text_font(g_macStatsUi.cpuSub, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.cpuSub, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.cpuSub, "temperature");
+  lv_obj_set_pos(g_macStatsUi.cpuSub, 8, 56);
+
+  // ── GPU tile (top-right) ────────────────────────────────────────────────
+  g_macStatsUi.gpuBg = makeTileBg(tileW, row1Y);
+
+  g_macStatsUi.gpuLabel = lv_label_create(g_macStatsUi.gpuBg);
+  lv_obj_set_style_text_font(g_macStatsUi.gpuLabel, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.gpuLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.gpuLabel, "GPU");
+  lv_obj_set_pos(g_macStatsUi.gpuLabel, 8, 6);
+
+  g_macStatsUi.gpuValue = lv_label_create(g_macStatsUi.gpuBg);
+  lv_obj_set_style_text_font(g_macStatsUi.gpuValue, lvglFontClockBold(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.gpuValue, lv_color_hex(t.infoText), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.gpuValue, "--");
+  lv_obj_set_pos(g_macStatsUi.gpuValue, 8, 22);
+
+  g_macStatsUi.gpuSub = lv_label_create(g_macStatsUi.gpuBg);
+  lv_obj_set_style_text_font(g_macStatsUi.gpuSub, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.gpuSub, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.gpuSub, "temperature");
+  lv_obj_set_pos(g_macStatsUi.gpuSub, 8, 56);
+
+  // ── RAM tile (bottom-left) ──────────────────────────────────────────────
+  g_macStatsUi.ramBg = makeTileBg(0, row2Y);
+
+  g_macStatsUi.ramLabel = lv_label_create(g_macStatsUi.ramBg);
+  lv_obj_set_style_text_font(g_macStatsUi.ramLabel, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.ramLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.ramLabel, "RAM");
+  lv_obj_set_pos(g_macStatsUi.ramLabel, 8, 6);
+
+  g_macStatsUi.ramValue = lv_label_create(g_macStatsUi.ramBg);
+  lv_obj_set_style_text_font(g_macStatsUi.ramValue, lvglFontMeta(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.ramValue, lv_color_hex(t.infoText), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.ramValue, "-- / -- GB");
+  lv_obj_set_pos(g_macStatsUi.ramValue, 8, 22);
+
+  // Bar track
+  g_macStatsUi.ramBar = lv_obj_create(g_macStatsUi.ramBg);
+  lv_obj_set_size(g_macStatsUi.ramBar, tileW - 16, 5);
+  lv_obj_set_pos(g_macStatsUi.ramBar, 8, 48);
+  lv_obj_set_style_bg_color(g_macStatsUi.ramBar, lv_color_hex(t.divider), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_macStatsUi.ramBar, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_macStatsUi.ramBar, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_macStatsUi.ramBar, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_macStatsUi.ramBar, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_radius(g_macStatsUi.ramBar, 2, LV_PART_MAIN);
+
+  // Bar fill (child of ramBar, sized to ratio in update)
+  g_macStatsUi.ramBarFill = lv_obj_create(g_macStatsUi.ramBar);
+  lv_obj_set_size(g_macStatsUi.ramBarFill, 0, 5);
+  lv_obj_set_pos(g_macStatsUi.ramBarFill, 0, 0);
+  lv_obj_set_style_bg_color(g_macStatsUi.ramBarFill, lv_color_hex(0x5599FF), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_macStatsUi.ramBarFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_macStatsUi.ramBarFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_macStatsUi.ramBarFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_macStatsUi.ramBarFill, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_radius(g_macStatsUi.ramBarFill, 2, LV_PART_MAIN);
+
+  // ── Disk tile (bottom-right) ─────────────────────────────────────────────
+  g_macStatsUi.diskBg = makeTileBg(tileW, row2Y);
+
+  g_macStatsUi.diskLabel = lv_label_create(g_macStatsUi.diskBg);
+  lv_obj_set_style_text_font(g_macStatsUi.diskLabel, lvglFontTiny(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.diskLabel, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.diskLabel, "DISK");
+  lv_obj_set_pos(g_macStatsUi.diskLabel, 8, 6);
+
+  g_macStatsUi.diskValue = lv_label_create(g_macStatsUi.diskBg);
+  lv_obj_set_style_text_font(g_macStatsUi.diskValue, lvglFontMeta(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.diskValue, lv_color_hex(t.infoText), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.diskValue, "-- / -- GB");
+  lv_obj_set_pos(g_macStatsUi.diskValue, 8, 22);
+
+  // Bar track
+  g_macStatsUi.diskBar = lv_obj_create(g_macStatsUi.diskBg);
+  lv_obj_set_size(g_macStatsUi.diskBar, tileW - 16, 5);
+  lv_obj_set_pos(g_macStatsUi.diskBar, 8, 48);
+  lv_obj_set_style_bg_color(g_macStatsUi.diskBar, lv_color_hex(t.divider), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_macStatsUi.diskBar, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_macStatsUi.diskBar, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_macStatsUi.diskBar, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_macStatsUi.diskBar, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_radius(g_macStatsUi.diskBar, 2, LV_PART_MAIN);
+
+  // Bar fill
+  g_macStatsUi.diskBarFill = lv_obj_create(g_macStatsUi.diskBar);
+  lv_obj_set_size(g_macStatsUi.diskBarFill, 0, 5);
+  lv_obj_set_pos(g_macStatsUi.diskBarFill, 0, 0);
+  lv_obj_set_style_bg_color(g_macStatsUi.diskBarFill, lv_color_hex(0x5599FF), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_macStatsUi.diskBarFill, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_macStatsUi.diskBarFill, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_macStatsUi.diskBarFill, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_macStatsUi.diskBarFill, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_radius(g_macStatsUi.diskBarFill, 2, LV_PART_MAIN);
+
+  // No-data placeholder (shown when valid=false)
+  g_macStatsUi.noData = lv_label_create(root);
+  lv_obj_set_style_text_font(g_macStatsUi.noData, lvglFontSmall(), 0);
+  lv_obj_set_style_text_color(g_macStatsUi.noData, lv_color_hex(t.auxMeta), LV_PART_MAIN);
+  lv_label_set_text(g_macStatsUi.noData, "Waiting for companion app...");
+  lv_obj_align(g_macStatsUi.noData, LV_ALIGN_CENTER, 0, 10);
+}
+
+static void lvglUpdateMacStatsUi(bool force) {
+  (void)force;
+  if (!g_lvglMacStatsRoot) return;
+
+  const MacStatsState &s = g_macStats;
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+
+  // Show/hide no-data vs tiles
+  const bool hasData = s.valid;
+  if (g_macStatsUi.noData) {
+    if (hasData) lv_obj_add_flag(g_macStatsUi.noData, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_clear_flag(g_macStatsUi.noData, LV_OBJ_FLAG_HIDDEN);
+  }
+  const lv_obj_flag_t tileVis = hasData ? LV_OBJ_FLAG_HIDDEN : (lv_obj_flag_t)0;
+  // (invert: hidden when no data)
+  auto setTileVisible = [](lv_obj_t *obj, bool show) {
+    if (!obj) return;
+    if (show) lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    else      lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+  };
+  setTileVisible(g_macStatsUi.cpuBg,  hasData);
+  setTileVisible(g_macStatsUi.gpuBg,  hasData);
+  setTileVisible(g_macStatsUi.ramBg,  hasData);
+  setTileVisible(g_macStatsUi.diskBg, hasData);
+  (void)tileVis;
+
+  if (!hasData) return;
+
+  // ── Age label ────────────────────────────────────────────────────────────
+  if (g_macStatsUi.ageLabel) {
+    const uint32_t nowMs = millis();
+    const uint32_t ageMs = (nowMs >= s.receivedAtMs) ? (nowMs - s.receivedAtMs) : 0;
+    const uint32_t ageSec = ageMs / 1000;
+    char ageBuf[20];
+    if (ageSec < 60) snprintf(ageBuf, sizeof(ageBuf), "%us ago", (unsigned)ageSec);
+    else snprintf(ageBuf, sizeof(ageBuf), "%um ago", (unsigned)(ageSec / 60));
+    lv_label_set_text(g_macStatsUi.ageLabel, ageBuf);
+  }
+
+  // ── CPU temperature ──────────────────────────────────────────────────────
+  if (g_macStatsUi.cpuValue) {
+    char buf[16];
+    if (s.hasCpuTemp) snprintf(buf, sizeof(buf), "%.1f\xC2\xB0""C", s.cpuTempC);
+    else copyStringSafe(buf, sizeof(buf), "N/A");
+    lv_label_set_text(g_macStatsUi.cpuValue, buf);
+    // Color-code: <70 normal, 70-85 warm, >85 hot
+    uint32_t col = t.infoText;
+    if (s.hasCpuTemp) {
+      if (s.cpuTempC >= 85.0f)      col = 0xFF5252;
+      else if (s.cpuTempC >= 70.0f) col = 0xFFB74D;
+    }
+    lv_obj_set_style_text_color(g_macStatsUi.cpuValue, lv_color_hex(col), LV_PART_MAIN);
+  }
+
+  // ── GPU temperature ──────────────────────────────────────────────────────
+  if (g_macStatsUi.gpuValue) {
+    char buf[16];
+    if (s.hasGpuTemp) snprintf(buf, sizeof(buf), "%.1f\xC2\xB0""C", s.gpuTempC);
+    else copyStringSafe(buf, sizeof(buf), "N/A");
+    lv_label_set_text(g_macStatsUi.gpuValue, buf);
+    uint32_t col = t.infoText;
+    if (s.hasGpuTemp) {
+      if (s.gpuTempC >= 85.0f)      col = 0xFF5252;
+      else if (s.gpuTempC >= 70.0f) col = 0xFFB74D;
+    }
+    lv_obj_set_style_text_color(g_macStatsUi.gpuValue, lv_color_hex(col), LV_PART_MAIN);
+  }
+
+  // ── RAM ──────────────────────────────────────────────────────────────────
+  if (g_macStatsUi.ramValue) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.1f / %.0f GB", s.ramUsedGB, s.ramTotalGB);
+    lv_label_set_text(g_macStatsUi.ramValue, buf);
+  }
+  if (g_macStatsUi.ramBar && g_macStatsUi.ramBarFill) {
+    const lv_coord_t barW = lv_obj_get_width(g_macStatsUi.ramBar);
+    const float ratio = (s.ramTotalGB > 0.0f)
+        ? fminf(s.ramUsedGB / s.ramTotalGB, 1.0f) : 0.0f;
+    lv_obj_set_width(g_macStatsUi.ramBarFill, (lv_coord_t)(barW * ratio));
+  }
+
+  // ── Disk ─────────────────────────────────────────────────────────────────
+  if (g_macStatsUi.diskValue) {
+    char buf[32];
+    if (s.diskTotalGB >= 1000.0f)
+      snprintf(buf, sizeof(buf), "%.0f / %.0f GB", s.diskUsedGB, s.diskTotalGB);
+    else
+      snprintf(buf, sizeof(buf), "%.0f / %.0f GB", s.diskUsedGB, s.diskTotalGB);
+    lv_label_set_text(g_macStatsUi.diskValue, buf);
+  }
+  if (g_macStatsUi.diskBar && g_macStatsUi.diskBarFill) {
+    const lv_coord_t barW = lv_obj_get_width(g_macStatsUi.diskBar);
+    const float ratio = (s.diskTotalGB > 0.0f)
+        ? fminf(s.diskUsedGB / s.diskTotalGB, 1.0f) : 0.0f;
+    // Color: >90% red, >75% amber, else accent
+    uint32_t fillCol = 0x5599FF;
+    if (ratio >= 0.90f)      fillCol = 0xFF5252;
+    else if (ratio >= 0.75f) fillCol = 0xFFB74D;
+    lv_obj_set_style_bg_color(g_macStatsUi.diskBarFill, lv_color_hex(fillCol), LV_PART_MAIN);
+    lv_obj_set_width(g_macStatsUi.diskBarFill, (lv_coord_t)(barW * ratio));
+  }
+}
+
+// ── End Mac Stats Page LVGL ───────────────────────────────────────────────
+
 static void lvglUpdateTransitUi(bool force) {
   (void)force;
   if (!g_lvglTransitRoot) return;
@@ -14879,6 +15304,7 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   lv_anim_del(g_lvglWikiRoot, lvglSetObjXAnim);
   lv_anim_del(g_lvglNowPlayingRoot, lvglSetObjXAnim);
   if (g_lvglTransitRoot) lv_anim_del(g_lvglTransitRoot, lvglSetObjXAnim);
+  if (g_lvglMacStatsRoot) lv_anim_del(g_lvglMacStatsRoot, lvglSetObjXAnim);
   g_pageAnim.untilMs = 0;
   g_pageAnim.dragActive = true;
 
@@ -14889,7 +15315,8 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
     {UI_PAGE_WIKI,        g_lvglWikiRoot},
     {UI_PAGE_NOW_PLAYING, g_lvglNowPlayingRoot},
     {UI_PAGE_TRANSIT,     g_lvglTransitRoot},
-    {UI_PAGE_LAUNCH,     g_lvglLaunchRoot},
+    {UI_PAGE_LAUNCH,      g_lvglLaunchRoot},
+    {UI_PAGE_MAC_STATS,   g_lvglMacStatsRoot},
   };
   for (auto &p : pages) {
     if (!p.root) continue;
@@ -14929,6 +15356,7 @@ static void lvglApplyPageVisibility(bool animate) {
     lv_obj_add_flag(g_lvglWikiRoot, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_HIDDEN);
     if (g_lvglLaunchRoot) lv_obj_add_flag(g_lvglLaunchRoot, LV_OBJ_FLAG_HIDDEN);
+    if (g_lvglMacStatsRoot) lv_obj_add_flag(g_lvglMacStatsRoot, LV_OBJ_FLAG_HIDDEN);
     g_pageAnim.dragActive = false;
     g_pageAnim.untilMs = 0;
     return;
@@ -14949,6 +15377,7 @@ static void lvglApplyPageVisibility(bool animate) {
     {g_lvglNowPlayingRoot, UI_PAGE_NOW_PLAYING, 0},
     {g_lvglTransitRoot,    UI_PAGE_TRANSIT,     0},
     {g_lvglLaunchRoot,     UI_PAGE_LAUNCH,      0},
+    {g_lvglMacStatsRoot,   UI_PAGE_MAC_STATS,   0},
   };
   constexpr size_t kSlotCount = sizeof(slots) / sizeof(slots[0]);
   for (size_t i = 0; i < kSlotCount; ++i) {
@@ -16667,6 +17096,11 @@ static bool initLvglUi() {
   lv_obj_set_pos(g_lvglLaunchRoot, cW, 0);
   lvglInitLaunchUi();
 
+  // Mac Stats Page
+  g_lvglMacStatsRoot = lvglCreatePageRoot(scr, cW, cH);
+  lv_obj_set_pos(g_lvglMacStatsRoot, cW, 0);
+  lvglInitMacStatsUi();
+
   // Screensaver
 #if SCREENSAVER_ENABLED
   initLvglScreensaverUi(scr);
@@ -16893,6 +17327,13 @@ static void updateLvglUi(bool force) {
   if (g_uiPageMode == UI_PAGE_LAUNCH) {
     if (g_launchState.dirty) lvglUpdateLaunchUi(force);
     lvglTickLaunchCountdown();
+    g_clock.lastSecond = timeinfo.tm_sec;
+    g_clock.lastDateKey = dateKey;
+    g_uiNeedsRedraw = false;
+    return;
+  }
+  if (g_uiPageMode == UI_PAGE_MAC_STATS) {
+    lvglUpdateMacStatsUi(force);
     g_clock.lastSecond = timeinfo.tm_sec;
     g_clock.lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
@@ -17305,6 +17746,12 @@ static void cmdViewLaunch(const String &args) {
   Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
 }
 
+static void cmdViewMacStats(const String &args) {
+  if (!uiPageEnabled(UI_PAGE_MAC_STATS)) { Serial.println("[UI] MACSTATS disabled (no wifi or flag off)"); return; }
+  setUiPage(UI_PAGE_MAC_STATS);
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
 static void cmdLaunchDetail(const String &args) {
   int idx = args.length() ? args.toInt() : 0;
   markUserInteraction(millis());
@@ -17620,6 +18067,9 @@ static const SerialCmd kSerialCmds[] = {
   { "VIEWLAUNCH",    cmdViewLaunch },
   { "LAUNCH",        cmdViewLaunch },
   { "LAUNCHDETAIL",  cmdLaunchDetail },
+  { "VIEW8",         cmdViewMacStats },
+  { "VIEWMACSTATS",  cmdViewMacStats },
+  { "MACSTATS",      cmdViewMacStats },
   { "THEME",         cmdTheme },
   { "LANG",          cmdLang },
   { "LANGSTAT",      cmdLangStat },

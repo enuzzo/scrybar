@@ -1,5 +1,19 @@
 import Foundation
 
+// MARK: - Mac Stats
+
+struct MacStatsPayload: Codable {
+    var cpuTempC: Float?
+    var gpuTempC: Float?
+    var ramUsedGB: Float
+    var ramTotalGB: Float
+    var diskUsedGB: Float
+    var diskTotalGB: Float
+    var updatedAt: Date
+}
+
+// MARK: -
+
 enum ProviderKind: String, CaseIterable, Identifiable {
     case system = "System"
     case mock = "Mock"

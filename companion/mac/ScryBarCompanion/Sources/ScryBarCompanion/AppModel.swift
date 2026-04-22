@@ -25,7 +25,9 @@ final class AppModel: ObservableObject {
     ])
     private let musicProvider = MusicNowPlayingProvider()
     private let mockProvider = MockNowPlayingProvider()
+    private let macStatsProvider = MacStatsProvider()
     private var pollTask: Task<Void, Never>?
+    private var macStatsPollTask: Task<Void, Never>?
 
     init() {
         discovery.onStatus = { [weak self] status in
@@ -43,6 +45,7 @@ final class AppModel: ObservableObject {
         }
         discovery.start()
         startPolling()
+        startMacStatsPolling()
     }
 
     var selectedEndpoint: ScryBarEndpoint? {
@@ -133,6 +136,37 @@ final class AppModel: ObservableObject {
 
     private var lastSendSucceeded = true
     private var sendInFlight = false
+
+    // MARK: Mac Stats polling
+
+    private var macStatsSendInFlight = false
+
+    private func startMacStatsPolling() {
+        macStatsPollTask?.cancel()
+        macStatsPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                // Sample on a detached thread (IOKit + syscalls may block)
+                let payload: MacStatsPayload = await Task.detached(priority: .background) {
+                    self.macStatsProvider.snapshot()
+                }.value
+
+                if self.autoSendEnabled, !self.macStatsSendInFlight,
+                   let endpoint = self.selectedEndpoint {
+                    self.macStatsSendInFlight = true
+                    Task {
+                        do {
+                            try await self.client.sendMacStats(payload, to: endpoint)
+                        } catch {
+                            // Silently suppress — mac stats is best-effort
+                        }
+                        await MainActor.run { self.macStatsSendInFlight = false }
+                    }
+                }
+                try? await Task.sleep(for: .seconds(5))
+            }
+        }
+    }
 
     private func startPolling() {
         pollTask?.cancel()

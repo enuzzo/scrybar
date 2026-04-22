@@ -103,7 +103,7 @@ Apply paths:
 
 Current production direction:
 
-- Firmware advertises `_scrybar._tcp` and accepts `GET/POST /api/now-playing`.
+- Firmware advertises `_scrybar._tcp` and accepts `GET/POST /api/now-playing` and `POST /api/mac-stats`.
 - Firmware `Now Playing` UI is tuned on real hardware and already consumes live payloads from the companion.
 - Companion default provider is the macOS system now-playing feed via JXA/osascript (see below).
 - Fallback providers: `TidalNowPlayingProvider` (TIDAL local cache parsing), `MusicNowPlayingProvider` (Music.app AppleScript).
@@ -594,11 +594,15 @@ Discard touch frames where:
 
 ## View Model and Navigation
 
-- Runtime pages: `INFO`, `HOME`, `AUX` (RSS), `WIKI`, `DOOM`.
-- Swipe graph:
-  - `INFO <-> HOME <-> AUX <-> WIKI <-> DOOM`
+- Runtime pages: `INFO`, `HOME`, `AUX` (RSS), `WIKI`, `NOW PLAYING`, `DOOM`, `TRANSIT`, `LAUNCH`, `MAC STATS`.
+- Swipe graph (r264, 9 pages):
+  - `INFO <-> HOME <-> AUX <-> WIKI <-> NOW PLAYING <-> DOOM <-> TRANSIT <-> LAUNCH <-> MAC STATS`
   - `AUX/WIKI` share the same content deck widgets and controls.
   - `DOOM` is a direct-render page and bypasses LVGL page dragging while active.
+  - `TRANSIT` gated: `UI_VIEW_FLAG_TRANSIT AND g_transitConfig.configured`
+  - `LAUNCH` gated: `UI_VIEW_FLAG_LAUNCH AND g_wifiSt.connected`
+  - `MAC STATS` gated: `UI_VIEW_FLAG_MAC_STATS AND g_wifiSt.connected` — shows "Waiting for companion app…" placeholder until first `POST /api/mac-stats` arrives.
+- View flag bits (r264): `UI_VIEW_FLAG_INFO=0x01`, `UI_VIEW_FLAG_AUX=0x02`, `UI_VIEW_FLAG_WIKI=0x04`, `UI_VIEW_FLAG_MAC_STATS=0x08` (reused archived ANSI slot), `UI_VIEW_FLAG_DOOM=0x10`, `UI_VIEW_FLAG_NOW_PLAYING=0x20`, `UI_VIEW_FLAG_TRANSIT=0x40`, `UI_VIEW_FLAG_LAUNCH=0x80`.
 - AUX/WIKI controls:
   - `SKIP` = next item
   - `NXT` = next feed
@@ -741,6 +745,9 @@ Discard touch frames where:
 | `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
 | `VIEW3` / `VIEWWIKI` | Force WIKI page |
 | `VIEW4` / `VIEWDOOM` / `DOOM` | Force DOOM page |
+| `VIEW5` / `VIEWTRANSIT` | Force TRANSIT page |
+| `VIEW6` / `VIEWLAUNCH` / `LAUNCH` | Force LAUNCH page (resets hero viewIndex=0) |
+| `VIEW8` / `VIEWMACSTATS` / `MACSTATS` | Force MAC STATS page |
 | `SNAP` | Emit framebuffer snapshot protocol |
 | `BATSTAT` | Print battery status |
 | `SAVERON` / `SAVEROFF` | Toggle screensaver |
