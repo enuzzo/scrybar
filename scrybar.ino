@@ -16420,17 +16420,17 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   ui.title = lv_label_create(ui.header);
   lv_obj_set_style_text_font(ui.title, lvglNowPlayingMetaFont(), 0);
   lv_obj_set_style_text_color(ui.title, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
-  lv_obj_align(ui.title, LV_ALIGN_LEFT_MID, 8, 2);
+  lv_obj_align(ui.title, LV_ALIGN_LEFT_MID, 8, 0);
   lv_label_set_text(ui.title, "Now Playing");
   lvglForceLabelVisible(ui.title);
 
   ui.statusDot = lvglCreatePanel(ui.header, 8, 8, 0, 0, lv_color_hex(0x7CFF9D), LV_RADIUS_CIRCLE);
-  lv_obj_align(ui.statusDot, LV_ALIGN_RIGHT_MID, -10, 2);
+  lv_obj_align(ui.statusDot, LV_ALIGN_RIGHT_MID, -10, 0);
 
   ui.status = lv_label_create(ui.header);
   lv_obj_set_style_text_font(ui.status, lvglNowPlayingMetaFont(), 0);
   lv_obj_set_style_text_color(ui.status, lv_color_hex(0xB8F7D4), 0);
-  lv_obj_align(ui.status, LV_ALIGN_RIGHT_MID, -26, 2);
+  lv_obj_align(ui.status, LV_ALIGN_RIGHT_MID, -26, 0);
   lv_label_set_text(ui.status, "IN SYNC");
   lvglForceLabelVisible(ui.status);
 
@@ -16438,7 +16438,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_style_text_font(ui.headerTime, lvglNowPlayingMetaFont(), 0);
   lv_obj_set_style_text_color(ui.headerTime, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
   lv_obj_set_style_text_opa(ui.headerTime, LV_OPA_70, 0);
-  lv_obj_align(ui.headerTime, LV_ALIGN_RIGHT_MID, -100, 2);
+  lv_obj_align(ui.headerTime, LV_ALIGN_RIGHT_MID, -100, 0);
   lv_label_set_text(ui.headerTime, "");
   lvglForceLabelVisible(ui.headerTime);
 
