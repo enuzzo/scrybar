@@ -31,7 +31,11 @@ const ALIEXPRESS_URL = 'https://aliexpress.com/w/wholesale-esp32-3.49.html?spm=a
             rel="noopener noreferrer"
             class="vm-btn vm-btn--primary buy-card__btn"
           >
-            <span class="buy-card__btn-icon">🛒</span>
+            <svg class="buy-card__cart" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M16 10a4 4 0 0 1-8 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
             Buy on AliExpress
             <svg class="buy-card__arrow" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -168,9 +172,9 @@ const ALIEXPRESS_URL = 'https://aliexpress.com/w/wholesale-esp32-3.49.html?spm=a
     opacity: 1;
   }
 
-  .buy-card__btn-icon {
-    font-size: 18px;
-    line-height: 1;
+  .buy-card__cart {
+    flex-shrink: 0;
+    opacity: 0.9;
   }
 
   .buy-card__arrow {
