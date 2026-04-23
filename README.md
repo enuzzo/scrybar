@@ -17,7 +17,7 @@
 <td width="55%"><img src="assets/readme_previews/home_weather_toxic-candy.png" alt="HOME view, Toxic Candy theme" width="100%"></td>
 <td>
 
-**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from OpenWeatherMap. Fourteen languages, seven themes, all switchable from the web UI without reflashing.
+**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from Open-Meteo. Fourteen languages, seven themes, Funnel Display typography — all switchable from the web UI without reflashing.
 
 </td>
 </tr></table>

@@ -7,7 +7,6 @@ import imgNowPlaying from '../assets/screenshots/now_playing.png';
 import imgTimetable from '../assets/screenshots/timetable_board.png';
 import imgLaunch from '../assets/screenshots/launch_countdown.png';
 import imgMacStats from '../assets/screenshots/mac_stats.png';
-import imgCompanion from '../assets/screenshots/companion-app.png';
 
 const views = [
   { id: 'info',      src: imgInfo,       label: 'Diagnostics',    desc: 'IP, WiFi, battery, firmware build. The page that proves it\u2019s really on the network and not just pretending.' },
@@ -18,13 +17,12 @@ const views = [
   { id: 'timetable', src: imgTimetable,  label: 'Timetable',      desc: 'Live departures from any stop worldwide via Transitous. Countdown in prime notation, like the LED at a real bus stop. No API key, no login.' },
   { id: 'launch',    src: imgLaunch,     label: 'Launches',       desc: 'Cinematic T-minus hero, weather at the pad, QR to the mission page. Know the moment SpaceX slips another window.' },
   { id: 'mac',       src: imgMacStats,   label: 'Mac Stats',      desc: 'CPU and GPU load with temperatures, RAM and disk bars. Pushed from the companion. For when Activity Monitor feels too introspective.' },
-  { id: 'companion', src: imgCompanion,  label: 'Companion App',  desc: 'macOS menu-bar companion. Pipes Now Playing and Mac Stats to the desk over your LAN. Runs invisible, talks quietly.' },
 ];
 ---
 <section id="views">
   <div class="container">
     <span class="section-label">Views</span>
-    <h2>Nine screens, one thumb</h2>
+    <h2>Eight screens, one thumb</h2>
     <p class="section-sub">
       Swipe left or right through the carousel.
       Toggle any view off in the web UI &mdash; the order
@@ -35,13 +33,15 @@ const views = [
       {views.map((v, i) => (
         <div class="view-card" data-view-index={i}>
           <div class="view-screen">
-            <img
-              src={v.src.src}
-              alt={`ScryBar ${v.label} view`}
-              width={v.src.width}
-              height={v.src.height}
-              loading="lazy"
-            />
+            <div class="view-screen__display">
+              <img
+                src={v.src.src}
+                alt={`ScryBar ${v.label} view`}
+                width={v.src.width}
+                height={v.src.height}
+                loading="lazy"
+              />
+            </div>
           </div>
           <h3>{v.label}</h3>
           <p>{v.desc}</p>

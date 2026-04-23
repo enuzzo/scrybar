@@ -8,8 +8,6 @@ const features = [
   { icon: '\u{1F689}', title: 'Timetable',     desc: 'Live departures worldwide via Transitous. Countdown in prime notation, like the LED at a real bus stop. No API key.' },
   { icon: '\u{1F680}', title: 'Launches',      desc: 'Rocket countdown hero with pad weather and a QR to the mission page. Know the moment SpaceX slips again.' },
   { icon: '\u{1F5A5}',  title: 'Mac Stats',    desc: 'CPU/GPU load and temps, RAM and disk bars, pushed from the companion. Activity Monitor, but ambient.' },
-  { icon: '\u{1F3A8}', title: '7 Themes',      desc: 'From deep navy to cyberpunk neon to CRT phosphor. One selector drives both device and web UI.' },
-  { icon: '\u{1F4E1}', title: 'LAN Config',    desc: 'Full web control surface over Wi\u2011Fi. Theme, language, feeds, weather, brightness \u2014 no reflash.' },
 ];
 ---
 <section id="features">
@@ -17,7 +15,7 @@ const features = [
     <span class="section-label">Capabilities</span>
     <h2>Everything on a 3.49" bar</h2>
     <p class="section-sub">
-      Ten things your desk does for free, one horizontal bar.
+      Eight things your desk does for free, one horizontal bar.
       Toggle any of them off from the web UI and the carousel
       just closes ranks.
     </p>
@@ -29,8 +27,10 @@ const features = [
           style={`animation-delay: ${i * 60}ms`}
         >
           <span class="feature-icon">{f.icon}</span>
-          <h3>{f.title}</h3>
-          <p>{f.desc}</p>
+          <div class="feature-card__body">
+            <h3>{f.title}</h3>
+            <p>{f.desc}</p>
+          </div>
         </div>
       ))}
     </div>

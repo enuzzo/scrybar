@@ -239,36 +239,47 @@
 .features-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 .feature-card {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 24px 22px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 16px;
 }
 
 .feature-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
 }
 
 .feature-icon {
-  font-size: 28px;
+  font-size: 36px;
   line-height: 1;
-  margin-bottom: 4px;
+  flex-shrink: 0;
+  width: 44px;
+  text-align: center;
+  padding-top: 2px;
+}
+
+.feature-card__body {
+  flex: 1;
+  min-width: 0;
 }
 
 .feature-card h3 {
-  font-size: 15px;
+  font-size: 14px;
   letter-spacing: -0.01em;
+  margin-bottom: 4px;
 }
 
 .feature-card p {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-tertiary);
-  line-height: 1.55;
+  line-height: 1.5;
   transition: color 0.45s ease;
+  margin: 0;
 }
 
 /* ============ VIEW SHOWCASE ============ */
@@ -289,16 +300,36 @@
 }
 
 .view-screen {
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #16161d;
+  border-radius: 12px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   margin-bottom: 14px;
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .view-card:hover .view-screen {
   transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.view-screen__display {
+  border-radius: 7px;
+  overflow: hidden;
+  position: relative;
+}
+
+.view-screen__display::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(255,255,255,0.04) 0%, transparent 45%);
+  pointer-events: none;
 }
 
 .view-screen img {
@@ -1611,6 +1642,7 @@ esp-web-install-button [slot="activate"] {
 @media (max-width: 900px) {
   .features-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
   .steps-grid {
     grid-template-columns: repeat(2, 1fr);
