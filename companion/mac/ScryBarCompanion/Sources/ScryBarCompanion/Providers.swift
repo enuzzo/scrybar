@@ -881,7 +881,10 @@ private enum ArtworkTranscoder {
         let bytesPerRow = targetSize * bytesPerPixel
         var rgbaPixels = [UInt8](repeating: 0, count: targetSize * targetSize * bytesPerPixel)
         let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+        // byteOrder32Little|premultipliedFirst = native BGRA on Apple Silicon.
+        // byteOrder32Big|premultipliedLast (RGBA) is not hardware-accelerated; CG renders
+        // BGRA regardless, so reading as RGBA swaps R↔B and zeros G high bits for warm colors.
+        let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
         guard let context = CGContext(
             data: &rgbaPixels,
             width: targetSize,
@@ -902,9 +905,10 @@ private enum ArtworkTranscoder {
             guard let destination = destinationBytes.bindMemory(to: UInt8.self).baseAddress else { return }
             for pixelIndex in 0..<(targetSize * targetSize) {
                 let sourceOffset = pixelIndex * bytesPerPixel
-                let r = rgbaPixels[sourceOffset]
+                // BGRA layout: byte[0]=B, byte[1]=G, byte[2]=R, byte[3]=A
+                let b = rgbaPixels[sourceOffset]
                 let g = rgbaPixels[sourceOffset + 1]
-                let b = rgbaPixels[sourceOffset + 2]
+                let r = rgbaPixels[sourceOffset + 2]
                 let packed = (UInt16(r >> 3) << 11) | (UInt16(g >> 2) << 5) | UInt16(b >> 3)
                 let destinationOffset = pixelIndex * 2
                 destination[destinationOffset] = UInt8((packed >> 8) & 0xFF)
