@@ -14518,13 +14518,13 @@ static void lvglInitLaunchUi() {
   lv_obj_set_size(g_launchUi.heroLocation, leftW, 22);
   lv_label_set_long_mode(g_launchUi.heroLocation, LV_LABEL_LONG_DOT);
 
-  // 5) Country — 14px muted, 6px clear of body bottom
+  // 5) Country — 16px Mini, 6px clear of body bottom
   g_launchUi.heroCountry = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroCountry, "");
-  lv_obj_set_style_text_font(g_launchUi.heroCountry, lvglFontTiny(), 0);
+  lv_obj_set_style_text_font(g_launchUi.heroCountry, lvglFontMini(), 0);
   lvglSetTextHex(g_launchUi.heroCountry, t.auxMeta);
   lv_obj_set_pos(g_launchUi.heroCountry, leftX, 120);
-  lv_obj_set_size(g_launchUi.heroCountry, leftW, 16);
+  lv_obj_set_size(g_launchUi.heroCountry, leftW, 20);
   lv_label_set_long_mode(g_launchUi.heroCountry, LV_LABEL_LONG_DOT);
 
   // ── Right column ──────────────────────────────────────────────────────
@@ -14559,16 +14559,16 @@ static void lvglInitLaunchUi() {
   lv_obj_set_pos(g_launchUi.heroWeather, rightX, 94);
   lv_obj_set_size(g_launchUi.heroWeather, rightW, 24);
 
-  // 4) QR tap hint — 14px Tiny muted, bottom-aligned with country
+  // 4) QR tap hint — 16px Mini, 90% opacity so it reads clearly
   g_launchUi.heroQrHint = lv_label_create(g_launchUi.heroBg);
   lv_label_set_text(g_launchUi.heroQrHint, "TAP \xC2\xB7 SCAN QR");
-  lv_obj_set_style_text_font(g_launchUi.heroQrHint, lvglFontTiny(), 0);  // 14px (was 12)
+  lv_obj_set_style_text_font(g_launchUi.heroQrHint, lvglFontMini(), 0);
   lvglSetTextHex(g_launchUi.heroQrHint, t.auxMeta);
-  lv_obj_set_style_text_opa(g_launchUi.heroQrHint, LV_OPA_70, 0);
+  lv_obj_set_style_text_opa(g_launchUi.heroQrHint, LV_OPA_90, 0);
   lv_obj_set_style_text_letter_space(g_launchUi.heroQrHint, 2, 0);
   lv_obj_set_style_text_align(g_launchUi.heroQrHint, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_pos(g_launchUi.heroQrHint, rightX, 122);
-  lv_obj_set_size(g_launchUi.heroQrHint, rightW, 18);
+  lv_obj_set_size(g_launchUi.heroQrHint, rightW, 20);
 
   // heroWindow is unused in the new hero layout — keep nullptr so the
   // existing struct definition stays binary-compatible and any accidental
