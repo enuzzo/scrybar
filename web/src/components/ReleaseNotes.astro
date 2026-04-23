@@ -1,6 +1,19 @@
 ---
 const releases = [
   {
+    version: 'v0.8.0',
+    tag: 'r277',
+    date: '2026-04-23',
+    headline: 'Timetable rename, prime-notation countdown, DST bug fix',
+    items: [
+      { label: 'New', text: 'The Departures page is now Timetable. Scheduled HH:MM is replaced by a real countdown in prime notation — 3\u2032, 14\u2032, 45\u2032 — that ticks every minute. Over an hour away you get the absolute time back; imminent departures go amber. Just like the LED at a real bus stop.' },
+      { label: 'Fix', text: 'Every transit time was an hour in the future during Central European Summer Time. Root cause was a stack of throwaway mktime() calls in the ISO parser that left newlib\u2019s DST state inconsistent, so localtime_r applied the savings hour twice. Parser rewritten; stoptimes query now uses time(nullptr). Year-round correct under CET and CEST.' },
+      { label: 'New', text: 'Landing page now shows all nine views in a three-column grid so you can see what you\u2019re flashing before you flash it.' },
+      { label: 'Fix', text: 'Launches page, compact row view: the provider pill now fills the full row height with 20 px breathing room between the pill and the mission data. No more half-height pill floating above triple-height text.' },
+      { label: 'New', text: 'Serial command aliases: TIMETABLE and VIEWTIMETABLE also jump to the transit page (the legacy TRANSIT / VIEWTRANSIT still work).' },
+    ],
+  },
+  {
     version: 'v0.7.0',
     tag: 'r274',
     date: '2026-04-22',

@@ -14576,8 +14576,14 @@ static void lvglInitLaunchUi() {
   g_launchUi.heroWindow = nullptr;
 
   // ==== VIEW 1: Compact (2 rows, missions 2-3) ====
-  const int16_t compactRowH = bodyH / 2;  // ~69px each
-  const int16_t badgeW = 100, badgeH = 28;
+  // r277: pill takes the full row height (minus 4px top/bot breathing), and
+  // the text column sits 20 px right of the pill instead of 10 so the data
+  // has more room to breathe. Before r277 the pill was 28 px tall in a 69 px
+  // row — it looked stranded above the 3 text lines.
+  const int16_t compactRowH = bodyH / 2;  // ~71px each
+  const int16_t badgeW = 100;
+  const int16_t badgeH = compactRowH - 8;  // full-row pill, ~63px
+  const int16_t cTextX = badgeW + 20;      // was 10 — more breathing room
   for (int i = 0; i < 2; i++) {
     const int16_t ry = bodyY + i * compactRowH;
 
@@ -14618,8 +14624,7 @@ static void lvglInitLaunchUi() {
     lv_obj_set_style_text_align(g_launchUi.compactBadgeLabel[i], LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_anim_speed(g_launchUi.compactBadgeLabel[i], 15, 0);
 
-    // Mission name — 20px, line 1
-    const int16_t cTextX = badgeW + 10;
+    // Mission name — 20px, line 1 (cTextX computed above, r277)
     g_launchUi.compactName[i] = lv_label_create(g_launchUi.compactBg[i]);
     lv_label_set_text(g_launchUi.compactName[i], "");
     lv_obj_set_style_text_font(g_launchUi.compactName[i], lvglFontMeta(), 0);
@@ -18409,6 +18414,8 @@ static const SerialCmd kSerialCmds[] = {
   { "VIEW6",         cmdViewTransit },
   { "VIEWTRANSIT",   cmdViewTransit },
   { "TRANSIT",       cmdViewTransit },
+  { "VIEWTIMETABLE", cmdViewTransit },
+  { "TIMETABLE",     cmdViewTransit },
   { "VIEW7",         cmdViewLaunch },
   { "VIEWLAUNCH",    cmdViewLaunch },
   { "LAUNCH",        cmdViewLaunch },

@@ -4,12 +4,12 @@
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
 [![Languages](https://img.shields.io/badge/Word_Clock-14_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
-[![Views](https://img.shields.io/badge/Views-6_live_views-3B82F6?style=for-the-badge)](#views)
+[![Views](https://img.shields.io/badge/Views-8_live_views-3B82F6?style=for-the-badge)](#views)
 [![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
 
-**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, six swipeable views, a word clock that composes real sentences in fourteen languages (from Italian and Latin to Klingon, 1337 Speak, Bellazio, and Pirate), actual grammar, not uppercase tiles, plus RSS feeds, a Wikipedia viewer, a `Now Playing` strip with cover art, a live transit departure board, and a LAN web config UI.
+**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, eight swipeable views, a word clock that composes real sentences in fourteen languages (from Italian and Latin to Klingon, 1337 Speak, Bellazio, and Pirate) — actual grammar, not uppercase tiles. Plus RSS, a Wikipedia deck, a `Now Playing` strip with cover art, a live public-transport timetable, a rocket launch countdown, a Mac Stats monitor driven by a macOS companion, and a LAN web config UI.
 
-*Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls random Wikipedia facts nobody asked for, and shows live train departures you could just check on your phone. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
+*Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls Wikipedia facts nobody asked for, counts down rocket launches SpaceX will probably slip by three hours anyway, and shows the next train from the stop you already know by heart. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
 
 ## HOME
 
@@ -55,6 +55,50 @@
 </td>
 </tr></table>
 
+## NOW PLAYING: macOS companion live feed
+
+<table><tr>
+<td width="55%"><img src="assets/readme_previews/now_playing.png" alt="NOW PLAYING view with album art and progress bar" width="100%"></td>
+<td>
+
+**What macOS is playing, on your desk.** Album art on the left, title and artist on the right, elapsed / duration, source tag (Music, Spotify, Podcasts, whatever). The [companion app](companion/mac/) sits in the menu bar, reads the system-wide `Now Playing` session through `MediaRemote.framework` (so it works with anything AVFoundation can see), and posts the metadata to `/api/now-playing` over your LAN. No API tokens, no OAuth dance.
+
+</td>
+</tr></table>
+
+## TIMETABLE: live departures anywhere
+
+<table><tr>
+<td width="55%"><img src="assets/readme_previews/timetable_board.png" alt="TIMETABLE view showing live departures with relative countdown" width="100%"></td>
+<td>
+
+**The LED sign at the stop, on your desk.** Live public-transport departures from any GTFS-indexed stop on Earth, powered by [Transitous](https://transitous.org) — no API key, no account, no rate limit. Type a station name in the web UI; autocomplete finds the Transitous stop ID. Colored line badges with adaptive font, real-time delay tags, arrival times, platform numbers. Adaptive countdown: `3'` / `14'` / `45'` for anything under an hour, `HH:MM` above, amber when the bus is arriving *now*. Twenty-plus countries confirmed working.
+
+</td>
+</tr></table>
+
+## LAUNCHES: rocket countdown hero
+
+<table><tr>
+<td width="55%"><img src="assets/readme_previews/launch_countdown.png" alt="LAUNCHES view with T-minus countdown and mission details" width="100%"></td>
+<td>
+
+**Know when SpaceX delays itself again.** Upcoming rocket launches from [The Space Devs](https://thespacedevs.com/) Launch Library 2. Cinematic T-minus hero with mission name, vehicle, pad location, and live weather at the site. Swipe once to see the next two missions in a compact row view. QR code jumps straight to the official mission page when you inevitably want to watch the stream.
+
+</td>
+</tr></table>
+
+## MAC STATS: your Mac, on the desk
+
+<table><tr>
+<td width="55%"><img src="assets/readme_previews/mac_stats.png" alt="MAC STATS view with CPU/GPU load and temperatures" width="100%"></td>
+<td>
+
+**Activity Monitor, but ambient.** CPU and GPU utilization with temperatures, RAM and disk usage bars, all pushed from the [ScryBar Companion](companion/mac/) menu-bar app every five seconds. Temperatures are color-coded (green / amber / red) and bars tint warm above 75% full. Works with Apple Silicon via the free [`macmon`](https://github.com/vladkens/macmon) helper (no `sudo` needed); Intel Macs fall back to IOKit SMC.
+
+</td>
+</tr></table>
+
 ## More Themes
 
 | ScryBar Default | Cyberpunk 2077 | Tokyo Transit | Minimal Brutalist Mono |
@@ -96,17 +140,19 @@
 | **IMU** | QMI8658 6-axis | Accelerometer + gyroscope. Shake detection, tilt sensing. The bar knows when you're angry. |
 | **Power** | USB-C + optional LiPo | Charging and battery fallback managed via TCA9554 GPIO expander. Always re-asserted at boot. |
 
-The physical profile: a horizontal bar that sits flat on your desk. Wide enough to host six views of mischief. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
+The physical profile: a horizontal bar that sits flat on your desk. Wide enough to host eight views of mischief. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
 
 ---
 
 ## Views
 
-Six views, navigated by swipe.
+Eight views, navigated by swipe. Any page can be toggled off from the web UI; the carousel compresses around what's left.
 
 ```
-  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► TRANSIT
+  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► TIMETABLE ◄─► LAUNCHES ◄─► MAC STATS
 ```
+
+**INFO** — System diagnostics: Wi-Fi status, RSSI, IP, MAC, battery level, power source, firmware build tag, NTP sync status. QR code pointing to the web config UI. The nervous system, exposed.
 
 **HOME** — Word clock in natural sentence form (14 languages), weather icon, temperature, humidity. Theme-driven typography with auto-fit sizing. Themes switchable from the web UI without reflashing.
 
@@ -114,11 +160,13 @@ Six views, navigated by swipe.
 
 **WIKI** — Wikipedia stream: Featured Article, On This Day, and Random Article. Language independently selectable (8 real languages) from the system language via web UI. Same `SKIP`/`NXT`/`QR` controls as AUX. A bottomless pit of trivia that you didn't need but now can't stop reading.
 
-**NOW PLAYING** — Cover art on the left, metadata on the right, playback progress and transport controls. The firmware UI is now live on-device, and the production path is a small macOS companion that discovers the bar over Bonjour, posts metadata to `/api/now-playing`, and by default reads the system-wide Mac `Now Playing` session through `MediaRemote.framework`. That gives ScryBar one practical feed for Music, Spotify, TIDAL, podcasts, and whatever else macOS itself is already surfacing.
+**NOW PLAYING** — Album art, title, artist, progress, source. The companion reads the system-wide `Now Playing` session through `MediaRemote.framework` and posts over LAN. One feed for Music, Spotify, TIDAL, podcasts, and whatever else macOS is already surfacing.
 
-**TRANSIT** — Live departure board powered by [Transitous](https://transitous.org) (free global GTFS data, no API key). Search any station worldwide from the web UI. Colored line badges with adaptive font, real-time delay indicators, arrival times, platform info. Handles trains, metro, trams, buses, and coaches across 20+ countries. Tap to toggle origin display; destination filter via web UI.
+**TIMETABLE** — Live public-transport departures via [Transitous](https://transitous.org) (free global GTFS, no API key). Colored line badges, delays, arrival times, platform. Adaptive countdown: `3'` / `14'` / `45'` under the hour, `HH:MM` above. Handles trains, metro, trams, buses, coaches. Tap to peek at origin → terminus; destination filter via web UI. Twenty-plus countries confirmed.
 
-**INFO** — System diagnostics: Wi-Fi status, RSSI, IP, MAC, battery level, power source, firmware build tag, NTP sync status. QR code pointing to the web config UI. The nervous system, exposed.
+**LAUNCHES** — Upcoming rocket launches from [The Space Devs](https://thespacedevs.com/) Launch Library 2. Cinematic T-minus hero, weather at the pad, QR jump to mission page. Second view shows the next two missions in a compact list.
+
+**MAC STATS** — CPU and GPU load + temperatures, RAM and disk bars, pushed from the companion every five seconds. Color-coded above the thermal shrug zone. Needs the [macOS companion app](companion/mac/) running to be populated.
 
 Physical buttons:
 
@@ -275,7 +323,9 @@ Commands sent over Serial at 115200 baud. Case-insensitive.
 | `VIEW2` / `VIEWAUX` / `VIEWRSS` | Force AUX/RSS page |
 | `VIEW3` / `VIEWWIKI` | Force WIKI page |
 | `VIEW4` / `VIEWNOW` / `VIEWNP` | Force NOW PLAYING page |
-| `VIEW5` / `VIEWTRANSIT` / `TRANSIT` | Force TRANSIT page |
+| `VIEW6` / `VIEWTRANSIT` / `TRANSIT` | Force TIMETABLE page |
+| `VIEW7` / `VIEWLAUNCH` / `LAUNCH` | Force LAUNCHES page |
+| `VIEW8` / `VIEWMACSTATS` / `MACSTATS` | Force MAC STATS page |
 
 **Configuration:**
 
@@ -322,7 +372,8 @@ Capture live framebuffer snapshots over serial. Requires `ffmpeg` for the RGB565
 python3 tools/capture_snapshot.py --port <PORT> --out-dir screenshots
 
 # Capture a specific view
-python3 tools/capture_snapshot.py --port <PORT> --pre-cmd VIEWTRANSIT --out-dir screenshots
+python3 tools/capture_snapshot.py --port <PORT> --pre-cmd VIEWTIMETABLE --out-dir screenshots
+# (TIMETABLE, VIEW6, and the legacy VIEWTRANSIT / TRANSIT aliases all work)
 ```
 
 The `--pre-cmd` flag sends a serial command before taking the snapshot, useful for switching views without touching the device. Add `--pre-wait` and `--pre-gap` to tune boot / settle timing.
