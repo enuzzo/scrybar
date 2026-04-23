@@ -1,6 +1,19 @@
 ---
 const releases = [
   {
+    version: 'v0.8.1',
+    tag: 'r279',
+    date: '2026-04-23',
+    headline: 'Now Playing color fix, header polish, web gallery refresh',
+    items: [
+      { label: 'Fix', text: 'Now Playing album art colors were corrupted — golden/amber tones (e.g. STARBOY) appeared pure red. Root cause: companion used CGBitmapContext with byteOrder32Big|premultipliedLast, which is not hardware-accelerated on Apple Silicon. Core Graphics renders BGRA regardless, zeroing the G high bits for warm colors. Fixed by using the native byteOrder32Little|premultipliedFirst (BGRA) format.' },
+      { label: 'Fix', text: 'Now Playing header strip: title and status were offset +2px downward, pressing them against the divider above the album art. All four label objects now use y\u2009=\u20090 so the strip reads as vertically centered.' },
+      { label: 'Fix', text: 'Launches hero: country label enlarged from 14\u202fpx to 16\u202fpx; TAP\u00b7SCAN QR hint opacity raised from 70\u202f% to 90\u202f% for better legibility at a glance.' },
+      { label: 'New', text: 'Features section redesigned as horizontal cards — icon on the left, title and description stacked on the right, four columns across. \u201c7\u202fThemes\u201d and \u201cLAN Config\u201d removed; both are already covered elsewhere on the page.' },
+      { label: 'New', text: 'View gallery refreshed: companion screenshot removed (shown in the Companion section below), device bezel frames added around each image. All 8 screenshots recaptured with London weather, English word clock, Liverpool Street Station for Timetable, and a different theme per view.' },
+    ],
+  },
+  {
     version: 'v0.8.0',
     tag: 'r277',
     date: '2026-04-23',
