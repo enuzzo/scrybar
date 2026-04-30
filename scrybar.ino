@@ -15718,6 +15718,13 @@ static void lvglApplyPageVisibility(bool animate) {
   if (cur < 0) return;
   const uint32_t now = millis();
 
+  // Steady-state fast path: skip the 8-slot recompute when nothing can have
+  // changed since last settle (same page, no drag, no anim window).
+  static int8_t s_settledCur = -1;
+  if (!animate && !g_pageAnim.dragActive && now >= g_pageAnim.untilMs && cur == s_settledCur) {
+    return;
+  }
+
   // Build dynamic target positions using live ordinals (skip disabled pages).
   struct PageSlot { lv_obj_t *root; UiPageMode mode; int32_t targetX; };
   PageSlot slots[] = {
@@ -15745,7 +15752,7 @@ static void lvglApplyPageVisibility(bool animate) {
       if (slots[i].targetX >= (int32_t)w * 10) continue;  // disabled, already hidden
       if (lv_obj_get_x(slots[i].root) != (lv_coord_t)slots[i].targetX) { allOk = false; break; }
     }
-    if (allOk) return;
+    if (allOk) { s_settledCur = cur; return; }
     for (size_t i = 0; i < kSlotCount; ++i) if (slots[i].root) lv_anim_del(slots[i].root, lvglSetObjXAnim);
     for (size_t i = 0; i < kSlotCount; ++i) {
       if (slots[i].targetX >= (int32_t)w * 10) continue;
@@ -15754,9 +15761,11 @@ static void lvglApplyPageVisibility(bool animate) {
       if (abs(slots[i].targetX) >= w) lv_obj_add_flag(slots[i].root, LV_OBJ_FLAG_HIDDEN);
     }
     g_pageAnim.dragActive = false;
+    s_settledCur = cur;
     return;
   }
 
+  s_settledCur = -1;  // animating: invalidate the steady-state cache
   constexpr uint16_t kSlideMs = 250;
   for (size_t i = 0; i < kSlotCount; ++i) {
     if (slots[i].targetX >= (int32_t)w * 10) continue;  // disabled
@@ -16162,10 +16171,8 @@ static void lvglUpdateInfoPanel(bool force) {
     snprintf(endpointBuf, sizeof(endpointBuf), "%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
   }
 
-  const size_t kLeftColSz = 512;
-  char *leftCol = (char *)heap_caps_malloc(kLeftColSz, MALLOC_CAP_SPIRAM);
-  if (!leftCol) return;
-  snprintf(leftCol, kLeftColSz,
+  char leftCol[512];
+  snprintf(leftCol, sizeof(leftCol),
            "wifi: %s\n"
            "ssid: %s\n"
            "bat: %s\n"
@@ -16188,14 +16195,13 @@ static void lvglUpdateInfoPanel(bool force) {
   lv_label_set_text(g_infoUi.title, infoTitleBuf);
   lv_label_set_text(g_infoUi.endpoint, endpointBuf);
   lv_label_set_text(g_infoUi.bodyLeft, leftCol);
-  heap_caps_free(leftCol);
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
   if (g_infoUi.webQr) {
     if (strncmp(g_infoUi.lastQrPayload, webUrlBuf, sizeof(g_infoUi.lastQrPayload) - 1) != 0) {
       copyStringSafe(g_infoUi.lastQrPayload, sizeof(g_infoUi.lastQrPayload), webUrlBuf);
       lv_qrcode_update(g_infoUi.webQr, g_infoUi.lastQrPayload, strlen(g_infoUi.lastQrPayload));
+      lv_obj_invalidate(g_infoUi.webQr);
     }
-    lv_obj_invalidate(g_infoUi.webQr);
   }
 #endif
   lvglForceLabelVisible(g_infoUi.title);
