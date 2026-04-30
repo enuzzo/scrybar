@@ -15218,11 +15218,39 @@ static void lvglInitMacStatsUi() {
 }
 
 static void lvglUpdateMacStatsUi(bool force) {
-  (void)force;
   if (!g_lvglMacStatsRoot) return;
 
   const MacStatsState &s = g_macStats;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+
+  // r281: change-detection caches. Skip setters when value matches last paint
+  // to avoid LVGL invalidating each widget's area on every refresh tick.
+  // 0xDEADBEEF sentinel = "never set" so the first paint always writes.
+  static lv_coord_t s_cpuBarH[MAC_STATS_HISTORY_SIZE] = {0};
+  static uint32_t   s_cpuBarC[MAC_STATS_HISTORY_SIZE] = {0xDEADBEEFu};
+  static lv_coord_t s_gpuBarH[MAC_STATS_HISTORY_SIZE] = {0};
+  static uint32_t   s_gpuBarC[MAC_STATS_HISTORY_SIZE] = {0xDEADBEEFu};
+  static uint32_t   s_ramSegC[MAC_STATS_SEG_COUNT]    = {0xDEADBEEFu};
+  static uint32_t   s_diskSegC[MAC_STATS_SEG_COUNT]   = {0xDEADBEEFu};
+  static uint32_t   s_cpuTempCol = 0xDEADBEEFu;
+  static uint32_t   s_gpuTempCol = 0xDEADBEEFu;
+  static uint32_t   s_cpuUsageCol = 0xDEADBEEFu;
+  static uint32_t   s_gpuUsageCol = 0xDEADBEEFu;
+  static uint32_t   s_statusDotCol = 0xDEADBEEFu;
+
+  if (force) {
+    for (uint8_t i = 0; i < MAC_STATS_HISTORY_SIZE; ++i) {
+      s_cpuBarH[i] = -1; s_cpuBarC[i] = 0xDEADBEEFu;
+      s_gpuBarH[i] = -1; s_gpuBarC[i] = 0xDEADBEEFu;
+    }
+    for (uint8_t i = 0; i < MAC_STATS_SEG_COUNT; ++i) {
+      s_ramSegC[i]  = 0xDEADBEEFu;
+      s_diskSegC[i] = 0xDEADBEEFu;
+    }
+    s_cpuTempCol = s_gpuTempCol = 0xDEADBEEFu;
+    s_cpuUsageCol = s_gpuUsageCol = 0xDEADBEEFu;
+    s_statusDotCol = 0xDEADBEEFu;
+  }
 
   // ── Show / hide tiles vs no-data placeholder ─────────────────────────────
   const bool hasData = s.valid;
@@ -15251,9 +15279,14 @@ static void lvglUpdateMacStatsUi(bool force) {
     const uint32_t headerBg = lvglResolvedHeaderBg(t);
     const uint32_t headerTx = lvglResolvedHeaderText(t);
     const uint32_t dotRaw   = s.valid ? (isLive ? 0x3CE078u : 0xFFA000u) : 0x7A7A7Au;
-    if (g_macStatsUi.statusDot)
-      lv_obj_set_style_bg_color(g_macStatsUi.statusDot,
-          lv_color_hex(lvglAdaptDotForHeader(dotRaw, headerBg)), LV_PART_MAIN);
+    if (g_macStatsUi.statusDot) {
+      const uint32_t adapted = lvglAdaptDotForHeader(dotRaw, headerBg);
+      if (adapted != s_statusDotCol) {
+        s_statusDotCol = adapted;
+        lv_obj_set_style_bg_color(g_macStatsUi.statusDot,
+            lv_color_hex(adapted), LV_PART_MAIN);
+      }
+    }
     if (g_macStatsUi.statusLabel) {
       if (!s.valid) {
         lv_label_set_text(g_macStatsUi.statusLabel, "--");
@@ -15284,8 +15317,11 @@ static void lvglUpdateMacStatsUi(bool force) {
     else copyStringSafe(buf, sizeof(buf), "N/A");
     lv_label_set_text(g_macStatsUi.cpuUsageVal, buf);
     const uint32_t c = s.hasCpuUsage ? usageTone(s.cpuUsagePct) : 0u;
-    lv_obj_set_style_text_color(g_macStatsUi.cpuUsageVal,
-        lv_color_hex(c ? c : t.infoText), LV_PART_MAIN);
+    const uint32_t finalC = c ? c : t.infoText;
+    if (finalC != s_cpuUsageCol) {
+      s_cpuUsageCol = finalC;
+      lv_obj_set_style_text_color(g_macStatsUi.cpuUsageVal, lv_color_hex(finalC), LV_PART_MAIN);
+    }
   }
 
   // ── GPU usage ─────────────────────────────────────────────────────────────
@@ -15295,8 +15331,11 @@ static void lvglUpdateMacStatsUi(bool force) {
     else copyStringSafe(buf, sizeof(buf), "N/A");
     lv_label_set_text(g_macStatsUi.gpuUsageVal, buf);
     const uint32_t c = s.hasGpuUsage ? usageTone(s.gpuUsagePct) : 0u;
-    lv_obj_set_style_text_color(g_macStatsUi.gpuUsageVal,
-        lv_color_hex(c ? c : t.infoText), LV_PART_MAIN);
+    const uint32_t finalC = c ? c : t.infoText;
+    if (finalC != s_gpuUsageCol) {
+      s_gpuUsageCol = finalC;
+      lv_obj_set_style_text_color(g_macStatsUi.gpuUsageVal, lv_color_hex(finalC), LV_PART_MAIN);
+    }
   }
 
   // ── CPU/GPU sparklines ────────────────────────────────────────────────────
@@ -15318,23 +15357,37 @@ static void lvglUpdateMacStatsUi(bool force) {
     if (g_macStatsUi.cpuSpark[i]) {
       const uint8_t val = hasSample ? g_cpuUsageHistory[histSlot] : 0u;
       const lv_coord_t bh = hasSample ? (lv_coord_t)(2 + (MAC_STATS_SPARK_MAXH - 2) * val / 100u) : 2;
-      const lv_coord_t by = sparkBottom - bh;
-      const uint32_t col = (val >= 80u) ? 0xFF5252u : (val >= 60u) ? 0xFFB74Du : 0x5599FFu;
-      lv_obj_set_size(g_macStatsUi.cpuSpark[i], MAC_STATS_SPARK_BAR_W, bh);
-      lv_obj_set_pos(g_macStatsUi.cpuSpark[i], bx, by);
-      lv_obj_set_style_bg_color(g_macStatsUi.cpuSpark[i],
-          lv_color_hex(hasSample ? col : trackColor), LV_PART_MAIN);
+      const uint32_t col = hasSample
+          ? ((val >= 80u) ? 0xFF5252u : (val >= 60u) ? 0xFFB74Du : 0x5599FFu)
+          : trackColor;
+      if (bh != s_cpuBarH[i]) {
+        s_cpuBarH[i] = bh;
+        const lv_coord_t by = sparkBottom - bh;
+        lv_obj_set_size(g_macStatsUi.cpuSpark[i], MAC_STATS_SPARK_BAR_W, bh);
+        lv_obj_set_pos(g_macStatsUi.cpuSpark[i], bx, by);
+      }
+      if (col != s_cpuBarC[i]) {
+        s_cpuBarC[i] = col;
+        lv_obj_set_style_bg_color(g_macStatsUi.cpuSpark[i], lv_color_hex(col), LV_PART_MAIN);
+      }
     }
     // GPU bar
     if (g_macStatsUi.gpuSpark[i]) {
       const uint8_t val = hasSample ? g_gpuUsageHistory[histSlot] : 0u;
       const lv_coord_t bh = hasSample ? (lv_coord_t)(2 + (MAC_STATS_SPARK_MAXH - 2) * val / 100u) : 2;
-      const lv_coord_t by = sparkBottom - bh;
-      const uint32_t col = (val >= 80u) ? 0xFF5252u : (val >= 60u) ? 0xFFB74Du : 0x55CC88u;
-      lv_obj_set_size(g_macStatsUi.gpuSpark[i], MAC_STATS_SPARK_BAR_W, bh);
-      lv_obj_set_pos(g_macStatsUi.gpuSpark[i], bx, by);
-      lv_obj_set_style_bg_color(g_macStatsUi.gpuSpark[i],
-          lv_color_hex(hasSample ? col : trackColor), LV_PART_MAIN);
+      const uint32_t col = hasSample
+          ? ((val >= 80u) ? 0xFF5252u : (val >= 60u) ? 0xFFB74Du : 0x55CC88u)
+          : trackColor;
+      if (bh != s_gpuBarH[i]) {
+        s_gpuBarH[i] = bh;
+        const lv_coord_t by = sparkBottom - bh;
+        lv_obj_set_size(g_macStatsUi.gpuSpark[i], MAC_STATS_SPARK_BAR_W, bh);
+        lv_obj_set_pos(g_macStatsUi.gpuSpark[i], bx, by);
+      }
+      if (col != s_gpuBarC[i]) {
+        s_gpuBarC[i] = col;
+        lv_obj_set_style_bg_color(g_macStatsUi.gpuSpark[i], lv_color_hex(col), LV_PART_MAIN);
+      }
     }
   }
 
@@ -15358,13 +15411,16 @@ static void lvglUpdateMacStatsUi(bool force) {
     else copyStringSafe(buf, sizeof(buf), "--");
     lv_label_set_text(g_macStatsUi.cpuTempVal, buf);
     const uint32_t tc = tempColor(s.cpuTempC, s.hasCpuTemp);
-    lv_obj_set_style_text_color(g_macStatsUi.cpuTempVal, lv_color_hex(tc), LV_PART_MAIN);
-    if (g_macStatsUi.cpuTempDot)
-      lv_obj_set_style_bg_color(g_macStatsUi.cpuTempDot, lv_color_hex(tc), LV_PART_MAIN);
-    if (g_macStatsUi.cpuTempStatus) {
-      lv_label_set_text(g_macStatsUi.cpuTempStatus, tempLabel(s.cpuTempC, s.hasCpuTemp));
-      lv_obj_set_style_text_color(g_macStatsUi.cpuTempStatus, lv_color_hex(tc), LV_PART_MAIN);
+    if (tc != s_cpuTempCol) {
+      s_cpuTempCol = tc;
+      lv_obj_set_style_text_color(g_macStatsUi.cpuTempVal, lv_color_hex(tc), LV_PART_MAIN);
+      if (g_macStatsUi.cpuTempDot)
+        lv_obj_set_style_bg_color(g_macStatsUi.cpuTempDot, lv_color_hex(tc), LV_PART_MAIN);
+      if (g_macStatsUi.cpuTempStatus)
+        lv_obj_set_style_text_color(g_macStatsUi.cpuTempStatus, lv_color_hex(tc), LV_PART_MAIN);
     }
+    if (g_macStatsUi.cpuTempStatus)
+      lv_label_set_text(g_macStatsUi.cpuTempStatus, tempLabel(s.cpuTempC, s.hasCpuTemp));
   }
   if (g_macStatsUi.gpuTempVal) {
     char buf[12];
@@ -15372,13 +15428,16 @@ static void lvglUpdateMacStatsUi(bool force) {
     else copyStringSafe(buf, sizeof(buf), "--");
     lv_label_set_text(g_macStatsUi.gpuTempVal, buf);
     const uint32_t tc = tempColor(s.gpuTempC, s.hasGpuTemp);
-    lv_obj_set_style_text_color(g_macStatsUi.gpuTempVal, lv_color_hex(tc), LV_PART_MAIN);
-    if (g_macStatsUi.gpuTempDot)
-      lv_obj_set_style_bg_color(g_macStatsUi.gpuTempDot, lv_color_hex(tc), LV_PART_MAIN);
-    if (g_macStatsUi.gpuTempStatus) {
-      lv_label_set_text(g_macStatsUi.gpuTempStatus, tempLabel(s.gpuTempC, s.hasGpuTemp));
-      lv_obj_set_style_text_color(g_macStatsUi.gpuTempStatus, lv_color_hex(tc), LV_PART_MAIN);
+    if (tc != s_gpuTempCol) {
+      s_gpuTempCol = tc;
+      lv_obj_set_style_text_color(g_macStatsUi.gpuTempVal, lv_color_hex(tc), LV_PART_MAIN);
+      if (g_macStatsUi.gpuTempDot)
+        lv_obj_set_style_bg_color(g_macStatsUi.gpuTempDot, lv_color_hex(tc), LV_PART_MAIN);
+      if (g_macStatsUi.gpuTempStatus)
+        lv_obj_set_style_text_color(g_macStatsUi.gpuTempStatus, lv_color_hex(tc), LV_PART_MAIN);
     }
+    if (g_macStatsUi.gpuTempStatus)
+      lv_label_set_text(g_macStatsUi.gpuTempStatus, tempLabel(s.gpuTempC, s.hasGpuTemp));
   }
 
   // ── RAM segmented bar + percentage ────────────────────────────────────────
@@ -15398,8 +15457,11 @@ static void lvglUpdateMacStatsUi(bool force) {
     if (!g_macStatsUi.ramSegs[i]) continue;
     const float thresh = (float)i / MAC_STATS_SEG_COUNT;
     const bool filled = (ramRatio > thresh);
-    lv_obj_set_style_bg_color(g_macStatsUi.ramSegs[i],
-        lv_color_hex(filled ? 0x5599FFu : trackColor), LV_PART_MAIN);
+    const uint32_t col = filled ? 0x5599FFu : trackColor;
+    if (col != s_ramSegC[i]) {
+      s_ramSegC[i] = col;
+      lv_obj_set_style_bg_color(g_macStatsUi.ramSegs[i], lv_color_hex(col), LV_PART_MAIN);
+    }
   }
 
   // ── Disk segmented bar + percentage ───────────────────────────────────────
@@ -15422,8 +15484,11 @@ static void lvglUpdateMacStatsUi(bool force) {
     if (!g_macStatsUi.diskSegs[i]) continue;
     const float thresh = (float)i / MAC_STATS_SEG_COUNT;
     const bool filled = (diskRatio > thresh);
-    lv_obj_set_style_bg_color(g_macStatsUi.diskSegs[i],
-        lv_color_hex(filled ? diskFillCol : trackColor), LV_PART_MAIN);
+    const uint32_t col = filled ? diskFillCol : trackColor;
+    if (col != s_diskSegC[i]) {
+      s_diskSegC[i] = col;
+      lv_obj_set_style_bg_color(g_macStatsUi.diskSegs[i], lv_color_hex(col), LV_PART_MAIN);
+    }
   }
 }
 
