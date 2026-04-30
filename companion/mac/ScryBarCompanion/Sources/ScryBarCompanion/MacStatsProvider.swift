@@ -67,15 +67,18 @@ final class MacStatsProvider: @unchecked Sendable {
         proc.executableURL = URL(fileURLWithPath: path)
         proc.arguments = ["pipe", "-s", "1", "-i", "200"]
 
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = Pipe()  // suppress stderr
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        proc.standardOutput = outPipe
+        proc.standardError = errPipe  // suppress stderr
 
         do { try proc.run() } catch { return nil }
 
-        // Read up to 4 KB (one JSON line is ~400 bytes)
-        let data = pipe.fileHandleForReading.readData(ofLength: 4096)
+        let data = outPipe.fileHandleForReading.readData(ofLength: 4096)
         proc.terminate()
+        proc.waitUntilExit()  // reap to avoid zombie accumulation
+        try? outPipe.fileHandleForReading.close()
+        try? errPipe.fileHandleForReading.close()
 
         guard !data.isEmpty,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -263,7 +266,9 @@ final class SMCReader: @unchecked Sendable {
         return reader
     }
 
-    deinit { IOServiceClose(conn) }
+    deinit {
+        if conn != 0 { IOServiceClose(conn) }
+    }
 
     // MARK: Public
 

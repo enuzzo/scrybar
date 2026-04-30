@@ -8,8 +8,8 @@
 
 **Key tools:**
 - Screenshot: `python3 tools/capture_snapshot.py --port /dev/cu.usbmodem83201 --out /tmp/snap.png`
-- Compile: `arduino-cli compile --clean --build-path /tmp/arduino-build-scrybar --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar`
-- Upload: `arduino-cli upload -p /dev/cu.usbmodem83201 --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi --input-dir /tmp/arduino-build-scrybar /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar`
+- Compile: `arduino-cli compile --clean --build-path /tmp/arduino-build-scrybar --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi <REPO_ROOT>`
+- Upload: `arduino-cli upload -p /dev/cu.usbmodem83201 --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi --input-dir /tmp/arduino-build-scrybar <REPO_ROOT>`
 
 ---
 

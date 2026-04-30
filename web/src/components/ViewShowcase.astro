@@ -1,4 +1,5 @@
 ---
+import { Image } from 'astro:assets';
 import imgInfo from '../assets/screenshots/info_panel.png';
 import imgHome from '../assets/screenshots/home_weather_scrybar-default.png';
 import imgRss from '../assets/screenshots/aux_rss.png';
@@ -34,12 +35,15 @@ const views = [
         <div class="view-card" data-view-index={i}>
           <div class="view-screen">
             <div class="view-screen__display">
-              <img
-                src={v.src.src}
+              <Image
+                src={v.src}
                 alt={`ScryBar ${v.label} view`}
-                width={v.src.width}
-                height={v.src.height}
+                widths={[320, 640, v.src.width]}
+                sizes="(max-width: 600px) 320px, 640px"
+                format="webp"
+                quality={82}
                 loading="lazy"
+                decoding="async"
               />
             </div>
           </div>

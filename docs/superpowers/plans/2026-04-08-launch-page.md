@@ -75,7 +75,7 @@ Run:
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 ```
 Expected: compiles successfully.
 
@@ -1234,7 +1234,7 @@ git commit -m "r252: Launch page — theme integration + version bump"
 arduino-cli upload -p /dev/cu.usbmodem83201 \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 ```
 
 - [ ] **Step 2: Verify page appears**

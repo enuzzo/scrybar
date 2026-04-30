@@ -116,7 +116,7 @@ Run:
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 ```
 
 Expected: compile succeeds with no errors referencing the new font.
@@ -274,7 +274,7 @@ Run:
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 ```
 
 Expected: compile succeeds. The output should show increased flash usage vs Task 1 baseline (noting ~40-75 KB added).
@@ -355,7 +355,7 @@ Run:
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 ```
 
 Expected: compile succeeds. The new struct fields are unused so far (warnings are fine, errors are not).
@@ -555,7 +555,7 @@ Run:
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 ```
 
 Expected: compile succeeds. Warnings about unused `heroWindow` are fine.
@@ -567,7 +567,7 @@ Run:
 arduino-cli upload -p /dev/cu.usbmodem83201 \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 ```
 
 Expected: upload succeeds, device resets automatically.
@@ -783,7 +783,7 @@ Run:
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 ```
 
 Expected: compile succeeds. If an error mentions a `LaunchItem` field that doesn't exist, drop back to Step 2 and fix the substitution.
@@ -795,7 +795,7 @@ Run:
 arduino-cli upload -p /dev/cu.usbmodem83201 \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 ```
 
 - [ ] **Step 7: Screenshot and visual verify against mockup**
@@ -871,7 +871,7 @@ The carousel rotates every 10 seconds. To grab a clean View 0 screenshot, the si
 arduino-cli upload -p /dev/cu.usbmodem83201 \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 python3 -c "import serial,time; s=serial.Serial('/dev/cu.usbmodem83201',115200); time.sleep(3); s.write(b'SAVEROFF\nLAUNCH\n'); time.sleep(3); s.close()"
 python3 tools/capture_snapshot.py --port /dev/cu.usbmodem83201 --out knowledge/screenshots
 ```
@@ -900,7 +900,7 @@ Run:
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar 2>&1 | grep -E "Sketch uses|Global variables"
+  <REPO_ROOT> 2>&1 | grep -E "Sketch uses|Global variables"
 ```
 
 Compare the "Sketch uses" number against the pre-r256 value (can be checked from the previous build cache or from git log). Expected delta: +40-80 KB. If it's more than +100 KB, something went wrong in the font generation (likely `--bpp 8` or missing `--no-compress`) — investigate.

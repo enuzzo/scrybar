@@ -115,30 +115,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func sendNow() {
-        saveManualTarget()
-        guard let endpoint = selectedEndpoint else {
-            lastSendStatus = "Select a discovered ScryBar or enter a manual host/IP."
-            return
-        }
-
-        let payload = currentPayload
-        lastSendStatus = "Sending to \(endpoint.host):\(endpoint.port)…"
-
-        Task {
-            do {
-                try await client.send(payload, to: endpoint)
-                await MainActor.run {
-                    self.lastSendStatus = "Sent to \(endpoint.host):\(endpoint.port) at \(DateFormatter.shortTime.string(from: .now))"
-                }
-            } catch {
-                await MainActor.run {
-                    self.lastSendStatus = "Send failed: \(error.localizedDescription)"
-                }
-            }
-        }
-    }
-
     private var lastSendSucceeded = true
     private var sendInFlight = false
 

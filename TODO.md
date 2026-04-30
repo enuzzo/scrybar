@@ -50,33 +50,13 @@ Implementation happens in separate sessions with full planning before touching c
 
 ---
 
-## 3. GPT / Oracle Page — Full Rethink
-
-**Current state:** not designed for the device. The layout was not reasoned for 320×170 and does not belong to the design system. Needs a clean restart.
-
-**Goals:**
-- Define what this page *does* before touching a pixel. Is it:
-  - A query/response surface (type or voice → answer)?
-  - An ambient oracle (rotating AI-generated content, no interaction)?
-  - A hybrid?
-- Design for the physical constraints first: strip display, single-touch, no keyboard.
-- If interaction is needed, design a minimal on-device input method (or delegate to the web UI / LAN).
-- Establish a visual identity for the page that feels distinct from HOME/AUX but coherent with the system.
-
-**Open questions to resolve before design:**
-- Is voice input in scope (hardware support? mic already present)?
-- What is the data source? (local LLM, cloud API, cached responses?)
-- What is the failure/loading state? The display is always-on — blank or spinner is not acceptable.
-
----
-
-## 4. Design System Audit — Device vs Web
+## 3. Design System Audit — Device vs Web
 
 **Context:** the current design system was built for the web config UI and has been partially applied to the device UI. The two contexts have different constraints and the device side shows it.
 
 **Goals:**
 - Define a formal design token set for the device: type sizes, spacing units, color palette, icon style.
-- Audit all four views (HOME, AUX, GPT, INFO) against the token set.
+- Audit all live views (INFO, HOME, AUX, WIKI, NOW PLAYING, DOOM, TIMETABLE, LAUNCH, MAC STATS) against the token set.
 - The web config UI can share color/brand tokens but has its own layout rules — keep them separate.
 - Document decisions in `knowledge/decisions.md` as they are made.
 
@@ -87,6 +67,5 @@ Implementation happens in separate sessions with full planning before touching c
 
 ## Notes
 
-- Items 2, 3, 4 are interdependent — do the design system audit (4) before redesigning individual pages.
+- Items 2 and 3 are interdependent — do the design system audit (3) before redesigning individual pages.
 - Item 1 (languages) is independent and can be picked up anytime after a successful compile baseline.
-- Before any UI work: confirm compile is clean on current codebase (pending post-office check).

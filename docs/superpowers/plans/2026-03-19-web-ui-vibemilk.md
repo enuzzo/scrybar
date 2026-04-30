@@ -58,7 +58,7 @@ Key bridge mappings:
 
 - [ ] **Step 2: Verify CSS compiles**
 
-Run: `arduino-cli compile --clean --build-path /tmp/arduino-build-scrybar --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar`
+Run: `arduino-cli compile --clean --build-path /tmp/arduino-build-scrybar --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi <REPO_ROOT>`
 
 Expected: Compiles successfully. No string literal errors.
 

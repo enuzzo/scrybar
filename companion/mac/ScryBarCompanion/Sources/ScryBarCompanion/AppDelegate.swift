@@ -75,10 +75,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func contextSendNow() {
-        model.sendNow()
-    }
-
     @objc private func contextOpenSettings() {
         model.showSettingsOnOpen = true
         if let button = statusItem.button {

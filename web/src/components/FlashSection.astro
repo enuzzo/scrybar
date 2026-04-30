@@ -64,3 +64,28 @@
     </p>
   </div>
 </section>
+
+<script>
+  const inject = () => {
+    if (document.querySelector('script[data-esp-web-tools]')) return;
+    const s = document.createElement('script');
+    s.type = 'module';
+    s.src = 'https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module';
+    s.dataset.espWebTools = '';
+    document.head.appendChild(s);
+  };
+
+  const schedule = () => {
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(inject, { timeout: 1500 });
+    } else {
+      setTimeout(inject, 600);
+    }
+  };
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('load', schedule, { once: true });
+  } else {
+    schedule();
+  }
+</script>

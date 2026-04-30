@@ -16,13 +16,13 @@
 arduino-cli compile --clean \
   --build-path /tmp/arduino-build-scrybar \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 
 # Upload (verify port with: arduino-cli board list)
 arduino-cli upload -p /dev/cu.usbmodem83201 \
   --fqbn esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=custom,PSRAM=opi \
   --input-dir /tmp/arduino-build-scrybar \
-  /Users/enuzzo/Library/CloudStorage/Dropbox/Mitnick/scrybar
+  <REPO_ROOT>
 
 # Monitor serial
 python3 -c "import serial,sys; s=serial.Serial('/dev/cu.usbmodem83201',115200,timeout=1); [print(s.readline().decode('utf-8','replace'),end='') for _ in iter(int,1)]"
