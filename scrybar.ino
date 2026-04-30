@@ -17442,23 +17442,38 @@ static bool initLvglUi() {
   lv_init();
   const int16_t cW = canvasWidth();
   const int16_t cH = canvasHeight();
-  const uint32_t bufPx = (uint32_t)cW * (uint32_t)cH;
+  const uint32_t fullPx = (uint32_t)cW * (uint32_t)cH;
 
-  g_lvglBuf1 = (lv_color_t*)heap_caps_malloc(bufPx * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!g_lvglBuf1) g_lvglBuf1 = (lv_color_t*)malloc(bufPx * sizeof(lv_color_t));
-  if (!g_lvglBuf1) {
-    Serial.println("[LVGL][ERR] alloc draw buffer fallita");
-    return false;
-  }
+  // r282: prefer single partial buffer in internal SRAM. LVGL pixel writes hit
+  // ~600MB/s there vs ~80MB/s in PSRAM, so render time drops sharply. Single
+  // buffer (not double) keeps internal heap headroom for net-path allocations
+  // (RSS parse buffer ~9KB, wiki summary, JSON, etc.). Fall back to full PSRAM
+  // buffers if internal alloc fails.
+  // partialPx = 1/10 screen ≈ 11008 px ≈ 22 KB (LVGL recommends ≥ 1/10).
+  const uint32_t partialPx = fullPx / 10u;
+  uint32_t bufPx = partialPx;
 
-  // Phase 2: second buffer enables render/flush overlap (double-buffering)
-  g_lvglBuf2 = (lv_color_t*)heap_caps_malloc(bufPx * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (g_lvglBuf2) {
-    Serial.printf("[LVGL] double-buffer enabled (%u + %u KB PSRAM)\n",
-                  (unsigned)(bufPx * sizeof(lv_color_t) / 1024),
-                  (unsigned)(bufPx * sizeof(lv_color_t) / 1024));
+  g_lvglBuf1 = (lv_color_t*)heap_caps_malloc(partialPx * sizeof(lv_color_t),
+                                             MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  g_lvglBuf2 = nullptr;  // single buffer to preserve internal heap for net path
+
+  if (g_lvglBuf1) {
+    Serial.printf("[LVGL] partial single-buffer in internal SRAM (%u KB)\n",
+                  (unsigned)(partialPx * sizeof(lv_color_t) / 1024));
   } else {
-    Serial.println("[LVGL][WARN] second buffer alloc failed — single-buffer fallback");
+    bufPx = fullPx;
+    g_lvglBuf1 = (lv_color_t*)heap_caps_malloc(fullPx * sizeof(lv_color_t),
+                                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!g_lvglBuf1) g_lvglBuf1 = (lv_color_t*)malloc(fullPx * sizeof(lv_color_t));
+    if (!g_lvglBuf1) {
+      Serial.println("[LVGL][ERR] alloc draw buffer fallita");
+      return false;
+    }
+    g_lvglBuf2 = (lv_color_t*)heap_caps_malloc(fullPx * sizeof(lv_color_t),
+                                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    Serial.printf("[LVGL] full-screen %s in PSRAM fallback (%u KB)\n",
+                  g_lvglBuf2 ? "double-buffer" : "single-buffer",
+                  (unsigned)(fullPx * sizeof(lv_color_t) / 1024));
   }
 
   lv_disp_draw_buf_init(&g_lvglDrawBuf, g_lvglBuf1, g_lvglBuf2, bufPx);  // g_lvglBuf2 may be nullptr
