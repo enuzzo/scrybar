@@ -25,6 +25,28 @@ final class MacStatsProvider: @unchecked Sendable {
         return nil
     }()
 
+    /// Long-lived macmon process. Started lazily on first temperature sample,
+    /// kept alive across snapshot() calls so we don't fork+exec 12×/min.
+    private var macmonProc: Process?
+    private var macmonOutBuffer = Data()
+    private let macmonLock = NSLock()
+    private var macmonLatest: (cpu: Float?, gpu: Float?, at: Date)?
+
+    deinit {
+        stopMacmon()
+    }
+
+    private func stopMacmon() {
+        macmonLock.lock(); defer { macmonLock.unlock() }
+        if let p = macmonProc, p.isRunning {
+            p.terminate()
+            p.waitUntilExit()
+        }
+        macmonProc = nil
+        macmonOutBuffer.removeAll(keepingCapacity: false)
+        macmonLatest = nil
+    }
+
     func snapshot() -> MacStatsPayload {
         let ram      = sampleRAM()
         let disk     = sampleDisk()
@@ -50,10 +72,10 @@ final class MacStatsProvider: @unchecked Sendable {
     // MARK: Temperatures
 
     /// Returns (cpuTemp, gpuTemp) in °C.
-    /// Uses `macmon pipe -s 1 -i 200` if available, otherwise falls back to SMC.
+    /// Uses a long-lived `macmon pipe` subprocess if available; falls back to SMC.
     private func sampleTemps() -> (cpu: Float?, gpu: Float?) {
-        if let path = macmonPath, let result = runMacmon(path) {
-            return result
+        if let path = macmonPath {
+            return readMacmonLatest(path: path)
         }
         // Intel SMC fallback
         let cpu = smcReader.flatMap { $0.readTemp(keys: ["TC0P","TC0D","TC0E"]) }
@@ -61,32 +83,77 @@ final class MacStatsProvider: @unchecked Sendable {
         return (cpu, gpu)
     }
 
-    /// Runs `macmon pipe -s 1 -i 200`, reads one JSON line, extracts cpu_temp_avg + gpu_temp_avg.
-    private func runMacmon(_ path: String) -> (cpu: Float?, gpu: Float?)? {
+    /// Read the latest temperature emitted by the long-lived `macmon pipe` process.
+    /// Lazy-starts macmon on the first call. Restarts it if it died unexpectedly.
+    /// Each line of stdout is one JSON object emitted at 1 Hz (`-i 1000`); we keep
+    /// the most recent one parsed and just hand it back per snapshot tick.
+    private func readMacmonLatest(path: String) -> (cpu: Float?, gpu: Float?) {
+        ensureMacmonRunning(path: path)
+
+        macmonLock.lock()
+        let latest = macmonLatest
+        macmonLock.unlock()
+
+        guard let l = latest, Date().timeIntervalSince(l.at) < 30 else {
+            return (nil, nil)
+        }
+        return (l.cpu, l.gpu)
+    }
+
+    private func ensureMacmonRunning(path: String) {
+        macmonLock.lock(); defer { macmonLock.unlock() }
+        if let p = macmonProc, p.isRunning { return }
+
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)
-        proc.arguments = ["pipe", "-s", "1", "-i", "200"]
+        proc.arguments = ["pipe", "-s", "1", "-i", "1000"]
 
         let outPipe = Pipe()
         let errPipe = Pipe()
         proc.standardOutput = outPipe
-        proc.standardError = errPipe  // suppress stderr
+        proc.standardError = errPipe
 
-        do { try proc.run() } catch { return nil }
+        outPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            self?.consumeMacmonChunk(chunk)
+        }
 
-        let data = outPipe.fileHandleForReading.readData(ofLength: 4096)
-        proc.terminate()
-        proc.waitUntilExit()  // reap to avoid zombie accumulation
-        try? outPipe.fileHandleForReading.close()
-        try? errPipe.fileHandleForReading.close()
+        proc.terminationHandler = { [weak self] _ in
+            // Drop the buffered handler so the dead process doesn't keep firing.
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            self?.macmonLock.lock()
+            self?.macmonProc = nil
+            self?.macmonOutBuffer.removeAll(keepingCapacity: false)
+            self?.macmonLock.unlock()
+        }
 
-        guard !data.isEmpty,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let temp = json["temp"] as? [String: Any] else { return nil }
+        do {
+            try proc.run()
+            macmonProc = proc
+        } catch {
+            macmonProc = nil
+        }
+    }
 
-        let cpu = (temp["cpu_temp_avg"] as? NSNumber).map { Float($0.doubleValue) }
-        let gpu = (temp["gpu_temp_avg"] as? NSNumber).map { Float($0.doubleValue) }
-        return (cpu, gpu)
+    private func consumeMacmonChunk(_ chunk: Data) {
+        macmonLock.lock(); defer { macmonLock.unlock() }
+        macmonOutBuffer.append(chunk)
+        // macmon emits one JSON object per line. Parse complete lines and keep
+        // only the latest parsed temps; cap buffer to defend against runaway.
+        while let nl = macmonOutBuffer.firstIndex(of: 0x0A) {
+            let line = macmonOutBuffer.subdata(in: 0..<nl)
+            macmonOutBuffer.removeSubrange(0...nl)
+            guard !line.isEmpty,
+                  let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+                  let temp = json["temp"] as? [String: Any] else { continue }
+            let cpu = (temp["cpu_temp_avg"] as? NSNumber).map { Float($0.doubleValue) }
+            let gpu = (temp["gpu_temp_avg"] as? NSNumber).map { Float($0.doubleValue) }
+            macmonLatest = (cpu, gpu, Date())
+        }
+        if macmonOutBuffer.count > 16 * 1024 {
+            macmonOutBuffer.removeAll(keepingCapacity: false)
+        }
     }
 
     // MARK: CPU Usage
