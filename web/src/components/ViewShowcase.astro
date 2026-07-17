@@ -8,6 +8,7 @@ import imgNowPlaying from '../assets/screenshots/now_playing.png';
 import imgTimetable from '../assets/screenshots/timetable_board.png';
 import imgLaunch from '../assets/screenshots/launch_countdown.png';
 import imgMacStats from '../assets/screenshots/mac_stats.png';
+import { ChevronLeft, ChevronRight, X } from '@lucide/astro';
 
 const views = [
   { id: 'info',      src: imgInfo,       label: 'Diagnostics',    desc: 'IP, WiFi, battery, firmware build. The page that proves it\u2019s really on the network and not just pretending.' },
@@ -27,14 +28,19 @@ const views = [
     <p class="section-sub">
       Swipe left or right through the carousel.
       Toggle any view off in the web UI &mdash; the order
-      compresses around what\u2019s left.
+      compresses around what’s left.
     </p>
 
     <div class="views-grid">
       {views.map((v, i) => (
-        <div class="view-card" data-view-index={i}>
-          <div class="view-screen">
-            <div class="view-screen__display">
+        <button
+          type="button"
+          class="view-card"
+          data-view-index={i}
+          aria-label={`Open larger preview of ${v.label}`}
+        >
+          <span class="view-screen">
+            <span class="view-screen__display">
               <Image
                 src={v.src}
                 alt={`ScryBar ${v.label} view`}
@@ -45,43 +51,67 @@ const views = [
                 loading="lazy"
                 decoding="async"
               />
-            </div>
-          </div>
-          <h3>{v.label}</h3>
-          <p>{v.desc}</p>
-        </div>
+            </span>
+          </span>
+          <span class="view-card__title">{v.label}</span>
+          <span class="view-card__desc">{v.desc}</span>
+        </button>
       ))}
     </div>
   </div>
 </section>
 
 <!-- Lightbox -->
-<div class="view-lightbox" id="js-view-lightbox">
+<dialog
+  class="view-lightbox"
+  id="js-view-lightbox"
+  aria-hidden="true"
+  aria-labelledby="js-lb-caption"
+>
   <div class="view-lightbox__inner">
-    <button class="view-lightbox__close" id="js-lb-close">&times;</button>
-    <button class="view-lightbox__nav view-lightbox__nav--prev" id="js-lb-prev">&lsaquo;</button>
-    <button class="view-lightbox__nav view-lightbox__nav--next" id="js-lb-next">&rsaquo;</button>
+    <button type="button" class="view-lightbox__close" id="js-lb-close" aria-label="Close preview" autofocus>
+      <X size={20} aria-hidden="true" />
+    </button>
+    <button type="button" class="view-lightbox__nav view-lightbox__nav--prev" id="js-lb-prev" aria-label="Previous view">
+      <ChevronLeft size={22} aria-hidden="true" />
+    </button>
+    <button type="button" class="view-lightbox__nav view-lightbox__nav--next" id="js-lb-next" aria-label="Next view">
+      <ChevronRight size={22} aria-hidden="true" />
+    </button>
     <img id="js-lb-img" src="" alt="" />
     <div class="view-lightbox__caption" id="js-lb-caption"></div>
   </div>
-</div>
+</dialog>
 
 <script define:vars={{ views: views.map(v => ({ src: v.src.src, label: v.label })) }}>
   const lb = document.getElementById('js-view-lightbox');
   const lbImg = document.getElementById('js-lb-img');
   const lbCaption = document.getElementById('js-lb-caption');
   let currentIdx = 0;
+  let lastTrigger = null;
 
-  function openLightbox(idx) {
+  function openLightbox(idx, trigger) {
     currentIdx = idx;
+    lastTrigger = trigger;
     lbImg.src = views[idx].src;
-    lbImg.alt = views[idx].label;
+    lbImg.alt = `ScryBar ${views[idx].label} view`;
     lbCaption.textContent = views[idx].label;
+    lb.showModal();
     lb.classList.add('open');
+    lb.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('dialog-open');
+    setTimeout(() => document.getElementById('js-lb-close')?.focus({ preventScroll: true }), 50);
   }
 
   function closeLightbox() {
+    if (lb.open) lb.close();
+  }
+
+  function finalizeClose() {
     lb.classList.remove('open');
+    lb.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('dialog-open');
+    lastTrigger?.focus();
   }
 
   function navigate(dir) {
@@ -91,26 +121,35 @@ const views = [
     lbCaption.textContent = views[currentIdx].label;
   }
 
-  // Card click → open
   document.querySelectorAll('.view-card[data-view-index]').forEach((card) => {
     card.addEventListener('click', () => {
-      openLightbox(parseInt(card.dataset.viewIndex, 10));
+      openLightbox(parseInt(card.dataset.viewIndex, 10), card);
     });
   });
 
-  // Close buttons
   document.getElementById('js-lb-close').addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
   lb.addEventListener('click', (e) => { if (e.target === lb) closeLightbox(); });
+  lb.addEventListener('close', finalizeClose);
 
-  // Nav
   document.getElementById('js-lb-prev').addEventListener('click', (e) => { e.stopPropagation(); navigate(-1); });
   document.getElementById('js-lb-next').addEventListener('click', (e) => { e.stopPropagation(); navigate(1); });
 
-  // Keyboard
   document.addEventListener('keydown', (e) => {
     if (!lb.classList.contains('open')) return;
     if (e.key === 'Escape') closeLightbox();
     if (e.key === 'ArrowLeft') navigate(-1);
     if (e.key === 'ArrowRight') navigate(1);
+    if (e.key === 'Tab') {
+      const focusable = [...lb.querySelectorAll('button')];
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
   });
 </script>

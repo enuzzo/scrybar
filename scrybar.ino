@@ -4398,14 +4398,25 @@ static void appendHtmlEscaped(String &out, const char *text) {
 
 static void appendJsonEscaped(String &out, const char *text) {
   if (!text) return;
-  for (const char *p = text; *p; ++p) {
-    const char c = *p;
+  static const char kHex[] = "0123456789ABCDEF";
+  for (const uint8_t *p = reinterpret_cast<const uint8_t *>(text); *p; ++p) {
+    const uint8_t c = *p;
     if (c == '\\') out += F("\\\\");
     else if (c == '"') out += F("\\\"");
     else if (c == '\n') out += F("\\n");
     else if (c == '\r') out += F("\\r");
     else if (c == '\t') out += F("\\t");
-    else out += c;
+    // Keep persisted values safe when JSON is embedded in an inline script.
+    else if (c == '<') out += F("\\u003C");
+    else if (c == '>') out += F("\\u003E");
+    else if (c == '&') out += F("\\u0026");
+    else if (c < 0x20) {
+      out += F("\\u00");
+      out += kHex[(c >> 4) & 0x0F];
+      out += kHex[c & 0x0F];
+    } else {
+      out += static_cast<char>(c);
+    }
   }
 }
 
@@ -9744,11 +9755,13 @@ static bool lvglContainsPoint(lv_obj_t *obj, int16_t x, int16_t y) {
   return (x >= a.x1 && x <= a.x2 && y >= a.y1 && y <= a.y2);
 }
 
-static bool lvglContainsPointExpanded(lv_obj_t *obj, int16_t x, int16_t y, int16_t pad) {
+static bool lvglContainsPointExpanded(lv_obj_t *obj, int16_t x, int16_t y,
+                                      int16_t padX, int16_t padY) {
   if (!obj) return false;
   lv_area_t a;
   lv_obj_get_coords(obj, &a);
-  return (x >= (a.x1 - pad) && x <= (a.x2 + pad) && y >= (a.y1 - pad) && y <= (a.y2 + pad));
+  return (x >= (a.x1 - padX) && x <= (a.x2 + padX) &&
+          y >= (a.y1 - padY) && y <= (a.y2 + padY));
 }
 
 // Returns the active feed deck based on current UI page.
@@ -9758,13 +9771,13 @@ static FeedDeckUi &activeFeedDeck() {
 
 // ── Unified deck helpers (operate on any FeedDeckUi instance) ─────────────
 static bool lvglDeckQrButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(d.qrBtn, x, y, 8);
+  return lvglContainsPointExpanded(d.qrBtn, x, y, 8, 2);
 }
 static bool lvglDeckRefreshButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(d.refreshBtn, x, y, 8);
+  return lvglContainsPointExpanded(d.refreshBtn, x, y, 8, 2);
 }
 static bool lvglDeckNextFeedButtonContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) {
-  return lvglContainsPointExpanded(d.nextFeedBtn, x, y, 8);
+  return lvglContainsPointExpanded(d.nextFeedBtn, x, y, 8, 2);
 }
 static bool lvglDeckNewsContainsPoint(FeedDeckUi &d, int16_t x, int16_t y) {
   return lvglContainsPoint(d.news, x, y);
@@ -10649,29 +10662,17 @@ static void lvglApplyThemeStylesFeedDecks(const UiThemeLvglTokens &t,
     lvglSetBtnBorder(d->qrBtn, btnBorderHex);
 #if defined(LV_USE_QRCODE) && LV_USE_QRCODE
     if (d->qr) {
-      lv_obj_t *qrParent = lv_obj_get_parent(d->qr);
-      lv_coord_t qrSize = canvasHeight();
-      if (qrSize < 90) qrSize = 90;
       const bool qrHidden = lv_obj_has_flag(d->qr, LV_OBJ_FLAG_HIDDEN);
       const char *feedFallbackUrl = (d == &g_wikiDeck) ? "https://en.wikipedia.org" : "https://ansa.it";
       char qrPayload[sizeof(d->lastQrPayload)];
       copyStringSafe(qrPayload, sizeof(qrPayload),
         d->lastQrPayload[0] ? d->lastQrPayload : feedFallbackUrl);
-      lv_obj_del(d->qr);
       const lv_color_t qrDark  = lv_color_hex(t.auxQrDark);
       const lv_color_t qrLight = lv_color_hex(t.auxQrLight);
-      d->qr = lv_canvas_create(qrParent);
-      uint32_t bufSz = LV_CANVAS_BUF_SIZE_INDEXED_1BIT(qrSize, qrSize);
-      uint8_t *psBuf = (uint8_t *)ps_calloc(1, bufSz);
-      if (!psBuf) psBuf = (uint8_t *)calloc(1, bufSz);
-      if (psBuf) {
-        lv_canvas_set_buffer(d->qr, psBuf, qrSize, qrSize, LV_IMG_CF_INDEXED_1BIT);
-        lv_canvas_set_palette(d->qr, 0, qrDark);
-        lv_canvas_set_palette(d->qr, 1, qrLight);
-      }
-      lv_obj_add_flag(d->qr, LV_OBJ_FLAG_FLOATING);
-      lv_obj_set_pos(d->qr, 0, 0);
-      lv_obj_set_style_border_width(d->qr, 0, LV_PART_MAIN);
+      // This canvas uses an external PSRAM buffer. Reuse it across theme
+      // changes; deleting/recreating the object leaked that buffer each time.
+      lv_canvas_set_palette(d->qr, 0, qrDark);
+      lv_canvas_set_palette(d->qr, 1, qrLight);
       lv_qrcode_update(d->qr, qrPayload, strlen(qrPayload));
       if (qrHidden) lv_obj_add_flag(d->qr, LV_OBJ_FLAG_HIDDEN);
     }
@@ -10775,11 +10776,6 @@ static void jumpToFirstMainView() {
 static void jumpToLastMainView() {
   ensureRuntimeNetConfig();
   setUiPage(uiLastEnabledMainViewNoEnsure());
-}
-
-static void toggleClockMode() {
-  g_clock.mode = UI_CLOCK_MODE_WORDCLOCK;
-  g_uiNeedsRedraw = true;
 }
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
@@ -12230,13 +12226,6 @@ static void handleFeedDeckTapRelease(const TouchReleaseInfo &r) {
     Serial.printf("[TOUCH] transit-tap -> orgMode=%d\n", (int)g_transitOrgMode);
     return;
   }
-  // HOME: tap left panel toggles clock mode.
-  if (r.isTap && g_uiPageMode == UI_PAGE_HOME &&
-      g_touch.startX < (canvasWidth() - DISPLAY_WEATHER_PANEL_W)) {
-    toggleClockMode();
-    Serial.printf("[TOUCH] tap x=%d y=%d -> mode=%s\n",
-                  g_touch.startX, g_touch.startY, uiClockModeName(g_clock.mode));
-  }
 }
 
 // ── M6: Orchestrator — touch state machine ──
@@ -12298,7 +12287,7 @@ static void handleTouchSwipeInput() {
       if (g_touch.auxBtnDown != TOUCH_AUX_BTN_NONE) return;
       const int16_t liveDx = g_touch.lastX - g_touch.startX;
       const int16_t liveDy = g_touch.lastY - g_touch.startY;
-      constexpr int16_t kDragStartPx = 5;
+      constexpr int16_t kDragStartPx = DISPLAY_TOUCH_TAP_MAX_PX + 2;
       if (g_touch.pageDragging) { lvglApplyPageDrag(liveDx); return; }
       if (abs(liveDx) >= kDragStartPx && abs(liveDx) >= abs(liveDy)) {
         g_touch.pageDragging = true; lvglApplyPageDrag(liveDx); return;
@@ -12323,9 +12312,7 @@ static void handleTouchSwipeInput() {
       const int16_t adx = abs(g_touch.lastX - g_touch.startX);
       const int16_t ady = abs(g_touch.lastY - g_touch.startY);
       const bool horiz = (adx >= ady);
-      const uint32_t dur = millis() - g_touch.startMs;
-      const bool fast = (dur <= 220) && (adx >= ((DISPLAY_TOUCH_SWIPE_MIN_PX / 2) + 2));
-      return horiz && ((adx >= DISPLAY_TOUCH_SWIPE_MIN_PX) || fast);
+      return horiz && (adx >= DISPLAY_TOUCH_SWIPE_MIN_PX);
     }(),
     .isTap = ((millis() - g_touch.startMs) <= DISPLAY_TOUCH_TAP_MAX_MS &&
               abs(g_touch.lastX - g_touch.startX) <= DISPLAY_TOUCH_TAP_MAX_PX &&
@@ -16236,24 +16223,21 @@ static void lvglUpdateInfoPanel(bool force) {
     snprintf(endpointBuf, sizeof(endpointBuf), "%s:%u", ipBuf, (unsigned)WEB_CONFIG_PORT);
   }
 
-  char leftCol[512];
+  char leftCol[448];
   snprintf(leftCol, sizeof(leftCol),
            "wifi: %s\n"
            "ssid: %s\n"
-           "bat: %s\n"
-           "pwr: %s\n"
-           "src: %s\n"
-           "mac: %s\n"
-           "fw: %s\n"
-           "ntp: %s",
+           "battery: %s\n"
+           "power: %s / %s\n"
+           "clock: %s\n"
+           "mac: %s",
            wifiBuf,
            ssidBuf,
            battVizBuf,
            pwrBuf,
            pwrSourceBuf,
-           macBuf,
-           FW_BUILD_TAG,
-           ntpBuf);
+           ntpBuf,
+           macBuf);
 
   char infoTitleBuf[48];
   snprintf(infoTitleBuf, sizeof(infoTitleBuf), "ScryBar Stats  %s", FW_BUILD_TAG);
@@ -16622,7 +16606,7 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   const uint32_t nowMs = millis();
   const bool useLive = liveNowPlayingAvailable();
   const bool useLiveArtwork = useLive && g_liveNowPlayingArtwork.valid;
-  const bool displaySync = useLive ? liveNowPlayingDisplayInSync(nowMs) : true;
+  const bool displaySync = useLive ? liveNowPlayingDisplayInSync(nowMs) : false;
   uint16_t elapsedSec = 0;
   uint8_t trackIndex = 0;
   const char *trackTitle = "";

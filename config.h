@@ -24,8 +24,8 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r282"
-#define FW_RELEASE_DATE "2026-04-30"
+#define FW_BUILD_TAG "r283"
+#define FW_RELEASE_DATE "2026-07-17"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
 typedef struct {
@@ -185,7 +185,7 @@ struct LaunchItem {
 #define DISPLAY_SPLASH_MS 2200
 #define DISPLAY_WEATHER_PANEL_W 250
 #define TEST_LVGL_UI 1
-#define DISPLAY_TOUCH_SWIPE_MIN_PX 14
+#define DISPLAY_TOUCH_SWIPE_MIN_PX 18
 #define DISPLAY_TOUCH_TAP_MAX_PX 12
 #define DISPLAY_TOUCH_TAP_MAX_MS 350
 #ifndef DOOM_SPIKE_ENABLED

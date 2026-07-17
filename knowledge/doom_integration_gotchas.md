@@ -90,9 +90,11 @@ Problem:
   intermittently because display DMA buffers were consuming too much internal heap.
 
 Fix:
-- Keep `DB_CHUNK_ROWS=32` instead of `64`.
-- Tradeoff is slightly more chunk launches during flush, but enough internal heap
-  remains for TLS.
+- Historical r182 fix: keep `DB_CHUNK_ROWS=32` until network/TLS work is moved
+  away from the display hot path.
+- Current baseline (r220+): `DB_CHUNK_ROWS=64` is stable after that architecture
+  change and halves DMA semaphore overhead. Do not revert based on this older
+  incident without reproducing it on the current pipeline.
 
 ### 5. First-sample IMU neutral is wrong
 

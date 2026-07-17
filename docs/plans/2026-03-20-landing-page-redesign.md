@@ -92,7 +92,7 @@ The complete Vibemilk DS is available at:
 
 [SPECS]
   - Hardware: Waveshare ESP32-S3 3.49" touch bar
-  - Display: 640x172 AMOLED, AXS15231B
+  - Display: 640x172 IPS LCD, AXS15231B
   - Connectivity: WiFi 2.4GHz, USB-C
   - Sensors: IMU (QMI8658), battery monitor
   - Storage: 16MB flash, OPI PSRAM
@@ -152,7 +152,7 @@ The manifests and firmware binaries are assembled at CI time (never committed to
 - "Time, weather, news, and a talking oracle. Everything you could faster check on your phone, but won't."
 
 **Product description:**
-ScryBar is an ESP32-S3 powered desk companion with a 3.49" AMOLED touchscreen. Word clock in 13 languages, live weather, RSS feed deck with QR codes, Wikipedia explorer, and DOOM — all navigable by swipe. Five visual themes, LAN web config, macOS Now Playing companion. Open source under MIT.
+ScryBar is an ESP32-S3 powered desk companion with a 3.49" IPS touchscreen. Word clock in 13 languages, live weather, RSS feed deck with QR codes, Wikipedia explorer, and DOOM — all navigable by swipe. Five visual themes, LAN web config, macOS Now Playing companion. Repository-wide licensing is under review because bundled components and assets have their own terms.
 
 **13 Languages:** Italian, English, French, German, Spanish, Portuguese, Latin, Esperanto, Klingon, 1337 Speak, Shakespearean, Valley Girl, Bellazio (Italian Gen Z)
 

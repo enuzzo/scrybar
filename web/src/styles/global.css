@@ -10,6 +10,7 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 24px;
 }
 
 body {
@@ -36,6 +37,33 @@ a {
 }
 a:hover { opacity: 0.85; }
 
+:where(a, button, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10001;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  background: var(--accent-primary);
+  color: var(--text-on-primary);
+  font-weight: 700;
+  transform: translateY(-160%);
+  transition: transform 0.18s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+body.dialog-open {
+  overflow: hidden;
+}
+
 /* ---- Ambient glow layer + animated blobs ---- */
 .page-glow {
   position: fixed;
@@ -56,7 +84,7 @@ a:hover { opacity: 0.85; }
   position: absolute;
   border-radius: 50%;
   filter: blur(120px);
-  opacity: 0.6;
+  opacity: var(--ambient-blob-opacity);
   will-change: transform;
 }
 
@@ -64,7 +92,7 @@ a:hover { opacity: 0.85; }
 .page-glow::before {
   width: 650px;
   height: 650px;
-  background: radial-gradient(circle, rgba(160, 100, 255, 0.5) 0%, rgba(130, 70, 230, 0.2) 50%, transparent 70%);
+  background: radial-gradient(circle, rgba(var(--accent-primary-rgb), 0.45) 0%, rgba(var(--accent-primary-rgb), 0.18) 50%, transparent 70%);
   top: -10%;
   right: -5%;
   animation: blob1 18s ease-in-out infinite alternate;
@@ -74,7 +102,7 @@ a:hover { opacity: 0.85; }
 .page-glow::after {
   width: 550px;
   height: 550px;
-  background: radial-gradient(circle, rgba(255, 60, 200, 0.45) 0%, rgba(240, 80, 180, 0.18) 50%, transparent 70%);
+  background: radial-gradient(circle, rgba(var(--accent-secondary-rgb), 0.4) 0%, rgba(var(--accent-secondary-rgb), 0.16) 50%, transparent 70%);
   bottom: 5%;
   left: -8%;
   animation: blob2 22s ease-in-out infinite alternate;
@@ -174,7 +202,7 @@ h3 {
 .vm-card {
   background: var(--bg-card);
   border: var(--border-subtle);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   padding: 28px;
   backdrop-filter: blur(16px);
   transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease,
@@ -192,7 +220,7 @@ h3 {
   gap: 5px;
   height: 26px;
   padding: 0 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 700;
   font-family: var(--font-mono);
@@ -235,7 +263,7 @@ h3 {
   text-decoration: none;
   padding: 0 28px;
   height: 48px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .vm-btn:active {
@@ -245,7 +273,7 @@ h3 {
 
 .vm-btn--primary {
   background: var(--accent-primary);
-  color: var(--bg-deepest);
+  color: var(--text-on-primary);
 }
 .vm-btn--primary:hover {
   transform: translateY(-2px) scale(1.02);
@@ -274,7 +302,7 @@ h3 {
   height: 54px;
   padding: 0 36px;
   font-size: 15px;
-  border-radius: 12px;
+  border-radius: var(--radius-control);
 }
 
 .vm-btn--block {
@@ -361,4 +389,29 @@ h3 {
   .grid-4 { grid-template-columns: 1fr; }
   .grid-3 { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+  .entrance { opacity: 1; }
+}
+
+[data-theme="minimal-brutalist-mono"] :where(
+  .vm-card,
+  .theme-pill,
+  .view-screen,
+  .view-screen__display,
+  .view-lightbox__inner img,
+  .specs-table,
+  .buy-card
+) {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }

@@ -17,6 +17,8 @@ final class AppModel: ObservableObject {
     @Published var showSettingsOnOpen = false
     @Published var lastSendStatus = "Idle"
     @Published var latestMacStats: MacStatsPayload? = nil
+    @Published private(set) var lastSuccessfulTarget: String?
+    @Published private(set) var lastSuccessfulSendAt: Date?
     let macmonAvailable: Bool = {
         FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/macmon") ||
         FileManager.default.isExecutableFile(atPath: "/usr/local/bin/macmon")
@@ -63,6 +65,13 @@ final class AppModel: ObservableObject {
         guard !trimmedHost.isEmpty else { return nil }
         let port = Int(manualPort) ?? 8080
         return ScryBarEndpoint(name: "Manual Target", host: trimmedHost, port: port, source: .manual)
+    }
+
+    var selectedEndpointIsConnected: Bool {
+        guard let endpoint = selectedEndpoint,
+              let lastSuccessfulSendAt,
+              Date().timeIntervalSince(lastSuccessfulSendAt) < 8 else { return false }
+        return lastSuccessfulTarget == endpointKey(endpoint)
     }
 
     func rescan() {
@@ -115,7 +124,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private var lastSendSucceeded = true
+    private var lastSendSucceeded = false
     private var sendInFlight = false
 
     // MARK: Mac Stats polling
@@ -168,6 +177,7 @@ final class AppModel: ObservableObject {
 
     private func autoSend() {
         guard let endpoint = selectedEndpoint else { return }
+        let target = endpointKey(endpoint)
         let payload = currentPayload
         sendInFlight = true
 
@@ -176,15 +186,25 @@ final class AppModel: ObservableObject {
                 try await client.send(payload, to: endpoint)
                 await MainActor.run {
                     self.lastSendSucceeded = true
+                    self.lastSuccessfulTarget = target
+                    self.lastSuccessfulSendAt = .now
                     self.sendInFlight = false
                 }
             } catch {
                 await MainActor.run {
                     self.lastSendSucceeded = false
+                    if self.lastSuccessfulTarget == target {
+                        self.lastSuccessfulTarget = nil
+                        self.lastSuccessfulSendAt = nil
+                    }
                     self.sendInFlight = false
                 }
             }
         }
+    }
+
+    private func endpointKey(_ endpoint: ScryBarEndpoint) -> String {
+        "\(endpoint.host):\(endpoint.port)"
     }
 }
 

@@ -5,6 +5,10 @@ protocol NowPlayingProviding: Sendable {
     func snapshot() -> NowPlayingPayload?
 }
 
+private final class BlockingResult<Value>: @unchecked Sendable {
+    var value: Value?
+}
+
 // Providers use internal mutable caches but are only called sequentially
 // from a single polling task, so @unchecked Sendable is safe here.
 
@@ -626,13 +630,13 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https" else { return nil }
         let sem = DispatchSemaphore(value: 0)
-        var result: Data?
+        let result = BlockingResult<Data>()
         URLSession.shared.dataTask(with: url) { data, _, _ in
-            result = data
+            result.value = data
             sem.signal()
         }.resume()
         _ = sem.wait(timeout: .now() + 5)
-        return result
+        return result.value
     }
 
     private func iTunesArtworkURL(query: String) -> String? {
@@ -640,7 +644,7 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             return nil
         }
         let sem = DispatchSemaphore(value: 0)
-        var artURL: String?
+        let artURL = BlockingResult<String>()
         URLSession.shared.dataTask(with: searchURL) { data, _, _ in
             defer { sem.signal() }
             guard let data,
@@ -648,10 +652,10 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
                   let results = json["results"] as? [[String: Any]],
                   let first = results.first,
                   let url100 = first["artworkUrl100"] as? String else { return }
-            artURL = url100.replacingOccurrences(of: "100x100", with: "600x600")
+            artURL.value = url100.replacingOccurrences(of: "100x100", with: "600x600")
         }.resume()
         _ = sem.wait(timeout: .now() + 5)
-        return artURL
+        return artURL.value
     }
 
     // JXA script that loads MediaRemote.framework and reads now-playing via
@@ -674,11 +678,8 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
       for (var i = 0; i < keys.count; i++) {
         var k = keys.objectAtIndex(i).js;
         var v = dict.valueForKey(keys.objectAtIndex(i));
-        if (k === "kMRMediaRemoteNowPlayingInfoArtworkData") {
-          try { info[k] = v.base64EncodedStringWithOptions(0).js; } catch(e) {}
-        } else {
-          try { info[k] = v.js; } catch(e) { try { info[k] = v.toString(); } catch(e2) {} }
-        }
+        if (k === "kMRMediaRemoteNowPlayingInfoArtworkData") continue;
+        try { info[k] = v.js; } catch(e) { try { info[k] = v.toString(); } catch(e2) {} }
       }
       var rawElapsed = 0;
       try { rawElapsed = dict.valueForKey("kMRMediaRemoteNowPlayingInfoElapsedTime").doubleValue; } catch(e) {}
@@ -701,6 +702,8 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
+        let didExit = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in didExit.signal() }
 
         do {
             try process.run()
@@ -708,7 +711,12 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             NSLog("[ScryBar] SystemProvider: osascript launch failed: %@", error.localizedDescription)
             return nil
         }
-        process.waitUntilExit()
+        if didExit.wait(timeout: .now() + 3) == .timedOut {
+            process.terminate()
+            _ = didExit.wait(timeout: .now() + 1)
+            NSLog("[ScryBar] SystemProvider: osascript timed out")
+            return nil
+        }
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard !data.isEmpty,

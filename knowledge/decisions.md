@@ -215,6 +215,9 @@ Entry format:
 
 ## 2026-03-11 - Keep Display DMA Flush Chunks at 32 Rows
 
+- Status: **Superseded by the r220 performance overhaul.** The current baseline
+  uses `DB_CHUNK_ROWS=64`, after network I/O/TLS allocation moved away from the
+  display hot path and device testing restored sufficient headroom.
 - Context: During DOOM integration, larger `64`-row DMA buffers increased internal heap pressure enough to break unrelated TLS handshakes for RSS/Wikipedia.
 - Decision: Keep `DB_CHUNK_ROWS=32` as the stable default for the rotated direct-flush display pipeline.
 - Impact/Tradeoffs: Slightly more DMA chunk launches per full frame, but better coexistence between graphics throughput and HTTPS/network reliability.

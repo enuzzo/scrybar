@@ -1,9 +1,11 @@
 ---
+import { CircleCheck, PlugZap, Wifi, Zap } from '@lucide/astro';
+
 const steps = [
-  { num: '1', icon: '\u{1F50C}', title: 'Plug In',  desc: 'Connect USB-C to your device and computer.' },
-  { num: '2', icon: '\u{26A1}',  title: 'Flash',    desc: 'One click from your browser. No toolchain, no drivers.' },
-  { num: '3', icon: '\u{1F4F6}', title: 'Connect',  desc: 'Device creates a WiFi AP. Open the config page and set up.' },
-  { num: '4', icon: '\u{2705}',  title: 'Enjoy',    desc: 'Clock, weather, news, transit — all running on your desk.' },
+  { num: '1', icon: PlugZap,     title: 'Plug In', desc: 'Connect USB-C to your device and computer.' },
+  { num: '2', icon: Zap,         title: 'Flash',   desc: 'One click from your browser. No toolchain, no drivers.' },
+  { num: '3', icon: Wifi,        title: 'Connect', desc: 'Device creates a WiFi AP. Open the config page and set up.' },
+  { num: '4', icon: CircleCheck, title: 'Enjoy',   desc: 'Clock, weather, news, transit — all running on your desk.' },
 ];
 ---
 <section id="setup">
@@ -15,12 +17,12 @@ const steps = [
     </p>
 
     <div class="steps-grid">
-      {steps.map((s) => (
+      {steps.map(({ icon: Icon, num, title, desc }) => (
         <div class="vm-card step-card">
-          <span class="step-icon">{s.icon}</span>
-          <span class="step-num">Step {s.num}</span>
-          <h3>{s.title}</h3>
-          <p>{s.desc}</p>
+          <span class="step-icon" aria-hidden="true"><Icon size={30} strokeWidth={1.8} /></span>
+          <span class="step-num">Step {num}</span>
+          <h3>{title}</h3>
+          <p>{desc}</p>
         </div>
       ))}
     </div>

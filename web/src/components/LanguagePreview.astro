@@ -1,19 +1,19 @@
 ---
 const languages = [
-  { code: 'it',   label: 'Italiano',      flag: '\u{1F1EE}\u{1F1F9}' },
-  { code: 'en',   label: 'English',       flag: '\u{1F1EC}\u{1F1E7}' },
-  { code: 'fr',   label: 'Fran\u00E7ais', flag: '\u{1F1EB}\u{1F1F7}' },
-  { code: 'de',   label: 'Deutsch',       flag: '\u{1F1E9}\u{1F1EA}' },
-  { code: 'es',   label: 'Espa\u00F1ol',  flag: '\u{1F1EA}\u{1F1F8}' },
-  { code: 'pt',   label: 'Portugu\u00EAs', flag: '\u{1F1F5}\u{1F1F9}' },
-  { code: 'la',   label: 'Latina',        flag: '\u{1F3DB}\u{FE0F}' },
-  { code: 'eo',   label: 'Esperanto',     flag: '\u{1F30D}' },
-  { code: 'tlh',  label: 'Klingon',       flag: '\u{1F596}' },
-  { code: 'l33t', label: '1337 5P34K',    flag: '\u{1F4BB}' },
-  { code: 'sha',  label: 'Shakespearean', flag: '\u{1F3AD}' },
-  { code: 'val',  label: 'Valley Girl',   flag: '\u{1F485}' },
-  { code: 'bellazio', label: 'Bellazio',   flag: '\u{1F1EE}\u{1F1F9}' },
-  { code: 'pir',  label: 'Pirate',       flag: '\u{1F3F4}\u{200D}\u{2620}\u{FE0F}' },
+  { code: 'it',   htmlLang: 'it',  label: 'Italiano',      flag: '\u{1F1EE}\u{1F1F9}' },
+  { code: 'en',   htmlLang: 'en',  label: 'English',       flag: '\u{1F1EC}\u{1F1E7}' },
+  { code: 'fr',   htmlLang: 'fr',  label: 'Fran\u00E7ais', flag: '\u{1F1EB}\u{1F1F7}' },
+  { code: 'de',   htmlLang: 'de',  label: 'Deutsch',       flag: '\u{1F1E9}\u{1F1EA}' },
+  { code: 'es',   htmlLang: 'es',  label: 'Espa\u00F1ol',  flag: '\u{1F1EA}\u{1F1F8}' },
+  { code: 'pt',   htmlLang: 'pt',  label: 'Portugu\u00EAs', flag: '\u{1F1F5}\u{1F1F9}' },
+  { code: 'la',   htmlLang: 'la',  label: 'Latina',        flag: '\u{1F3DB}\u{FE0F}' },
+  { code: 'eo',   htmlLang: 'eo',  label: 'Esperanto',     flag: '\u{1F30D}' },
+  { code: 'tlh',  htmlLang: 'tlh', label: 'Klingon',       flag: '\u{1F596}' },
+  { code: 'l33t', htmlLang: 'en',  label: '1337 5P34K',    flag: '\u{1F4BB}' },
+  { code: 'sha',  htmlLang: 'en',  label: 'Shakespearean', flag: '\u{1F3AD}' },
+  { code: 'val',  htmlLang: 'en',  label: 'Valley Girl',   flag: '\u{1F485}' },
+  { code: 'bellazio', htmlLang: 'it', label: 'Bellazio',   flag: '\u{1F1EE}\u{1F1F9}' },
+  { code: 'pir',  htmlLang: 'en',  label: 'Pirate',        flag: '\u{1F3F4}\u{200D}\u{2620}\u{FE0F}' },
 ];
 
 const sentences: Record<string, string> = {
@@ -39,7 +39,7 @@ const sentences: Record<string, string> = {
   data-sentences={JSON.stringify(sentences)}
 >
   <div class="lang-sentence-wrap">
-    <p class="lang-sentence fade-in" id="js-lang-sentence">
+    <p class="lang-sentence fade-in" id="js-lang-sentence" lang="it">
       &ldquo;{sentences.it}&rdquo;
     </p>
     <span class="lang-badge fade-in" id="js-lang-badge">
@@ -50,11 +50,13 @@ const sentences: Record<string, string> = {
   <div class="lang-dots">
     {languages.map((l, i) => (
       <button
+        type="button"
         class:list={['lang-dot', { active: i === 0 }]}
         data-lang-idx={i}
         aria-label={l.label}
+        aria-pressed={i === 0 ? 'true' : 'false'}
         title={l.label}
-      ></button>
+      ><span aria-hidden="true"></span></button>
     ))}
   </div>
 </div>
@@ -69,20 +71,31 @@ const sentences: Record<string, string> = {
   const sentences: Record<string, string> = JSON.parse(wrap.dataset.sentences!);
 
   let currentIdx = 0;
-  let intervalId: ReturnType<typeof setInterval>;
+  let intervalId: ReturnType<typeof setInterval> | undefined;
+  let transitionId: ReturnType<typeof setTimeout> | undefined;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function showLang(idx: number) {
     const lang = languages[idx];
     sentenceEl.textContent = `\u201C${sentences[lang.code]}\u201D`;
+    sentenceEl.lang = lang.htmlLang;
     badgeEl.textContent = `${lang.flag} ${lang.label}`;
-    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    dots.forEach((d, i) => {
+      const isActive = i === idx;
+      d.classList.toggle('active', isActive);
+      d.setAttribute('aria-pressed', String(isActive));
+    });
     currentIdx = idx;
   }
 
   function cycle() {
+    if (reduceMotion) {
+      showLang((currentIdx + 1) % languages.length);
+      return;
+    }
     sentenceEl.classList.replace('fade-in', 'fade-out');
     badgeEl.classList.replace('fade-in', 'fade-out');
-    setTimeout(() => {
+    transitionId = setTimeout(() => {
       showLang((currentIdx + 1) % languages.length);
       sentenceEl.classList.replace('fade-out', 'fade-in');
       badgeEl.classList.replace('fade-out', 'fade-in');
@@ -90,23 +103,45 @@ const sentences: Record<string, string> = {
   }
 
   function startCycle() {
+    if (reduceMotion || document.hidden || intervalId || wrap.matches(':hover') || wrap.contains(document.activeElement)) return;
     intervalId = setInterval(cycle, 3500);
+  }
+
+  function stopCycle() {
+    if (intervalId) clearInterval(intervalId);
+    intervalId = undefined;
+  }
+
+  function selectLanguage(idx: number) {
+    stopCycle();
+    if (transitionId) clearTimeout(transitionId);
+    if (reduceMotion) {
+      showLang(idx);
+      return;
+    }
+    sentenceEl.classList.replace('fade-in', 'fade-out');
+    badgeEl.classList.replace('fade-in', 'fade-out');
+    transitionId = setTimeout(() => {
+      showLang(idx);
+      sentenceEl.classList.replace('fade-out', 'fade-in');
+      badgeEl.classList.replace('fade-out', 'fade-in');
+      startCycle();
+    }, 300);
   }
 
   dots.forEach((dot) => {
     dot.addEventListener('click', () => {
-      clearInterval(intervalId);
       const idx = parseInt((dot as HTMLElement).dataset.langIdx!, 10);
-      sentenceEl.classList.replace('fade-in', 'fade-out');
-      badgeEl.classList.replace('fade-in', 'fade-out');
-      setTimeout(() => {
-        showLang(idx);
-        sentenceEl.classList.replace('fade-out', 'fade-in');
-        badgeEl.classList.replace('fade-out', 'fade-in');
-        startCycle();
-      }, 300);
+      selectLanguage(idx);
     });
   });
 
+  wrap.addEventListener('mouseenter', stopCycle);
+  wrap.addEventListener('mouseleave', startCycle);
+  wrap.addEventListener('focusin', stopCycle);
+  wrap.addEventListener('focusout', () => setTimeout(() => {
+    if (!wrap.contains(document.activeElement)) startCycle();
+  }, 0));
+  document.addEventListener('visibilitychange', () => document.hidden ? stopCycle() : startCycle());
   startCycle();
 </script>

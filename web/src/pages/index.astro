@@ -16,13 +16,14 @@ import Footer from '../components/Footer.astro';
 ---
 <Layout
   title="ScryBar — Your desk knows things now."
-  description="ESP32-S3 desk companion: word clock in 14 languages, live weather, RSS, Wikipedia, Now Playing, public-transport timetable, rocket launch countdowns, Mac stats. Seven themes, swipe navigation, LAN web config. Open source under MIT."
+  description="An open-source ESP32-S3 desk companion with a 14-language word clock, live weather, news, Now Playing, transit, launches, and Mac stats."
 >
-  <div class="page-glow"></div>
-  <div class="page-noise"></div>
+  <div class="page-glow" aria-hidden="true"></div>
+  <div class="page-noise" aria-hidden="true"></div>
 
   <div class="content">
-    <section class="hero">
+    <main id="main-content">
+    <section class="hero" aria-labelledby="hero-title">
       <div class="container">
         <Nav />
 
@@ -32,7 +33,7 @@ import Footer from '../components/Footer.astro';
             <span class="vm-badge vm-badge--info">Open Source</span>
           </div>
 
-          <h1 class="entrance entrance--3">
+          <h1 id="hero-title" class="entrance entrance--3">
             Your desk knows<br />
             things now.
           </h1>
@@ -41,7 +42,7 @@ import Footer from '../components/Footer.astro';
             pretending to be furniture. Word clock in 14 languages,
             weather, news, Wikipedia, Now Playing from macOS, live
             public-transport timetable, rocket launch countdowns,
-            and Mac stats &mdash; on a 3.49&quot; AMOLED touchscreen.
+            and Mac stats &mdash; on a 3.49&quot; IPS touchscreen.
           </p>
 
           <div class="hero-ctas entrance entrance--5">
@@ -100,21 +101,29 @@ import Footer from '../components/Footer.astro';
       <Specs />
     </div>
 
+    </main>
     <Footer />
   </div>
 </Layout>
 
 <script>
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('revealed');
-          observer.unobserve(entry.target);
-        }
-      });
-    },
-    { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
-  );
-  document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+  const reveals = document.querySelectorAll('.reveal');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!('IntersectionObserver' in window) || reduceMotion) {
+    reveals.forEach((el) => el.classList.add('revealed'));
+  } else {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
+    );
+    reveals.forEach((el) => observer.observe(el));
+  }
 </script>

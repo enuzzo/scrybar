@@ -99,7 +99,8 @@ extension ScryBarDiscovery: NetServiceDelegate {
             var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
             var inAddr = addr.sin_addr
             inet_ntop(AF_INET, &inAddr, &buf, socklen_t(INET_ADDRSTRLEN))
-            let ip = String(cString: buf)
+            let ipBytes = buf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+            let ip = String(decoding: ipBytes, as: UTF8.self)
             if !ip.isEmpty && ip != "0.0.0.0" { return ip }
         }
         return nil

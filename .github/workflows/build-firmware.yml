@@ -15,6 +15,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  companion:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Swift companion
+        working-directory: companion/mac/ScryBarCompanion
+        run: swift build
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -23,7 +32,7 @@ jobs:
       # ── Node.js / Astro landing page ─────────────────────────────────
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Build Astro landing page
         working-directory: web
@@ -89,9 +98,11 @@ jobs:
           SITE=web/dist
           mkdir -p "$SITE/firmware"
 
-          # Inject version into manifest
-          sed -i "s/\"version\": \"1.0.0\"/\"version\": \"${{ steps.version.outputs.tag }}\"/" \
-            "$SITE/manifest.json"
+          # Inject and verify the release version independently of the previous value.
+          jq --arg version "${{ steps.version.outputs.tag }}" \
+            '.version = $version' "$SITE/manifest.json" > "$SITE/manifest.tmp.json"
+          mv "$SITE/manifest.tmp.json" "$SITE/manifest.json"
+          test "$(jq -r '.version' "$SITE/manifest.json")" = "${{ steps.version.outputs.tag }}"
 
           cp /tmp/scrybar-build/scrybar.ino.bootloader.bin "$SITE/firmware/bootloader.bin"
           cp /tmp/scrybar-build/scrybar.ino.partitions.bin  "$SITE/firmware/partitions.bin"
@@ -110,7 +121,7 @@ jobs:
           path: web/dist/
 
   deploy:
-    needs: build
+    needs: [build, companion]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -27,9 +27,11 @@ const screenshots = [
             return (
               <img
                 src={src.src}
-                alt={`ScryBar ${label} theme preview`}
+                alt={isActive ? `ScryBar ${label} theme preview` : ''}
                 class:list={['device-screen__img', { active: isActive }]}
                 data-theme-id={id}
+                data-theme-label={label}
+                aria-hidden={isActive ? 'false' : 'true'}
                 loading={isActive ? 'eager' : 'lazy'}
                 fetchpriority={isActive ? 'high' : 'low'}
                 decoding="async"

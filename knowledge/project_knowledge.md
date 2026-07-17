@@ -648,7 +648,8 @@ Discard touch frames where:
   - `doomScrybarBlitIndexedFrame()` maps it into the centered `230x172` live frame
   - DOOM owns the display and flushes directly through `dispFlush()`
 - Memory/runtime gotchas now part of the stable baseline:
-  - keep `DB_CHUNK_ROWS=32`, not `64`, to preserve TLS heap headroom
+  - `DB_CHUNK_ROWS=64` is the current r220+ baseline; the earlier 32-row TLS
+    workaround was superseded after network/TLS work moved off the display path
   - DOOM task stack/framebuffer must be allowed to use PSRAM
   - IMU must stay DOOM-only to avoid wasted CPU/log spam
   - neutral calibration must reset filter state and wait for a stable window
@@ -657,8 +658,9 @@ Discard touch frames where:
 
 ## Power Policy
 
-- Long-press 3s: soft-off (wakeup via long-press, resume on `HOME`)
-- Hard-off only by serial `PWROFFHARD`
+- Long-press `1.5s`: hard-off via TCA9554 on battery, soft-off fallback on USB
+- Long-press `1.5s` in soft-off: wake and resume on `HOME`
+- Serial `PWROFFHARD` remains available for diagnostics
 - Boot always re-asserts `SYS_EN` via TCA9554
 - Battery monitor: ADC1 CH3, 12dB attenuation, ×3 divider
 - Screensaver idle target: `2h` on USB and `2h` on battery

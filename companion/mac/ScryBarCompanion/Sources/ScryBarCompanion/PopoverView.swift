@@ -30,7 +30,12 @@ struct NowPlayingPopoverView: View {
     @State private var now = Date()
 
     private var payload: NowPlayingPayload { model.currentPayload }
-    private var hasDevice: Bool { !model.discoveredEndpoints.isEmpty || model.selectedEndpoint != nil }
+    private var hasDevice: Bool { model.selectedEndpoint != nil }
+    private var deviceConnected: Bool { model.selectedEndpointIsConnected }
+    private var deviceStatus: String {
+        if !hasDevice { return "No device" }
+        return deviceConnected ? "Connected" : "Waiting"
+    }
     private var hasProgress: Bool { payload.durationSec > 0 && interpolatedElapsed > 0 }
 
     /// Interpolate elapsed time: snapshot value + wall-clock delta while playing
@@ -112,9 +117,9 @@ struct NowPlayingPopoverView: View {
 
                 HStack(spacing: 3) {
                     Circle()
-                        .fill(hasDevice ? CompanionTheme.success : CompanionTheme.textDisabled)
+                        .fill(deviceConnected ? CompanionTheme.success : (hasDevice ? CompanionTheme.warning : CompanionTheme.textDisabled))
                         .frame(width: 5, height: 5)
-                    Text(hasDevice ? "ScryBar" : "No device")
+                    Text(deviceStatus)
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(CompanionTheme.textTertiary)
                 }

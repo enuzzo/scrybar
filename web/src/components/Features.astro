@@ -1,13 +1,24 @@
 ---
+import {
+  Activity,
+  BookOpen,
+  Clock3,
+  CloudSun,
+  Music2,
+  Newspaper,
+  Rocket,
+  TrainFront,
+} from '@lucide/astro';
+
 const features = [
-  { icon: '\u{1F550}', title: 'Word Clock',    desc: 'Natural-language time in 14 languages. From Italian to Klingon to Pirate English. Real grammar, not tiles.' },
-  { icon: '\u{1F324}', title: 'Live Weather',  desc: 'Current conditions and three-hour outlook. Location configurable. Refreshes every 15 minutes.' },
-  { icon: '\u{1F4F0}', title: 'RSS Feeds',     desc: 'Up to 5 news feeds with live favicons and a QR to finish the article on your phone.' },
-  { icon: '\u{1F4DA}', title: 'Wikipedia',     desc: 'Featured, On This Day, random discoveries. 8 languages. Trivia you didn\u2019t ask for, delivered anyway.' },
-  { icon: '\u{1F3B5}', title: 'Now Playing',   desc: 'macOS companion pipes the system-wide Now Playing session. Album art, progress bar, source tag.' },
-  { icon: '\u{1F689}', title: 'Timetable',     desc: 'Live departures worldwide via Transitous. Countdown in prime notation, like the LED at a real bus stop. No API key.' },
-  { icon: '\u{1F680}', title: 'Launches',      desc: 'Rocket countdown hero with pad weather and a QR to the mission page. Know the moment SpaceX slips again.' },
-  { icon: '\u{1F5A5}',  title: 'Mac Stats',    desc: 'CPU/GPU load and temps, RAM and disk bars, pushed from the companion. Activity Monitor, but ambient.' },
+  { icon: Clock3,     title: 'Word Clock',   desc: 'Natural-language time in 14 languages. From Italian to Klingon to Pirate English. Real grammar, not tiles.' },
+  { icon: CloudSun,   title: 'Live Weather', desc: 'Current conditions and three-hour outlook. Location configurable. Refreshes every 15 minutes.' },
+  { icon: Newspaper,  title: 'RSS Feeds',    desc: 'Up to 5 news feeds with live favicons and a QR to finish the article on your phone.' },
+  { icon: BookOpen,   title: 'Wikipedia',    desc: 'Featured, On This Day, random discoveries. 8 languages. Trivia you didn\u2019t ask for, delivered anyway.' },
+  { icon: Music2,     title: 'Now Playing',  desc: 'macOS companion pipes the system-wide Now Playing session. Album art, progress bar, source tag.' },
+  { icon: TrainFront, title: 'Timetable',    desc: 'Live departures worldwide via Transitous. Countdown in prime notation, like the LED at a real bus stop. No API key.' },
+  { icon: Rocket,     title: 'Launches',     desc: 'Rocket countdown hero with pad weather and a QR to the mission page. Know the moment SpaceX slips again.' },
+  { icon: Activity,   title: 'Mac Stats',    desc: 'CPU/GPU load and temps, RAM and disk bars, pushed from the companion. Activity Monitor, but ambient.' },
 ];
 ---
 <section id="features">
@@ -21,15 +32,15 @@ const features = [
     </p>
 
     <div class="features-grid">
-      {features.map((f, i) => (
+      {features.map(({ icon: Icon, title, desc }, i) => (
         <div
           class="vm-card feature-card"
           style={`animation-delay: ${i * 60}ms`}
         >
-          <span class="feature-icon">{f.icon}</span>
+          <span class="feature-icon" aria-hidden="true"><Icon size={30} strokeWidth={1.8} /></span>
           <div class="feature-card__body">
-            <h3>{f.title}</h3>
-            <p>{f.desc}</p>
+            <h3>{title}</h3>
+            <p>{desc}</p>
           </div>
         </div>
       ))}

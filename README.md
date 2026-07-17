@@ -5,7 +5,7 @@
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
 [![Languages](https://img.shields.io/badge/Word_Clock-14_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
 [![Views](https://img.shields.io/badge/Views-8_live_views-3B82F6?style=for-the-badge)](#views)
-[![License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)](./LICENSE)
+[![License review](https://img.shields.io/badge/License-review%20pending-F59E0B?style=for-the-badge)](#license)
 
 **ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, eight swipeable views, a word clock that composes real sentences in fourteen languages (from Italian and Latin to Klingon, 1337 Speak, Bellazio, and Pirate) — actual grammar, not uppercase tiles. Plus RSS, a Wikipedia deck, a `Now Playing` strip with cover art, a live public-transport timetable, a rocket launch countdown, a Mac Stats monitor driven by a macOS companion, and a LAN web config UI.
 
@@ -415,7 +415,7 @@ Small screen. Wide horizon.
 
 ## License
 
-[MIT](./LICENSE). Use it, fork it, modify it, put it on a desk somewhere and tell people it's art (it is).
+Licensing for the repository as a whole is under review. The tree includes third-party code and assets with their own terms — notably the bundled PRBoom component under [`src/doom/prboom`](src/doom/prboom), whose GPL notice is in [`COPYING`](src/doom/prboom/COPYING). Until a root license and complete third-party notices are added, do not assume the entire repository is MIT-licensed.
 Keep the copyright notice. No warranty. No liability. No hard feelings.
 
 ---

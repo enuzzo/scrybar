@@ -28,10 +28,23 @@
         </p>
         <div class="flash-card__action">
           <esp-web-install-button manifest="manifest.json">
-            <button slot="activate" class="vm-btn vm-btn--primary vm-btn--block">
+            <button
+              id="js-flash-activate"
+              slot="activate"
+              class="vm-btn vm-btn--primary vm-btn--block"
+              aria-describedby="js-flash-status"
+              disabled
+            >
               Install Firmware
             </button>
+            <span slot="unsupported" class="flash-alert">
+              Web Serial is not available in this browser. Open this page in Chrome, Edge, or Firefox on desktop.
+            </span>
+            <span slot="not-allowed" class="flash-alert">
+              Firmware installation requires a secure HTTPS connection.
+            </span>
           </esp-web-install-button>
+          <p id="js-flash-status" class="flash-status" role="status">Loading secure installer…</p>
         </div>
       </div>
 
@@ -52,7 +65,7 @@
     </div>
 
     <p class="flash-compat">
-      Requires a Chromium-based browser (Chrome, Edge, Opera 89+) with{' '}
+      Requires a desktop browser with{' '}
       <a
         href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API"
         target="_blank"
@@ -60,7 +73,7 @@
       >
         Web Serial
       </a>{' '}
-      support. Safari and Firefox are not supported.
+      support (Chrome, Edge, or Firefox). Safari and iOS browsers are not supported.
     </p>
   </div>
 </section>
@@ -68,10 +81,20 @@
 <script>
   const inject = () => {
     if (document.querySelector('script[data-esp-web-tools]')) return;
+    const status = document.getElementById('js-flash-status');
+    const activate = document.getElementById('js-flash-activate');
     const s = document.createElement('script');
     s.type = 'module';
-    s.src = 'https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module';
+    s.src = 'https://unpkg.com/esp-web-tools@10.2.1/dist/web/install-button.js?module';
     s.dataset.espWebTools = '';
+    s.addEventListener('load', async () => {
+      await customElements.whenDefined('esp-web-install-button');
+      activate?.removeAttribute('disabled');
+      if (status) status.textContent = 'Installer ready. Connect ScryBar over USB-C.';
+    }, { once: true });
+    s.addEventListener('error', () => {
+      if (status) status.textContent = 'Installer failed to load. Check the connection and reload this page.';
+    }, { once: true });
     document.head.appendChild(s);
   };
 

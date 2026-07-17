@@ -1,34 +1,38 @@
-# Next Session — 2026-03-11
+# Next Session — 2026-07-17
 
-## Where We Left Off
+Product exploration and the decision sheet for Monday live in
+[`FUTURE_IDEAS.md`](FUTURE_IDEAS.md).
 
-- **r182** is live and stable on device.
-- DOOM is integrated as a real extra view, not a placeholder spike:
-  - donor: `ducalex/retro-go` -> `prboom-go` only
-  - live centered 4:3 framebuffer on the `640x172` display
-  - title screen first, `FIRE` starts the core
-  - IMU active only in DOOM
-  - stable neutral capture after settle window
-  - swipe exit, left `USE`, right `FIRE`, center tap recenter
-- Partition now uses checked-in `partitions.csv` with `PartitionScheme=custom`.
-- DOOM/RSS/WIKI coexistence is stable only with `DB_CHUNK_ROWS=32`.
-- Public deep note: `knowledge/doom_integration_gotchas.md`
+## Current Baseline
 
-## What To Do Next
+- `r282` was the latest checked-in baseline; this quality pass identifies its
+  firmware build as `r283` for unambiguous flash verification.
+- Firmware, Astro landing page, and Swift companion build locally.
+- Display DMA uses `DB_CHUNK_ROWS=64`; the r282 LVGL draw buffer is a single
+  1/10-screen buffer in internal SRAM.
+- The current quality pass improves touch classification, feed-button hit maps,
+  INFO density, Now Playing fallback state, QR buffer reuse, embedded-page JSON
+  escaping, companion connection truthfulness, CI version injection, and landing
+  accessibility/responsiveness.
 
-### 1. DOOM gameplay tuning (priority)
+## Hardware Verification Still Required
 
-- Validate real in-hand control feel during gameplay, not just neutral-at-rest.
-- Decide final IMU mapping strength and deadbands for:
-  - forward/back
-  - turn left/right
-- Optionally add small HUD hit/press animations or iconography.
+The device was not connected during this pass. On the next attached session:
 
-### 2. Wikipedia / RSS polish
+1. Flash the current build and confirm the boot banner/build tag.
+2. Exercise slow taps and short horizontal swipes on every page.
+3. Tap `NXT`, `SKIP`, and `QR` near their shared edges; each band must dispatch
+   only its own action.
+4. Switch through all seven themes repeatedly and watch PSRAM/free-heap telemetry.
+5. Check that INFO shows all six rows without clipping.
+6. Stop/restart Companion and confirm `Waiting`/`Connected` plus the device-side
+   Now Playing stale state are truthful.
 
-- Revisit Random Article thumbnail support only if it can be reintroduced without
-  destabilizing heap/TLS behavior.
+## Recommended Next Work
 
-### 3. Backlog
-
-See `memory/backlog.md` for other ideas (Radio Metadata, Crypto ticker, Snake, Pomodoro, etc.).
+- Add pairing/authentication for the local firmware API and setup access point.
+- Replace permissive TLS (`setInsecure`) with verified HTTPS and explicit failure
+  states; do not silently downgrade to HTTP.
+- Add firmware parser/gesture host tests and companion unit tests to CI.
+- Resolve repository licensing and redistribution policy for bundled DOOM assets
+  before publishing another binary release.

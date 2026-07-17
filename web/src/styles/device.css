@@ -63,7 +63,7 @@
     0px 32px 130px rgba(0,0,0,0.22);
 }
 
-/* The AMOLED screen area */
+/* The IPS screen area */
 .device-screen {
   position: relative;
   aspect-ratio: 640 / 172;

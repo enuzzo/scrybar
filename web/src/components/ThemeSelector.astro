@@ -12,8 +12,10 @@ const themes = [
 <div class="theme-selector">
   {themes.map((t) => (
     <button
+      type="button"
       class:list={['theme-pill', { active: t.id === 'scrybar-default' }]}
       aria-label={`Switch to ${t.shortLabel} theme`}
+      aria-pressed={t.id === 'scrybar-default' ? 'true' : 'false'}
       data-theme-id={t.id}
     >
       <span class="theme-pill__dot"></span>
@@ -33,12 +35,17 @@ const themes = [
 
       // Toggle active pill
       document.querySelectorAll('.theme-pill').forEach((p) => {
-        p.classList.toggle('active', (p as HTMLElement).dataset.themeId === id);
+        const isActive = (p as HTMLElement).dataset.themeId === id;
+        p.classList.toggle('active', isActive);
+        p.setAttribute('aria-pressed', String(isActive));
       });
 
       // Toggle active screenshot
       document.querySelectorAll('.device-screen__img').forEach((img) => {
-        img.classList.toggle('active', (img as HTMLElement).dataset.themeId === id);
+        const isActive = (img as HTMLElement).dataset.themeId === id;
+        img.classList.toggle('active', isActive);
+        img.setAttribute('aria-hidden', String(!isActive));
+        img.setAttribute('alt', isActive ? `ScryBar ${(img as HTMLElement).dataset.themeLabel} theme preview` : '');
       });
     });
   });

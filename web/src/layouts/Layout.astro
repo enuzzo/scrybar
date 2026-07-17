@@ -15,7 +15,7 @@ const ogImage = `${siteUrl}og-image.jpg`;
 const fontHref = 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap';
 ---
 <!DOCTYPE html>
-<html lang="en" data-theme="scrybar-default">
+<html lang="en" data-theme="scrybar-default" class="no-js">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -34,6 +34,7 @@ const fontHref = 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600
   <meta name="twitter:title" content={title}>
   <meta name="twitter:description" content={description}>
   <meta name="twitter:image" content={ogImage}>
+  <script is:inline>document.documentElement.classList.replace('no-js', 'js');</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="style" href={fontHref}>
@@ -41,6 +42,7 @@ const fontHref = 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600
   <noscript><link rel="stylesheet" href={fontHref}></noscript>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <slot />
 </body>
 </html>

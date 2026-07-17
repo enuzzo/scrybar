@@ -1,9 +1,9 @@
 ---
 const specs = [
   { label: 'MCU',        value: 'ESP32-S3' },
-  { label: 'Display',    value: '3.49\u201D AMOLED 640\u00D7172' },
+  { label: 'Display',    value: '3.49\u201D IPS 640\u00D7172' },
   { label: 'Controller', value: 'AXS15231B' },
-  { label: 'Touch',      value: 'Capacitive (multi-point)' },
+  { label: 'Touch',      value: 'Capacitive (single-point)' },
   { label: 'Flash',      value: '16 MB' },
   { label: 'PSRAM',      value: '8 MB OPI' },
   { label: 'WiFi',       value: '2.4 GHz 802.11 b/g/n' },
@@ -11,7 +11,7 @@ const specs = [
   { label: 'Interface',  value: 'USB-C (data + power)' },
   { label: 'Battery',    value: 'Onboard monitor (ADC)' },
   { label: 'Framework',  value: 'Arduino + LVGL 8' },
-  { label: 'License',    value: 'MIT' },
+  { label: 'Licensing',  value: 'Project + third-party notices' },
 ];
 ---
 <section id="specs">
@@ -19,17 +19,17 @@ const specs = [
     <span class="section-label">Hardware</span>
     <h2>What's inside</h2>
     <p class="section-sub">
-      Waveshare ESP32-S3-Touch-LCD-3.49 — a bar-shaped AMOLED touchscreen
+      Waveshare ESP32-S3-Touch-LCD-3.49 — a bar-shaped IPS touchscreen
       with enough power to run a game engine.
     </p>
 
-    <div class="specs-table">
+    <dl class="specs-table">
       {specs.map((s) => (
         <div class="spec-row">
-          <span class="spec-label">{s.label}</span>
-          <span class="spec-value">{s.value}</span>
+          <dt class="spec-label">{s.label}</dt>
+          <dd class="spec-value">{s.value}</dd>
         </div>
       ))}
-    </div>
+    </dl>
   </div>
 </section>
