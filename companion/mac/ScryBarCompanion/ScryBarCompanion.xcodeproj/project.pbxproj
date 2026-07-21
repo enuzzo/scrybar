@@ -16,11 +16,13 @@
 		C4606DA61C5D5D5F6284D891 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75DD8079B5ADB50FEE32FF69 /* AppDelegate.swift */; };
 		C4A8CD9C086EB31EB4423EA7 /* ScryBarClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */; };
 		C8D821386881FE043880AEF0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD873F0A8B6D5871731A68D /* Models.swift */; };
+		CF26052E9B8B1568F26601DB /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 04CC5359BE9C5DEE6F953EDC /* AppIcon.icns */; };
 		D2C4F19151AA9B1825BDD110 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5953F94113F0DC311E0FB3BC /* SettingsView.swift */; };
 		EA4615C1C064F288A261B81F /* ScryBarCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		04CC5359BE9C5DEE6F953EDC /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarCompanionApp.swift; sourceTree = "<group>"; };
 		2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarDiscovery.swift; sourceTree = "<group>"; };
 		5953F94113F0DC311E0FB3BC /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -73,6 +75,7 @@
 		F1BFEFBF1D1B795F3C4B52F2 = {
 			isa = PBXGroup;
 			children = (
+				04CC5359BE9C5DEE6F953EDC /* AppIcon.icns */,
 				032CC49FC1AF3254B710A182 /* Sources */,
 				2A0A1A0D87433C321C440A22 /* Products */,
 			);
@@ -86,6 +89,7 @@
 			buildConfigurationList = 62A5763069B97D20A741FE5C /* Build configuration list for PBXNativeTarget "ScryBarCompanion" */;
 			buildPhases = (
 				A93DC1C434E5189BE600C51A /* Sources */,
+				A5EA6230541D9C5C31497C26 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -131,6 +135,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A5EA6230541D9C5C31497C26 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CF26052E9B8B1568F26601DB /* AppIcon.icns in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A93DC1C434E5189BE600C51A /* Sources */ = {
@@ -189,7 +204,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 29;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -208,10 +223,6 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "ScryBar Companion";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -265,7 +276,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 29;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -278,10 +289,6 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "ScryBar Companion";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -304,6 +311,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -318,6 +326,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

@@ -14,14 +14,10 @@ configs:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    CURRENT_PROJECT_VERSION: 28
+    CURRENT_PROJECT_VERSION: 29
     MARKETING_VERSION: "0.2.4"
-    GENERATE_INFOPLIST_FILE: YES
-    INFOPLIST_KEY_LSUIElement: YES
     PRODUCT_BUNDLE_IDENTIFIER: com.netmilk.ScryBarCompanion
     PRODUCT_NAME: ScryBarCompanion
-    INFOPLIST_KEY_CFBundleDisplayName: ScryBar Companion
-    INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
     LD_RUNPATH_SEARCH_PATHS:
@@ -35,6 +31,23 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: Sources/ScryBarCompanion
+      # Icon lives at the project root; declared here so it survives every
+      # `xcodegen generate` (hand-wiring it in Xcode gets wiped on regen).
+      - path: AppIcon.icns
+        buildPhase: resources
+    # Explicit generated Info.plist: CFBundleIconFile has no INFOPLIST_KEY_*
+    # build setting (Xcode expects asset catalogs), so a bare .icns needs the
+    # key written into the plist directly.
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: ScryBar Companion
+        CFBundleIconFile: AppIcon
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: "14.0"
+        LSUIElement: true
     scheme:
       gatherCoverageData: false
       storeKitConfiguration: false
