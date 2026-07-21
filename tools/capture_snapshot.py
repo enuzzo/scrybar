@@ -10,7 +10,7 @@ Protocol:
   [SNAP][END] sent=<N>
 
 Output: PNG file in target folder (default: screenshots).
-Dependencies: Python stdlib + ffmpeg.
+Dependencies: Python stdlib + ffmpeg (or Pillow as fallback decoder).
 """
 
 from __future__ import annotations
@@ -77,6 +77,23 @@ def _read_exact_fd(fd: int, n: int, timeout_s: float) -> bytes:
         if chunk:
             out.extend(chunk)
     return bytes(out)
+
+
+def _convert_with_pil(raw: bytes, width: int, height: int, pix_fmt: str, out_png: pathlib.Path) -> None:
+    """Decode RGB565 raw framebuffer to PNG without ffmpeg (requires Pillow)."""
+    from PIL import Image  # noqa: PLC0415 — optional fallback dependency
+
+    byteorder = "little" if pix_fmt == "rgb565le" else "big"
+    rgb = bytearray(width * height * 3)
+    for i in range(width * height):
+        v = int.from_bytes(raw[2 * i : 2 * i + 2], byteorder)
+        r = (v >> 11) & 0x1F
+        g = (v >> 5) & 0x3F
+        b = v & 0x1F
+        rgb[3 * i] = (r << 3) | (r >> 2)
+        rgb[3 * i + 1] = (g << 2) | (g >> 4)
+        rgb[3 * i + 2] = (b << 3) | (b >> 2)
+    Image.frombytes("RGB", (width, height), bytes(rgb)).save(out_png)
 
 
 def main() -> int:
@@ -196,7 +213,15 @@ def main() -> int:
         str(raw_path),
         str(out_png),
     ]
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True)
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        print(f"[WARN] ffmpeg unavailable ({exc.__class__.__name__}); falling back to Pillow")
+        try:
+            _convert_with_pil(raw, width, height, pix_fmt, out_png)
+        except ImportError:
+            print("Neither ffmpeg nor Pillow available to decode snapshot", file=sys.stderr)
+            return 6
     raw_path.unlink(missing_ok=True)
 
     print(f"Saved screenshot: {out_png}")

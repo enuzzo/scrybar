@@ -73,15 +73,28 @@ struct NowPlayingPopoverView: View {
 
                 Spacer(minLength: 0)
 
-                // Gear icon top-right
-                Button {
-                    showSettings = true
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 12))
-                        .foregroundStyle(CompanionTheme.textDisabled)
+                // Gear + quit icons top-right
+                HStack(spacing: 8) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 12))
+                            .foregroundStyle(CompanionTheme.textDisabled)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Settings")
+
+                    Button {
+                        NSApplication.shared.terminate(nil)
+                    } label: {
+                        Image(systemName: "power")
+                            .font(.system(size: 12))
+                            .foregroundStyle(CompanionTheme.textDisabled)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Quit ScryBar Companion")
                 }
-                .buttonStyle(.plain)
             }
 
             // Progress bar (only when we have real elapsed data)

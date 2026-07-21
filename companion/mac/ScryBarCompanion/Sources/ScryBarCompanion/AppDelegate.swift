@@ -15,6 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startTitleUpdates()
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        model.shutdown()
+    }
+
     // MARK: - Main Menu (enables Cmd+Q for LSUIElement apps)
 
     private func setupMainMenu() {

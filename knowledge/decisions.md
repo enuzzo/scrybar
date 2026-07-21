@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-07-21 - v0.8.2: Companion v0.2.4 discoverable Quit + clean shutdown; snapshot tool Pillow fallback
+
+- Context: The companion (menu-bar `LSUIElement` app) had no discoverable way to quit: the only paths were right-click on the status item (hidden context menu) and Cmd+Q with the popover focused. Worse, the v0.2.3 long-lived `macmon pipe` subprocess was stopped only in `MacStatsProvider.deinit` — which never runs for app-lifetime singletons on `NSApplication.terminate`, so a quit could orphan macmon. Separately, `tools/capture_snapshot.py` hard-depended on ffmpeg; a Homebrew lib bump (`libx265.215` → `.216`) broke ffmpeg and with it the whole screenshot workflow.
+- Decision: **Companion v0.2.4 (build 28).** (1) Visible quit affordances: a `power` SF-symbol button next to the gear in the popover header and an explicit "Quit ScryBar Companion" button in the Settings footer next to the version badge — both call `NSApplication.terminate`. (2) Clean shutdown path: `MacStatsProvider.stop()` (public wrapper over `stopMacmon()`), `AppModel.shutdown()` (cancels both poll tasks + stops provider), wired from `applicationWillTerminate`. **Snapshot tool:** ffmpeg call wrapped in try/except; on `FileNotFoundError`/`CalledProcessError` it falls back to a pure-Python RGB565→RGB888 decode saved via Pillow (`_convert_with_pil`). ffmpeg stays primary (faster), Pillow is the safety net.
+- Impact/Tradeoffs: Quit is now one click from the popover and verified clean — companion and macmon both terminate, zero orphans. The terminate path is identical for all four affordances (buttons, context menu, Cmd+Q), so one code path to maintain. Snapshot capture no longer depends on Homebrew's ffmpeg health; the Python decode is ~110k pixels per frame, fast enough for interactive use. Release v0.8.2 ships firmware r283 (already committed in the quality pass) + companion 0.2.4 + refreshed DMG in-repo.
+
+---
+
 ## 2026-04-22 - Timetable page: rename + relative "X'" countdown + DST fix (r275, r276)
 
 - Context: User feedback from Lobo Bardella on the Departures board: (1) the scheduled `HH:MM` column looked like a stale clock because it never ticked; (2) a "minutes until departure" countdown like a physical bus-stop LED board would be far more useful; (3) suggested renaming to "Timetable"; (4) "mi pare che gli orari li spara a caso, controllando sul sito ATM" — suspected data-accuracy bug on Milano ATM feed. Investigation of (4) via a new per-row parse log revealed a 1-hour offset during CEST: a 16:45Z ISO came out as 19:45 local instead of 18:45 — every single departure was displayed 1 h in the future on every GTFS feed worldwide during DST.

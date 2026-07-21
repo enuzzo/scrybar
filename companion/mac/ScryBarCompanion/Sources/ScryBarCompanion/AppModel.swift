@@ -78,6 +78,14 @@ final class AppModel: ObservableObject {
         discovery.start()
     }
 
+    /// Clean shutdown for app termination: stop polling and terminate the
+    /// long-lived macmon subprocess so it can't be orphaned.
+    func shutdown() {
+        pollTask?.cancel()
+        macStatsPollTask?.cancel()
+        macStatsProvider.stop()
+    }
+
     func setAutoSend(_ enabled: Bool) {
         autoSendEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: "autoSendEnabled")

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -107,10 +108,20 @@ struct SettingsView: View {
                     .controlSize(.small)
                 }
 
-                // Version badge
-                Text(versionString)
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(CompanionTheme.textDisabled)
+                // Footer: version badge + quit
+                HStack {
+                    Text(versionString)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(CompanionTheme.textDisabled)
+
+                    Spacer()
+
+                    Button("Quit ScryBar Companion") {
+                        NSApplication.shared.terminate(nil)
+                    }
+                    .buttonStyle(CompanionSecondaryButtonStyle())
+                    .controlSize(.small)
+                }
             }
             .padding(.top, 10)
         }

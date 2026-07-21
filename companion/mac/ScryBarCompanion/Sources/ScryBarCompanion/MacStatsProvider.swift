@@ -36,6 +36,12 @@ final class MacStatsProvider: @unchecked Sendable {
         stopMacmon()
     }
 
+    /// Explicit shutdown for app termination — deinit never runs for
+    /// app-lifetime singletons, so the macmon subprocess must be stopped here.
+    func stop() {
+        stopMacmon()
+    }
+
     private func stopMacmon() {
         macmonLock.lock(); defer { macmonLock.unlock() }
         if let p = macmonProc, p.isRunning {

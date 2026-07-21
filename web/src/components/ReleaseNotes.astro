@@ -1,6 +1,20 @@
 ---
 const releases = [
   {
+    version: 'v0.8.2',
+    tag: 'r283',
+    date: '2026-07-21',
+    headline: 'Snappiness overhaul, touch quality pass, Companion quit & clean shutdown',
+    items: [
+      { label: 'Perf', text: 'LVGL draw buffer moved to internal SRAM — 3.7× faster render handler. Page-visibility steady-state caching and Mac Stats change detection skip re-rendering anything that didn’t change.' },
+      { label: 'Fix', text: 'Switching themes leaked a PSRAM buffer on every switch on pages with a QR canvas — the canvas buffer is now reused instead of recreated.' },
+      { label: 'Fix', text: 'Touch classification tightened: the fast-swipe shortcut is gone (it could misread slow taps as page swipes), and NXT / SKIP / QR buttons use precise 8×2 px hit padding so a tap near a shared edge dispatches only its own action.' },
+      { label: 'New', text: 'Companion v0.2.4 — quit the app directly from the popover (power icon next to the gear) or from the Settings footer. Termination is clean: polling stops and the macmon subprocess is terminated, never orphaned.' },
+      { label: 'Fix', text: 'Companion status is now truthful: “Connected” only after a successful send to the device in the last 8 seconds, otherwise “Waiting” with an amber dot. macmon runs as one long-lived pipe instead of a new process every 5 s.' },
+      { label: 'Fix', text: 'INFO page density pass — all six rows fit without clipping. Now Playing shows an honest stale state when live data stops flowing.' },
+    ],
+  },
+  {
     version: 'v0.8.1',
     tag: 'r279',
     date: '2026-04-23',
@@ -233,6 +247,11 @@ const [latest, ...older] = releases;
     color: #f2b35c;
     border-color: rgba(242, 179, 92, 0.35);
     background: rgba(242, 179, 92, 0.08);
+  }
+  .release__label--perf {
+    color: #6aa9ff;
+    border-color: rgba(106, 169, 255, 0.35);
+    background: rgba(106, 169, 255, 0.08);
   }
   .release__text {
     color: var(--text-primary);
