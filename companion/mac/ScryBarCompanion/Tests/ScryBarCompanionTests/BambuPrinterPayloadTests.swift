@@ -84,6 +84,19 @@ import Testing
     #expect(printer.serial == "039012345678901")
 }
 
+@Test func discoveryRejectsBareSSDPEchoWithoutPrinterIdentity() {
+    let response = """
+    HTTP/1.1 200 OK\r
+    ST: urn:bambulab-com:device:3dprinter:1\r
+    \r
+    """
+
+    #expect(BambuDiscoveryResponseParser.parse(
+        Data(response.utf8),
+        sourceHost: "192.168.1.33"
+    ) == nil)
+}
+
 @Test func discoveryMergesPartialAndRichAnnouncementsFromOnePrinter() {
     let partial = BambuDiscoveredPrinter(
         id: "192.168.1.42",
@@ -108,6 +121,63 @@ import Testing
     #expect(merged[0].id == "039012345678901")
     #expect(merged[0].name == "Workshop A1")
     #expect(merged[0].model == "Bambu Lab A1")
+}
+
+@Test func selectionPrefersSavedSerialOverSelectedStaleAddress() throws {
+    let staleFallback = BambuDiscoveredPrinter(
+        id: "192.168.1.33",
+        name: "",
+        model: "Bambu Lab printer",
+        modelCode: "",
+        host: "192.168.1.33",
+        serial: ""
+    )
+    let currentIdentity = BambuDiscoveredPrinter(
+        id: "039012345678901",
+        name: "Workshop A1",
+        model: "Bambu Lab A1",
+        modelCode: "N2S",
+        host: "192.168.1.96",
+        serial: "039012345678901"
+    )
+
+    let preferred = try #require(BambuPrinterSelectionPolicy.preferredPrinter(
+        in: [staleFallback, currentIdentity],
+        savedSerial: "039012345678901",
+        savedHost: "192.168.1.33",
+        selectedID: staleFallback.id
+    ))
+
+    #expect(preferred.id == currentIdentity.id)
+    #expect(preferred.host == "192.168.1.96")
+}
+
+@Test func selectionKeepsManualFallbackWithoutStableIdentityMatch() throws {
+    let first = BambuDiscoveredPrinter(
+        id: "192.168.1.42",
+        name: "",
+        model: "Bambu Lab printer",
+        modelCode: "",
+        host: "192.168.1.42",
+        serial: ""
+    )
+    let second = BambuDiscoveredPrinter(
+        id: "192.168.1.43",
+        name: "",
+        model: "Bambu Lab printer",
+        modelCode: "",
+        host: "192.168.1.43",
+        serial: ""
+    )
+
+    let preferred = try #require(BambuPrinterSelectionPolicy.preferredPrinter(
+        in: [first, second],
+        savedSerial: "",
+        savedHost: second.host,
+        selectedID: second.id
+    ))
+
+    #expect(preferred.id == second.id)
 }
 
 @Test func serviceFingerprintRequiresMQTTAndOneBambuCompanionService() {

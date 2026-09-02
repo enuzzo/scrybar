@@ -2,6 +2,13 @@
 
 ## 2026-09-02
 
+### ScryBar v0.9.1 — Firmware DB-M0-r301 / Companion v0.3.2 (37)
+
+- Fixed Bambu reconnection after DHCP address changes: the Companion now matches the saved printer serial before a selected or persisted IP and automatically restarts MQTT on the current address.
+- Rejected bare SSDP echoes that contain a requested Bambu service type but no printer serial or model, preventing false devices from suppressing the verified LAN-service scan.
+- Preserved manual-IP fallback for routed/VLAN setups and kept LAN access codes scoped to each printer identity in macOS Keychain.
+- Added regression coverage for stale-IP recovery, serial-first selection, manual fallback and false SSDP responses.
+
 ### ScryBar v0.9.0 — Firmware DB-M0-r300 / Companion v0.3.1 (36)
 
 - Added the Bambu Lab print-monitor view with live job state, progress, remaining time, layers, nozzle/bed/chamber temperatures, speed, fans, Wi-Fi, filament, AMS and alert telemetry.

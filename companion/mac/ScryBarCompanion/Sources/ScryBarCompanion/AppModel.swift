@@ -251,31 +251,26 @@ final class AppModel: ObservableObject {
 
     private func receiveDiscoveredBambuPrinters(_ printers: [BambuDiscoveredPrinter]) {
         discoveredBambuPrinters = printers
-        if let selectedBambuPrinterID,
-           let current = printers.first(where: { $0.id == selectedBambuPrinterID }) {
-            if current.host != bambuHost ||
-                (!current.serial.isEmpty && current.serial.caseInsensitiveCompare(bambuSerial) != .orderedSame) ||
-                (!current.name.isEmpty && current.name != bambuPrinterName) {
-                selectBambuPrinter(id: current.id)
-            }
-            return
-        }
-
-        if let match = printers.first(where: {
-            (!$0.serial.isEmpty && $0.serial.caseInsensitiveCompare(bambuSerial) == .orderedSame) ||
-            $0.host == bambuHost
-        }) {
-            // The stable id may change from the provisional host to the
-            // printer serial as richer discovery data arrives. Re-select the
-            // enriched record so host and serial are persisted together.
-            selectBambuPrinter(id: match.id)
-            return
-        }
-
-        if printers.count == 1 {
-            selectBambuPrinter(id: printers[0].id)
-        } else {
+        guard let preferred = BambuPrinterSelectionPolicy.preferredPrinter(
+            in: printers,
+            savedSerial: bambuSerial,
+            savedHost: bambuHost,
+            selectedID: selectedBambuPrinterID
+        ) else {
             selectedBambuPrinterID = nil
+            return
+        }
+
+        let selectionChanged = selectedBambuPrinterID != preferred.id
+        let addressChanged = preferred.host.caseInsensitiveCompare(bambuHost) != .orderedSame
+        let identityChanged = !preferred.serial.isEmpty &&
+            preferred.serial.caseInsensitiveCompare(bambuSerial) != .orderedSame
+        let nameChanged = !preferred.name.isEmpty && preferred.name != bambuPrinterName
+
+        if selectionChanged || addressChanged || identityChanged || nameChanged {
+            // A serial-bearing SSDP result deliberately replaces a provisional
+            // or stale IP selection and restarts MQTT on the current address.
+            selectBambuPrinter(id: preferred.id)
         }
     }
 

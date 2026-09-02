@@ -14,6 +14,43 @@ struct BambuDiscoveredPrinter: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Chooses a printer using its stable LAN identity before transient network
+/// state. Bambu printers can keep the same serial while DHCP changes their IP;
+/// a provisional service-scan result must therefore never pin the app to an
+/// obsolete address once a serial-bearing SSDP record is available.
+enum BambuPrinterSelectionPolicy {
+    static func preferredPrinter(
+        in printers: [BambuDiscoveredPrinter],
+        savedSerial: String,
+        savedHost: String,
+        selectedID: String?
+    ) -> BambuDiscoveredPrinter? {
+        let normalizedSerial = savedSerial.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedSerial.isEmpty,
+           let identityMatch = printers.first(where: {
+               !$0.serial.isEmpty &&
+               $0.serial.caseInsensitiveCompare(normalizedSerial) == .orderedSame
+           }) {
+            return identityMatch
+        }
+
+        if let selectedID,
+           let currentSelection = printers.first(where: { $0.id == selectedID }) {
+            return currentSelection
+        }
+
+        let normalizedHost = savedHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedHost.isEmpty,
+           let addressMatch = printers.first(where: {
+               $0.host.caseInsensitiveCompare(normalizedHost) == .orderedSame
+           }) {
+            return addressMatch
+        }
+
+        return printers.count == 1 ? printers[0] : nil
+    }
+}
+
 enum BambuDiscoveryResponseParser {
     static func parse(_ data: Data, sourceHost: String) -> BambuDiscoveredPrinter? {
         guard let message = String(data: data, encoding: .utf8) else { return nil }
@@ -36,6 +73,10 @@ enum BambuDiscoveryResponseParser {
             .components(separatedBy: "::").first ?? rawSerial)
             .replacingOccurrences(of: "uuid:", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Some non-printer devices echo the requested ST verbatim without any
+        // Bambu identity headers. Accepting that bare response creates a false
+        // printer and prevents the verified LAN-service fallback from running.
+        guard !serial.isEmpty || !modelCode.isEmpty else { return nil }
         let host = sourceHost.isEmpty ? hostFromLocation(headers["location"]) : sourceHost
         guard !host.isEmpty else { return nil }
 

@@ -1,6 +1,17 @@
 ---
 const releases = [
   {
+    version: 'v0.9.1',
+    tag: 'r301',
+    date: '2026-09-02',
+    headline: 'Stable Bambu identity and automatic IP recovery',
+    items: [
+      { label: 'Fix', text: 'Companion v0.3.2 identifies a saved Bambu printer by serial before considering a selected or previously saved IP. DHCP address changes now update the stored endpoint and reconnect MQTT automatically.' },
+      { label: 'Fix', text: 'Bare SSDP echoes without a Bambu serial or model are rejected, so false printer entries can no longer suppress the verified LAN-service fallback scan.' },
+      { label: 'Fix', text: 'Manual-IP selection remains available for segmented networks, while the normal path prefers the richer LAN identity and preserves the access code in macOS Keychain.' },
+    ],
+  },
+  {
     version: 'v0.9.0',
     tag: 'r300',
     date: '2026-09-02',
