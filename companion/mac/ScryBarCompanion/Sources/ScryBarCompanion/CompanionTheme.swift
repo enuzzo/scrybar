@@ -20,7 +20,7 @@ enum CompanionPalette {
         static let label = Font.system(size: 13, weight: .medium, design: .default)
         static let body = Font.system(size: 13.5, weight: .regular, design: .default)
         static let bodyEmphasis = Font.system(size: 13.5, weight: .medium, design: .default)
-        static let caption = Font.system(size: 11.5, weight: .regular, design: .default)
+        static let caption = Font.system(size: 12, weight: .regular, design: .default)
         static let mono = Font.system(size: 12, weight: .regular, design: .monospaced)
         static let monoEmphasis = Font.system(size: 12, weight: .medium, design: .monospaced)
     }
@@ -48,11 +48,26 @@ enum CompanionPalette {
     static let borderStrong = Color.white.opacity(0.16)
     static let shadow = Color.black.opacity(0.35)
     static let textPrimary = Color.white.opacity(0.96)
-    static let textSecondary = Color.white.opacity(0.70)
-    static let textTertiary = Color.white.opacity(0.48)
-    static let textDisabled = Color.white.opacity(0.34)
+    static let textSecondary = Color.white.opacity(0.78)
+    static let textTertiary = Color.white.opacity(0.62)
+    static let textDisabled = Color.white.opacity(0.46)
     static let accent = Color(red: 0.22, green: 0.62, blue: 0.98)
     static let accentSoft = Color(red: 0.18, green: 0.45, blue: 0.74)
+    // BambuSphere reference tokens used for the printer telemetry surface.
+    // Normal printer telemetry deliberately stays inside a black / white /
+    // grey / Bambu-green palette so it remains recognisable in every theme.
+    static let bambuSurface = Color.black                         // #000000
+    static let bambuSurfaceElevated = Color(white: 0.063)         // #101010
+    static let bambuTrack = Color(white: 0.102)                   // #1A1A1A
+    static let bambuBorder = Color(white: 0.188)                  // #303030
+    static let bambuTextPrimary = Color.white                    // #FFFFFF
+    static let bambuTextSecondary = Color(white: 0.867)          // #DDDDDD
+    static let bambuTextMuted = Color(white: 0.533)              // #888888
+    static let bambuAccent = Color(red: 0.00, green: 1.00, blue: 0.00) // #00FF00
+    static let bambuAccentSoft = Color(red: 0.00, green: 0.18, blue: 0.00)
+    static let bambuDone = bambuAccent
+    static let bambuPaused = Color(red: 1.00, green: 0.647, blue: 0.00) // #FFA500
+    static let bambuError = Color(red: 1.00, green: 0.20, blue: 0.20)   // #FF3333
     static let success = Color(red: 0.24, green: 0.76, blue: 0.46)
     static let warning = Color(red: 0.90, green: 0.64, blue: 0.18)
     static let danger = Color(red: 0.90, green: 0.33, blue: 0.30)
@@ -132,15 +147,18 @@ struct CompanionInputChromeModifier: ViewModifier {
 }
 
 struct CompanionPrimaryButtonStyle: ButtonStyle {
+    var tint: Color = CompanionPalette.accent
+    var foreground: Color = CompanionPalette.textPrimary
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(CompanionPalette.Typography.label)
-            .foregroundStyle(CompanionPalette.textPrimary)
+            .foregroundStyle(foreground)
             .padding(.horizontal, 12)
             .frame(minHeight: CompanionPalette.Layout.buttonMinHeight)
             .background {
                 RoundedRectangle(cornerRadius: CompanionPalette.Layout.controlCornerRadius, style: .continuous)
-                    .fill(configuration.isPressed ? CompanionPalette.accentSoft : CompanionPalette.accent)
+                    .fill(configuration.isPressed ? tint.opacity(0.72) : tint)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: CompanionPalette.Layout.controlCornerRadius, style: .continuous)

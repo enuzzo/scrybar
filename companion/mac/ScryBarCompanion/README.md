@@ -1,6 +1,6 @@
 # ScryBar Companion
 
-macOS menu-bar app (Swift/SwiftUI) that feeds **Now Playing** metadata and **Mac Stats** to your ScryBar device.
+macOS menu-bar app (Swift/SwiftUI) that feeds **Now Playing**, **Mac Stats**, and a credential-free **Bambu Lab print status** to your ScryBar device.
 
 ---
 
@@ -11,6 +11,10 @@ macOS menu-bar app (Swift/SwiftUI) that feeds **Now Playing** metadata and **Mac
 | **Now Playing** | System-wide playback via `MediaRemote.framework` (same source as Control Center) |
 | **Music.app provider** | Direct AppleScript integration for richer metadata |
 | **Mac Stats** | CPU/GPU usage %, CPU/GPU temperature, RAM and disk usage |
+| **Bambu Lab monitor** | SSDP discovery plus direct LAN MQTT/TLS status with Keychain-protected access codes |
+| **Multiple printers** | Select a discovered printer; credentials remain separate for each serial number |
+| **Setup Help** | Short ASD-STE100-style connection and troubleshooting instructions in the app |
+| **Print event sounds** | Distinct macOS sounds for start, pause/fault, and completion |
 | **LAN discovery** | Auto-discover ScryBar via `_scrybar._tcp` Bonjour/mDNS |
 | **Manual target** | Fallback `host/IP + port` entry |
 | **Auto-send** | Pushes updates every second (Now Playing) and every 5 s (Mac Stats) |
@@ -66,7 +70,12 @@ open ScryBarCompanion.xcodeproj
 
 Then **Product → Archive → Distribute App → Custom → Mac Application**.
 
-A prebuilt ad-hoc signed `.app` is kept in `companion/mac/dist/` for convenience.
+A universal, ad-hoc signed `.app` is kept in `companion/mac/dist/` for convenience.
+Release maintainers can regenerate both the app and DMG from the repository root:
+
+```bash
+./script/build_companion_dmg.sh
+```
 
 ---
 
@@ -129,6 +138,10 @@ This is a one-time step.
 
 `cpuTempC` / `gpuTempC` are `null` when macmon is unavailable.
 `cpuUsagePct` is `null` on the very first 5-second cycle (baseline needs one prior sample).
+
+### `POST /api/bambu`
+
+The companion connects directly to the printer on LAN port 8883 and forwards only the current print snapshot to ScryBar. Printer credentials never enter this payload. See [`../../../docs/bambu-lan-integration.md`](../../../docs/bambu-lan-integration.md) for configuration, fields, sounds, security notes, and the full example.
 
 ---
 

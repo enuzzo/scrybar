@@ -13,6 +13,9 @@
 		3AF38F9540ADEDB98E4E5013 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8457A3E5152784A5FAE2409D /* PopoverView.swift */; };
 		661EF4ED3C28FC96B302735D /* ScryBarDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */; };
 		73F1490C073A22D9F2A5E31B /* MacStatsProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE76FA671EFB2D923FD32D1A /* MacStatsProvider.swift */; };
+		BA955C8E6E772F57D54F1910 /* BambuPrinterDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */; };
+		BB24A8275CCF1DCECFB60E1A /* CompanionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F1C85B96397D8D6F8FA52E /* CompanionSettingsView.swift */; };
+		C3E8A6A20FD0BCDAA53365D2 /* BambuPrinter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */; };
 		C4606DA61C5D5D5F6284D891 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75DD8079B5ADB50FEE32FF69 /* AppDelegate.swift */; };
 		C4A8CD9C086EB31EB4423EA7 /* ScryBarClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */; };
 		C8D821386881FE043880AEF0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD873F0A8B6D5871731A68D /* Models.swift */; };
@@ -32,9 +35,12 @@
 		701ED3BD5F30348EBC049C90 /* ScryBarCompanion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScryBarCompanion.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		75DD8079B5ADB50FEE32FF69 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		8457A3E5152784A5FAE2409D /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
+		90F1C85B96397D8D6F8FA52E /* CompanionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionSettingsView.swift; sourceTree = "<group>"; };
 		9FD873F0A8B6D5871731A68D /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		AE76FA671EFB2D923FD32D1A /* MacStatsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStatsProvider.swift; sourceTree = "<group>"; };
+		C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuPrinterDiscovery.swift; sourceTree = "<group>"; };
 		C8E22A120EAA9F0E38CDE52E /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
+		E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuPrinter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -59,6 +65,9 @@
 			children = (
 				75DD8079B5ADB50FEE32FF69 /* AppDelegate.swift */,
 				5B39588B77F90F5443B7C566 /* AppModel.swift */,
+				E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */,
+				C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */,
+				90F1C85B96397D8D6F8FA52E /* CompanionSettingsView.swift */,
 				682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */,
 				AE76FA671EFB2D923FD32D1A /* MacStatsProvider.swift */,
 				9FD873F0A8B6D5871731A68D /* Models.swift */,
@@ -154,6 +163,9 @@
 			files = (
 				C4606DA61C5D5D5F6284D891 /* AppDelegate.swift in Sources */,
 				153681E18B8A702FBDCA3DBA /* AppModel.swift in Sources */,
+				C3E8A6A20FD0BCDAA53365D2 /* BambuPrinter.swift in Sources */,
+				BA955C8E6E772F57D54F1910 /* BambuPrinterDiscovery.swift in Sources */,
+				BB24A8275CCF1DCECFB60E1A /* CompanionSettingsView.swift in Sources */,
 				06F32E47268A0EC3E08D735A /* CompanionTheme.swift in Sources */,
 				73F1490C073A22D9F2A5E31B /* MacStatsProvider.swift in Sources */,
 				C8D821386881FE043880AEF0 /* Models.swift in Sources */,
@@ -204,7 +216,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 29;
+				CURRENT_PROJECT_VERSION = 36;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -228,7 +240,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.4;
+				MARKETING_VERSION = 0.3.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -276,7 +288,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 29;
+				CURRENT_PROJECT_VERSION = 36;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -294,7 +306,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.4;
+				MARKETING_VERSION = 0.3.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netmilk.ScryBarCompanion;

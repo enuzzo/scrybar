@@ -249,7 +249,7 @@
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 
@@ -1718,6 +1718,11 @@ esp-web-install-button [slot="activate"] {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
+  .feature-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    width: calc(50% - 5px);
+    justify-self: center;
+  }
   .steps-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1749,6 +1754,10 @@ esp-web-install-button [slot="activate"] {
   }
   .features-grid {
     grid-template-columns: 1fr;
+  }
+  .feature-card:last-child:nth-child(odd) {
+    grid-column: auto;
+    width: auto;
   }
   .steps-grid {
     grid-template-columns: 1fr;

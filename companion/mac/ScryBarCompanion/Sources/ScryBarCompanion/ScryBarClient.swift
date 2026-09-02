@@ -27,9 +27,9 @@ actor ScryBarClient {
             throw URLError(.badServerResponse)
         }
 
-        if includeArtwork, let artworkID = payload.artworkID, !artworkID.isEmpty {
+        if includeArtwork, let artworkID = payload.wireArtworkID, !artworkID.isEmpty {
             lastSentArtworkIDByEndpoint[endpointKey] = artworkID
-        } else if payload.artworkID == nil || payload.artworkID?.isEmpty == true {
+        } else if payload.wireArtworkID == nil {
             // ArtworkID disappeared (e.g. pause) — clear dedup cache so artwork
             // is re-sent when artworkID returns on resume
             lastSentArtworkIDByEndpoint.removeValue(forKey: endpointKey)
@@ -55,9 +55,28 @@ actor ScryBarClient {
         }
     }
 
+    func sendBambu(_ payload: BambuPrinterPayload, to endpoint: ScryBarEndpoint) async throws {
+        guard let baseURL = endpoint.baseURL else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: baseURL.appending(path: "api/bambu"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 5
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        request.httpBody = try encoder.encode(payload)
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse,
+              (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
     /// Send artwork only when the artworkID changes (new track)
     private func shouldIncludeArtworkData(for endpointKey: String, payload: NowPlayingPayload) -> Bool {
-        guard let artworkID = payload.artworkID,
+        guard let artworkID = payload.wireArtworkID,
               !artworkID.isEmpty,
               let artworkRGB565B64 = payload.artworkRGB565B64,
               !artworkRGB565B64.isEmpty else {

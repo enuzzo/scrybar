@@ -109,7 +109,7 @@ struct NowPlayingPayload: Codable {
     }
 
     var artworkSummary: String {
-        guard let artworkID, !artworkID.isEmpty else { return "none" }
+        guard let artworkID = wireArtworkID, !artworkID.isEmpty else { return "none" }
         let dims: String
         if let artworkWidth, let artworkHeight {
             dims = "\(artworkWidth)x\(artworkHeight)"
@@ -134,12 +134,32 @@ struct NowPlayingPayload: Codable {
             isPlaying: isPlaying,
             inSync: inSync,
             artworkURL: artworkURL,
-            artworkID: artworkID,
+            artworkID: wireArtworkID,
             artworkWidth: artworkWidth,
             artworkHeight: artworkHeight,
             artworkRGB565B64: includeArtworkData ? artworkRGB565B64 : nil,
             updatedAt: updatedAt
         )
+    }
+
+    /// A device-safe, stable identifier for artwork that was resolved locally.
+    ///
+    /// Some players (notably TIDAL through MediaRemote) expose album metadata but
+    /// no artwork identifier. The Companion can still resolve the cover through
+    /// its fallback artwork search; in that case the device needs a synthetic ID
+    /// so the first RGB565 payload is sent once and subsequent heartbeats retain it.
+    var wireArtworkID: String? {
+        if let artworkID, !artworkID.isEmpty { return artworkID }
+        if let artworkURL, !artworkURL.isEmpty { return artworkURL }
+        guard let artworkRGB565B64, !artworkRGB565B64.isEmpty else { return nil }
+
+        let identity = "\(title)\u{1F}\(artist)\u{1F}\(album)"
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in identity.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        return String(format: "track-%016llx", hash)
     }
 
     private var previewPayload: NowPlayingWirePayload {

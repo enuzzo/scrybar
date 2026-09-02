@@ -1,5 +1,36 @@
+import AppKit
 import Combine
 import Foundation
+
+enum BambuConnectionPhase: Equatable {
+    case notConfigured
+    case connecting
+    case live
+    case failed
+
+    var title: String {
+        switch self {
+        case .notConfigured: return "Setup required"
+        case .connecting: return "Connecting…"
+        case .live: return "Connected"
+        case .failed: return "Connection failed"
+        }
+    }
+
+    init(status: String) {
+        let normalized = status.lowercased()
+        if normalized == "printer status live" {
+            self = .live
+        } else if normalized.contains("failed") || normalized.contains("rejected") ||
+                    normalized.contains("closed") || normalized.contains("retrying") {
+            self = .failed
+        } else if normalized.contains("add printer") || normalized == "not configured" {
+            self = .notConfigured
+        } else {
+            self = .connecting
+        }
+    }
+}
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -17,6 +48,21 @@ final class AppModel: ObservableObject {
     @Published var showSettingsOnOpen = false
     @Published var lastSendStatus = "Idle"
     @Published var latestMacStats: MacStatsPayload? = nil
+    @Published var bambuHost = UserDefaults.standard.string(forKey: "bambuHost") ?? ""
+    @Published var bambuSerial = UserDefaults.standard.string(forKey: "bambuSerial") ?? ""
+    @Published var bambuPrinterName = UserDefaults.standard.string(forKey: "bambuPrinterName") ?? ""
+    @Published var bambuAccessCode = ""
+    @Published var bambuConnectionStatus = "Not configured"
+    @Published var bambuConnectionPhase: BambuConnectionPhase = .notConfigured
+    @Published var currentBambu = BambuPrinterPayload()
+    @Published var discoveredBambuPrinters: [BambuDiscoveredPrinter] = []
+    @Published var selectedBambuPrinterID: String?
+    @Published var bambuDiscoveryStatus = "Printer search has not started."
+    @Published var isBambuScanning = false
+    @Published var bambuSoundsEnabled: Bool = {
+        if UserDefaults.standard.object(forKey: "bambuSoundsEnabled") == nil { return true }
+        return UserDefaults.standard.bool(forKey: "bambuSoundsEnabled")
+    }()
     @Published private(set) var lastSuccessfulTarget: String?
     @Published private(set) var lastSuccessfulSendAt: Date?
     let macmonAvailable: Bool = {
@@ -33,10 +79,14 @@ final class AppModel: ObservableObject {
     private let musicProvider = MusicNowPlayingProvider()
     private let mockProvider = MockNowPlayingProvider()
     private let macStatsProvider = MacStatsProvider()
+    private let bambuMonitor = BambuPrinterMonitor()
+    private let bambuDiscovery = BambuPrinterDiscovery()
     private var pollTask: Task<Void, Never>?
     private var macStatsPollTask: Task<Void, Never>?
+    private var bambuBaselineReceived = false
 
     init() {
+        bambuAccessCode = BambuKeychain.loadAccessCode(serial: bambuSerial, allowLegacyFallback: true)
         discovery.onStatus = { [weak self] status in
             Task { @MainActor in self?.discoveryStatus = status }
         }
@@ -51,6 +101,23 @@ final class AppModel: ObservableObject {
             }
         }
         discovery.start()
+        bambuDiscovery.onStatus = { [weak self] status in
+            Task { @MainActor in self?.bambuDiscoveryStatus = status }
+        }
+        bambuDiscovery.onScanningChanged = { [weak self] scanning in
+            Task { @MainActor in self?.isBambuScanning = scanning }
+        }
+        bambuDiscovery.onPrinters = { [weak self] printers in
+            Task { @MainActor in self?.receiveDiscoveredBambuPrinters(printers) }
+        }
+        scanForBambuPrinters()
+        bambuMonitor.onStatus = { [weak self] status in
+            Task { @MainActor in self?.receiveBambuConnectionStatus(status) }
+        }
+        bambuMonitor.onPayload = { [weak self] payload in
+            Task { @MainActor in self?.receiveBambu(payload) }
+        }
+        startBambuMonitor()
         startPolling()
         startMacStatsPolling()
     }
@@ -78,12 +145,60 @@ final class AppModel: ObservableObject {
         discovery.start()
     }
 
+    func scanForBambuPrinters() {
+        bambuDiscovery.start()
+    }
+
+    func selectBambuPrinter(id: String?) {
+        selectedBambuPrinterID = id
+        guard let id, let printer = discoveredBambuPrinters.first(where: { $0.id == id }) else { return }
+        let previousHost = bambuHost
+        bambuHost = printer.host
+        if !printer.serial.isEmpty {
+            bambuSerial = printer.serial.uppercased()
+        }
+        if !printer.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            bambuPrinterName = printer.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if bambuPrinterName.isEmpty, printer.model != "Bambu Lab printer" {
+            bambuPrinterName = printer.model
+        }
+        // A discovery response can first arrive without a serial and then be
+        // enriched by a second SSDP announcement. Keep a code the user has
+        // already entered unless Keychain has a printer-specific value.
+        let storedAccessCode = BambuKeychain.loadAccessCode(serial: bambuSerial)
+        if !storedAccessCode.isEmpty {
+            bambuAccessCode = storedAccessCode
+        }
+        UserDefaults.standard.set(bambuHost, forKey: "bambuHost")
+        UserDefaults.standard.set(bambuSerial, forKey: "bambuSerial")
+        UserDefaults.standard.set(bambuPrinterName, forKey: "bambuPrinterName")
+        if bambuAccessCode.isEmpty || bambuSerial.isEmpty {
+            bambuConnectionStatus = "Printer selected. Add its serial and LAN access code."
+            bambuConnectionPhase = .notConfigured
+        } else {
+            let configuration = BambuPrinterConfiguration(
+                host: bambuHost,
+                serial: bambuSerial,
+                accessCode: bambuAccessCode
+            )
+            bambuBaselineReceived = false
+            currentBambu.connected = false
+            bambuConnectionPhase = .connecting
+            bambuConnectionStatus = previousHost == bambuHost
+                ? "Printer selected. Connecting securely…"
+                : "Printer address updated. Reconnecting securely…"
+            bambuMonitor.start(configuration: configuration)
+        }
+    }
+
     /// Clean shutdown for app termination: stop polling and terminate the
     /// long-lived macmon subprocess so it can't be orphaned.
     func shutdown() {
         pollTask?.cancel()
         macStatsPollTask?.cancel()
         macStatsProvider.stop()
+        bambuDiscovery.stop()
+        bambuMonitor.stop()
     }
 
     func setAutoSend(_ enabled: Bool) {
@@ -94,6 +209,123 @@ final class AppModel: ObservableObject {
     func saveManualTarget() {
         UserDefaults.standard.set(manualHost, forKey: "manualHost")
         UserDefaults.standard.set(manualPort, forKey: "manualPort")
+    }
+
+    func saveBambuSettings() {
+        let configuration = BambuPrinterConfiguration(
+            host: bambuHost.trimmingCharacters(in: .whitespacesAndNewlines),
+            serial: bambuSerial.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+            accessCode: bambuAccessCode
+        )
+        guard configuration.isReady else {
+            bambuConnectionPhase = .notConfigured
+            bambuConnectionStatus = "Add printer IP, serial and LAN access code."
+            return
+        }
+
+        bambuHost = configuration.host
+        bambuSerial = configuration.serial
+        bambuBaselineReceived = false
+        currentBambu.connected = false
+        bambuConnectionPhase = .connecting
+        bambuConnectionStatus = "Saving securely…"
+
+        // Return to the run loop before Keychain access so the button and
+        // status row acknowledge the click immediately.
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            UserDefaults.standard.set(configuration.host, forKey: "bambuHost")
+            UserDefaults.standard.set(configuration.serial, forKey: "bambuSerial")
+            UserDefaults.standard.set(self.bambuPrinterName, forKey: "bambuPrinterName")
+            BambuKeychain.saveAccessCode(configuration.accessCode, serial: configuration.serial)
+            self.bambuConnectionStatus = "Settings saved. Connecting securely…"
+            self.bambuMonitor.start(configuration: configuration)
+        }
+    }
+
+    private func receiveBambuConnectionStatus(_ status: String) {
+        bambuConnectionStatus = status
+        bambuConnectionPhase = BambuConnectionPhase(status: status)
+    }
+
+    private func receiveDiscoveredBambuPrinters(_ printers: [BambuDiscoveredPrinter]) {
+        discoveredBambuPrinters = printers
+        if let selectedBambuPrinterID,
+           let current = printers.first(where: { $0.id == selectedBambuPrinterID }) {
+            if current.host != bambuHost ||
+                (!current.serial.isEmpty && current.serial.caseInsensitiveCompare(bambuSerial) != .orderedSame) ||
+                (!current.name.isEmpty && current.name != bambuPrinterName) {
+                selectBambuPrinter(id: current.id)
+            }
+            return
+        }
+
+        if let match = printers.first(where: {
+            (!$0.serial.isEmpty && $0.serial.caseInsensitiveCompare(bambuSerial) == .orderedSame) ||
+            $0.host == bambuHost
+        }) {
+            // The stable id may change from the provisional host to the
+            // printer serial as richer discovery data arrives. Re-select the
+            // enriched record so host and serial are persisted together.
+            selectBambuPrinter(id: match.id)
+            return
+        }
+
+        if printers.count == 1 {
+            selectBambuPrinter(id: printers[0].id)
+        } else {
+            selectedBambuPrinterID = nil
+        }
+    }
+
+    func setBambuSoundsEnabled(_ enabled: Bool) {
+        bambuSoundsEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "bambuSoundsEnabled")
+    }
+
+    private func startBambuMonitor() {
+        let configuration = BambuPrinterConfiguration(
+            host: bambuHost,
+            serial: bambuSerial,
+            accessCode: bambuAccessCode
+        )
+        bambuMonitor.start(configuration: configuration)
+    }
+
+    private func receiveBambu(_ payload: BambuPrinterPayload) {
+        let previous = currentBambu
+        currentBambu = payload
+
+        if payload.connected {
+            if bambuBaselineReceived {
+                playBambuSoundIfNeeded(from: previous, to: payload)
+            } else {
+                bambuBaselineReceived = true
+            }
+        }
+
+        guard autoSendEnabled, let endpoint = selectedEndpoint else { return }
+        Task {
+            try? await client.sendBambu(payload, to: endpoint)
+        }
+    }
+
+    private func playBambuSoundIfNeeded(from previous: BambuPrinterPayload, to current: BambuPrinterPayload) {
+        guard bambuSoundsEnabled else { return }
+        let soundName: String?
+        if !previous.isPrinting && current.isPrinting {
+            soundName = "Glass"
+        } else if !previous.isPausedOrBlocked && current.isPausedOrBlocked {
+            soundName = "Basso"
+        } else if !previous.isFinished && current.isFinished {
+            soundName = "Hero"
+        } else {
+            soundName = nil
+        }
+        if let soundName {
+            NSSound(named: NSSound.Name(soundName))?.play()
+        }
     }
 
     func nextMockTrack() {

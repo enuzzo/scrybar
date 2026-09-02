@@ -12,6 +12,14 @@ Entry format:
 
 ---
 
+## 2026-09-01 - Physical-display typography migration to Dosis (r286)
+
+- Context: The user preferred the distinctive narrow typography used by PrintSphere and asked to use it across ScryBar. PrintSphere itself is FNCL 1.1 and therefore not an acceptable source for copied generated assets, while the underlying Dosis family is independently available from Google Fonts under SIL OFL 1.1.
+- Decision: Replace every physical-display Funnel Display font with independently generated Dosis Regular and SemiBold assets. Source the official static TTF files and OFL notice from `googlefonts/dosis-vf`, preserve the established size set, Latin Extended coverage, size-matched Montserrat fallbacks, semantic accessors and narrow countdown strategy, and rename generated symbols to `scry_font_dosis_*`. Do not reuse PrintSphere's generated `dosis_*.c` files.
+- Impact/Tradeoffs: All LVGL views now share Dosis while web-theme typography remains intentionally unchanged. Generated font data grows by roughly 210 KB, still comfortably inside the 16 MB firmware partition. Dosis has different metrics from Funnel Display, so physical screenshots of representative dense and oversized views are required before considering the migration visually accepted.
+
+---
+
 ## 2026-07-21 - v0.8.2: Companion v0.2.4 discoverable Quit + clean shutdown; snapshot tool Pillow fallback
 
 - Context: The companion (menu-bar `LSUIElement` app) had no discoverable way to quit: the only paths were right-click on the status item (hidden context menu) and Cmd+Q with the popover focused. Worse, the v0.2.3 long-lived `macmon pipe` subprocess was stopped only in `MacStatsProvider.deinit` — which never runs for app-lifetime singletons on `NSApplication.terminate`, so a quit could orphan macmon. Separately, `tools/capture_snapshot.py` hard-depended on ffmpeg; a Homebrew lib bump (`libx265.215` → `.216`) broke ffmpeg and with it the whole screenshot workflow.
@@ -497,6 +505,14 @@ Entry format:
 - Context: v0.4.0 (2026-04-02) shipped r244-era firmware. Since then: Funnel Display font unification (Regular + SemiBold from a single variable font, all sizes, Latin Extended-A charset), LAUNCH page Cinematic Asymmetric hero (two-column layout, 60px countdown with T- prefix, 20px amber weather, VIEW7 reset), and first-time user friction for web flasher (browser can't auto-detect factory firmware via DTR/RTS).
 - Decision: Tag v0.5.0 on HEAD (r256). Add a "First install?" callout above the Flash card in `FlashSection.astro` explaining the BOOT+RST+BOOT procedure — same wording as the dev-workflow gotcha in `project_knowledge.md`. Styled as a teal-bordered info strip using `--accent-secondary-rgb` tokens so it adapts to all themes. CI pipeline rebuilds Astro + firmware and deploys to GH Pages automatically on tag push.
 - Impact/Tradeoffs: Users who arrive with factory Waveshare firmware (which does not yield USB-CDC control to the browser) get the correct procedure without hunting for docs. Callout is above-the-fold in the Flash section — seen before clicking Install. No version field to manually maintain in Astro source: CI injects the tag into `manifest.json` at build time.
+
+---
+
+## 2026-09-01 - r287: Pre-render Meteocons for Animated Embedded Weather
+
+- Context: The HOME weather card had only six coarse bitmap categories and a generic floating animation. The desired Meteocons Fill artwork is distributed as SVG/Lottie, which LVGL 8 on ESP32 cannot render directly.
+- Decision: Keep Meteocons as a build-time dependency only. Rasterize 19 real WMO/day-night/intensity variants into seven 52 x 52 transparent frames, convert them to LVGL RGB565+A, animate only the primary current-condition icon at 600 ms/frame, and keep the compact forecast on frame 0. Add the reversible `WEATHERICON` serial preview command for physical catalog QA.
+- Impact/Tradeoffs: The weather panel gains genuine colored motion and substantially more condition fidelity without JavaScript/SVG/Lottie runtime cost or dynamic RAM growth. Program flash grows by roughly 1 MB; 16 MB partition headroom remains ample. Meteocons MIT license and provenance are bundled under `assets/meteocons/`.
 
 ---
 

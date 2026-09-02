@@ -8,6 +8,7 @@ import imgNowPlaying from '../assets/screenshots/now_playing.png';
 import imgTimetable from '../assets/screenshots/timetable_board.png';
 import imgLaunch from '../assets/screenshots/launch_countdown.png';
 import imgMacStats from '../assets/screenshots/mac_stats.png';
+import imgBambu from '../assets/screenshots/bambu_lab.png';
 import { ChevronLeft, ChevronRight, X } from '@lucide/astro';
 
 const views = [
@@ -19,16 +20,17 @@ const views = [
   { id: 'timetable', src: imgTimetable,  label: 'Timetable',      desc: 'Live departures from any stop worldwide via Transitous. Countdown in prime notation, like the LED at a real bus stop. No API key, no login.' },
   { id: 'launch',    src: imgLaunch,     label: 'Launches',       desc: 'Cinematic T-minus hero, weather at the pad, QR to the mission page. Know the moment SpaceX slips another window.' },
   { id: 'mac',       src: imgMacStats,   label: 'Mac Stats',      desc: 'CPU and GPU load with temperatures, RAM and disk bars. Pushed from the companion. For when Activity Monitor feels too introspective.' },
+  { id: 'bambu',     src: imgBambu,      label: 'Bambu Lab',      desc: 'Live print progress, remaining time, layers, temperatures, speed, fans, filament and AMS telemetry. Captured from a real A1 print.' },
 ];
 ---
 <section id="views">
   <div class="container">
     <span class="section-label">Views</span>
-    <h2>Eight screens, one thumb</h2>
+    <h2>Nine captured screens, one thumb</h2>
     <p class="section-sub">
-      Swipe left or right through the carousel.
-      Toggle any view off in the web UI &mdash; the order
-      compresses around what’s left.
+      Swipe left or right through the carousel, then reorder the sequence
+      from the web UI. Every gallery image comes from the physical 640×172
+      display; the Bambu Lab view was captured during a real A1 print.
     </p>
 
     <div class="views-grid">

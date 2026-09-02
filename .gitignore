@@ -23,6 +23,7 @@ secrets.h
 # Design system assets (local reference only)
 assets/Vibemilk*/
 assets/spainify/
+/_references/
 
 # Node modules
 **/node_modules/

@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-09-02
+
+### ScryBar v0.9.0 — Firmware DB-M0-r300 / Companion v0.3.1 (36)
+
+- Added the Bambu Lab print-monitor view with live job state, progress, remaining time, layers, nozzle/bed/chamber temperatures, speed, fans, Wi-Fi, filament, AMS and alert telemetry.
+- Added direct Bambu LAN MQTT/TLS support to the macOS Companion. The LAN access code stays in Keychain; ScryBar receives only a sanitized HTTP status payload.
+- Added printer auto-discovery, duplicate merging, multi-printer selection, retry, manual fallback, connection feedback and concise in-app setup help.
+- Added distinct macOS notification sounds for print start, blocked/error states and completion.
+- Added persistent drag-to-reorder controls for the physical swipe carousel in the ScryBar web UI.
+- Replaced Funnel Display with Dosis Regular/SemiBold across the physical UI and retuned view typography, weights and alignment for the 640×172 viewport.
+- Redesigned the physical Bambu view around a large progress ring, compact telemetry pills and a rotating green/white detail footer.
+- Added 19 Meteocons mappings driven by live Open-Meteo WMO codes. The main icon animates at a calmer 5 fps; the three-hour forecast stays static and high-contrast.
+- Changed the Home weather card to a dark, theme-tinted surface with automatic contrast across all seven themes.
+- Restored Now Playing cover art for players without a stable artwork identifier and added album-title forwarding to the physical view.
+- Fixed Companion secure-field Command-V support and added truthful saving, connecting, connected and failure feedback.
+- Fixed Companion popover sizing: it now uses the display's real usable height, opens tall enough for its content when possible and scrolls only on genuinely short screens.
+- Added the real-print Bambu screenshot to the README and public website gallery.
+
 ## 2026-03-13
 
 ### Firmware DB-M0-r185

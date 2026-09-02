@@ -1,0 +1,14 @@
+{
+  "name": "scrybar-meteocons-builder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "node render_frames.mjs"
+  },
+  "dependencies": {
+    "@meteocons/lottie": "0.1.0",
+    "@napi-rs/canvas": "0.1.80",
+    "jsdom": "^30.0.1",
+    "lottie-web": "5.13.0"
+  }
+}

@@ -6,13 +6,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = AppModel()
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
+    private let popoverLayout = PopoverLayoutModel()
     private var observation: NSKeyValueObservation?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let opensBambuSetup = ProcessInfo.processInfo.arguments.contains("--bambu-setup")
+        let opensPopover = opensBambuSetup || ProcessInfo.processInfo.arguments.contains("--open")
+        model.showSettingsOnOpen = opensBambuSetup
         setupMainMenu()
         setupStatusItem()
         setupPopover()
         startTitleUpdates()
+
+        if opensPopover {
+            popover.behavior = .applicationDefined
+            NSApp.activate(ignoringOtherApps: true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self, let button = self.statusItem.button else { return }
+                self.togglePopover(button)
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -23,11 +36,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupMainMenu() {
         let mainMenu = NSMenu()
+
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "Quit ScryBar Companion", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
+
+        // A menu-bar-only app still needs the standard Edit menu so keyboard
+        // commands are routed to the first responder. Without it, contextual
+        // Paste works in text fields but Command-V does not.
+        let editMenuItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
+
         NSApplication.shared.mainMenu = mainMenu
     }
 
@@ -59,6 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            popoverLayout.maximumHeight = maximumPopoverHeight(relativeTo: sender)
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
@@ -89,16 +120,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Popover
 
     private func setupPopover() {
-        popover.contentSize = NSSize(width: 300, height: 140)
+        popover.contentSize = NSSize(width: 360, height: 400)
+        popoverLayout.maximumHeight = max(
+            PopoverHeightPolicy.minimumHeight,
+            (NSScreen.main?.visibleFrame.height ?? 656) - 16
+        )
         popover.behavior = .transient
         popover.animates = false
         let hostingController = NSHostingController(
-            rootView: PopoverContentView()
+            rootView: PopoverContentView(layout: popoverLayout) { [weak self] size in
+                guard let self else { return }
+                let target = NSSize(width: size.width, height: size.height)
+                if self.popover.contentSize != target {
+                    self.popover.contentSize = target
+                }
+            }
                 .environmentObject(model)
         )
         // Force layout now so first open is instant
         hostingController.view.layoutSubtreeIfNeeded()
         popover.contentViewController = hostingController
+    }
+
+    private func maximumPopoverHeight(relativeTo anchor: NSView) -> CGFloat {
+        guard let screen = anchor.window?.screen ?? NSScreen.main else { return 640 }
+        // Menu-bar item windows do not expose a stable frame origin across
+        // displays and macOS versions. On some screens `frame.minY` resolves
+        // near zero, which collapsed the popover to the 320 pt minimum even
+        // when hundreds of points were still available below the menu bar.
+        // `visibleFrame` already excludes the menu bar and Dock, so it is the
+        // correct source of truth for a downward-opening status-item popover.
+        return PopoverHeightPolicy.maximumHeight(
+            visibleFrameHeight: screen.visibleFrame.height
+        )
     }
 
     // MARK: - Title Updates

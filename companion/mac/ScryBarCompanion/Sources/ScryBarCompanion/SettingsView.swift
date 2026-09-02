@@ -1,149 +1,107 @@
-import AppKit
 import SwiftUI
 
-struct SettingsView: View {
-    @Binding var showSettings: Bool
+struct BambuSetupHelpView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var model: AppModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
-                Button {
-                    showSettings = false
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Back")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(CompanionTheme.accent)
-
+                Label("Connect a Bambu printer", systemImage: "printer.fill")
+                    .font(.system(size: 16, weight: .semibold))
                 Spacer()
-
-                Text("Settings")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(CompanionTheme.textPrimary)
+                Button("Close") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
             }
-            .padding(.bottom, 12)
+            .padding(16)
 
-            Divider().overlay(CompanionTheme.divider)
+            Divider()
 
-            VStack(alignment: .leading, spacing: 14) {
-                // Provider
-                settingRow("Provider") {
-                    Picker("", selection: $model.providerKind) {
-                        ForEach(ProviderKind.allCases) { kind in
-                            Text(kind.rawValue).tag(kind)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    helpSection("Before you start", steps: [
+                        "Connect the Mac and the printer to the same local network.",
+                        "Switch on the printer.",
+                        "Switch off a VPN if it blocks local network traffic.",
+                    ])
+
+                    helpSection("Find the printer", steps: [
+                        "Select Search Again in ScryBar Companion.",
+                        "If the app finds more than one printer, select the printer that you want to monitor.",
+                        "The app enters the IP address and the serial number. Check the values before you connect.",
+                    ])
+
+                    helpSection("Find the LAN access code", steps: [
+                        "On the printer display, open Settings.",
+                        "Open the Network or WLAN page.",
+                        "Open LAN Only Mode and enable it after reading the cloud-services warning.",
+                        "If your firmware shows a separate Developer Mode switch, enable it. Some A1 firmware exposes local services with LAN Only alone.",
+                        "Record the LAN access code that the printer shows.",
+                        "Enter the code in ScryBar Companion. Select Save & Connect.",
+                    ])
+
+                    helpNote(
+                        title: "Security",
+                        text: "ScryBar Companion stores one access code for each printer in macOS Keychain. The app does not send this code to ScryBar. Printer discovery cannot read the code."
+                    )
+
+                    helpNote(
+                        title: "If the connection fails",
+                        text: "Make sure that the IP address did not change. Check the access code again. Enable LAN Only Mode; if your firmware offers Developer Mode, enable it too. Read the warning first because LAN Only Mode can stop cloud functions."
+                    )
                 }
-
-                // Target
-                settingRow("Target") {
-                    if model.discoveredEndpoints.isEmpty {
-                        Text("No device found")
-                            .font(.system(size: 12))
-                            .foregroundStyle(CompanionTheme.textTertiary)
-                    } else {
-                        Picker("", selection: $model.selectedDiscoveredEndpointID) {
-                            ForEach(model.discoveredEndpoints) { endpoint in
-                                Text(endpoint.name)
-                                    .tag(Optional(endpoint.id))
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                    }
-                }
-
-                if let endpoint = model.selectedEndpoint {
-                    Text("\(endpoint.host):\(endpoint.port)")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(CompanionTheme.textTertiary)
-                        .padding(.top, -6)
-                }
-
-                Divider().overlay(CompanionTheme.divider)
-
-                // Manual target
-                DisclosureGroup("Manual Target") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        settingRow("Host") {
-                            TextField("Hostname or IP", text: $model.manualHost)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(size: 12))
-                        }
-                        settingRow("Port") {
-                            TextField("8080", text: $model.manualPort)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(size: 12))
-                        }
-                        Button("Save") {
-                            model.saveManualTarget()
-                        }
-                        .buttonStyle(CompanionSecondaryButtonStyle())
-                        .controlSize(.small)
-                    }
-                    .padding(.top, 4)
-                }
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(CompanionTheme.textSecondary)
-
-                Divider().overlay(CompanionTheme.divider)
-
-                // Auto-send
-                settingRow("Auto-send") {
-                    Toggle("", isOn: Binding(
-                        get: { model.autoSendEnabled },
-                        set: { model.setAutoSend($0) }
-                    ))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-
-                // Footer: version badge + quit
-                HStack {
-                    Text(versionString)
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(CompanionTheme.textDisabled)
-
-                    Spacer()
-
-                    Button("Quit ScryBar Companion") {
-                        NSApplication.shared.terminate(nil)
-                    }
-                    .buttonStyle(CompanionSecondaryButtonStyle())
-                    .controlSize(.small)
-                }
+                .padding(16)
             }
-            .padding(.top, 10)
+
+            Divider()
+
+            HStack {
+                Text(model.bambuDiscoveryStatus)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(CompanionTheme.textSecondary)
+                    .lineLimit(2)
+                Spacer()
+                Button("Search Again") {
+                    model.scanForBambuPrinters()
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding(16)
         }
-        .padding(14)
-        .frame(width: 300)
-        .background(CompanionTheme.windowBackground)
+        .frame(width: 480, height: 560)
         .preferredColorScheme(.dark)
     }
 
-    private func settingRow<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        HStack(alignment: .center) {
-            Text(label)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(CompanionTheme.textSecondary)
-                .frame(width: 80, alignment: .leading)
-            content()
+    private func helpSection(_ title: String, steps: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13.5, weight: .semibold))
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\(index + 1)")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(width: 20, height: 20)
+                        .background(CompanionTheme.bambuAccent, in: Circle())
+                    Text(step)
+                        .font(.system(size: 12.5))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 
-    private var versionString: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
-        return "v\(version) (\(build))"
+    private func helpNote(title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.system(size: 12.5, weight: .semibold))
+            Text(text)
+                .font(.system(size: 12))
+                .foregroundStyle(CompanionTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
     }
 }

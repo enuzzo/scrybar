@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# regen_fonts.sh — Canonical Funnel Display font generator for ScryBar firmware.
+# regen_fonts.sh — Canonical Dosis font generator for ScryBar firmware.
 #
-# Single source of truth for every scry_font_funnel_display_*.c file in src/fonts/.
+# Single source of truth for every scry_font_dosis_*.c file in src/fonts/.
 # Re-run this any time the font strategy changes (new size, new charset, etc.)
 # so the fleet of .c files stays consistent. NEVER hand-edit the generated files.
 #
-# Strategy (r256):
-#   - Typeface: Funnel Display, two weights:
-#       * Regular  (wght=400)  from assets/fonts/FunnelDisplay-Regular.ttf
-#       * SemiBold (wght=600)  from assets/fonts/FunnelDisplay-SemiBold.ttf
-#     Both TTFs were instanced from the same variable font so metrics line up.
+# Strategy (r286):
+#   - Typeface: Dosis, two weights from the official Google Fonts source:
+#       * Regular  (wght=400)  from assets/fonts/Dosis-Regular.ttf
+#       * SemiBold (wght=600)  from assets/fonts/Dosis-SemiBold.ttf
+#     Dosis is licensed under SIL OFL 1.1; the bundled license is kept at
+#     assets/fonts/Dosis-OFL-1.1.txt. Both weights share compatible metrics.
 #   - Charset for layout fonts (everything except the narrow countdown):
 #       Basic Latin          U+0020..U+007E
 #       Latin-1 Supplement   U+00A0..U+00FF  (ø, ñ, ç, ü, é, ö, ß, ·, ...)
@@ -17,7 +18,7 @@
 #     This covers every launch/station place name we receive from
 #     rocketlaunch.live and Transitous. Cyrillic, Greek, CJK and Arabic are
 #     explicitly out of scope (their names arrive romanized).
-#   - Countdown font uses a narrow 15-glyph set so the 60px SemiBold file stays
+#   - Countdown font uses a narrow 16-glyph set so the 60px SemiBold file stays
 #     small (~50 KB instead of ~700 KB with Latin Extended).
 #   - Fallback for every generated font is the size-matched Montserrat already
 #     bundled in lv_conf.h. Missing glyphs render at the base font size instead
@@ -37,8 +38,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TTF_REGULAR="assets/fonts/FunnelDisplay-Regular.ttf"
-TTF_SEMIBOLD="assets/fonts/FunnelDisplay-SemiBold.ttf"
+TTF_REGULAR="assets/fonts/Dosis-Regular.ttf"
+TTF_SEMIBOLD="assets/fonts/Dosis-SemiBold.ttf"
 OUT_DIR="src/fonts"
 
 # Layout charset — used by every size except the narrow countdown font.
@@ -48,6 +49,12 @@ LAYOUT_RANGES=(-r 0x20-0x7E -r 0xA0-0xFF -r 0x100-0x17F)
 # "T-Dd HH:MM" / "LIFTOFF". Keeps the 60px file around 50 KB.
 # Glyphs: space, +, -, 0..9, :, T, d (rest of "LIFTOFF" still falls back).
 COUNTDOWN_RANGES=(-r 0x20 -r 0x2B -r 0x2D -r 0x30-0x39 -r 0x3A -r 0x54 -r 0x64)
+
+normalize_output() {
+  # lv_font_conv currently leaves multiple blank lines at EOF. Keep generated
+  # files reproducible and friendly to `git diff --check`.
+  perl -0pi -e 's/\n+\z/\n/' "$1"
+}
 
 # Map each generated size to a size-matched lv_font_montserrat_* fallback. The
 # list on the right is what lv_conf.h currently enables (14/16/18/20/22/24/
@@ -75,12 +82,13 @@ fallback_for_size() {
 #
 # Regular:  all sizes that existed before + the ones used by other pages.
 # SemiBold: narrow set — only where typographic emphasis is needed:
-#           18 -> header titles, provider badges
+#           18 -> provider badges and compact emphasis
+#           20 -> primary page-header titles
 #           25 -> hero mission name (LAUNCH), Now Playing title
 #           32 -> clock, big weather
 #           38 -> oversized titles / future headline pages
 REGULAR_SIZES=(12 14 16 18 20 22 23 24 25 30 32 38)
-SEMIBOLD_SIZES=(18 25 32 38)
+SEMIBOLD_SIZES=(18 20 25 32 38)
 
 gen_layout() {
   local weight="$1"   # "Regular" or "SemiBold"
@@ -92,13 +100,13 @@ gen_layout() {
   case "$weight" in
     Regular)
       ttf="$TTF_REGULAR"
-      fontname="scry_font_funnel_display_${size}"
-      outfile="${OUT_DIR}/scry_font_funnel_display_${size}.c"
+      fontname="scry_font_dosis_${size}"
+      outfile="${OUT_DIR}/scry_font_dosis_${size}.c"
       ;;
     SemiBold)
       ttf="$TTF_SEMIBOLD"
-      fontname="scry_font_funnel_display_semibold_${size}"
-      outfile="${OUT_DIR}/scry_font_funnel_display_semibold_${size}.c"
+      fontname="scry_font_dosis_semibold_${size}"
+      outfile="${OUT_DIR}/scry_font_dosis_semibold_${size}.c"
       ;;
     *)
       echo "unknown weight: $weight" >&2
@@ -121,10 +129,11 @@ gen_layout() {
     --lv-fallback "$fallback" \
     --lv-font-name "$fontname" \
     -o "$outfile"
+  normalize_output "$outfile"
 }
 
 gen_countdown() {
-  local outfile="${OUT_DIR}/scry_font_funnel_display_countdown_60.c"
+  local outfile="${OUT_DIR}/scry_font_dosis_countdown_60.c"
   echo ">> SemiBold 60px (countdown narrow) -> ${outfile}"
   lv_font_conv \
     --size 60 \
@@ -135,8 +144,9 @@ gen_countdown() {
     --font "$TTF_SEMIBOLD" \
     "${COUNTDOWN_RANGES[@]}" \
     --lv-fallback lv_font_montserrat_24 \
-    --lv-font-name scry_font_funnel_display_countdown_60 \
+    --lv-font-name scry_font_dosis_countdown_60 \
     -o "$outfile"
+  normalize_output "$outfile"
 }
 
 gen_regular_family() {

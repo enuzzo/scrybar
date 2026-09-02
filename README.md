@@ -4,10 +4,10 @@
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Waveshare_3.49"-E7352C?style=for-the-badge&logo=espressif&logoColor=white)](https://www.espressif.com/)
 [![LVGL](https://img.shields.io/badge/LVGL-8.x-6B21A8?style=for-the-badge)](https://lvgl.io/)
 [![Languages](https://img.shields.io/badge/Word_Clock-14_languages-F59E0B?style=for-the-badge)](#word-clock-languages)
-[![Views](https://img.shields.io/badge/Views-8_live_views-3B82F6?style=for-the-badge)](#views)
+[![Views](https://img.shields.io/badge/Views-9_live_views-3B82F6?style=for-the-badge)](#views)
 [![License review](https://img.shields.io/badge/License-review%20pending-F59E0B?style=for-the-badge)](#license)
 
-**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, eight swipeable views, a word clock that composes real sentences in fourteen languages (from Italian and Latin to Klingon, 1337 Speak, Bellazio, and Pirate) — actual grammar, not uppercase tiles. Plus RSS, a Wikipedia deck, a `Now Playing` strip with cover art, a live public-transport timetable, a rocket launch countdown, a Mac Stats monitor driven by a macOS companion, and a LAN web config UI.
+**ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, nine swipeable views, a word clock that composes real sentences in fourteen languages (from Italian and Latin to Klingon, 1337 Speak, Bellazio, and Pirate) — actual grammar, not uppercase tiles. Plus RSS, a Wikipedia deck, a `Now Playing` strip with cover art, a live public-transport timetable, a rocket launch countdown, Mac and Bambu Lab print monitors driven by a macOS companion, and a LAN web config UI.
 
 *Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls Wikipedia facts nobody asked for, counts down rocket launches SpaceX will probably slip by three hours anyway, and shows the next train from the stop you already know by heart. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
 
@@ -17,7 +17,7 @@
 <td width="55%"><img src="assets/readme_previews/home_weather_toxic-candy.png" alt="HOME view, Toxic Candy theme" width="100%"></td>
 <td>
 
-**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from Open-Meteo. Fourteen languages, seven themes, Funnel Display typography — all switchable from the web UI without reflashing.
+**The default view.** A word clock that writes real sentences, not just numbers on a grid. Weather pulled live from Open-Meteo. Fourteen languages, seven themes, Dosis typography — all switchable from the web UI without reflashing.
 
 </td>
 </tr></table>
@@ -99,6 +99,19 @@
 </td>
 </tr></table>
 
+## BAMBU LAB: live print monitor
+
+<table><tr>
+<td width="55%"><img src="assets/readme_previews/bambu_lab.png" alt="BAMBU LAB view during a real A1 print" width="100%"></td>
+<td>
+
+**A print status strip without putting printer credentials on the display.** The macOS companion connects directly to a Bambu Lab printer on the local network over MQTT/TLS, then forwards a credential-free snapshot to ScryBar. The view shows job and stage, progress, remaining time, layer, nozzle/bed/chamber temperatures, and printer alerts. The companion can play distinct macOS sounds when printing starts, pauses or reports a fault, and finishes.
+
+Setup and protocol notes live in [`docs/bambu-lan-integration.md`](docs/bambu-lan-integration.md).
+
+</td>
+</tr></table>
+
 ## More Themes
 
 | ScryBar Default | Cyberpunk 2077 | Tokyo Transit | Minimal Brutalist Mono |
@@ -140,16 +153,16 @@
 | **IMU** | QMI8658 6-axis | Accelerometer + gyroscope. Shake detection, tilt sensing. The bar knows when you're angry. |
 | **Power** | USB-C + optional LiPo | Charging and battery fallback managed via TCA9554 GPIO expander. Always re-asserted at boot. |
 
-The physical profile: a horizontal bar that sits flat on your desk. Wide enough to host eight views of mischief. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
+The physical profile: a horizontal bar that sits flat on your desk. Wide enough to host nine views of mischief. Narrow enough that it stops pretending to be a monitor and commits to being furniture that has opinions.
 
 ---
 
 ## Views
 
-Eight views, navigated by swipe. Any page can be toggled off from the web UI; the carousel compresses around what's left.
+Nine public views, navigated by swipe. Their physical swipe sequence can be reordered from the web UI and persists in NVS. The original eight pages can be toggled off; the Bambu page joins the carousel automatically whenever Wi-Fi is connected.
 
 ```
-  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► TIMETABLE ◄─► LAUNCHES ◄─► MAC STATS
+  INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► TIMETABLE ◄─► LAUNCHES ◄─► MAC STATS ◄─► BAMBU
 ```
 
 **INFO** — System diagnostics: Wi-Fi status, RSSI, IP, MAC, battery level, power source, firmware build tag, NTP sync status. QR code pointing to the web config UI. The nervous system, exposed.
@@ -167,6 +180,8 @@ Eight views, navigated by swipe. Any page can be toggled off from the web UI; th
 **LAUNCHES** — Upcoming rocket launches from [The Space Devs](https://thespacedevs.com/) Launch Library 2. Cinematic T-minus hero, weather at the pad, QR jump to mission page. Second view shows the next two missions in a compact list.
 
 **MAC STATS** — CPU and GPU load + temperatures, RAM and disk bars, pushed from the companion every five seconds. Color-coded above the thermal shrug zone. Needs the [macOS companion app](companion/mac/) running to be populated.
+
+**BAMBU** — Live Bambu Lab job name, print stage, progress, remaining time, layer, temperatures, and alert state. The companion keeps the LAN access code in macOS Keychain and sends only a sanitized status payload to ScryBar. Details in the [Bambu LAN integration guide](docs/bambu-lan-integration.md).
 
 Physical buttons:
 
@@ -297,6 +312,7 @@ http://<DEVICE_IP>:8080
 | `GET /api/wifi/setup-qr.svg` | | SVG QR for setup URL (`http://192.168.4.1:8080` in AP mode) |
 | `POST /api/config` | JSON body | Update config fields |
 | `POST /config` | Form body | Update config via form UI |
+| `POST /api/bambu` | JSON body | Update the credential-free Bambu print snapshot |
 | `POST /reload` | | Force refresh weather and RSS feeds |
 
 Config persists to NVS. Configurable: Wi-Fi preferred SSID, Wi-Fi Direct mode, new Wi-Fi provisioning (scan + password), weather city/lat/lon, logo URL, up to 5 RSS feeds, system language, Wikipedia language, and UI theme.
@@ -326,6 +342,7 @@ Commands sent over Serial at 115200 baud. Case-insensitive.
 | `VIEW6` / `VIEWTRANSIT` / `TRANSIT` | Force TIMETABLE page |
 | `VIEW7` / `VIEWLAUNCH` / `LAUNCH` | Force LAUNCHES page |
 | `VIEW8` / `VIEWMACSTATS` / `MACSTATS` | Force MAC STATS page |
+| `VIEW9` / `VIEWBAMBU` / `BAMBU` | Force BAMBU LAB page |
 
 **Configuration:**
 

@@ -16,5 +16,9 @@ let package = Package(
         .executableTarget(
             name: "ScryBarCompanion"
         ),
+        .testTarget(
+            name: "ScryBarCompanionTests",
+            dependencies: ["ScryBarCompanion"]
+        ),
     ]
 )

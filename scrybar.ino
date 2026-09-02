@@ -76,33 +76,43 @@
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
 #include <lvgl.h>
-// Funnel Display — unified typeface across all themes
-LV_FONT_DECLARE(scry_font_funnel_display_12);
-LV_FONT_DECLARE(scry_font_funnel_display_14);
-LV_FONT_DECLARE(scry_font_funnel_display_16);
-LV_FONT_DECLARE(scry_font_funnel_display_18);
-LV_FONT_DECLARE(scry_font_funnel_display_20);
-LV_FONT_DECLARE(scry_font_funnel_display_22);
-LV_FONT_DECLARE(scry_font_funnel_display_23);
-LV_FONT_DECLARE(scry_font_funnel_display_24);
-LV_FONT_DECLARE(scry_font_funnel_display_25);
-LV_FONT_DECLARE(scry_font_funnel_display_30);
-LV_FONT_DECLARE(scry_font_funnel_display_32);
-LV_FONT_DECLARE(scry_font_funnel_display_38);
-// Funnel Display SemiBold — selective emphasis weight (r256)
-LV_FONT_DECLARE(scry_font_funnel_display_semibold_18);
-LV_FONT_DECLARE(scry_font_funnel_display_semibold_25);
-LV_FONT_DECLARE(scry_font_funnel_display_semibold_32);
-LV_FONT_DECLARE(scry_font_funnel_display_semibold_38);
+// Dosis — unified typeface across all themes
+LV_FONT_DECLARE(scry_font_dosis_12);
+LV_FONT_DECLARE(scry_font_dosis_14);
+LV_FONT_DECLARE(scry_font_dosis_16);
+LV_FONT_DECLARE(scry_font_dosis_18);
+LV_FONT_DECLARE(scry_font_dosis_20);
+LV_FONT_DECLARE(scry_font_dosis_22);
+LV_FONT_DECLARE(scry_font_dosis_23);
+LV_FONT_DECLARE(scry_font_dosis_24);
+LV_FONT_DECLARE(scry_font_dosis_25);
+LV_FONT_DECLARE(scry_font_dosis_30);
+LV_FONT_DECLARE(scry_font_dosis_32);
+LV_FONT_DECLARE(scry_font_dosis_38);
+// Dosis SemiBold — selective emphasis weight (r256)
+LV_FONT_DECLARE(scry_font_dosis_semibold_18);
+LV_FONT_DECLARE(scry_font_dosis_semibold_20);
+LV_FONT_DECLARE(scry_font_dosis_semibold_25);
+LV_FONT_DECLARE(scry_font_dosis_semibold_32);
+LV_FONT_DECLARE(scry_font_dosis_semibold_38);
 // Narrow 60px countdown (SemiBold, digits+colon+d only)
-LV_FONT_DECLARE(scry_font_funnel_display_countdown_60);
+LV_FONT_DECLARE(scry_font_dosis_countdown_60);
+#if __has_include("assets/meteocons/generated/meteocons_lvgl.h")
+#include "assets/meteocons/generated/meteocons_lvgl.h"
+#define DB_HAS_LVGL_METEOCONS 1
+#define DB_LVGL_WEATHER_ICON_SET "meteocons-fill"
+#else
+#define DB_HAS_LVGL_METEOCONS 0
+#endif
 #if __has_include("assets/weather_icons_min/generated/weather_icons_lvgl_min.h")
 #include "assets/weather_icons_min/generated/weather_icons_lvgl_min.h"
 #define DB_HAS_LVGL_WEATHER_MIN_IMAGES 1
 #else
 #define DB_HAS_LVGL_WEATHER_MIN_IMAGES 0
 #endif
-#if __has_include("assets/weather_icons/generated/weather_icons_lvgl_local.h")
+#if DB_HAS_LVGL_METEOCONS
+#define DB_HAS_LVGL_WEATHER_IMAGES 1
+#elif __has_include("assets/weather_icons/generated/weather_icons_lvgl_local.h")
 #include "assets/weather_icons/generated/weather_icons_lvgl_local.h"
 #define DB_HAS_LVGL_WEATHER_IMAGES 1
 #define DB_LVGL_WEATHER_ICON_SET "local"
@@ -721,6 +731,7 @@ static constexpr uint8_t UI_VIEW_MASK_DEFAULT =
     UI_VIEW_FLAG_NOW_PLAYING |
     UI_VIEW_FLAG_TRANSIT |
     UI_VIEW_FLAG_LAUNCH;
+static constexpr uint8_t UI_VIEW_ORDER_COUNT = 10;
 
 struct RuntimeNetConfig {
   char weatherCity[32];
@@ -730,6 +741,9 @@ struct RuntimeNetConfig {
   char logoUrl[220];
   char uiTheme[UI_THEME_ID_LEN];
   uint8_t enabledViewsMask = UI_VIEW_MASK_DEFAULT;
+  // UI page enum values in swipe order. Kept as bytes because RuntimeNetConfig
+  // is declared before UiPageMode for Arduino's generated prototypes.
+  uint8_t viewOrder[UI_VIEW_ORDER_COUNT] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
   // Backlight user settings (r261): clamped 10..100, applied by applyEnergyPolicy
   // based on the detected power source. Defaults match the pre-r261 hardcoded
   // behavior so existing devices see no visible change until moved.
@@ -787,6 +801,7 @@ static void handleWebNowPlayingGetApi();
 static void handleWebNowPlayingPostApi();
 static bool applyNowPlayingPayloadJson(const String &body, String &err);
 static void handleWebMacStatsPostApi();
+static void handleWebBambuPostApi();
 static void ensureScryBarMdnsStarted();
 static void stopScryBarMdns();
 #endif
@@ -829,6 +844,15 @@ struct WeatherState {
   bool dirty = false;  // set by netTask, cleared by UI update
 };
 static WeatherState g_weather;
+
+// Runtime-only visual override used to exercise every WMO/Meteocon mapping on
+// real hardware. WEATHERICON LIVE always restores the untouched live feed.
+struct WeatherIconPreviewState {
+  bool active = false;
+  int weatherCode = 0;
+  bool isDay = true;
+};
+static WeatherIconPreviewState g_weatherIconPreview;
 
 struct RssItem {
   char title[220];
@@ -936,7 +960,65 @@ enum UiPageMode : uint8_t {
   UI_PAGE_TRANSIT = 6,
   UI_PAGE_LAUNCH  = 7,
   UI_PAGE_MAC_STATS = 8,
+  UI_PAGE_BAMBU = 9,
 };
+
+static const uint8_t kDefaultViewOrder[UI_VIEW_ORDER_COUNT] = {
+    UI_PAGE_INFO,
+    UI_PAGE_HOME,
+    UI_PAGE_AUX,
+    UI_PAGE_WIKI,
+    UI_PAGE_NOW_PLAYING,
+    UI_PAGE_DOOM,
+    UI_PAGE_TRANSIT,
+    UI_PAGE_LAUNCH,
+    UI_PAGE_MAC_STATS,
+    UI_PAGE_BAMBU,
+};
+
+static bool normalizeRuntimeViewOrder(RuntimeNetConfig &config) {
+  uint16_t seen = 0;
+  for (uint8_t i = 0; i < UI_VIEW_ORDER_COUNT; ++i) {
+    const uint8_t mode = config.viewOrder[i];
+    if (mode >= UI_VIEW_ORDER_COUNT || (seen & (uint16_t)(1U << mode))) {
+      memcpy(config.viewOrder, kDefaultViewOrder, sizeof(config.viewOrder));
+      return false;
+    }
+    seen |= (uint16_t)(1U << mode);
+  }
+  return seen == (uint16_t)((1U << UI_VIEW_ORDER_COUNT) - 1U);
+}
+
+static const char *uiPageSlug(UiPageMode mode) {
+  switch (mode) {
+    case UI_PAGE_INFO: return "info";
+    case UI_PAGE_HOME: return "home";
+    case UI_PAGE_AUX: return "aux";
+    case UI_PAGE_WIKI: return "wiki";
+    case UI_PAGE_NOW_PLAYING: return "now_playing";
+    case UI_PAGE_DOOM: return "doom";
+    case UI_PAGE_TRANSIT: return "transit";
+    case UI_PAGE_LAUNCH: return "launch";
+    case UI_PAGE_MAC_STATS: return "mac_stats";
+    case UI_PAGE_BAMBU: return "bambu";
+    default: return "";
+  }
+}
+
+static uint8_t uiPageModeForSlug(const String &raw) {
+  String slug = raw;
+  slug.trim();
+  slug.toLowerCase();
+  for (uint8_t mode = 0; mode < UI_VIEW_ORDER_COUNT; ++mode) {
+    if (slug == uiPageSlug((UiPageMode)mode)) return mode;
+  }
+  return 0xFF;
+}
+
+static UiPageMode runtimeViewOrderAt(uint8_t index) {
+  if (index >= UI_VIEW_ORDER_COUNT) return UI_PAGE_HOME;
+  return (UiPageMode)g_runtimeNetConfig.viewOrder[index];
+}
 static UiPageMode g_uiPageMode = UI_PAGE_HOME;
 static bool g_uiNeedsRedraw = true;
 #endif
@@ -989,6 +1071,9 @@ struct LvglWeatherUi {
   char cityRawLast[48] = {0};
   lv_obj_t *temp = nullptr;
   lv_obj_t *icon = nullptr;
+  lv_timer_t *iconTimer = nullptr;
+  uint8_t iconId = 0;
+  uint8_t iconFrame = 0;
   lv_obj_t *glyph = nullptr;
   lv_obj_t *desc = nullptr;
   lv_obj_t *humidity = nullptr;
@@ -1157,6 +1242,68 @@ struct MacStatsUi {
   // No-data placeholder
   lv_obj_t *noData     = nullptr;
 };
+
+struct BambuPrintState {
+  bool valid = false;
+  bool connected = false;
+  uint32_t receivedAtMs = 0;
+  int progressPercent = 0;
+  int remainingMinutes = 0;
+  int currentLayer = 0;
+  int totalLayers = 0;
+  int errorCode = 0;
+  int hmsCount = 0;
+  int speedLevel = 0;
+  int speedPercent = 0;
+  int coolingFanPercent = -1;
+  int heatbreakFanPercent = -1;
+  int auxiliaryFanPercent = -1;
+  int chamberFanPercent = -1;
+  int filamentSensorState = -1;
+  int activeTray = -1;
+  int targetTray = -1;
+  int amsStatus = -1;
+  int activeFilamentRemainingPercent = -1;
+  int amsHumidityPercent = -1;
+  float nozzleTempC = 0.0f;
+  float nozzleTargetC = 0.0f;
+  float bedTempC = 0.0f;
+  float bedTargetC = 0.0f;
+  float chamberTempC = 0.0f;
+  float amsTemperatureC = 0.0f;
+  float estimatedFilamentWeightG = 0.0f;
+  float estimatedFilamentLengthMm = 0.0f;
+  char status[20] = {0};
+  char stage[80] = {0};
+  char jobName[120] = {0};
+  char gcodeFile[120] = {0};
+  char printType[32] = {0};
+  char wifiSignal[20] = {0};
+  char activeFilamentLabel[64] = {0};
+  char activeFilamentColorHex[12] = {0};
+};
+
+struct BambuPrintUi {
+  lv_obj_t *header = nullptr;
+  lv_obj_t *title = nullptr;
+  lv_obj_t *statusDot = nullptr;
+  lv_obj_t *status = nullptr;
+  lv_obj_t *progressArc = nullptr;
+  lv_obj_t *stage = nullptr;
+  lv_obj_t *progress = nullptr;
+  lv_obj_t *tileBg[8] = {};
+  lv_obj_t *remaining = nullptr;
+  lv_obj_t *layer = nullptr;
+  lv_obj_t *nozzle = nullptr;
+  lv_obj_t *bed = nullptr;
+  lv_obj_t *chamber = nullptr;
+  lv_obj_t *filament = nullptr;
+  lv_obj_t *filamentDot = nullptr;
+  lv_obj_t *speed = nullptr;
+  lv_obj_t *fans = nullptr;
+  lv_obj_t *alert = nullptr;
+  lv_obj_t *noData = nullptr;
+};
 struct FakeNowPlayingTrack {
   const char *title;
   const char *artist;
@@ -1181,12 +1328,15 @@ static LiveNowPlayingArtwork g_liveNowPlayingArtwork = {};
 static uint32_t g_liveNowPlayingTokenSeq = 0;
 static MacStatsState g_macStats = {};
 static MacStatsUi    g_macStatsUi;
+static BambuPrintState g_bambuPrint = {};
+static BambuPrintUi g_bambuPrintUi;
 // Circular history buffers for the CPU/GPU sparkline (updated every API push, ~5 s cadence)
 static uint8_t g_cpuUsageHistory[MAC_STATS_HISTORY_SIZE] = {};
 static uint8_t g_gpuUsageHistory[MAC_STATS_HISTORY_SIZE] = {};
 static uint8_t g_statsHistHead  = 0;
 static uint8_t g_statsHistCount = 0;
 static lv_obj_t *g_lvglMacStatsRoot = nullptr;
+static lv_obj_t *g_lvglBambuRoot = nullptr;
 static lv_obj_t *g_lvglAuxRoot = nullptr;
 static lv_obj_t *g_lvglWikiRoot = nullptr;
 static lv_obj_t *g_lvglNowPlayingRoot = nullptr;
@@ -2775,7 +2925,7 @@ static void doomDrawBandOverlay() {
 
   const uint16_t leftFrame = leftActive ? greenMid : frameDim;
   doomDrawRectOutline(2, 2, lw - 6, bh - 4, leftFrame);
-  doomDrawFontText(8, 6, "MOVE", &scry_font_funnel_display_12, textMuted);
+  doomDrawFontText(8, 6, "MOVE", &scry_font_dosis_12, textMuted);
 
   // ── Vertical tilt meter (large) ───────────────────────────────────────
   const int16_t vmW = 36, vmH = 100;
@@ -2809,7 +2959,7 @@ static void doomDrawBandOverlay() {
   }
 
   doomDrawFontText(vmX + vmW + 6, vmCY - 8, moveBuf,
-                   &scry_font_funnel_display_16, readoutCol);
+                   &scry_font_dosis_16, readoutCol);
 
   // ── Divider + USE button ──────────────────────────────────────────────
   const int16_t btnH = 30, btnM = 10, btnY = bh - btnH - 6;
@@ -2824,7 +2974,7 @@ static void doomDrawBandOverlay() {
     doomDrawRectOutline(btnM, btnY, bw, btnH, bord);
     doomFillRect(btnM + 1, btnY + 1,        bw - 2, 2, glow);
     doomFillRect(btnM + 1, btnY + btnH - 3, bw - 2, 2, shadowCol);
-    doomDrawFontTextCentered(lcx - 2, btnY + 5, "USE", &scry_font_funnel_display_20, txt);
+    doomDrawFontTextCentered(lcx - 2, btnY + 5, "USE", &scry_font_dosis_20, txt);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -2833,7 +2983,7 @@ static void doomDrawBandOverlay() {
 
   const uint16_t rightFrame = rightActive ? redMid : frameDim;
   doomDrawRectOutline(rx + 4, 2, rw - 6, bh - 4, rightFrame);
-  doomDrawFontText(rx + 8, 6, "TURN", &scry_font_funnel_display_12, textMuted);
+  doomDrawFontText(rx + 8, 6, "TURN", &scry_font_dosis_12, textMuted);
 
   // ── Horizontal tilt meter (large) ─────────────────────────────────────
   const int16_t hmW = rw - 28, hmH = 26;
@@ -2863,10 +3013,10 @@ static void doomDrawBandOverlay() {
       doomFillRect(hmCX + 2,    hmY + 4, span, hmH - 8, fillC);
   }
 
-  doomDrawFontText(hmX + 3,        hmY + 7, "<", &scry_font_funnel_display_12, textMuted);
-  doomDrawFontText(hmX + hmW - 11, hmY + 7, ">", &scry_font_funnel_display_12, textMuted);
+  doomDrawFontText(hmX + 3,        hmY + 7, "<", &scry_font_dosis_12, textMuted);
+  doomDrawFontText(hmX + hmW - 11, hmY + 7, ">", &scry_font_dosis_12, textMuted);
   doomDrawFontTextCentered(rcx, hmY + hmH + 5, turnBuf,
-                           &scry_font_funnel_display_16, readoutCol);
+                           &scry_font_dosis_16, readoutCol);
 
   // ── Status badge (pre-game) ───────────────────────────────────────────
 #if DB_HAS_PRBOOM_DONOR
@@ -2881,7 +3031,7 @@ static void doomDrawBandOverlay() {
                         g_doom.launchRequested ? textAmber : redHi);
     doomFillRect(bdX + 1, bdY + 1, bdW - 2, 1, lv_color_make(36, 26, 10).full);
     doomDrawFontTextCentered(rcx, bdY + 4, promptBuf,
-                             &scry_font_funnel_display_16, textAmber);
+                             &scry_font_dosis_16, textAmber);
   }
 #endif
 
@@ -2897,7 +3047,7 @@ static void doomDrawBandOverlay() {
     doomDrawRectOutline(rx + btnM + 2, btnY, bw, btnH, bord);
     doomFillRect(rx + btnM + 3, btnY + 1,        bw - 2, 2, glow);
     doomFillRect(rx + btnM + 3, btnY + btnH - 3, bw - 2, 2, shadowCol);
-    doomDrawFontTextCentered(rcx, btnY + 5, "FIRE", &scry_font_funnel_display_20, txt);
+    doomDrawFontTextCentered(rcx, btnY + 5, "FIRE", &scry_font_dosis_20, txt);
   }
 }
 
@@ -4159,6 +4309,13 @@ static void loadRuntimeNetConfigFromNvs() {
     g_runtimeNetConfig.enabledViewsMask = normalizeRuntimeViewMask(stored | newFlags);
     loadedAny = true;
   }
+  if (prefs.isKey("ui_order") && prefs.getBytesLength("ui_order") == UI_VIEW_ORDER_COUNT) {
+    const size_t readOrder = prefs.getBytes("ui_order", g_runtimeNetConfig.viewOrder, UI_VIEW_ORDER_COUNT);
+    if (readOrder == UI_VIEW_ORDER_COUNT) {
+      normalizeRuntimeViewOrder(g_runtimeNetConfig);
+      loadedAny = true;
+    }
+  }
   // Wiki language (independent from system language)
   {
     char wl[8] = "en";
@@ -4212,6 +4369,7 @@ static void loadRuntimeNetConfigFromNvs() {
   normalizeRuntimeRssFeeds(g_runtimeNetConfig);
   normalizeRuntimeUiTheme(g_runtimeNetConfig);
   g_runtimeNetConfig.enabledViewsMask = normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask);
+  normalizeRuntimeViewOrder(g_runtimeNetConfig);
 
   if (loadedAny) {
     const int activeIdx = runtimeFirstConfiguredRssFeedIndexNoEnsure();
@@ -4259,6 +4417,7 @@ static bool saveRuntimeNetConfigToNvs() {
   const size_t n7 = prefs.putString("ui_theme", g_runtimeNetConfig.uiTheme);
   const size_t nViewMask = prefs.putUChar("ui_views", normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask));
   prefs.putUChar("ui_views_gen", UI_VIEW_MASK_DEFAULT);  // track known flags for future migrations
+  const size_t nViewOrder = prefs.putBytes("ui_order", g_runtimeNetConfig.viewOrder, UI_VIEW_ORDER_COUNT);
   prefs.putUChar("bl_usb",  g_runtimeNetConfig.backlightUsbPct);
   prefs.putUChar("bl_batt", g_runtimeNetConfig.backlightBatPct);
   const size_t nWikiLang = prefs.putString("wiki_lang", g_wikiLang);
@@ -4270,11 +4429,12 @@ static bool saveRuntimeNetConfigToNvs() {
   prefs.putString("transit_sid", g_transitConfig.stopId);
   prefs.end();
   const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0);
-  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u views=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
+  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u views=%u view_order=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
                 ok ? "OK" : "ERR",
                 (unsigned)n1, (unsigned)n2, (unsigned)n3, (unsigned)n4,
                 (unsigned)nFeedName, (unsigned)nFeedUrl, (unsigned)nFeedMax, (unsigned)n5,
-                (unsigned)n6, (unsigned)n7, (unsigned)nViewMask, (unsigned)nWikiLang, (unsigned)n8, (unsigned)n9, (unsigned)n10);
+                (unsigned)n6, (unsigned)n7, (unsigned)nViewMask, (unsigned)nViewOrder,
+                (unsigned)nWikiLang, (unsigned)n8, (unsigned)n9, (unsigned)n10);
   return ok;
 }
 
@@ -4294,6 +4454,7 @@ static void ensureRuntimeNetConfig() {
   normalizeRuntimeRssFeeds(g_runtimeNetConfig);
   normalizeRuntimeUiTheme(g_runtimeNetConfig);
   g_runtimeNetConfig.enabledViewsMask = normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask);
+  normalizeRuntimeViewOrder(g_runtimeNetConfig);
   syncActiveUiThemeFromRuntimeConfig(g_runtimeNetConfig);
   g_runtimeNetConfig.ready = true;
 }
@@ -4520,10 +4681,16 @@ a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(5
 .lede{margin:10px 0 0;color:var(--text-secondary);font-size:13px;line-height:1.46}
 .vm-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .vm-views{display:grid;gap:0}
-.vm-view{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border:0;border-bottom:1px solid var(--stroke-soft);border-radius:0;background:0}
+.vm-views-head{display:flex;align-items:center;gap:10px;margin:-2px 0 6px}.vm-views-head .vm-help{margin:0;flex:1}
+.vm-reorder-btn{margin-left:auto}.vm-reorder-btn[aria-pressed=true]{color:var(--text-primary);border-color:var(--accent-secondary);background:rgba(57,184,255,.12)}
+.vm-view{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border:0;border-bottom:1px solid var(--stroke-soft);border-radius:0;background:0;transition:background .15s ease,transform .15s ease}
+.vm-view__main{display:flex;gap:10px;align-items:flex-start;min-width:0;cursor:pointer}.vm-view--fixed .vm-view__main{cursor:default}
 .vm-view input[type=checkbox]{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent-secondary);flex:0 0 auto}
 .vm-view__copy{display:grid;gap:3px}.vm-view__copy strong{font-size:13px;color:var(--text-primary)}.vm-view__copy small{color:var(--text-tertiary);line-height:1.35;font-size:12px}
 .vm-view--fixed{border-bottom-style:dashed}.vm-view--off{opacity:.55}.vm-view:last-child{border-bottom:0}
+.vm-view__moves{display:none;align-items:center;gap:6px}.vm-views.is-reordering .vm-view__moves{display:flex}.vm-views.is-reordering .vm-view{background:rgba(255,255,255,.018)}
+.vm-move{width:36px;height:36px;padding:0;border-radius:8px;color:var(--text-secondary)}.vm-move svg{width:16px;height:16px;display:block}.vm-move:disabled{opacity:.22}
+.vm-order-status{display:none;margin:8px 0 0;padding:9px 11px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary);font-size:12px;background:rgba(57,184,255,.06)}.vm-order-status.is-visible{display:block}
 .vm-secret{display:flex;gap:8px;align-items:stretch;margin:0 0 4px}.vm-secret .vm-input{margin:0}
 .vm-setup-grid{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin-top:10px}
 .vm-setup-qr{width:138px;height:138px;border:1px solid var(--stroke);background:#fff;padding:6px;border-radius:var(--r-sm);display:block}
@@ -4548,7 +4715,7 @@ a{color:var(--accent-primary);text-decoration:none}::selection{background:rgba(5
 .vm-api-note{margin-top:12px;padding:6px 0;border-radius:0;background:0;border:0;font-size:12px;color:var(--text-tertiary)}.vm-api-note code{color:var(--text-secondary)}
 #wifi_new_password{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:.02em}
 .geo-status{margin:2px 0 8px;color:var(--text-tertiary);font-size:12px;min-height:16px}
-@media(max-width:768px){.vm-wrap{padding:12px 10px 24px}.vm-card{padding:14px 12px}.vm-grid{grid-template-columns:1fr;gap:8px}.vm-rss-composer{grid-template-columns:1fr;gap:8px}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions,.vm-actions-sticky{flex-direction:column}.vm-actions .vm-btn,.vm-actions-sticky .vm-btn{width:100%;justify-content:center}.logo{height:40px}}
+@media(max-width:768px){.vm-wrap{padding:12px 10px 24px}.vm-card{padding:14px 12px}.vm-grid{grid-template-columns:1fr;gap:8px}.vm-rss-composer{grid-template-columns:1fr;gap:8px}.hero-top{flex-wrap:wrap}.hero-right{width:100%;justify-items:start}.vm-actions,.vm-actions-sticky{flex-direction:column}.vm-actions .vm-btn,.vm-actions-sticky .vm-btn{width:100%;justify-content:center}.vm-actions-sticky{margin-left:-10px;margin-right:-10px;padding-left:10px;padding-right:10px}.logo{height:40px}.vm-view{gap:8px}.vm-move{width:42px;height:42px}.vm-views-head{align-items:flex-start}.vm-views-head .vm-help{padding-top:3px}}
 small{color:var(--text-tertiary)}code{color:var(--text-secondary)}
 .vm-bright{display:flex;flex-direction:column;gap:14px;margin-top:10px}
 .vm-bright__row{display:grid;grid-template-columns:120px 1fr 56px;align-items:center;gap:12px}
@@ -4571,7 +4738,7 @@ const wifiScanBtn=document.getElementById('wifi_scan_btn');const wifiScanResults
 function setWifiStatus(msg){if(wifiScanStatus)wifiScanStatus.textContent=msg||'';}function escHtml(s){return (s||'').replace(/[&<>]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;'})[c];});}
 async function scanWifiNow(){if(!wifiScanResults)return;const ctl=(window.AbortController?new AbortController():null);let tm=0;try{setWifiStatus('Scanning 2.4 GHz networks...');wifiScanResults.innerHTML="<option value=''>Scanning...</option>";if(ctl){tm=window.setTimeout(function(){ctl.abort();},9000);}const res=await fetch('/api/wifi/scan',{cache:'no-store',signal:ctl?ctl.signal:undefined});if(tm)window.clearTimeout(tm);if(!res.ok)throw new Error('http '+res.status);const data=await res.json();const rows=(data&&data.networks)?data.networks:[];wifiScanResults.innerHTML="";if(!rows.length){wifiScanResults.innerHTML="<option value=''>No 2.4 GHz network found</option>";setWifiStatus((data&&data.message==='scan_timeout')?'Scan timed out, retry in a few seconds.':'No 2.4 GHz networks found.');return;}rows.forEach(function(n){const opt=document.createElement('option');const lock=n.secure?'SEC':'OPEN';opt.value=n.ssid||'';opt.dataset.secure=n.secure?'1':'0';opt.dataset.channel=String(n.channel||0);opt.innerHTML=escHtml((n.ssid||'(hidden)')+'  '+lock+'  ch'+(n.channel||'?')+'  '+(n.rssi||0)+'dBm');wifiScanResults.appendChild(opt);});setWifiStatus('Scan complete. Pick an SSID and press Save Config.');if(rows[0]&&rows[0].ssid&&wifiNewSsid&&!wifiNewSsid.value){wifiNewSsid.value=rows[0].ssid;}}catch(e){if(tm)window.clearTimeout(tm);wifiScanResults.innerHTML="<option value=''>Scan failed</option>";setWifiStatus((e&&e.name==='AbortError')?'Scan timeout. Retry.':'Scan unavailable right now.');}}
 function syncWifiPwdToggle(){if(!wifiPwdToggle||!wifiNewPassword)return;const visible=wifiNewPassword.type==='text';wifiPwdToggle.textContent=visible?'Hide':'Show';wifiPwdToggle.title=visible?'Hide password':'Show password';wifiPwdToggle.setAttribute('aria-label',wifiPwdToggle.title);}if(wifiPwdToggle&&wifiNewPassword){wifiPwdToggle.addEventListener('click',function(){wifiNewPassword.type=(wifiNewPassword.type==='password')?'text':'password';syncWifiPwdToggle();});syncWifiPwdToggle();}if(wifiScanBtn)wifiScanBtn.addEventListener('click',function(){scanWifiNow();});if(wifiScanResults)wifiScanResults.addEventListener('change',function(){const v=wifiScanResults.value||'';if(wifiNewSsid&&v)wifiNewSsid.value=v;const sel=wifiScanResults.options[wifiScanResults.selectedIndex];if(wifiNewPassword&&sel&&sel.dataset.secure==='0'){wifiNewPassword.value='';wifiNewPassword.placeholder='Open network (no password)';}else if(wifiNewPassword){wifiNewPassword.placeholder='Password (WPA/WPA2)';}});
-const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');const viewHidden=document.getElementById('view_hidden_inputs');
+const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');const viewHidden=document.getElementById('view_hidden_inputs');const viewList=document.getElementById('view_list');const viewReorderBtn=document.getElementById('view_reorder_btn');const viewOrderStatus=document.getElementById('view_order_status');
 const maxSlots=5;const minPosts=1;const maxPosts=8;let editIndex=-1;
 const initialFeeds=[)rawliteral";
 
@@ -4584,8 +4751,13 @@ function clearComposer(){editIndex=-1;rssName.value='';rssUrl.value='';rssMax.va
 function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML="RSS feeds "+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.textContent='';t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='vm-btn vm-btn--sm vm-btn--warn';bEdit.textContent='Edit';bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.textContent='Update';setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='vm-btn vm-btn--sm vm-btn--danger';bDel.textContent='Delete';bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}
 function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}
 function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}
-function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_transit','view_transit_cb'],['view_launch','view_launch_cb'],['view_mac_stats','view_mac_stats_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});}
-if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();
+function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_doom','view_doom_cb'],['view_transit','view_transit_cb'],['view_launch','view_launch_cb'],['view_mac_stats','view_mac_stats_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});if(viewList){const order=Array.from(viewList.querySelectorAll('[data-view]')).map(function(row){return row.dataset.view;}).join(',');addViewHidden('view_order',order);}}
+function updateViewMoveButtons(){if(!viewList)return;const rows=Array.from(viewList.querySelectorAll('[data-view]:not(.vm-view--internal)'));rows.forEach(function(row,idx){const buttons=row.querySelectorAll('.vm-move');if(buttons[0])buttons[0].disabled=(idx===0);if(buttons[1])buttons[1].disabled=(idx===rows.length-1);});}
+function setViewReorderMode(on){if(!viewList||!viewReorderBtn)return;viewList.classList.toggle('is-reordering',on);viewReorderBtn.setAttribute('aria-pressed',on?'true':'false');viewReorderBtn.textContent=on?'Done':'Reorder';if(viewOrderStatus)viewOrderStatus.classList.toggle('is-visible',on);if(on){const card=viewList.closest('.vm-card');if(card){card.classList.remove('vm-clp');const arrow=card.querySelector('.vm-collapse-arr');if(arrow)arrow.textContent='\u25BC';}}updateViewMoveButtons();}
+if(viewReorderBtn)viewReorderBtn.addEventListener('click',function(){setViewReorderMode(!viewList.classList.contains('is-reordering'));});
+if(viewList)viewList.addEventListener('click',function(e){const button=e.target.closest&&e.target.closest('.vm-move');if(!button)return;const row=button.closest('[data-view]');if(!row)return;const rows=Array.from(viewList.querySelectorAll('[data-view]:not(.vm-view--internal)'));const idx=rows.indexOf(row);const dir=parseInt(button.dataset.dir||'0',10);const target=rows[idx+dir];if(!target)return;if(dir<0)viewList.insertBefore(row,target);else viewList.insertBefore(target,row);updateViewMoveButtons();const name=row.querySelector('strong');if(viewOrderStatus)viewOrderStatus.textContent=(name?name.textContent:'View')+' moved to position '+(idx+dir+1)+'. Save Config to keep this order.';});
+if(viewList)viewList.addEventListener('change',function(e){if(!e.target.matches('input[type=checkbox]'))return;const row=e.target.closest('[data-view]');if(row)row.classList.toggle('vm-view--off',!e.target.checked);});
+if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();updateViewMoveButtons();
 // Collapsible sections — start collapsed; ▶ = closed, ▼ = open
 document.querySelectorAll('.vm-card').forEach(function(card){
   var h=card.querySelector('h2');if(!h)return;
@@ -4593,7 +4765,7 @@ document.querySelectorAll('.vm-card').forEach(function(card){
   card.classList.add('vm-clp');arr.textContent='\u25B6';
   h.appendChild(arr);
   h.style.cursor='pointer';h.style.userSelect='none';
-  h.addEventListener('click',function(e){if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;var c=card.classList.toggle('vm-clp');arr.textContent=c?'\u25B6':'\u25BC';});
+  h.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('button,input,select,a'))return;var c=card.classList.toggle('vm-clp');arr.textContent=c?'\u25B6':'\u25BC';});
 });
 })();</script>)rawliteral";
 
@@ -4680,37 +4852,72 @@ static void buildWebBrightnessSection(String &html) {
 }
 
 static void buildWebViewToggles(String &html) {
-  const bool infoViewOn       = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) != 0;
-  const bool auxViewOn        = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) != 0;
-  const bool wikiViewOn       = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) != 0;
-  const bool nowPlayingViewOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) != 0;
-  const bool transitViewOn    = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) != 0;
-  const bool launchViewOn     = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_LAUNCH) != 0;
-  const bool macStatsViewOn   = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_MAC_STATS) != 0;
-  html += F("<div class='vm-card'><h2>&#x1F4F1;&ensp;Views</h2><div class='vm-views'>");
-  html += F("<label class='vm-view'><input id='view_info_cb' type='checkbox'");
-  if (infoViewOn) html += F(" checked");
-  html += F("><span class='vm-view__copy'><strong>Info</strong><small>Word clock and ambient status page.</small></span></label>");
-  html += F("<label class='vm-view vm-view--fixed'><input type='checkbox' checked disabled><span class='vm-view__copy'><strong>Home</strong><small>Always on. Safe fallback when other pages are disabled.</small></span></label>");
-  html += F("<label class='vm-view'><input id='view_aux_cb' type='checkbox'");
-  if (auxViewOn) html += F(" checked");
-  html += F("><span class='vm-view__copy'><strong>RSS / AUX</strong><small>News feed deck, QR and refresh actions.</small></span></label>");
-  html += F("<label class='vm-view'><input id='view_wiki_cb' type='checkbox'");
-  if (wikiViewOn) html += F(" checked");
-  html += F("><span class='vm-view__copy'><strong>Wikipedia</strong><small>Featured, On This Day and random article cards.</small></span></label>");
-  html += F("<label class='vm-view'><input id='view_now_playing_cb' type='checkbox'");
-  if (nowPlayingViewOn) html += F(" checked");
-  html += F("><span class='vm-view__copy'><strong>Now Playing</strong><small>Live track info from macOS companion app.</small></span></label>");
-  html += F("<label class='vm-view'><input id='view_transit_cb' type='checkbox'");
-  if (transitViewOn) html += F(" checked");
-  html += F("><span class='vm-view__copy'><strong>Timetable</strong><small>Live timetable via Transitous API. Trains, metro, bus, coach.</small></span></label>");
-  html += F("<label class='vm-view'><input id='view_launch_cb' type='checkbox'");
-  if (launchViewOn) html += F(" checked");
-  html += F("><span class='vm-view__copy'><strong>Launches</strong><small>Rocket launch countdown + mission info (Launch Library 2).</small></span></label>");
-  html += F("<label class='vm-view'><input id='view_mac_stats_cb' type='checkbox'");
-  if (macStatsViewOn) html += F(" checked");
-  html += F("><span class='vm-view__copy'><strong>Mac Stats</strong><small>CPU/GPU temp, RAM and Disk from macOS companion app.</small></span></label>");
-  html += F("</div><p class='vm-help'>Swipe navigation only includes enabled pages.</p><div id='view_hidden_inputs' class='hidden'></div></div>");
+  html += F("<div class='vm-card'><h2>&#x1F4F1;&ensp;Views</h2>"
+            "<div class='vm-views-head'><p class='vm-help'>Enable pages and set their physical swipe sequence.</p>"
+            "<button id='view_reorder_btn' class='vm-btn vm-btn--sm vm-btn--secondary vm-reorder-btn' type='button' aria-pressed='false'>Reorder</button></div>"
+            "<div id='view_list' class='vm-views'>");
+
+  auto appendView = [&](UiPageMode mode) {
+    const char *label = "View";
+    const char *description = "ScryBar page.";
+    const char *checkboxId = nullptr;
+    bool enabled = true;
+    bool fixed = false;
+    bool internal = false;
+    switch (mode) {
+      case UI_PAGE_INFO:
+        label = "Info"; description = "Word clock and ambient status page.";
+        checkboxId = "view_info_cb"; enabled = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) != 0; break;
+      case UI_PAGE_HOME:
+        label = "Home"; description = "Always on. Safe fallback when other pages are disabled."; fixed = true; break;
+      case UI_PAGE_AUX:
+        label = "RSS / AUX"; description = "News feed deck, QR and refresh actions.";
+        checkboxId = "view_aux_cb"; enabled = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) != 0; break;
+      case UI_PAGE_WIKI:
+        label = "Wikipedia"; description = "Featured, On This Day and random article cards.";
+        checkboxId = "view_wiki_cb"; enabled = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) != 0; break;
+      case UI_PAGE_NOW_PLAYING:
+        label = "Now Playing"; description = "Live track info from the macOS companion app.";
+        checkboxId = "view_now_playing_cb"; enabled = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) != 0; break;
+      case UI_PAGE_DOOM:
+        label = "DOOM"; description = "Experimental playable view on the physical display.";
+        checkboxId = "view_doom_cb"; enabled = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) != 0; internal = true; break;
+      case UI_PAGE_TRANSIT:
+        label = "Timetable"; description = "Live Transitous departures for trains, metro, bus and coach.";
+        checkboxId = "view_transit_cb"; enabled = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) != 0; break;
+      case UI_PAGE_LAUNCH:
+        label = "Launches"; description = "Rocket launch countdown and mission info.";
+        checkboxId = "view_launch_cb"; enabled = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_LAUNCH) != 0; break;
+      case UI_PAGE_MAC_STATS:
+        label = "Mac Stats"; description = "CPU/GPU temperature, RAM and Disk from Companion.";
+        checkboxId = "view_mac_stats_cb"; enabled = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_MAC_STATS) != 0; break;
+      case UI_PAGE_BAMBU:
+        label = "Bambu Lab"; description = "Always ready on Wi-Fi. Live print telemetry from Companion."; fixed = true; break;
+      default: break;
+    }
+    html += F("<div class='vm-view");
+    if (fixed) html += F(" vm-view--fixed");
+    if (!enabled) html += F(" vm-view--off");
+    if (internal) html += F(" vm-view--internal hidden");
+    html += F("' data-view='"); html += uiPageSlug(mode); html += F("'");
+    if (internal) html += F(" aria-hidden='true'");
+    html += F("><label class='vm-view__main'><input type='checkbox'");
+    if (checkboxId) { html += F(" id='"); html += checkboxId; html += '\''; }
+    if (enabled) html += F(" checked");
+    if (fixed) html += F(" disabled");
+    html += F("><span class='vm-view__copy'><strong>"); appendHtmlEscaped(html, label);
+    html += F("</strong><small>"); appendHtmlEscaped(html, description);
+    html += F("</small></span></label><span class='vm-view__moves'>"
+              "<button class='vm-btn vm-btn--secondary vm-move' type='button' data-dir='-1' aria-label='Move up' title='Move up'>"
+              "<svg viewBox='0 0 20 20' aria-hidden='true'><path d='M4 12.5 10 6.5l6 6' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg></button>"
+              "<button class='vm-btn vm-btn--secondary vm-move' type='button' data-dir='1' aria-label='Move down' title='Move down'>"
+              "<svg viewBox='0 0 20 20' aria-hidden='true'><path d='m4 7.5 6 6 6-6' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg></button>"
+              "</span></div>");
+  };
+
+  for (uint8_t i = 0; i < UI_VIEW_ORDER_COUNT; ++i) appendView(runtimeViewOrderAt(i));
+  html += F("</div><p id='view_order_status' class='vm-order-status' role='status' aria-live='polite'>Use the arrow buttons to set the swipe sequence, then press Save Config.</p>"
+            "<div id='view_hidden_inputs' class='hidden'></div></div>");
 }
 
 #if TEST_WIFI
@@ -5194,13 +5401,22 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_WIKI) ? F("true") : F("false");
   out += F(",\"now_playing\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_NOW_PLAYING) ? F("true") : F("false");
+  out += F(",\"doom\":");
+  out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_DOOM) ? F("true") : F("false");
   out += F(",\"transit\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_TRANSIT) ? F("true") : F("false");
   out += F(",\"launch\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_LAUNCH) ? F("true") : F("false");
   out += F(",\"mac_stats\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_MAC_STATS) ? F("true") : F("false");
-  out += F("},\"themes\":[");
+  out += F(",\"bambu\":true},\"view_order\":[");
+  for (uint8_t i = 0; i < UI_VIEW_ORDER_COUNT; ++i) {
+    if (i) out += ',';
+    out += '\"';
+    out += uiPageSlug(runtimeViewOrderAt(i));
+    out += '\"';
+  }
+  out += F("],\"themes\":[");
   for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
     if (i) out += ',';
     out += F("{\"id\":\"");
@@ -5345,6 +5561,7 @@ static bool parseViewsConfig(RuntimeNetConfig &next, String &errorOut, bool &has
       {"view_aux",         UI_VIEW_FLAG_AUX},
       {"view_wiki",        UI_VIEW_FLAG_WIKI},
       {"view_now_playing", UI_VIEW_FLAG_NOW_PLAYING},
+      {"view_doom",        UI_VIEW_FLAG_DOOM},
       {"view_transit",     UI_VIEW_FLAG_TRANSIT},
       {"view_launch",      UI_VIEW_FLAG_LAUNCH},
       {"view_mac_stats",   UI_VIEW_FLAG_MAC_STATS},
@@ -5360,6 +5577,33 @@ static bool parseViewsConfig(RuntimeNetConfig &next, String &errorOut, bool &has
     else next.enabledViewsMask &= (uint8_t)~viewArg.bit;
   }
   if (viewsInput) next.enabledViewsMask = normalizeRuntimeViewMask(next.enabledViewsMask);
+  if (g_webCfg.server.hasArg("view_order")) {
+    hasInput = true;
+    String order = g_webCfg.server.arg("view_order");
+    uint8_t parsed[UI_VIEW_ORDER_COUNT] = {0};
+    uint16_t seen = 0;
+    uint8_t count = 0;
+    int start = 0;
+    while (start <= (int)order.length()) {
+      const int comma = order.indexOf(',', start);
+      const int end = (comma < 0) ? (int)order.length() : comma;
+      const String token = order.substring(start, end);
+      const uint8_t mode = uiPageModeForSlug(token);
+      if (mode >= UI_VIEW_ORDER_COUNT || (seen & (uint16_t)(1U << mode)) || count >= UI_VIEW_ORDER_COUNT) {
+        errorOut = "view_order non valido";
+        return false;
+      }
+      parsed[count++] = mode;
+      seen |= (uint16_t)(1U << mode);
+      if (comma < 0) break;
+      start = comma + 1;
+    }
+    if (count != UI_VIEW_ORDER_COUNT || seen != (uint16_t)((1U << UI_VIEW_ORDER_COUNT) - 1U)) {
+      errorOut = "view_order deve contenere tutte le view una sola volta";
+      return false;
+    }
+    memcpy(next.viewOrder, parsed, sizeof(next.viewOrder));
+  }
   return true;
 }
 
@@ -5513,16 +5757,18 @@ static ConfigDiffResult commitConfigToNvs(RuntimeNetConfig &next) {
   const bool brandingChanged = (strncmp(g_runtimeNetConfig.logoUrl, next.logoUrl, sizeof(next.logoUrl)) != 0);
   const bool themeChanged = (strncmp(g_runtimeNetConfig.uiTheme, next.uiTheme, sizeof(next.uiTheme)) != 0);
   const bool viewsChanged = (g_runtimeNetConfig.enabledViewsMask != next.enabledViewsMask);
+  const bool viewOrderChanged = memcmp(g_runtimeNetConfig.viewOrder, next.viewOrder, sizeof(next.viewOrder)) != 0;
 
   g_runtimeNetConfig = next;
   normalizeRuntimeUiTheme(g_runtimeNetConfig);
   g_runtimeNetConfig.enabledViewsMask = normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask);
+  normalizeRuntimeViewOrder(g_runtimeNetConfig);
   syncActiveUiThemeFromRuntimeConfig(g_runtimeNetConfig);
   g_runtimeNetConfig.ready = true;
   const bool nvsSaved = saveRuntimeNetConfigToNvs();
   if (!nvsSaved) Serial.println("[CFG][NVS] warning: config aggiornata in RAM ma non salvata su flash");
 
-  return { weatherChanged, rssChanged, brandingChanged, themeChanged, viewsChanged };
+  return { weatherChanged, rssChanged, brandingChanged, themeChanged, viewsChanged, viewOrderChanged };
 }
 
 // ── M5: Side-effect phase — cache invalidation, WiFi, live reload ──
@@ -5550,7 +5796,7 @@ static void applyConfigSideEffects(const ConfigDiffResult &diff, bool langChange
   if (diff.themeChanged && g_lvglReady) lvglApplyThemeStyles(true);
 #endif
 #if TEST_NTP
-  if (diff.weatherChanged || diff.rssChanged || diff.brandingChanged || diff.themeChanged || langChanged || wikiLangChanged || diff.viewsChanged) g_uiNeedsRedraw = true;
+  if (diff.weatherChanged || diff.rssChanged || diff.brandingChanged || diff.themeChanged || langChanged || wikiLangChanged || diff.viewsChanged || diff.viewOrderChanged) g_uiNeedsRedraw = true;
 #endif
   if (wifiPrefChanged) {
     if (wifiPrefIdx >= 0) g_wifiSt.reconnectIdx = (uint8_t)wifiPrefIdx;
@@ -5850,9 +6096,11 @@ static bool webRequestHasConfigParams() {
   if (g_webCfg.server.hasArg("view_aux")) return true;
   if (g_webCfg.server.hasArg("view_wiki")) return true;
   if (g_webCfg.server.hasArg("view_now_playing")) return true;
+  if (g_webCfg.server.hasArg("view_doom")) return true;
   if (g_webCfg.server.hasArg("view_transit")) return true;
   if (g_webCfg.server.hasArg("view_launch")) return true;
   if (g_webCfg.server.hasArg("view_mac_stats")) return true;
+  if (g_webCfg.server.hasArg("view_order")) return true;
   if (g_webCfg.server.hasArg("rss_feed_url")) return true;
   if (g_webCfg.server.hasArg("logo_url")) return true;
   if (g_webCfg.server.hasArg("transit_from")) return true;
@@ -5958,6 +6206,7 @@ static void ensureWebConfigServerStarted() {
     g_webCfg.server.on("/api/reload", HTTP_POST, handleWebReloadApi);
     g_webCfg.server.on("/api/brightness", HTTP_POST, handleWebBrightnessApi);
     g_webCfg.server.on("/api/mac-stats", HTTP_POST, handleWebMacStatsPostApi);
+    g_webCfg.server.on("/api/bambu", HTTP_POST, handleWebBambuPostApi);
     g_webCfg.server.onNotFound([]() {
       if (g_wifiSt.setupApActive) {
         sendWebCaptiveRedirect();
@@ -7194,6 +7443,77 @@ static void handleWebMacStatsPostApi() {
                 next.gpuTempC, (int)next.hasGpuTemp,
                 next.ramUsedGB, next.ramTotalGB,
                 next.diskUsedGB, next.diskTotalGB);
+  g_webCfg.server.sendHeader("Cache-Control", "no-store", true);
+  g_webCfg.server.send(200, "application/json", "{\"ok\":true}");
+}
+
+static void handleWebBambuPostApi() {
+  const String body = g_webCfg.server.arg("plain");
+  if (body.length() == 0) {
+    g_webCfg.server.send(400, "application/json", "{\"ok\":false,\"message\":\"Empty body\"}");
+    return;
+  }
+
+  BambuPrintState next = g_bambuPrint;
+  next.valid = true;
+  next.receivedAtMs = millis();
+  bool connected = false;
+  if (extractJsonBoolFieldLoose(body, "connected", connected)) next.connected = connected;
+
+  String text;
+  if (extractJsonStringFieldLoose(body, "status", text))
+    copyStringSafe(next.status, sizeof(next.status), text.c_str());
+  if (extractJsonStringFieldLoose(body, "stage", text))
+    copyStringSafe(next.stage, sizeof(next.stage), text.c_str());
+  if (extractJsonStringFieldLoose(body, "jobName", text))
+    copyStringSafe(next.jobName, sizeof(next.jobName), text.c_str());
+  if (extractJsonStringFieldLoose(body, "gcodeFile", text))
+    copyStringSafe(next.gcodeFile, sizeof(next.gcodeFile), text.c_str());
+  if (extractJsonStringFieldLoose(body, "printType", text))
+    copyStringSafe(next.printType, sizeof(next.printType), text.c_str());
+  if (extractJsonStringFieldLoose(body, "wifiSignal", text))
+    copyStringSafe(next.wifiSignal, sizeof(next.wifiSignal), text.c_str());
+  if (extractJsonStringFieldLoose(body, "activeFilamentLabel", text))
+    copyStringSafe(next.activeFilamentLabel, sizeof(next.activeFilamentLabel), text.c_str());
+  if (extractJsonStringFieldLoose(body, "activeFilamentColorHex", text))
+    copyStringSafe(next.activeFilamentColorHex, sizeof(next.activeFilamentColorHex), text.c_str());
+
+  float value = 0.0f;
+  if (extractJsonNumberField(body.c_str(), "\"progressPercent\"", value)) next.progressPercent = constrain((int)lroundf(value), 0, 100);
+  if (extractJsonNumberField(body.c_str(), "\"remainingMinutes\"", value)) next.remainingMinutes = max(0, (int)lroundf(value));
+  if (extractJsonNumberField(body.c_str(), "\"currentLayer\"", value)) next.currentLayer = max(0, (int)lroundf(value));
+  if (extractJsonNumberField(body.c_str(), "\"totalLayers\"", value)) next.totalLayers = max(0, (int)lroundf(value));
+  if (extractJsonNumberField(body.c_str(), "\"errorCode\"", value)) next.errorCode = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"hmsCount\"", value)) next.hmsCount = max(0, (int)lroundf(value));
+  if (extractJsonNumberField(body.c_str(), "\"speedLevel\"", value)) next.speedLevel = max(0, (int)lroundf(value));
+  if (extractJsonNumberField(body.c_str(), "\"speedPercent\"", value)) next.speedPercent = max(0, (int)lroundf(value));
+  if (extractJsonNumberField(body.c_str(), "\"coolingFanPercent\"", value)) next.coolingFanPercent = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"heatbreakFanPercent\"", value)) next.heatbreakFanPercent = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"auxiliaryFanPercent\"", value)) next.auxiliaryFanPercent = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"chamberFanPercent\"", value)) next.chamberFanPercent = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"filamentSensorState\"", value)) next.filamentSensorState = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"activeTray\"", value)) next.activeTray = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"targetTray\"", value)) next.targetTray = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"amsStatus\"", value)) next.amsStatus = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"activeFilamentRemainingPercent\"", value)) next.activeFilamentRemainingPercent = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"amsHumidityPercent\"", value)) next.amsHumidityPercent = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"nozzleTempC\"", value)) next.nozzleTempC = value;
+  if (extractJsonNumberField(body.c_str(), "\"nozzleTargetC\"", value)) next.nozzleTargetC = value;
+  if (extractJsonNumberField(body.c_str(), "\"bedTempC\"", value)) next.bedTempC = value;
+  if (extractJsonNumberField(body.c_str(), "\"bedTargetC\"", value)) next.bedTargetC = value;
+  if (extractJsonNumberField(body.c_str(), "\"chamberTempC\"", value)) next.chamberTempC = value;
+  if (extractJsonNumberField(body.c_str(), "\"amsTemperatureC\"", value)) next.amsTemperatureC = value;
+  if (extractJsonNumberField(body.c_str(), "\"estimatedFilamentWeightG\"", value)) next.estimatedFilamentWeightG = value;
+  if (extractJsonNumberField(body.c_str(), "\"estimatedFilamentLengthMm\"", value)) next.estimatedFilamentLengthMm = value;
+
+  g_bambuPrint = next;
+  if (g_uiPageMode == UI_PAGE_BAMBU) g_uiNeedsRedraw = true;
+  Serial.printf("[BAMBU][API] connected=%d status=%s progress=%d%% remain=%dm layer=%d/%d "
+                "speed=%d%% fan=%d%% wifi=%s filament=%s remain=%d%% error=%d hms=%d\n",
+                (int)next.connected, next.status, next.progressPercent, next.remainingMinutes,
+                next.currentLayer, next.totalLayers, next.speedPercent, next.coolingFanPercent,
+                next.wifiSignal, next.activeFilamentLabel, next.activeFilamentRemainingPercent,
+                next.errorCode, next.hmsCount);
   g_webCfg.server.sendHeader("Cache-Control", "no-store", true);
   g_webCfg.server.send(200, "application/json", "{\"ok\":true}");
 }
@@ -9556,6 +9876,8 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root);
 static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force);
 static void lvglInitMacStatsUi();
 static void lvglUpdateMacStatsUi(bool force);
+static void lvglInitBambuUi();
+static void lvglUpdateBambuUi(bool force);
 #endif
 
 // Returns true for pages that have a feed deck (AUX/RSS and WIKI).
@@ -9582,6 +9904,8 @@ static const char* uiPageName(UiPageMode mode) {
       return "LAUNCH";
     case UI_PAGE_MAC_STATS:
       return "MACSTATS";
+    case UI_PAGE_BAMBU:
+      return "BAMBU";
     case UI_PAGE_HOME:
     default:
       return "HOME";
@@ -9598,6 +9922,7 @@ static uint8_t uiViewFlagForPage(UiPageMode mode) {
     case UI_PAGE_TRANSIT:    return UI_VIEW_FLAG_TRANSIT;
     case UI_PAGE_LAUNCH:     return UI_VIEW_FLAG_LAUNCH;
     case UI_PAGE_MAC_STATS:  return UI_VIEW_FLAG_MAC_STATS;
+    case UI_PAGE_BAMBU:      return 0;
     case UI_PAGE_HOME:
     default:
       return 0;
@@ -9625,6 +9950,7 @@ static bool uiPageEnabledNoEnsure(UiPageMode mode) {
     const bool flagOn = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_MAC_STATS) != 0;
     return flagOn && g_wifiSt.connected;
   }
+  if (mode == UI_PAGE_BAMBU) return g_wifiSt.connected;
   const uint8_t flag = uiViewFlagForPage(mode);
   return (flag != 0) && ((g_runtimeNetConfig.enabledViewsMask & flag) != 0);
 }
@@ -9645,49 +9971,41 @@ static bool uiPageInSwipeCarousel(UiPageMode mode) {
     case UI_PAGE_TRANSIT:
     case UI_PAGE_LAUNCH:
     case UI_PAGE_MAC_STATS:
+    case UI_PAGE_BAMBU:
       return true;
     default:
       return false;
   }
 }
 
-static const UiPageMode kSwipePageOrder[] = {
-    UI_PAGE_INFO,
-    UI_PAGE_HOME,
-    UI_PAGE_AUX,
-    UI_PAGE_WIKI,
-    UI_PAGE_NOW_PLAYING,
-    UI_PAGE_DOOM,
-    UI_PAGE_TRANSIT,
-    UI_PAGE_LAUNCH,
-    UI_PAGE_MAC_STATS,
-};
-
 static int8_t uiSwipePageCountNoEnsure() {
   int8_t count = 0;
-  for (UiPageMode mode : kSwipePageOrder) {
+  for (uint8_t i = 0; i < UI_VIEW_ORDER_COUNT; ++i) {
+    const UiPageMode mode = runtimeViewOrderAt(i);
     if (uiPageEnabledNoEnsure(mode)) ++count;
   }
   return count;
 }
 
 static UiPageMode uiFirstEnabledSwipePageNoEnsure() {
-  for (UiPageMode mode : kSwipePageOrder) {
+  for (uint8_t i = 0; i < UI_VIEW_ORDER_COUNT; ++i) {
+    const UiPageMode mode = runtimeViewOrderAt(i);
     if (uiPageEnabledNoEnsure(mode)) return mode;
   }
   return UI_PAGE_HOME;
 }
 
 static UiPageMode uiLastEnabledSwipePageNoEnsure() {
-  for (int i = (int)(sizeof(kSwipePageOrder) / sizeof(kSwipePageOrder[0])) - 1; i >= 0; --i) {
-    if (uiPageEnabledNoEnsure(kSwipePageOrder[i])) return kSwipePageOrder[i];
+  for (int i = UI_VIEW_ORDER_COUNT - 1; i >= 0; --i) {
+    const UiPageMode mode = runtimeViewOrderAt((uint8_t)i);
+    if (uiPageEnabledNoEnsure(mode)) return mode;
   }
   return UI_PAGE_HOME;
 }
 
 static UiPageMode uiLastEnabledMainViewNoEnsure() {
-  for (int i = (int)(sizeof(kSwipePageOrder) / sizeof(kSwipePageOrder[0])) - 1; i >= 0; --i) {
-    const UiPageMode mode = kSwipePageOrder[i];
+  for (int i = UI_VIEW_ORDER_COUNT - 1; i >= 0; --i) {
+    const UiPageMode mode = runtimeViewOrderAt((uint8_t)i);
     if (mode == UI_PAGE_INFO) continue;
     if (uiPageEnabledNoEnsure(mode)) return mode;
   }
@@ -9698,7 +10016,8 @@ static int8_t uiPageOrdinal(UiPageMode mode) {
   ensureRuntimeNetConfig();
   if (!uiPageInSwipeCarousel(mode) || !uiPageEnabledNoEnsure(mode)) return -1;
   int8_t ord = 0;
-  for (UiPageMode it : kSwipePageOrder) {
+  for (uint8_t i = 0; i < UI_VIEW_ORDER_COUNT; ++i) {
+    const UiPageMode it = runtimeViewOrderAt(i);
     if (!uiPageEnabledNoEnsure(it)) continue;
     if (it == mode) return ord;
     ++ord;
@@ -9711,7 +10030,8 @@ static UiPageMode uiPageFromOrdinal(int8_t ord) {
   if (ord <= 0) return uiFirstEnabledSwipePageNoEnsure();
   int8_t idx = 0;
   UiPageMode lastEnabled = UI_PAGE_HOME;
-  for (UiPageMode mode : kSwipePageOrder) {
+  for (uint8_t i = 0; i < UI_VIEW_ORDER_COUNT; ++i) {
+    const UiPageMode mode = runtimeViewOrderAt(i);
     if (!uiPageEnabledNoEnsure(mode)) continue;
     lastEnabled = mode;
     if (idx == ord) return mode;
@@ -10244,44 +10564,58 @@ static uint32_t lvglResolvedHeaderMeta(const UiThemeLvglTokens &t) {
 }
 
 static uint32_t lvglResolvedWeatherBg(const UiThemeLvglTokens &t) {
-  // Weather icons are authored for transparent-on-light backgrounds.
-  if (lvglColorLuma(t.weatherCardBg) >= 170u) return t.weatherCardBg;
-  return 0xF3F7FF;
+  // Meteocons are deliberately shown on a dark, theme-tinted stage: white
+  // cloud edges, fog and snow retain detail, while saturated sun/rain accents
+  // gain visual depth. Blend panel + header first to preserve each theme's hue,
+  // then pull the result into a narrow dark-luma band. Light themes receive a
+  // stronger dark mix; dark themes keep more of their native chroma.
+  const uint32_t themedSeed = lvglBlendRgb(t.panelBg, t.headerBg, 64);
+  const uint8_t darkMix = (lvglColorLuma(themedSeed) >= 128u) ? 200u : 72u;
+  return lvglBlendRgb(themedSeed, 0x05080C, darkMix);
+}
+
+static uint32_t lvglResolvedWeatherForecastBg(uint32_t weatherBg) {
+  // A restrained lift separates the three-hour forecast rail without turning
+  // it back into a light card or competing with the animated current icon.
+  return lvglLightenRgb(weatherBg, 14);
 }
 
 static uint32_t lvglResolvedWeatherPrimary(const UiThemeLvglTokens &t, uint32_t weatherBg) {
-  if (lvglColorLuma(weatherBg) >= 170u && lvglColorLuma(t.weatherTextPrimary) <= 130u) {
-    return t.weatherTextPrimary;
-  }
-  return 0x1B2D3A;
+  // auxText is already the theme's readable content color on dark surfaces.
+  // Mint is the exception (its aux text is dark), so fall back to soft white.
+  if (lvglContrastRatio(t.auxText, weatherBg) >= 4.5f) return t.auxText;
+  return 0xF4F8FF;
 }
 
 static uint32_t lvglResolvedWeatherSecondary(const UiThemeLvglTokens &t, uint32_t weatherBg, uint32_t weatherPrimary) {
-  if (lvglColorLuma(weatherBg) >= 170u && lvglColorLuma(t.weatherTextSecondary) <= 170u) {
-    return t.weatherTextSecondary;
-  }
-  const uint16_t p = lvglColorLuma(weatherPrimary);
-  return (p <= 105u) ? 0x445D6D : 0x2E4655;
+  (void)t;
+  uint32_t secondary = lvglBlendRgb(weatherPrimary, weatherBg, 88);
+  if (lvglContrastRatio(secondary, weatherBg) >= 4.5f) return secondary;
+  secondary = lvglBlendRgb(weatherPrimary, weatherBg, 56);
+  return (lvglContrastRatio(secondary, weatherBg) >= 4.5f) ? secondary : weatherPrimary;
 }
 
 static uint32_t lvglResolvedForecastText(const UiThemeLvglTokens &t, uint32_t weatherBg, uint32_t weatherPrimary) {
-  if (lvglColorLuma(weatherBg) >= 170u && lvglColorLuma(t.forecastText) <= 150u) {
-    return t.forecastText;
-  }
+  (void)t;
+  (void)weatherBg;
   return weatherPrimary;
 }
 
+static uint32_t lvglResolvedForecastIconColor(uint32_t weatherBg) {
+  // The compact forecast is deliberately monochrome. A hard black/white
+  // switch keeps its fine line work legible after RGB565 conversion.
+  return (lvglColorLuma(weatherBg) >= 128u) ? 0x101820 : 0xF7FBFF;
+}
+
 static uint32_t lvglResolvedWeatherGlyphOnline(const UiThemeLvglTokens &t, uint32_t weatherBg, uint32_t weatherPrimary) {
-  if (lvglColorLuma(weatherBg) >= 170u && lvglColorLuma(t.weatherGlyphOnline) <= 170u) {
-    return t.weatherGlyphOnline;
-  }
+  (void)t;
+  (void)weatherBg;
   return weatherPrimary;
 }
 
 static uint32_t lvglResolvedWeatherGlyphOffline(const UiThemeLvglTokens &t, uint32_t weatherBg, uint32_t weatherSecondary) {
-  if (lvglColorLuma(weatherBg) >= 170u && lvglColorLuma(t.weatherGlyphOffline) <= 180u) {
-    return t.weatherGlyphOffline;
-  }
+  (void)t;
+  (void)weatherBg;
   return weatherSecondary;
 }
 
@@ -10327,6 +10661,25 @@ static inline void lvglSetBtnBorder(lv_obj_t *o, uint32_t hex) {
   lv_obj_set_style_border_width(o, 1, LV_PART_MAIN);
   lv_obj_set_style_border_color(o, lv_color_hex(hex), LV_PART_MAIN);
   lv_obj_set_style_border_opa(o, LV_OPA_80, LV_PART_MAIN);
+}
+
+// Bambu header metadata must remain readable even when the active theme uses
+// a bright header (Tokyo cyan, Cyberpunk yellow, light themes). A compact
+// near-black badge preserves the inherited theme strip while giving white and
+// Bambu-green text a stable high-contrast surface.
+static inline void lvglStyleBambuHeaderBadge(lv_obj_t *label, uint32_t textHex) {
+  if (!label) return;
+  lv_obj_set_style_bg_color(label, lv_color_hex(0x061018), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(label, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(label, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(label, lv_color_hex(0x425466), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(label, LV_OPA_80, LV_PART_MAIN);
+  lv_obj_set_style_radius(label, 5, LV_PART_MAIN);
+  lv_obj_set_style_pad_left(label, 8, LV_PART_MAIN);
+  lv_obj_set_style_pad_right(label, 8, LV_PART_MAIN);
+  lv_obj_set_style_pad_top(label, 2, LV_PART_MAIN);
+  lv_obj_set_style_pad_bottom(label, 2, LV_PART_MAIN);
+  lv_obj_set_style_text_color(label, lv_color_hex(textHex), LV_PART_MAIN);
 }
 
 // Create opaque panel: flat bg, no border/shadow/scroll.
@@ -10393,9 +10746,11 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   const uint32_t infoHeaderBorder = cyberpunk ? t.auxSourceText : t.infoHeaderBorder;
   const uint32_t infoHeaderText = (cyberpunk || minimal) ? headerText : t.infoText;
   const uint32_t weatherBg = lvglResolvedWeatherBg(t);
+  const uint32_t weatherForecastBg = lvglResolvedWeatherForecastBg(weatherBg);
   const uint32_t weatherTextPrimary = lvglResolvedWeatherPrimary(t, weatherBg);
   const uint32_t weatherTextSecondary = lvglResolvedWeatherSecondary(t, weatherBg, weatherTextPrimary);
   const uint32_t forecastText = lvglResolvedForecastText(t, weatherBg, weatherTextPrimary);
+  const uint32_t forecastIcon = lvglResolvedForecastIconColor(weatherBg);
   const uint32_t weatherGlyphOnline = lvglResolvedWeatherGlyphOnline(t, weatherBg, weatherTextPrimary);
   const uint32_t weatherGlyphOffline = lvglResolvedWeatherGlyphOffline(t, weatherBg, weatherTextSecondary);
   const bool light = lvglThemeIsLight();
@@ -10419,8 +10774,8 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
 
   lvglSetBgFlatR(g_clockUi.block, panelBg, cardRadius);
   lvglSetBgFlatR(g_weatherUi.card, weatherBg, cardRadius);
-  lvglSetBgFlatR(g_weatherUi.forecastBar, weatherBg, cardRadius);
-  lvglSetBgFlat(g_weatherUi.forecastBarFill, weatherBg);
+  lvglSetBgFlatR(g_weatherUi.forecastBar, weatherForecastBg, cardRadius);
+  lvglSetBgFlat(g_weatherUi.forecastBarFill, weatherForecastBg);
 
   const uint32_t headerBorderHex = cyberpunk ? t.auxSourceText : t.divider;
   lvglSetBgFlatR(g_clockUi.header, headerBg, cardRadius);
@@ -10450,6 +10805,10 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   lvglSetTextHex(g_weatherUi.wind, weatherTextSecondary);
   lvglSetTextHex(g_weatherUi.forecastNow, forecastText);
   lvglSetTextHex(g_weatherUi.forecastTomorrow, weatherTextSecondary);
+  if (g_weatherUi.forecastIcon) {
+    lv_obj_set_style_img_recolor(g_weatherUi.forecastIcon, lv_color_hex(forecastIcon), 0);
+    lv_obj_set_style_img_recolor_opa(g_weatherUi.forecastIcon, LV_OPA_COVER, 0);
+  }
   if (g_weatherUi.sep) lv_obj_set_style_bg_color(g_weatherUi.sep, lv_color_hex(weatherTextSecondary), LV_PART_MAIN);
   if (g_weatherUi.glyph) {
     lvglSetTextHex(g_weatherUi.glyph, g_weather.valid ? weatherGlyphOnline : weatherGlyphOffline);
@@ -10614,6 +10973,33 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
     lvglSetTextHex(g_macStatsUi.noData,      t.auxMeta);
   }
 
+  if (g_lvglBambuRoot) {
+    // Header stays part of the current ScryBar theme. The telemetry surface
+    // follows the exact high-contrast BambuSphere tokens: black, green, white.
+    constexpr uint32_t bambuPanelBg = 0x000000;
+    constexpr uint32_t bambuPrimaryText = 0xFFFFFF;
+    constexpr uint32_t bambuSecondaryText = 0xDDDDDD;
+    lvglSetBgFlat(g_lvglBambuRoot, bambuPanelBg);
+    lv_obj_set_style_bg_opa(g_lvglBambuRoot, LV_OPA_COVER, LV_PART_MAIN);
+    if (g_bambuPrintUi.header) lvglSetBgFlat(g_bambuPrintUi.header, headerBg);
+    lvglSetTextHex(g_bambuPrintUi.title, headerText);
+    lvglStyleBambuHeaderBadge(g_bambuPrintUi.status, 0x00FF00);
+    lvglStyleBambuHeaderBadge(g_bambuPrintUi.stage, bambuPrimaryText);
+    lvglSetTextHex(g_bambuPrintUi.remaining, bambuPrimaryText);
+    lvglSetTextHex(g_bambuPrintUi.layer, bambuPrimaryText);
+    lvglSetTextHex(g_bambuPrintUi.nozzle, bambuPrimaryText);
+    lvglSetTextHex(g_bambuPrintUi.bed, bambuPrimaryText);
+    lvglSetTextHex(g_bambuPrintUi.chamber, bambuPrimaryText);
+    lvglSetTextHex(g_bambuPrintUi.filament, bambuPrimaryText);
+    lvglSetTextHex(g_bambuPrintUi.speed, bambuPrimaryText);
+    lvglSetTextHex(g_bambuPrintUi.fans, bambuPrimaryText);
+    lvglSetTextHex(g_bambuPrintUi.noData, bambuSecondaryText);
+    if (g_bambuPrintUi.progressArc) {
+      lv_obj_set_style_arc_color(g_bambuPrintUi.progressArc, lv_color_hex(0x343434), LV_PART_MAIN);
+      lv_obj_set_style_arc_color(g_bambuPrintUi.progressArc, lv_color_hex(0x00FF00), LV_PART_INDICATOR);
+    }
+  }
+
   if (!forceInvalidate) return;
   g_uiNeedsRedraw = true;
   if (g_infoUi.root) lv_obj_invalidate(g_infoUi.root);
@@ -10622,6 +11008,7 @@ static void lvglApplyThemeStyles(bool forceInvalidate) {
   if (g_lvglTransitRoot) lv_obj_invalidate(g_lvglTransitRoot);
   if (g_lvglLaunchRoot) lv_obj_invalidate(g_lvglLaunchRoot);
   if (g_lvglMacStatsRoot) lv_obj_invalidate(g_lvglMacStatsRoot);
+  if (g_lvglBambuRoot) lv_obj_invalidate(g_lvglBambuRoot);
 #if SCREENSAVER_ENABLED
   if (g_saver.root) lv_obj_invalidate(g_saver.root);
 #endif
@@ -13417,41 +13804,42 @@ static void drawWeatherPanel(int16_t ox, int16_t oy, int16_t ow, int16_t oh, con
 }
 
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && DISPLAY_BACKEND_ESP_LCD
-// ---------- Unified Funnel Display font accessors ----------
+// ---------- Unified Dosis font accessors ----------
 // All themes share the same typeface. Only size varies by semantic role.
 
-static const lv_font_t* lvglFontTitle()    { return &scry_font_funnel_display_30; }
-static const lv_font_t* lvglFontBody()     { return &scry_font_funnel_display_24; }
-static const lv_font_t* lvglFontSmall()    { return &scry_font_funnel_display_18; }
-static const lv_font_t* lvglFontTiny()     { return &scry_font_funnel_display_14; }
-static const lv_font_t* lvglFontMini()     { return &scry_font_funnel_display_16; }
-static const lv_font_t* lvglFontMono()     { return &scry_font_funnel_display_16; }
+static const lv_font_t* lvglFontTitle()    { return &scry_font_dosis_30; }
+static const lv_font_t* lvglFontBody()     { return &scry_font_dosis_24; }
+static const lv_font_t* lvglFontSmall()    { return &scry_font_dosis_18; }
+static const lv_font_t* lvglFontTiny()     { return &scry_font_dosis_14; }
+static const lv_font_t* lvglFontMini()     { return &scry_font_dosis_16; }
+static const lv_font_t* lvglFontMono()     { return &scry_font_dosis_16; }
 static const lv_font_t* lvglFontMonoTiny() { return &lv_font_unscii_8; }
-static const lv_font_t* lvglFontMeta()     { return &scry_font_funnel_display_20; }
-static const lv_font_t* lvglFontInfoBody() { return &scry_font_funnel_display_16; }
-static const lv_font_t* lvglFontRssNews()  { return &scry_font_funnel_display_22; }
-static const lv_font_t* lvglFontClock()    { return &scry_font_funnel_display_32; }
-static const lv_font_t* lvglFontBig()      { return &scry_font_funnel_display_32; }
-static const lv_font_t* lvglFontCountdown(){ return &scry_font_funnel_display_countdown_60; }
-static const lv_font_t* lvglFontTemp()     { return &scry_font_funnel_display_24; }
+static const lv_font_t* lvglFontMeta()     { return &scry_font_dosis_20; }
+static const lv_font_t* lvglFontInfoBody() { return &scry_font_dosis_16; }
+static const lv_font_t* lvglFontRssNews()  { return &scry_font_dosis_22; }
+static const lv_font_t* lvglFontClock()    { return &scry_font_dosis_32; }
+static const lv_font_t* lvglFontBig()      { return &scry_font_dosis_32; }
+static const lv_font_t* lvglFontCountdown(){ return &scry_font_dosis_countdown_60; }
+static const lv_font_t* lvglFontTemp()     { return &scry_font_dosis_24; }
 
 // ── SemiBold emphasis family (r256) ─────────────────────────────────────────
 // Use these when you want typographic weight, not just larger size. Keep the
 // set small — every added size is extra flash. If you need a new SemiBold
 // size, add it to SEMIBOLD_SIZES in tools/regen_fonts.sh and regenerate.
-static const lv_font_t* lvglFontSmallBold()   { return &scry_font_funnel_display_semibold_18; }
-static const lv_font_t* lvglFontLaunchName()  { return &scry_font_funnel_display_semibold_25; }
-static const lv_font_t* lvglFontClockBold()   { return &scry_font_funnel_display_semibold_32; }
-static const lv_font_t* lvglFontBigBold()     { return &scry_font_funnel_display_semibold_38; }
+static const lv_font_t* lvglFontSmallBold()   { return &scry_font_dosis_semibold_18; }
+static const lv_font_t* lvglFontHeaderTitle() { return &scry_font_dosis_semibold_20; }
+static const lv_font_t* lvglFontLaunchName()  { return &scry_font_dosis_semibold_25; }
+static const lv_font_t* lvglFontClockBold()   { return &scry_font_dosis_semibold_32; }
+static const lv_font_t* lvglFontBigBold()     { return &scry_font_dosis_semibold_38; }
 
-static const lv_font_t* lvglFontScreenSaverBalloonText() { return &scry_font_funnel_display_18; }
-static const lv_font_t* lvglFontScreenSaverFooterText()  { return &scry_font_funnel_display_24; }
-static const lv_font_t* lvglFontScreenSaverTail()        { return &scry_font_funnel_display_16; }
+static const lv_font_t* lvglFontScreenSaverBalloonText() { return &scry_font_dosis_18; }
+static const lv_font_t* lvglFontScreenSaverFooterText()  { return &scry_font_dosis_24; }
+static const lv_font_t* lvglFontScreenSaverTail()        { return &scry_font_dosis_16; }
 
-static const lv_font_t* lvglNowPlayingTitleFont()  { return &scry_font_funnel_display_25; }
-static const lv_font_t* lvglNowPlayingBodyFont()   { return &scry_font_funnel_display_18; }
-static const lv_font_t* lvglNowPlayingArtistFont() { return &scry_font_funnel_display_23; }
-static const lv_font_t* lvglNowPlayingMetaFont()   { return &scry_font_funnel_display_16; }
+static const lv_font_t* lvglNowPlayingTitleFont()  { return &scry_font_dosis_semibold_25; }
+static const lv_font_t* lvglNowPlayingBodyFont()   { return &scry_font_dosis_18; }
+static const lv_font_t* lvglNowPlayingArtistFont() { return &scry_font_dosis_23; }
+static const lv_font_t* lvglNowPlayingMetaFont()   { return &scry_font_dosis_16; }
 
 static lv_coord_t lvglClockLineSpaceForFont(const lv_font_t *font) {
   if (!font) return 2;
@@ -13465,12 +13853,12 @@ static lv_coord_t lvglClockLineSpaceForFont(const lv_font_t *font) {
 static uint8_t lvglCollectClockFonts(const lv_font_t **out, uint8_t cap) {
   if (!out || cap == 0) return 0;
   uint8_t n = 0;
-  out[n++] = &scry_font_funnel_display_32;
-  if (n < cap) out[n++] = &scry_font_funnel_display_30;
-  if (n < cap) out[n++] = &scry_font_funnel_display_24;
-  if (n < cap) out[n++] = &scry_font_funnel_display_22;
-  if (n < cap) out[n++] = &scry_font_funnel_display_20;
-  if (n < cap) out[n++] = &scry_font_funnel_display_18;
+  out[n++] = &scry_font_dosis_32;
+  if (n < cap) out[n++] = &scry_font_dosis_30;
+  if (n < cap) out[n++] = &scry_font_dosis_24;
+  if (n < cap) out[n++] = &scry_font_dosis_22;
+  if (n < cap) out[n++] = &scry_font_dosis_20;
+  if (n < cap) out[n++] = &scry_font_dosis_18;
   return n;
 }
 
@@ -13652,30 +14040,30 @@ static void lvglBuildWrappedTitle(char *out, size_t outSize, const char *text,
 }
 
 static void lvglApplyThemeFonts() {
-  if (g_infoUi.title) lv_obj_set_style_text_font(g_infoUi.title, lvglFontSmall(), 0);
+  if (g_infoUi.title) lv_obj_set_style_text_font(g_infoUi.title, lvglFontHeaderTitle(), 0);
   if (g_infoUi.endpoint) lv_obj_set_style_text_font(g_infoUi.endpoint, lvglFontSmall(), 0);
   if (g_infoUi.bodyLeft) lv_obj_set_style_text_font(g_infoUi.bodyLeft, lvglFontInfoBody(), 0);
 
-  if (g_clockUi.date) lv_obj_set_style_text_font(g_clockUi.date, lvglFontSmall(), 0);
+  if (g_clockUi.date) lv_obj_set_style_text_font(g_clockUi.date, lvglFontHeaderTitle(), 0);
   if (g_clockUi.l1) lv_obj_set_style_text_font(g_clockUi.l1, lvglFontClock(), 0);
   if (g_clockUi.l2) lv_obj_set_style_text_font(g_clockUi.l2, lvglFontTitle(), 0);
   if (g_clockUi.l3) lv_obj_set_style_text_font(g_clockUi.l3, lvglFontTitle(), 0);
-  if (g_weatherUi.city) lv_obj_set_style_text_font(g_weatherUi.city, lvglFontSmall(), 0);
+  if (g_weatherUi.city) lv_obj_set_style_text_font(g_weatherUi.city, lvglFontHeaderTitle(), 0);
   if (g_weatherUi.sun) lv_obj_set_style_text_font(g_weatherUi.sun, lvglFontSmall(), 0);
   if (g_weatherUi.temp) lv_obj_set_style_text_font(g_weatherUi.temp, lvglFontTemp(), 0);
   if (g_weatherUi.glyph) lv_obj_set_style_text_font(g_weatherUi.glyph, lvglFontBig(), 0);
   if (g_weatherUi.desc) lv_obj_set_style_text_font(g_weatherUi.desc, lvglFontMeta(), 0);
   if (g_weatherUi.humidity) lv_obj_set_style_text_font(g_weatherUi.humidity, lvglFontMini(), 0);
   if (g_weatherUi.wind) lv_obj_set_style_text_font(g_weatherUi.wind, lvglFontTiny(), 0);
-  if (g_weatherUi.forecastNow) lv_obj_set_style_text_font(g_weatherUi.forecastNow, lvglFontSmall(), 0);
+  if (g_weatherUi.forecastNow) lv_obj_set_style_text_font(g_weatherUi.forecastNow, lvglFontSmallBold(), 0);
   if (g_weatherUi.forecastTomorrow) lv_obj_set_style_text_font(g_weatherUi.forecastTomorrow, lvglFontTiny(), 0);
-  if (g_nowPlayingUi.title) lv_obj_set_style_text_font(g_nowPlayingUi.title, lvglNowPlayingMetaFont(), 0);
+  if (g_nowPlayingUi.title) lv_obj_set_style_text_font(g_nowPlayingUi.title, lvglFontSmallBold(), 0);
   if (g_nowPlayingUi.status) lv_obj_set_style_text_font(g_nowPlayingUi.status, lvglNowPlayingMetaFont(), 0);
   if (g_nowPlayingUi.coverTop) lv_obj_set_style_text_font(g_nowPlayingUi.coverTop, lvglFontTiny(), 0);
   if (g_nowPlayingUi.coverBottom) lv_obj_set_style_text_font(g_nowPlayingUi.coverBottom, lvglFontSmall(), 0);
   if (g_nowPlayingUi.track) lv_obj_set_style_text_font(g_nowPlayingUi.track, lvglNowPlayingTitleFont(), 0);
   if (g_nowPlayingUi.artist) lv_obj_set_style_text_font(g_nowPlayingUi.artist, lvglNowPlayingArtistFont(), 0);
-  if (g_nowPlayingUi.album) lv_obj_set_style_text_font(g_nowPlayingUi.album, lvglFontTiny(), 0);
+  if (g_nowPlayingUi.album) lv_obj_set_style_text_font(g_nowPlayingUi.album, lvglNowPlayingBodyFont(), 0);
   if (g_nowPlayingUi.source) lv_obj_set_style_text_font(g_nowPlayingUi.source, lvglFontTiny(), 0);
   if (g_nowPlayingUi.progressElapsed) lv_obj_set_style_text_font(g_nowPlayingUi.progressElapsed, lvglFontTiny(), 0);
   if (g_nowPlayingUi.progressRemaining) lv_obj_set_style_text_font(g_nowPlayingUi.progressRemaining, lvglFontTiny(), 0);
@@ -13686,7 +14074,7 @@ static void lvglApplyThemeFonts() {
       if (d->nextFeedBtnText) lv_obj_set_style_text_font(d->nextFeedBtnText, lvglFontTiny(),    0);
       if (d->refreshBtnText)  lv_obj_set_style_text_font(d->refreshBtnText,  lvglFontTiny(),    0);
       if (d->qrBtnText)       lv_obj_set_style_text_font(d->qrBtnText,       lvglFontTiny(),    0);
-      if (d->title)           lv_obj_set_style_text_font(d->title,           lvglFontSmall(),   0);
+      if (d->title)           lv_obj_set_style_text_font(d->title,           lvglFontHeaderTitle(), 0);
       if (d->status)          lv_obj_set_style_text_font(d->status,          lvglFontTiny(),    0);
       if (d->sourceBadgeText) lv_obj_set_style_text_font(d->sourceBadgeText, lvglFontTiny(),    0);
       if (d->sourceSite)      lv_obj_set_style_text_font(d->sourceSite,      lvglFontMeta(),    0);
@@ -13713,7 +14101,7 @@ static void lvglApplyThemeFonts() {
   if (g_clockUi.l1) lvglApplyClockSentenceAutoFit(lv_label_get_text(g_clockUi.l1));
 
   // Transit fonts
-  if (g_transitUi.title)   lv_obj_set_style_text_font(g_transitUi.title,   lvglFontSmall(), 0);
+  if (g_transitUi.title)   lv_obj_set_style_text_font(g_transitUi.title,   lvglFontHeaderTitle(), 0);
   if (g_transitUi.station) lv_obj_set_style_text_font(g_transitUi.station, lvglFontSmall(), 0);
   if (g_transitUi.status)  lv_obj_set_style_text_font(g_transitUi.status,  lvglFontTiny(),  0);
   if (g_transitUi.noData)  lv_obj_set_style_text_font(g_transitUi.noData,  lvglFontSmall(), 0);
@@ -13734,8 +14122,36 @@ static const char* weatherGlyphText(int code, bool isDay) {
   return LV_SYMBOL_UPLOAD;
 }
 
-static const lv_img_dsc_t* weatherImageFromCode(int code, bool isDay) {
-#if DB_HAS_LVGL_WEATHER_IMAGES
+static uint8_t weatherMeteoconIdFromCode(int code, bool isDay) {
+#if DB_HAS_LVGL_METEOCONS
+  if (code == 0) return isDay ? METEOCON_CLEAR_DAY : METEOCON_CLEAR_NIGHT;
+  if (code == 1) return isDay ? METEOCON_MOSTLY_CLEAR_DAY : METEOCON_MOSTLY_CLEAR_NIGHT;
+  if (code == 2) return isDay ? METEOCON_PARTLY_CLOUDY_DAY : METEOCON_PARTLY_CLOUDY_NIGHT;
+  if (code == 3) return METEOCON_OVERCAST;
+  if (code == 45 || code == 48) return isDay ? METEOCON_FOG_DAY : METEOCON_FOG_NIGHT;
+  if (code >= 51 && code <= 55) return METEOCON_DRIZZLE;
+  if (code == 56 || code == 57 || code == 66 || code == 67) return METEOCON_SLEET;
+  if (code == 61 || code == 63 || code == 80 || code == 81) return METEOCON_RAIN;
+  if (code == 65 || code == 82) return METEOCON_EXTREME_RAIN;
+  if (code == 71 || code == 73 || code == 77 || code == 85) return METEOCON_SNOW;
+  if (code == 75 || code == 86) return METEOCON_EXTREME_SNOW;
+  if (code == 96 || code == 99) {
+    return isDay ? METEOCON_THUNDERSTORMS_DAY_HAIL : METEOCON_THUNDERSTORMS_NIGHT_HAIL;
+  }
+  if (code >= 95) return isDay ? METEOCON_THUNDERSTORMS_DAY : METEOCON_THUNDERSTORMS_NIGHT;
+  return isDay ? METEOCON_PARTLY_CLOUDY_DAY : METEOCON_PARTLY_CLOUDY_NIGHT;
+#else
+  (void)code;
+  (void)isDay;
+  return 0;
+#endif
+}
+
+static const lv_img_dsc_t* weatherImageFromCode(int code, bool isDay, uint8_t frame = 0) {
+#if DB_HAS_LVGL_METEOCONS
+  const uint8_t iconId = weatherMeteoconIdFromCode(code, isDay);
+  return METEOCON_FRAMES[iconId][frame % METEOCON_FRAME_COUNT];
+#elif DB_HAS_LVGL_WEATHER_IMAGES
   if (code >= 95) return &image_weather_thunder;
   if (code >= 71 && code <= 77) return &image_weather_snow;
   if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return &image_weather_rain;
@@ -13749,7 +14165,10 @@ static const lv_img_dsc_t* weatherImageFromCode(int code, bool isDay) {
 }
 
 static const lv_img_dsc_t* weatherForecastImageFromCode(int code, bool isDay) {
-#if DB_HAS_LVGL_WEATHER_MIN_IMAGES
+#if DB_HAS_LVGL_METEOCONS
+  const uint8_t iconId = weatherMeteoconIdFromCode(code, isDay);
+  return METEOCON_FORECASTS[iconId];
+#elif DB_HAS_LVGL_WEATHER_MIN_IMAGES
   if (code >= 95) return &image_weather_min_thunder;
   if (code >= 71 && code <= 77) return &image_weather_min_snow;
   if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return &image_weather_min_rain;
@@ -13764,9 +14183,15 @@ static const char* utf8Degree() {
   return "\xC2\xB0";
 }
 
-static void lvglIconFloatAnimCb(void *obj, int32_t v) {
-  if (!obj) return;
-  lv_obj_set_style_translate_y((lv_obj_t*)obj, v, LV_PART_MAIN);
+static void lvglMeteoconFrameTimerCb(lv_timer_t *timer) {
+  (void)timer;
+#if DB_HAS_LVGL_METEOCONS
+  if (!g_weatherUi.icon || g_uiPageMode != UI_PAGE_HOME ||
+      lv_obj_has_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN)) return;
+  g_weatherUi.iconFrame = (uint8_t)((g_weatherUi.iconFrame + 1) % METEOCON_FRAME_COUNT);
+  const uint8_t iconId = (g_weatherUi.iconId < METEOCON_ICON_COUNT) ? g_weatherUi.iconId : 0;
+  lv_img_set_src(g_weatherUi.icon, METEOCON_FRAMES[iconId][g_weatherUi.iconFrame]);
+#endif
 }
 
 static void lvglCenterClockSentenceLabel() {
@@ -14238,7 +14663,7 @@ static void lvglInitTransitUi() {
 
   g_transitUi.title = lv_label_create(g_transitUi.header);
   lv_obj_set_style_text_color(g_transitUi.title, lv_color_hex(headerTxt), LV_PART_MAIN);
-  lv_obj_set_style_text_font(g_transitUi.title, lvglFontSmall(), 0);
+  lv_obj_set_style_text_font(g_transitUi.title, lvglFontHeaderTitle(), 0);
   lv_label_set_text(g_transitUi.title, "TIMETABLE");
   lv_obj_align(g_transitUi.title, LV_ALIGN_LEFT_MID, 8, 2);
 
@@ -14257,7 +14682,7 @@ static void lvglInitTransitUi() {
   // Departure rows — r247 layout (640px wide, 35px per row):
   //  [ 4.. 85]  badge "S30" / "Elizabeth" (82×30) — pill BUS/TRAM/COACH, rect rail
   //             label scrolls (LV_LABEL_LONG_SCROLL) when name > badge width
-  //  [90..337]  destination   (248px, 22px Funnel Display, LV_LABEL_LONG_DOT)
+  //  [90..337]  destination   (248px, 22px Dosis, LV_LABEL_LONG_DOT)
   //  [344..413] dep time      (70px, 20px, right-aligned "HH:MM")
   //  [418..499] arr time      (82px, 18px, ">HH:MM" or ">---")
   //  [504..553] delay         (50px, 14px, semaphore color)
@@ -14311,7 +14736,7 @@ static void lvglInitTransitUi() {
     // Badge label: fixed size so LV_LABEL_LONG_SCROLL clips & scrolls long names
     g_transitUi.line_[i] = lv_label_create(g_transitUi.lineBg[i]);
     lv_obj_set_size(g_transitUi.line_[i], badgeW - 6, badgeH - 4);   // 76×26 clip area
-    lv_obj_align(g_transitUi.line_[i], LV_ALIGN_CENTER, 0, 3);  // +3 Funnel Display ascender
+    lv_obj_align(g_transitUi.line_[i], LV_ALIGN_CENTER, 0, 3);  // +3 Dosis ascender
     lv_obj_set_style_text_color(g_transitUi.line_[i], lv_color_hex(0xFFFFFF), LV_PART_MAIN);
     lv_obj_set_style_text_font(g_transitUi.line_[i], lvglFontMeta(), 0);  // 20px default
     lv_obj_set_style_text_align(g_transitUi.line_[i], LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
@@ -14414,7 +14839,7 @@ static void lvglInitLaunchUi() {
 
   g_launchUi.title = lv_label_create(g_launchUi.header);
   lv_label_set_text(g_launchUi.title, "LAUNCHES");
-  lv_obj_set_style_text_font(g_launchUi.title, lvglFontSmall(), 0);
+  lv_obj_set_style_text_font(g_launchUi.title, lvglFontHeaderTitle(), 0);
   lvglSetTextHex(g_launchUi.title, headerTxt);
   lv_obj_align(g_launchUi.title, LV_ALIGN_LEFT_MID, 8, 2);
 
@@ -14989,7 +15414,7 @@ static void lvglInitMacStatsUi() {
   const uint32_t panelBg  = lvglResolvedPanelBg(t);
   const uint32_t headerBg = lvglResolvedHeaderBg(t);
   const uint32_t headerTx = lvglResolvedHeaderText(t);
-  const lv_coord_t hdrH   = 24;
+  const lv_coord_t hdrH   = 28;
   const lv_coord_t contentH = cH - hdrH;              // 148
   const lv_coord_t row1H    = contentH / 2;            // 74
   const lv_coord_t row2H    = contentH - row1H;        // 74
@@ -15013,7 +15438,7 @@ static void lvglInitMacStatsUi() {
   lv_obj_set_style_pad_all(g_macStatsUi.headerFill, 0, LV_PART_MAIN);
 
   g_macStatsUi.title = lv_label_create(g_macStatsUi.headerFill);
-  lv_obj_set_style_text_font(g_macStatsUi.title, lvglFontSmallBold(), 0);
+  lv_obj_set_style_text_font(g_macStatsUi.title, lvglFontHeaderTitle(), 0);
   lv_obj_set_style_text_color(g_macStatsUi.title, lv_color_hex(headerTx), LV_PART_MAIN);
   lv_label_set_text(g_macStatsUi.title, "MAC STATS");
   lv_obj_align(g_macStatsUi.title, LV_ALIGN_LEFT_MID, 8, 0);
@@ -15481,6 +15906,247 @@ static void lvglUpdateMacStatsUi(bool force) {
 
 // ── End Mac Stats Page LVGL ───────────────────────────────────────────────
 
+static void lvglInitBambuUi() {
+  if (!g_lvglBambuRoot) return;
+  const UiThemeLvglTokens &t = activeUiTheme().lvgl;
+  const uint32_t panelBg = 0x000000;
+  const uint32_t headerBg = lvglResolvedHeaderBg(t);
+  const uint32_t primaryText = 0xFFFFFF;
+  const uint32_t secondaryText = 0xB8B8B8;
+  const uint32_t bambuAccent = 0x00FF00;
+  const uint32_t tileBg = 0x101010;
+  const uint32_t tileBorder = 0x303030;
+  lvglSetBgFlat(g_lvglBambuRoot, panelBg);
+  lv_obj_set_style_bg_opa(g_lvglBambuRoot, LV_OPA_COVER, LV_PART_MAIN);
+
+  auto makeLabel = [&](lv_obj_t *parent, const char *text, const lv_font_t *font,
+                       uint32_t color, int x, int y, int w) -> lv_obj_t* {
+    lv_obj_t *label = lv_label_create(parent);
+    lv_label_set_text(label, text);
+    lv_obj_set_style_text_font(label, font, 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(color), LV_PART_MAIN);
+    lv_obj_set_pos(label, x, y);
+    lv_obj_set_width(label, w);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+    return label;
+  };
+
+  g_bambuPrintUi.header = lv_obj_create(g_lvglBambuRoot);
+  lv_obj_set_size(g_bambuPrintUi.header, canvasWidth(), 30);
+  lv_obj_set_pos(g_bambuPrintUi.header, 0, 0);
+  lv_obj_set_style_bg_color(g_bambuPrintUi.header, lv_color_hex(headerBg), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_bambuPrintUi.header, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(g_bambuPrintUi.header, 0, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_bambuPrintUi.header, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(g_bambuPrintUi.header, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_bambuPrintUi.header, LV_OBJ_FLAG_SCROLLABLE);
+
+  g_bambuPrintUi.title = makeLabel(g_bambuPrintUi.header, "BAMBU LAB", lvglFontHeaderTitle(),
+                                   t.headerText, 10, 3, 180);
+  g_bambuPrintUi.stage = makeLabel(g_bambuPrintUi.header, "Waiting for Companion", lvglFontTiny(),
+                                   primaryText, 132, 4, 210);
+  lv_obj_set_height(g_bambuPrintUi.stage, 22);
+  lvglStyleBambuHeaderBadge(g_bambuPrintUi.stage, primaryText);
+  g_bambuPrintUi.statusDot = lvglCreatePanel(g_bambuPrintUi.header, 8, 8, 0, 0,
+                                             lv_color_hex(0x666666), 4);
+  lv_obj_align(g_bambuPrintUi.statusDot, LV_ALIGN_RIGHT_MID, -12, 0);
+  lv_obj_set_style_border_width(g_bambuPrintUi.statusDot, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(g_bambuPrintUi.statusDot, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(g_bambuPrintUi.statusDot, LV_OPA_80, LV_PART_MAIN);
+  g_bambuPrintUi.status = makeLabel(g_bambuPrintUi.header, "OFFLINE", lvglFontTiny(),
+                                    0xA8B0B8, 508, 4, 122);
+  lv_obj_set_height(g_bambuPrintUi.status, 22);
+  lvglStyleBambuHeaderBadge(g_bambuPrintUi.status, 0xA8B0B8);
+  lv_obj_set_style_pad_right(g_bambuPrintUi.status, 24, LV_PART_MAIN);
+  lv_obj_set_style_text_align(g_bambuPrintUi.status, LV_TEXT_ALIGN_RIGHT, 0);
+
+  g_bambuPrintUi.progressArc = lv_arc_create(g_lvglBambuRoot);
+  // Centre within the body below the 30 px navbar, retaining 8 px of real
+  // breathing room above and below the ring: body y=30..171, centre y=101.
+  lv_obj_set_size(g_bambuPrintUi.progressArc, 126, 126);
+  lv_obj_set_pos(g_bambuPrintUi.progressArc, 20, 38);
+  lv_arc_set_rotation(g_bambuPrintUi.progressArc, 270);
+  lv_arc_set_bg_angles(g_bambuPrintUi.progressArc, 0, 360);
+  lv_arc_set_range(g_bambuPrintUi.progressArc, 0, 100);
+  lv_arc_set_value(g_bambuPrintUi.progressArc, 0);
+  lv_obj_set_style_arc_width(g_bambuPrintUi.progressArc, 12, LV_PART_MAIN);
+  lv_obj_set_style_arc_width(g_bambuPrintUi.progressArc, 12, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_color(g_bambuPrintUi.progressArc, lv_color_hex(0x343434), LV_PART_MAIN);
+  lv_obj_set_style_arc_color(g_bambuPrintUi.progressArc, lv_color_hex(bambuAccent), LV_PART_INDICATOR);
+  lv_obj_set_style_arc_rounded(g_bambuPrintUi.progressArc, true, LV_PART_INDICATOR);
+  lv_obj_set_style_bg_opa(g_bambuPrintUi.progressArc, LV_OPA_TRANSP, LV_PART_KNOB);
+  lv_obj_set_style_pad_all(g_bambuPrintUi.progressArc, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(g_bambuPrintUi.progressArc, LV_OBJ_FLAG_CLICKABLE);
+
+  g_bambuPrintUi.progress = makeLabel(g_lvglBambuRoot, "--%", lvglFontBigBold(),
+                                      primaryText, 20, 77, 126);
+  lv_obj_set_style_text_align(g_bambuPrintUi.progress, LV_TEXT_ALIGN_CENTER, 0);
+
+  auto makeTile = [&](uint8_t index, int x, int y, const char *caption,
+                      lv_obj_t *&valueOut, bool withDot = false) {
+    lv_obj_t *tile = lvglCreatePanel(g_lvglBambuRoot, 111, 55, x, y,
+                                     lv_color_hex(tileBg), 7);
+    lv_obj_set_style_border_width(tile, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(tile, lv_color_hex(tileBorder), LV_PART_MAIN);
+    g_bambuPrintUi.tileBg[index] = tile;
+    makeLabel(tile, caption, lvglFontSmallBold(), bambuAccent, 8, 0, 95);
+    if (withDot) {
+      g_bambuPrintUi.filamentDot = lvglCreatePanel(tile, 9, 9, 8, 34,
+                                                   lv_color_hex(0xFFFFFF), 5);
+      lv_obj_set_style_border_width(g_bambuPrintUi.filamentDot, 1, LV_PART_MAIN);
+      lv_obj_set_style_border_color(g_bambuPrintUi.filamentDot, lv_color_hex(0x888888), LV_PART_MAIN);
+      valueOut = makeLabel(tile, "--", lvglFontSmall(), primaryText, 23, 27, 80);
+    } else {
+      valueOut = makeLabel(tile, "--", lvglFontSmall(), primaryText, 8, 27, 95);
+    }
+  };
+
+  makeTile(0, 166, 36, "Nozzle", g_bambuPrintUi.nozzle);
+  makeTile(1, 283, 36, "Bed", g_bambuPrintUi.bed);
+  makeTile(2, 400, 36, "Ends", g_bambuPrintUi.remaining);
+  makeTile(3, 517, 36, "Layer", g_bambuPrintUi.layer);
+  makeTile(4, 166, 94, "Chamber", g_bambuPrintUi.chamber);
+  makeTile(5, 283, 94, "Filament", g_bambuPrintUi.filament, true);
+  makeTile(6, 400, 94, "Speed", g_bambuPrintUi.speed);
+  makeTile(7, 517, 94, "Fans", g_bambuPrintUi.fans);
+
+  g_bambuPrintUi.alert = makeLabel(g_lvglBambuRoot, "", lvglFontSmall(),
+                                   bambuAccent, 166, 149, 462);
+  lv_obj_set_height(g_bambuPrintUi.alert, 23);
+  lv_label_set_recolor(g_bambuPrintUi.alert, true);
+  g_bambuPrintUi.noData = makeLabel(g_lvglBambuRoot,
+      "Open ScryBar Companion > Settings > Bambu Lab printer",
+      lvglFontSmall(), secondaryText, 70, 84, 500);
+  lv_obj_set_style_text_align(g_bambuPrintUi.noData, LV_TEXT_ALIGN_CENTER, 0);
+}
+
+static void lvglUpdateBambuUi(bool force) {
+  (void)force;
+  if (!g_lvglBambuRoot) return;
+  const BambuPrintState &s = g_bambuPrint;
+  const bool fresh = s.valid && (millis() - s.receivedAtMs) < 120000UL;
+  const bool live = fresh && s.connected;
+  auto setVisible = [](lv_obj_t *obj, bool visible) {
+    if (!obj) return;
+    if (visible) lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+  };
+
+  lv_obj_t *dataObjects[] = {
+    g_bambuPrintUi.progressArc, g_bambuPrintUi.progress,
+    g_bambuPrintUi.tileBg[0], g_bambuPrintUi.tileBg[1], g_bambuPrintUi.tileBg[2],
+    g_bambuPrintUi.tileBg[3], g_bambuPrintUi.tileBg[4], g_bambuPrintUi.tileBg[5],
+    g_bambuPrintUi.tileBg[6], g_bambuPrintUi.tileBg[7], g_bambuPrintUi.alert,
+  };
+  for (lv_obj_t *obj : dataObjects) setVisible(obj, live);
+  setVisible(g_bambuPrintUi.noData, !live);
+
+  uint32_t statusColor = 0xA8B0B8;
+  if (live) {
+    const bool alert = s.errorCode != 0 || s.hmsCount > 0 ||
+                       strcmp(s.status, "FAILED") == 0 || strcmp(s.status, "ERROR") == 0;
+    const bool paused = strcmp(s.status, "PAUSE") == 0 || strcmp(s.status, "PAUSED") == 0;
+    statusColor = alert ? 0xFF3333 : paused ? 0xFFA500 : 0x00FF00;
+  }
+  if (g_bambuPrintUi.statusDot)
+    lv_obj_set_style_bg_color(g_bambuPrintUi.statusDot, lv_color_hex(statusColor), LV_PART_MAIN);
+  if (g_bambuPrintUi.status) {
+    lv_label_set_text(g_bambuPrintUi.status, live ? (s.status[0] ? s.status : "ONLINE") : "OFFLINE");
+    lv_obj_set_style_text_color(g_bambuPrintUi.status, lv_color_hex(statusColor), LV_PART_MAIN);
+  }
+  if (g_bambuPrintUi.stage) {
+    lv_label_set_text(g_bambuPrintUi.stage,
+      live ? (s.stage[0] ? s.stage : "Printer online") : "Waiting for Companion");
+  }
+  if (!live) {
+    if (g_bambuPrintUi.noData) {
+      lv_label_set_text(g_bambuPrintUi.noData,
+        s.valid ? "Bambu printer offline - companion will reconnect"
+                : "Open ScryBar Companion > Settings > Bambu Lab printer");
+    }
+    return;
+  }
+
+  char buf[192];
+  snprintf(buf, sizeof(buf), "%d%%", s.progressPercent);
+  lv_label_set_text(g_bambuPrintUi.progress, buf);
+  lv_obj_set_style_text_color(g_bambuPrintUi.progress, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+  lv_arc_set_value(g_bambuPrintUi.progressArc, s.progressPercent);
+  lv_obj_set_style_arc_color(g_bambuPrintUi.progressArc, lv_color_hex(0x00FF00), LV_PART_INDICATOR);
+  const bool finished = strcmp(s.status, "FINISH") == 0 || strcmp(s.status, "FINISHED") == 0 ||
+                        strcmp(s.status, "COMPLETED") == 0;
+  if (finished) {
+    lv_label_set_text(g_bambuPrintUi.remaining, "DONE");
+  } else {
+    struct tm nowTm;
+    if (s.remainingMinutes > 0 && getLocalTime(&nowTm, 5)) {
+      const int endMinutes = (nowTm.tm_hour * 60 + nowTm.tm_min + s.remainingMinutes) % (24 * 60);
+      snprintf(buf, sizeof(buf), "%02d:%02d", endMinutes / 60, endMinutes % 60);
+    } else {
+      snprintf(buf, sizeof(buf), "%dh%02d", s.remainingMinutes / 60, s.remainingMinutes % 60);
+    }
+    lv_label_set_text(g_bambuPrintUi.remaining, buf);
+  }
+
+  snprintf(buf, sizeof(buf), "%d/%d", s.currentLayer, s.totalLayers);
+  lv_label_set_text(g_bambuPrintUi.layer, buf);
+  snprintf(buf, sizeof(buf), "%.0f/%.0f C", s.nozzleTempC, s.nozzleTargetC);
+  lv_label_set_text(g_bambuPrintUi.nozzle, buf);
+  snprintf(buf, sizeof(buf), "%.0f/%.0f C", s.bedTempC, s.bedTargetC);
+  lv_label_set_text(g_bambuPrintUi.bed, buf);
+  snprintf(buf, sizeof(buf), "%.0f C", s.chamberTempC);
+  lv_label_set_text(g_bambuPrintUi.chamber, buf);
+  lv_label_set_text(g_bambuPrintUi.filament,
+                    s.activeFilamentLabel[0] ? s.activeFilamentLabel : "--");
+  if (g_bambuPrintUi.filamentDot) {
+    const char *hex = s.activeFilamentColorHex;
+    if (hex[0] == '#') ++hex;
+    const uint32_t filamentColor = strlen(hex) >= 6 ? strtoul(hex, nullptr, 16) >> (strlen(hex) >= 8 ? 8 : 0) : 0xFFFFFF;
+    lv_obj_set_style_bg_color(g_bambuPrintUi.filamentDot, lv_color_hex(filamentColor), LV_PART_MAIN);
+  }
+  snprintf(buf, sizeof(buf), "%d%%", s.speedPercent > 0 ? s.speedPercent : 0);
+  lv_label_set_text(g_bambuPrintUi.speed, buf);
+  snprintf(buf, sizeof(buf), "P%d A%d", max(0, s.coolingFanPercent), max(0, s.auxiliaryFanPercent));
+  lv_label_set_text(g_bambuPrintUi.fans, buf);
+  if (s.errorCode != 0 || s.hmsCount > 0) {
+    snprintf(buf, sizeof(buf), "ATTENTION  error=%d  HMS=%d", s.errorCode, s.hmsCount);
+    lv_label_set_text(g_bambuPrintUi.alert, buf);
+    lv_obj_set_style_text_color(g_bambuPrintUi.alert, lv_color_hex(0xFF3333), LV_PART_MAIN);
+  } else {
+    const uint8_t telemetryPage = (millis() / 5000UL) % 3U;
+    if (telemetryPage == 0U) {
+      const char *sensor = s.filamentSensorState < 0 ? "--" : (s.filamentSensorState > 0 ? "OK" : "EMPTY");
+      char remain[8], humidity[8];
+      if (s.activeFilamentRemainingPercent >= 0) snprintf(remain, sizeof(remain), "%d", s.activeFilamentRemainingPercent);
+      else copyStringSafe(remain, sizeof(remain), "--");
+      if (s.amsHumidityPercent >= 0) snprintf(humidity, sizeof(humidity), "%d", s.amsHumidityPercent);
+      else copyStringSafe(humidity, sizeof(humidity), "--");
+      snprintf(buf, sizeof(buf),
+               "AMS #FFFFFF %s%% left | #RH #FFFFFF %s%% | #TEMP #FFFFFF %.0fC | #SENSOR #FFFFFF %s#",
+               remain, humidity, s.amsTemperatureC, sensor);
+    } else if (telemetryPage == 1U) {
+      char speed[8], heatbreak[8], aux[8], chamber[8];
+      if (s.speedPercent > 0) snprintf(speed, sizeof(speed), "%d", s.speedPercent); else copyStringSafe(speed, sizeof(speed), "--");
+      if (s.heatbreakFanPercent >= 0) snprintf(heatbreak, sizeof(heatbreak), "%d", s.heatbreakFanPercent); else copyStringSafe(heatbreak, sizeof(heatbreak), "--");
+      if (s.auxiliaryFanPercent >= 0) snprintf(aux, sizeof(aux), "%d", s.auxiliaryFanPercent); else copyStringSafe(aux, sizeof(aux), "--");
+      if (s.chamberFanPercent >= 0) snprintf(chamber, sizeof(chamber), "%d", s.chamberFanPercent); else copyStringSafe(chamber, sizeof(chamber), "--");
+      snprintf(buf, sizeof(buf),
+               "WI-FI #FFFFFF %s | #HB #FFFFFF %s%% | #AUX #FFFFFF %s%% | #CASE #FFFFFF %s%%#",
+               s.wifiSignal[0] ? s.wifiSignal : "--", heatbreak, aux, chamber);
+    } else {
+      snprintf(buf, sizeof(buf),
+               "FILE #FFFFFF %.22s | #TYPE #FFFFFF %.8s | #FIL #FFFFFF %.0fg / %.1fm#",
+               s.gcodeFile[0] ? s.gcodeFile : "--",
+               s.printType[0] ? s.printType : "--",
+               s.estimatedFilamentWeightG, s.estimatedFilamentLengthMm / 1000.0f);
+    }
+    lv_label_set_text(g_bambuPrintUi.alert, buf);
+    lv_obj_set_style_text_color(g_bambuPrintUi.alert, lv_color_hex(0x00FF00), LV_PART_MAIN);
+  }
+}
+
+// ── End Bambu Print Page LVGL ────────────────────────────────────────────
+
 static void lvglUpdateTransitUi(bool force) {
   (void)force;
   if (!g_lvglTransitRoot) return;
@@ -15708,6 +16374,7 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
   lv_anim_del(g_lvglNowPlayingRoot, lvglSetObjXAnim);
   if (g_lvglTransitRoot) lv_anim_del(g_lvglTransitRoot, lvglSetObjXAnim);
   if (g_lvglMacStatsRoot) lv_anim_del(g_lvglMacStatsRoot, lvglSetObjXAnim);
+  if (g_lvglBambuRoot) lv_anim_del(g_lvglBambuRoot, lvglSetObjXAnim);
   g_pageAnim.untilMs = 0;
   g_pageAnim.dragActive = true;
 
@@ -15720,6 +16387,7 @@ static bool lvglApplyPageDrag(int16_t dragDx) {
     {UI_PAGE_TRANSIT,     g_lvglTransitRoot},
     {UI_PAGE_LAUNCH,      g_lvglLaunchRoot},
     {UI_PAGE_MAC_STATS,   g_lvglMacStatsRoot},
+    {UI_PAGE_BAMBU,       g_lvglBambuRoot},
   };
   for (auto &p : pages) {
     if (!p.root) continue;
@@ -15760,6 +16428,7 @@ static void lvglApplyPageVisibility(bool animate) {
     lv_obj_add_flag(g_lvglNowPlayingRoot, LV_OBJ_FLAG_HIDDEN);
     if (g_lvglLaunchRoot) lv_obj_add_flag(g_lvglLaunchRoot, LV_OBJ_FLAG_HIDDEN);
     if (g_lvglMacStatsRoot) lv_obj_add_flag(g_lvglMacStatsRoot, LV_OBJ_FLAG_HIDDEN);
+    if (g_lvglBambuRoot) lv_obj_add_flag(g_lvglBambuRoot, LV_OBJ_FLAG_HIDDEN);
     g_pageAnim.dragActive = false;
     g_pageAnim.untilMs = 0;
     return;
@@ -15788,6 +16457,7 @@ static void lvglApplyPageVisibility(bool animate) {
     {g_lvglTransitRoot,    UI_PAGE_TRANSIT,     0},
     {g_lvglLaunchRoot,     UI_PAGE_LAUNCH,      0},
     {g_lvglMacStatsRoot,   UI_PAGE_MAC_STATS,   0},
+    {g_lvglBambuRoot,       UI_PAGE_BAMBU,       0},
   };
   constexpr size_t kSlotCount = sizeof(slots) / sizeof(slots[0]);
   for (size_t i = 0; i < kSlotCount; ++i) {
@@ -16313,7 +16983,7 @@ static void lvglInitFeedDeck(FeedDeckUi &d, lv_obj_t *root, bool isWiki) {
   const int16_t sidebarGap = 4;
 
   d.title = lv_label_create(d.header);
-  lv_obj_set_style_text_font(d.title, lvglFontSmall(), 0);
+  lv_obj_set_style_text_font(d.title, lvglFontHeaderTitle(), 0);
   {
     const uint32_t hdrTxt = activeUiTheme().lvgl.headerText;
     lv_obj_set_style_text_color(d.title, lv_color_hex(hdrTxt), 0);
@@ -16453,7 +17123,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   const UiThemeLvglTokens &theme = activeUiTheme().lvgl;
   const int16_t cW = canvasWidth();
   const int16_t cH = canvasHeight();
-  const int16_t headerH = 22;
+  const int16_t headerH = 24;
   const int16_t coverGapRight = 18;
   const int16_t rightPad = 10;
   const int16_t bodyTop = headerH;
@@ -16473,7 +17143,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_style_bg_opa(ui.headerFill, LV_OPA_20, LV_PART_MAIN);
 
   ui.title = lv_label_create(ui.header);
-  lv_obj_set_style_text_font(ui.title, lvglNowPlayingMetaFont(), 0);
+  lv_obj_set_style_text_font(ui.title, lvglFontSmallBold(), 0);
   lv_obj_set_style_text_color(ui.title, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
   lv_obj_align(ui.title, LV_ALIGN_LEFT_MID, 8, 0);
   lv_label_set_text(ui.title, "Now Playing");
@@ -16506,6 +17176,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
 
   ui.coverImage = lv_img_create(ui.cover);
   lv_img_set_src(ui.coverImage, &kNowPlayingRealCover150);
+  lv_img_set_zoom(ui.coverImage, (uint16_t)((coverSize * 256) / 150));
   lv_obj_center(ui.coverImage);
   lv_obj_clear_flag(ui.coverImage, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -16536,7 +17207,7 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lv_obj_set_style_text_color(ui.track, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
   lv_obj_set_style_text_line_space(ui.track, 0, 0);
   lv_label_set_long_mode(ui.track, LV_LABEL_LONG_WRAP);
-  lv_obj_set_size(ui.track, textW, 60);
+  lv_obj_set_size(ui.track, textW, 62);
   lv_obj_set_pos(ui.track, contentX, bodyTop + 10);
   lv_label_set_text(ui.track, "");
   lvglForceLabelVisible(ui.track);
@@ -16552,11 +17223,12 @@ static void lvglInitNowPlayingUi(NowPlayingUi &ui, lv_obj_t *root) {
   lvglForceLabelVisible(ui.artist);
 
   ui.album = lv_label_create(ui.card);
-  lv_obj_set_style_text_font(ui.album, lvglFontTiny(), 0);
-  lv_obj_set_style_text_color(ui.album, lv_color_hex(0xFFE5A8), 0);
+  lv_obj_set_style_text_font(ui.album, lvglNowPlayingBodyFont(), 0);
+  lv_obj_set_style_text_color(ui.album, lv_color_hex(activeUiTheme().lvgl.auxText), 0);
+  lv_obj_set_style_text_opa(ui.album, LV_OPA_70, 0);
   lv_label_set_long_mode(ui.album, LV_LABEL_LONG_DOT);
-  lv_obj_set_size(ui.album, textW, 12);
-  lv_obj_set_pos(ui.album, contentX, cH - 18);
+  lv_obj_set_size(ui.album, textW, 22);
+  lv_obj_set_pos(ui.album, contentX, bodyTop + 112);
   lv_label_set_text(ui.album, "");
   lv_obj_add_flag(ui.album, LV_OBJ_FLAG_HIDDEN);
 
@@ -16695,6 +17367,7 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
     lv_obj_set_style_text_color(ui.status, lv_color_hex(primaryText), 0);
     lv_obj_set_style_text_color(ui.track, lv_color_hex(primaryText), 0);
     lv_obj_set_style_text_color(ui.artist, lv_color_hex(primaryText), 0);
+    lv_obj_set_style_text_color(ui.album, lv_color_hex(primaryText), 0);
     lv_obj_set_style_bg_color(ui.progressRail, lv_color_hex(railBg), LV_PART_MAIN);
     lv_obj_set_style_border_color(ui.progressRail, lv_color_hex(bgIsDark ? lvglDarkenRgb(railBg, 20) : lvglLightenRgb(railBg, 20)), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.progressFill, lv_color_hex(primaryText), LV_PART_MAIN);
@@ -16724,17 +17397,31 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   lvglBuildWrappedTitle(wrappedTitle, sizeof(wrappedTitle), trackTitle, lvglNowPlayingTitleFont(),
                         titleMeasureW, 2);
   lv_label_set_text(ui.track, wrappedTitle);
+  const uint8_t titleLineCount = strchr(wrappedTitle, '\n') ? 2U : 1U;
+  const lv_coord_t renderedTitleH =
+      (lv_coord_t)(lvglNowPlayingTitleFont()->line_height * titleLineCount);
+  lv_obj_set_height(ui.track, renderedTitleH);
   lv_obj_update_layout(ui.track);
   lv_obj_set_style_text_font(ui.artist, lvglNowPlayingArtistFont(), 0);
   lv_label_set_text(ui.artist, trackArtist);
   lv_obj_update_layout(ui.artist);
 
   const lv_coord_t trackY = lv_obj_get_y(ui.track);
-  const lv_coord_t trackBottom = (lv_coord_t)(trackY + lv_obj_get_height(ui.track));
-  const lv_coord_t desiredArtistY = (lv_coord_t)(trackBottom + 14);
+  const lv_coord_t trackBottom = (lv_coord_t)(trackY + renderedTitleH);
+  const lv_coord_t desiredArtistY = (lv_coord_t)(trackBottom + 8);
   const lv_coord_t maxArtistY = (lv_coord_t)(lv_obj_get_height(ui.card) - lv_obj_get_height(ui.artist) - 10);
   const lv_coord_t artistY = (desiredArtistY <= maxArtistY) ? desiredArtistY : maxArtistY;
   lv_obj_set_y(ui.artist, artistY);
+
+  const char *trackAlbum = useLive ? g_liveNowPlaying.album : coverTrack.album;
+  if (trackAlbum && trackAlbum[0]) {
+    lv_label_set_text(ui.album, trackAlbum);
+    lv_obj_set_y(ui.album, (lv_coord_t)(artistY + lv_obj_get_height(ui.artist) + 4));
+    lv_obj_clear_flag(ui.album, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_label_set_text(ui.album, "");
+    lv_obj_add_flag(ui.album, LV_OBJ_FLAG_HIDDEN);
+  }
 
   // Show total duration only in header — progress bar handles position visually
   if (durationRaw > 0) {
@@ -16745,6 +17432,9 @@ static void lvglUpdateNowPlayingUi(NowPlayingUi &ui, bool force) {
   } else {
     lv_label_set_text(ui.headerTime, "");
   }
+  lv_obj_update_layout(ui.status);
+  lv_obj_update_layout(ui.headerTime);
+  lv_obj_align_to(ui.headerTime, ui.status, LV_ALIGN_OUT_LEFT_MID, -10, 0);
 
   const lv_coord_t railW = lv_obj_get_width(ui.progressRail);
   lv_coord_t fillW = (lv_coord_t)((railW * (int32_t)elapsedSec) / durationSec);
@@ -16824,7 +17514,7 @@ static void initLvglInfoPanel(lv_obj_t* scr) {
   lv_obj_set_scrollbar_mode(g_infoUi.headerFill, LV_SCROLLBAR_MODE_OFF);
 
   g_infoUi.title = lv_label_create(g_infoUi.header);
-  lv_obj_set_style_text_font(g_infoUi.title, lvglFontSmall(), 0);
+  lv_obj_set_style_text_font(g_infoUi.title, lvglFontHeaderTitle(), 0);
   lv_obj_set_style_text_color(g_infoUi.title, lv_color_hex(theme.infoText), 0);
   lv_label_set_long_mode(g_infoUi.title, LV_LABEL_LONG_CLIP);
   lv_obj_set_width(g_infoUi.title, cW * 3 / 5);
@@ -16991,7 +17681,7 @@ static void initLvglClockPanel(lv_obj_t* homeRoot) {
   }
 
   g_clockUi.date = lv_label_create(g_clockUi.header);
-  lv_obj_set_style_text_font(g_clockUi.date, lvglFontSmall(), 0);
+  lv_obj_set_style_text_font(g_clockUi.date, lvglFontHeaderTitle(), 0);
   lv_obj_set_style_text_color(g_clockUi.date, lv_color_hex(0xFFFFFF), 0);
   lv_obj_set_style_bg_opa(g_clockUi.date, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_label_set_long_mode(g_clockUi.date, LV_LABEL_LONG_DOT);
@@ -17054,15 +17744,17 @@ static void initLvglWeatherBodyWidgets() {
   const int16_t weatherCardW = weatherW;
   const int16_t weatherCardH = cH;
   const int16_t weatherBodyH = weatherCardH - weatherHeaderH;
-  const int16_t weatherIconW = 60;
+  const int16_t weatherIconW = DB_HAS_LVGL_METEOCONS ? METEOCON_SIZE : 60;
   const int16_t weatherTextW = weatherCardW - 24;
-  const int16_t weatherTopTextW = weatherCardW - (weatherIconW + 48);
+  const int16_t weatherTopTextW = weatherCardW - (weatherIconW + 30);
   const uint32_t weatherBgHex = lvglResolvedWeatherBg(theme);
+  const uint32_t weatherForecastBgHex = lvglResolvedWeatherForecastBg(weatherBgHex);
   const uint32_t weatherTextPrimaryHex = lvglResolvedWeatherPrimary(theme, weatherBgHex);
   const uint32_t weatherTextSecondaryHex = lvglResolvedWeatherSecondary(theme, weatherBgHex, weatherTextPrimaryHex);
   const uint32_t weatherForecastTextHex = lvglResolvedForecastText(theme, weatherBgHex, weatherTextPrimaryHex);
   const uint32_t weatherGlyphOnlineHex = lvglResolvedWeatherGlyphOnline(theme, weatherBgHex, weatherTextPrimaryHex);
   const lv_color_t kWeatherCardBg = lv_color_hex(weatherBgHex);
+  const lv_color_t kWeatherForecastBg = lv_color_hex(weatherForecastBgHex);
   const lv_color_t kWeatherTextDark = lv_color_hex(weatherTextPrimaryHex);
   const lv_color_t kWeatherTextMid = lv_color_hex(weatherTextSecondaryHex);
   const lv_color_t kWeatherForecastText = lv_color_hex(weatherForecastTextHex);
@@ -17077,10 +17769,20 @@ static void initLvglWeatherBodyWidgets() {
   lvglForceLabelVisible(g_weatherUi.temp);
 
   g_weatherUi.icon = lv_img_create(g_weatherUi.body);
-  constexpr uint16_t kMainIconZoom = 336;  // ~63px rendered from 48px source
-  const int16_t mainIconPx = (int16_t)(((int32_t)weatherIconW * kMainIconZoom + 128) / 256);
-  const int16_t mainIconY = ((weatherBodyH - mainIconPx) / 2) + 2;  // lower icon a bit for vertical centering
-  lv_obj_align(g_weatherUi.icon, LV_ALIGN_TOP_RIGHT, -21, mainIconY);     // move icon 7px right
+#if DB_HAS_LVGL_METEOCONS
+  constexpr uint16_t kMainIconZoom = 256;  // native-size, pre-cropped high-resolution asset
+#else
+  constexpr uint16_t kMainIconZoom = 336;
+#endif
+#if DB_HAS_LVGL_METEOCONS
+  const int16_t mainIconSourcePx = METEOCON_SIZE;
+#else
+  const int16_t mainIconSourcePx = weatherIconW;
+#endif
+  const int16_t mainIconPx = (int16_t)(((int32_t)mainIconSourcePx * kMainIconZoom + 128) / 256);
+  const int16_t mainIconAreaH = weatherBodyH - 34;  // reserve the forecast rail
+  const int16_t mainIconY = ((mainIconAreaH - mainIconPx) / 2);
+  lv_obj_align(g_weatherUi.icon, LV_ALIGN_TOP_RIGHT, -8, mainIconY);
   const lv_img_dsc_t *bootIcon = weatherImageFromCode(2, true);
   if (bootIcon) {
     lv_img_set_src(g_weatherUi.icon, bootIcon);
@@ -17089,15 +17791,11 @@ static void initLvglWeatherBodyWidgets() {
     lv_obj_add_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
   }
   lv_img_set_zoom(g_weatherUi.icon, kMainIconZoom);
-  lv_anim_t a;
-  lv_anim_init(&a);
-  lv_anim_set_var(&a, g_weatherUi.icon);
-  lv_anim_set_values(&a, -2, 2);
-  lv_anim_set_time(&a, 2600);
-  lv_anim_set_playback_time(&a, 2600);
-  lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-  lv_anim_set_exec_cb(&a, lvglIconFloatAnimCb);
-  lv_anim_start(&a);
+#if DB_HAS_LVGL_METEOCONS
+  g_weatherUi.iconId = weatherMeteoconIdFromCode(2, true);
+  g_weatherUi.iconFrame = 0;
+  g_weatherUi.iconTimer = lv_timer_create(lvglMeteoconFrameTimerCb, 200, nullptr);
+#endif
 
   g_weatherUi.glyph = lv_label_create(g_weatherUi.body);
   lv_obj_set_style_text_font(g_weatherUi.glyph, lvglFontBig(), 0);
@@ -17148,8 +17846,8 @@ static void initLvglWeatherBodyWidgets() {
   g_weatherUi.forecastBar = lv_obj_create(g_weatherUi.card);
   lv_obj_set_size(g_weatherUi.forecastBar, weatherCardW, forecastBarH);
   lv_obj_set_pos(g_weatherUi.forecastBar, 0, forecastBarY);
-  lv_obj_set_style_bg_color(g_weatherUi.forecastBar, kWeatherCardBg, LV_PART_MAIN);
-  lv_obj_set_style_bg_grad_color(g_weatherUi.forecastBar, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_weatherUi.forecastBar, kWeatherForecastBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(g_weatherUi.forecastBar, kWeatherForecastBg, LV_PART_MAIN);
   lv_obj_set_style_bg_grad_dir(g_weatherUi.forecastBar, LV_GRAD_DIR_NONE, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_weatherUi.forecastBar, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_radius(g_weatherUi.forecastBar, kCardRadius, LV_PART_MAIN);
@@ -17161,7 +17859,7 @@ static void initLvglWeatherBodyWidgets() {
   g_weatherUi.forecastBarFill = lv_obj_create(g_weatherUi.forecastBar);
   lv_obj_set_size(g_weatherUi.forecastBarFill, weatherCardW, 10);
   lv_obj_set_pos(g_weatherUi.forecastBarFill, 0, 0);
-  lv_obj_set_style_bg_color(g_weatherUi.forecastBarFill, kWeatherCardBg, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_weatherUi.forecastBarFill, kWeatherForecastBg, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_weatherUi.forecastBarFill, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_weatherUi.forecastBarFill, 0, LV_PART_MAIN);
   lv_obj_set_style_shadow_width(g_weatherUi.forecastBarFill, 0, LV_PART_MAIN);
@@ -17169,20 +17867,27 @@ static void initLvglWeatherBodyWidgets() {
   lv_obj_clear_flag(g_weatherUi.forecastBarFill, LV_OBJ_FLAG_SCROLLABLE);
 
   g_weatherUi.forecastIcon = lv_img_create(g_weatherUi.forecastBar);
-  lv_obj_set_pos(g_weatherUi.forecastIcon, 5, -11);  // keep center while growing icon (+6px)
+  lv_obj_set_pos(g_weatherUi.forecastIcon, 10, 2);
   if (bootIcon) {
     lv_img_set_src(g_weatherUi.forecastIcon, bootIcon);
     lv_obj_clear_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
   } else {
     lv_obj_add_flag(g_weatherUi.forecastIcon, LV_OBJ_FLAG_HIDDEN);
   }
-  lv_img_set_zoom(g_weatherUi.forecastIcon, 123);  // ~23px rendered from 48px source
+#if DB_HAS_LVGL_METEOCONS
+  lv_img_set_zoom(g_weatherUi.forecastIcon, 256);  // native 30 px monochrome asset
+#else
+  lv_img_set_zoom(g_weatherUi.forecastIcon, 160);
+#endif
+  lv_obj_set_style_img_recolor(g_weatherUi.forecastIcon,
+                               lv_color_hex(lvglResolvedForecastIconColor(weatherBgHex)), 0);
+  lv_obj_set_style_img_recolor_opa(g_weatherUi.forecastIcon, LV_OPA_COVER, 0);
 
   g_weatherUi.forecastNow = lv_label_create(g_weatherUi.forecastBar);
-  lv_obj_set_style_text_font(g_weatherUi.forecastNow, lvglFontSmall(), 0);
+  lv_obj_set_style_text_font(g_weatherUi.forecastNow, lvglFontSmallBold(), 0);
   lv_obj_set_style_text_color(g_weatherUi.forecastNow, kWeatherForecastText, 0);
-  lv_obj_set_width(g_weatherUi.forecastNow, weatherCardW - 65);
-  lv_obj_set_pos(g_weatherUi.forecastNow, 52, 6);
+  lv_obj_set_width(g_weatherUi.forecastNow, weatherCardW - 55);
+  lv_obj_set_pos(g_weatherUi.forecastNow, 48, 6);
   lv_label_set_long_mode(g_weatherUi.forecastNow, LV_LABEL_LONG_DOT);
   lv_label_set_text(g_weatherUi.forecastNow, activeUiStrings()->forecastNa);
   lvglForceLabelVisible(g_weatherUi.forecastNow);
@@ -17299,7 +18004,7 @@ static void initLvglWeatherPanel(lv_obj_t* homeRoot) {
   lv_obj_clear_flag(g_weatherUi.body, LV_OBJ_FLAG_SCROLLABLE);
 
   g_weatherUi.city = lv_label_create(g_weatherUi.header);
-  lv_obj_set_style_text_font(g_weatherUi.city, lvglFontSmall(), 0);
+  lv_obj_set_style_text_font(g_weatherUi.city, lvglFontHeaderTitle(), 0);
   lv_obj_set_style_text_color(g_weatherUi.city, lv_color_hex(0xFFFFFF), 0);
   lv_obj_set_width(g_weatherUi.city, weatherCardW - 112);
   lv_label_set_long_mode(g_weatherUi.city, LV_LABEL_LONG_DOT);
@@ -17522,6 +18227,11 @@ static bool initLvglUi() {
   lv_obj_set_pos(g_lvglMacStatsRoot, cW, 0);
   lvglInitMacStatsUi();
 
+  // Bambu Lab print monitor
+  g_lvglBambuRoot = lvglCreatePageRoot(scr, cW, cH);
+  lv_obj_set_pos(g_lvglBambuRoot, cW, 0);
+  lvglInitBambuUi();
+
   // Screensaver
 #if SCREENSAVER_ENABLED
   initLvglScreensaverUi(scr);
@@ -17561,7 +18271,10 @@ static constexpr int kWmoFallbackCode = 2;  // "Partly cloudy" — generic icon 
 
 /// Show current-weather icon (bitmap preferred) or glyph fallback.
 static void lvglShowWeatherMainIcon(int code, bool isDay, const char* glyphFallback) {
-  const lv_img_dsc_t *iconDsc = weatherImageFromCode(code, isDay);
+#if DB_HAS_LVGL_METEOCONS
+  g_weatherUi.iconId = weatherMeteoconIdFromCode(code, isDay);
+#endif
+  const lv_img_dsc_t *iconDsc = weatherImageFromCode(code, isDay, g_weatherUi.iconFrame);
   if (iconDsc && g_weatherUi.icon) {
     lv_img_set_src(g_weatherUi.icon, iconDsc);
     lv_obj_clear_flag(g_weatherUi.icon, LV_OBJ_FLAG_HIDDEN);
@@ -17609,15 +18322,21 @@ static void lvglSetWeatherOfflineLabels(const char* descText, const char* glyphF
 /// Update weather widgets on HOME page (live data or offline placeholders).
 static void lvglUpdateWeatherDisplay(uint32_t weatherGlyphOnline, uint32_t weatherGlyphOffline) {
 #if TEST_WIFI
-  if (g_weather.valid) {
+  if (g_weather.valid || g_weatherIconPreview.active) {
+    const int displayCode = g_weatherIconPreview.active ? g_weatherIconPreview.weatherCode : g_weather.weatherCode;
+    const bool displayIsDay = g_weatherIconPreview.active ? g_weatherIconPreview.isDay : g_weather.isDay;
     char temp[24];
-    snprintf(temp, sizeof(temp), "%d%s, %d%%", (int)lroundf(g_weather.tempC), utf8Degree(), g_weather.humidity);
+    if (g_weather.valid) {
+      snprintf(temp, sizeof(temp), "%d%s, %d%%", (int)lroundf(g_weather.tempC), utf8Degree(), g_weather.humidity);
+    } else {
+      snprintf(temp, sizeof(temp), "--%s, --%%", utf8Degree());
+    }
     lv_label_set_text(g_weatherUi.temp, temp);
     lvglForceLabelVisible(g_weatherUi.temp);
 
-    lvglShowWeatherMainIcon(g_weather.weatherCode, g_weather.isDay,
-                            weatherGlyphText(g_weather.weatherCode, g_weather.isDay));
-    lv_label_set_text(g_weatherUi.desc, weatherCodeUiLabel(g_weather.weatherCode));
+    lvglShowWeatherMainIcon(displayCode, displayIsDay,
+                            weatherGlyphText(displayCode, displayIsDay));
+    lv_label_set_text(g_weatherUi.desc, weatherCodeUiLabel(displayCode));
     lvglForceLabelVisible(g_weatherUi.desc);
 
     char wind[28];
@@ -17755,6 +18474,13 @@ static void updateLvglUi(bool force) {
   }
   if (g_uiPageMode == UI_PAGE_MAC_STATS) {
     lvglUpdateMacStatsUi(force);
+    g_clock.lastSecond = timeinfo.tm_sec;
+    g_clock.lastDateKey = dateKey;
+    g_uiNeedsRedraw = false;
+    return;
+  }
+  if (g_uiPageMode == UI_PAGE_BAMBU) {
+    lvglUpdateBambuUi(force);
     g_clock.lastSecond = timeinfo.tm_sec;
     g_clock.lastDateKey = dateKey;
     g_uiNeedsRedraw = false;
@@ -18173,6 +18899,12 @@ static void cmdViewMacStats(const String &args) {
   Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
 }
 
+static void cmdViewBambu(const String &args) {
+  if (!uiPageEnabled(UI_PAGE_BAMBU)) { Serial.println("[UI] BAMBU disabled (no wifi)"); return; }
+  setUiPage(UI_PAGE_BAMBU);
+  Serial.printf("[UI] page=%s\n", uiPageName(g_uiPageMode));
+}
+
 static void cmdLaunchDetail(const String &args) {
   int idx = args.length() ? args.toInt() : 0;
   markUserInteraction(millis());
@@ -18434,6 +19166,67 @@ static void cmdWikiReload(const String &args) {
 #endif
 }
 
+static bool weatherPreviewCodeSupported(int code) {
+  return code == 0 || code == 1 || code == 2 || code == 3 || code == 45 || code == 48 ||
+         (code >= 51 && code <= 57) || (code >= 61 && code <= 67) ||
+         (code >= 71 && code <= 77) || (code >= 80 && code <= 82) ||
+         code == 85 || code == 86 || code == 95 || code == 96 || code == 99;
+}
+
+static void cmdWeatherIcon(const String &args) {
+  String value(args);
+  value.trim();
+  if (value.length() == 0) {
+    Serial.printf("[WEATHERICON] mode=%s code=%d day=%d\n",
+                  g_weatherIconPreview.active ? "preview" : "live",
+                  g_weatherIconPreview.active ? g_weatherIconPreview.weatherCode : g_weather.weatherCode,
+                  g_weatherIconPreview.active ? (g_weatherIconPreview.isDay ? 1 : 0) : (g_weather.isDay ? 1 : 0));
+    return;
+  }
+  String upper(value);
+  upper.toUpperCase();
+  if (upper == "LIVE" || upper == "OFF") {
+    g_weatherIconPreview.active = false;
+    g_uiNeedsRedraw = true;
+    Serial.println("[WEATHERICON] live weather restored");
+    return;
+  }
+
+  const int separator = value.indexOf(' ');
+  const String codeText = separator >= 0 ? value.substring(0, separator) : value;
+  char *end = nullptr;
+  const long parsed = strtol(codeText.c_str(), &end, 10);
+  if (!end || *end != '\0' || !weatherPreviewCodeSupported((int)parsed)) {
+    Serial.println("[WEATHERICON][ERR] usa: WEATHERICON <WMO code> [day|night] | LIVE");
+    return;
+  }
+  bool isDay = g_weather.isDay;
+  if (separator >= 0) {
+    String phase = value.substring(separator + 1);
+    phase.trim();
+    phase.toLowerCase();
+    if (phase == "day") isDay = true;
+    else if (phase == "night") isDay = false;
+    else {
+      Serial.println("[WEATHERICON][ERR] fase ammessa: day oppure night");
+      return;
+    }
+  }
+  g_weatherIconPreview.active = true;
+  g_weatherIconPreview.weatherCode = (int)parsed;
+  g_weatherIconPreview.isDay = isDay;
+  g_uiNeedsRedraw = true;
+  setUiPage(UI_PAGE_HOME);
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  Serial.printf("[WEATHERICON] preview code=%d day=%d icon=%u\n",
+                g_weatherIconPreview.weatherCode, g_weatherIconPreview.isDay ? 1 : 0,
+                (unsigned)weatherMeteoconIdFromCode(g_weatherIconPreview.weatherCode, g_weatherIconPreview.isDay));
+#else
+  Serial.printf("[WEATHERICON] preview code=%d day=%d\n",
+                g_weatherIconPreview.weatherCode, g_weatherIconPreview.isDay ? 1 : 0);
+#endif
+}
+
 static void cmdReload(const String &args) {
 #if TEST_WIFI
   netEnqueue(NET_REQ_WEATHER, 0);
@@ -18493,6 +19286,9 @@ static const SerialCmd kSerialCmds[] = {
   { "VIEW8",         cmdViewMacStats },
   { "VIEWMACSTATS",  cmdViewMacStats },
   { "MACSTATS",      cmdViewMacStats },
+  { "VIEW9",         cmdViewBambu },
+  { "VIEWBAMBU",     cmdViewBambu },
+  { "BAMBU",         cmdViewBambu },
   { "THEME",         cmdTheme },
   { "LANG",          cmdLang },
   { "LANGSTAT",      cmdLangStat },
@@ -18518,6 +19314,7 @@ static const SerialCmd kSerialCmds[] = {
   { "WIKISTAT",      cmdWikiStat },
   { "RSSRELOAD",     cmdRssReload },
   { "WIKIRELOAD",    cmdWikiReload },
+  { "WEATHERICON",   cmdWeatherIcon },
   { "RELOAD",        cmdReload },
 };
 

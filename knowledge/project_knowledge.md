@@ -236,7 +236,10 @@ Where tokens are applied:
 
 Important behavior rules:
 
-- Weather panel is forced to light-background/dark-text fallback when needed, to preserve readability of transparent weather icons across themes.
+- Weather artwork uses Meteocons Fill (MIT) from `assets/meteocons/`: 19 WMO-aware day/night and intensity variants, each pre-rendered to ten tightly cropped 84 x 84 RGB565+A frames. The main current-condition icon animates at 5 fps only while Home is visible. The compact forecast uses a separate native 30 x 30 Meteocons Monochrome render, recolored black or white from the resolved card luminance.
+- Weather cards use a dark, theme-tinted stage rather than an unresolved light fallback. `lvglResolvedWeatherBg()` blends the active panel/header hues and pulls the result into a narrow dark-luma band; `lvglResolvedWeatherForecastBg()` gives the three-hour rail a restrained lift. This preserves white cloud, fog and snow detail while automatic contrast helpers resolve the primary, secondary and forecast text for every theme.
+- Bambu header stage/status metadata uses fixed near-black badges over the inherited theme header. Stage text is white; live status is Bambu green; paused/error/offline states remain amber/red/light gray. Do not place these semantic colors directly on bright theme headers.
+- Bambu progress owns the complete left body rail below the 30 px header: use a 126 px ring centred at `(83, 101)`, leaving 8 px above and below, with 12 px track/indicator widths, `#343434` remaining track, and rounded indicator ends. Telemetry tile captions use Dosis SemiBold 18 px; values remain Dosis Regular 18 px. The rotating footer also uses Dosis Regular 18 px with green field labels and white values/separators via LVGL recolor markup.
 - Light/dark detection: `lvglColorLuma(screenBg) >= 128` — automatic from palette, no per-theme flag needed.
 - Sharp corners: enabled for `minimal-brutalist-mono` and `cathode-ray` via `lvglThemeIsCathodeRay()` helper + luma check; all other themes use rounded corners.
 - **GOTCHA (Mint Protocol)**: `screenBg=#DBE8DB` (luma 220) and `panelBg=#FFFFFF` (luma 255) are close but distinguishable. `weatherCardBg=#EEF7EF` (tinted) instead of pure white — without the tint, the weather card was invisible against the near-white bg.
@@ -247,12 +250,15 @@ Important behavior rules:
 
 ### Display typeface (LVGL)
 
-**Funnel Display** (Google Fonts, SIL OFL) — unified across ALL themes since r215.
+**Dosis** (Google Fonts, SIL OFL 1.1) — unified across ALL physical-display themes since r286.
 - Condensed display face, optimized for narrow 640×172 display
 - 12 sizes generated: 12, 14, 16, 18, 20, 22, 23, 24, 25, 30, 32, 38 px
-- ASCII range (0x20-0x7E) with `--lv-fallback lv_font_montserrat_XX` for extended chars
-- Source TTF: `assets/fonts/FunnelDisplay-Regular.ttf` (24KB)
-- Generated files: `src/fonts/scry_font_funnel_display_*.c`
+- Basic Latin + Latin-1 + Latin Extended-A, with size-matched Montserrat fallback
+- Official source TTFs: `assets/fonts/Dosis-Regular.ttf` and `assets/fonts/Dosis-SemiBold.ttf`
+- Bundled font license: `assets/fonts/Dosis-OFL-1.1.txt`
+- Generated files: `src/fonts/scry_font_dosis_*.c`
+- Primary page-header titles use `lvglFontHeaderTitle()` = Dosis SemiBold 20 px; secondary header status/time/meta remain at their smaller existing sizes. Thirty-pixel headers need no geometry change, while the compact Mac Stats header is 28 px so the 26 px font line-height cannot clip.
+- Now Playing is the compact exception: its 24 px header uses Dosis SemiBold 18 px, its track title uses SemiBold 25 px, and its 150 px live artwork is zoomed to the resulting 148 px body rather than cropped. Artist Y follows the measured one- or two-line title height plus an 8 px gap; never reserve a fixed two-line title box for a one-line title.
 - No per-theme font dispatch — all `lvglFont*()` functions are simple one-liners
 
 ### Web UI typography (per-theme, unchanged)
@@ -309,7 +315,7 @@ Reference:
 
 Clock line `g_lvglClockL1` uses runtime auto-fit:
 
-- Collect Funnel Display font cascade (38→32→30→24→22→20→18 px)
+- Collect Dosis font cascade (38→32→30→24→22→20→18 px)
 - Apply candidate, measure label height against available clock body space
 - Select largest fitting font and re-center
 
@@ -424,7 +430,7 @@ Shared helper functions that eliminate repeated LVGL boilerplate across all `ini
 
 `lvglApplyThemeStyles()` (156 lines) delegates feed deck theming to `lvglApplyThemeStylesFeedDecks()` (67 lines).
 
-### Weather Display Helpers (M10, r214)
+### Weather Display Helpers (M10, r214; Meteocons r287)
 
 Weather icon/label update extracted from `updateLvglUi()`:
 
@@ -434,6 +440,8 @@ Weather icon/label update extracted from `updateLvglUi()`:
 | `lvglShowWeatherForecastIcon(code, isDay)` | Show/hide forecast bitmap icon |
 | `lvglSetWeatherOfflineLabels(desc, glyph, color, setColor)` | Set all weather labels to offline/placeholder state |
 | `lvglUpdateWeatherDisplay(glyphOnline, glyphOffline)` | Full weather section (online + offline branches) |
+
+`weatherMeteoconIdFromCode(code, isDay)` is the canonical WMO-to-art mapping. `WEATHERICON <code> [day|night]` previews a mapping on physical hardware without modifying the live feed; `WEATHERICON LIVE` restores the real condition. Asset regeneration is documented in `assets/meteocons/README.md`.
 
 `kWmoFallbackCode = 2` ("partly cloudy") — named constant for offline weather icon fallback.
 
@@ -508,14 +516,14 @@ Web UI field "FILTER BY DESTINATION" — stored in NVS as `transit_arr`. Impleme
 `routeShortName` is displayed in the left badge. Length varies hugely by network (3 chars for "S30" vs 14 chars for "Greater Anglia"). Firmware uses adaptive font shrink (20→18→16→14px by char count) + `LV_LABEL_LONG_SCROLL` at 15 px/s for overflow — gives ~5-8 second reveal cycle.
 
 ### Row layout fonts (r248)
-All transit row labels use `lvglFontMeta()` = **20px Funnel Display** for visual consistency:
+All transit row labels use `lvglFontMeta()` = **20px Dosis** for visual consistency:
 - **Destination**: 20px (`lvglFontMeta`), left-aligned, truncated with `…`
 - **Departure time** ("HH:MM"): 20px (`lvglFontMeta`), right-aligned
 - **Arrival time** (">HH:MM"): 20px (`lvglFontMeta`), left-aligned, muted color
 - **Platform / LIVE**: 20px (`lvglFontMeta`), right-aligned
 - **Delay** ("+Xm"/"-Xm"): 16px (`lvglFontMini`), center-aligned, colored
 - **Badge line name**: adaptive 20→18→16→14px (see Badge line name section above)
-- All labels: +2px vertical offset for Funnel Display ascender optical centering
+- All labels: +2px vertical offset for Dosis ascender optical centering
 - **GOTCHA**: theme-override block (around line 12301) re-applies fonts after creation — must stay in sync with creation-time fonts.
 
 ### Stop ID selection
@@ -905,15 +913,15 @@ Only needed when adding/regenerating custom LVGL fonts:
 npm install -g lv_font_conv
 ```
 
-Usage example (Funnel Display, 20px):
+Usage example (Dosis, 20px):
 ```bash
 lv_font_conv \
-  --font assets/fonts/FunnelDisplay-Regular.ttf \
+  --font assets/fonts/Dosis-Regular.ttf \
   --size 20 --bpp 4 --no-compress \
   --range 0x20-0x7E \
   --lv-fallback lv_font_montserrat_20 \
-  --lv-font-name scry_font_funnel_display_20 \
-  --format lvgl -o src/fonts/scry_font_funnel_display_20.c \
+  --lv-font-name scry_font_dosis_20 \
+  --format lvgl -o src/fonts/scry_font_dosis_20.c \
   --lv-include lvgl.h
 ```
 

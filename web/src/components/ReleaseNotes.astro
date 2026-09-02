@@ -1,6 +1,32 @@
 ---
 const releases = [
   {
+    version: 'v0.9.0',
+    tag: 'r300',
+    date: '2026-09-02',
+    headline: 'Bambu Lab telemetry, animated Meteocons, reorderable views',
+    items: [
+      { label: 'New', text: 'Bambu Lab page — live job and stage, progress, remaining time, layers, nozzle/bed/chamber temperatures, speed, fans, Wi-Fi, filament and AMS telemetry, with alert states on the physical 640×172 display.' },
+      { label: 'New', text: 'Companion v0.3.1 connects to a Bambu printer over local MQTT/TLS, keeps the LAN access code in macOS Keychain, forwards a sanitized payload to ScryBar, and can play distinct start, blocked and finished sounds.' },
+      { label: 'New', text: 'Views can now be reordered from the device web UI. The validated sequence persists in NVS and drives the real physical swipe carousel, including Home and Bambu.' },
+      { label: 'Fix', text: 'Printer discovery deduplicates the same printer advertised under multiple Bonjour identities; Settings now exposes clear discovery, selection, retry, connection status and setup help.' },
+      { label: 'Fix', text: 'Mobile web config no longer inherits desktop sticky-footer margins, eliminating horizontal overflow while keeping 42 px reorder controls.' },
+      { label: 'New', text: 'Physical-display typography now uses Dosis Regular and SemiBold, generated independently from the official SIL OFL 1.1 font source with full Latin Extended coverage.' },
+      { label: 'Polish', text: 'Bambu progress is larger and cleaner: the filename remains in the rotating footer, while telemetry captions use readable Title Case.' },
+      { label: 'New', text: 'Home weather now uses 19 full-color Meteocons variants driven by live Open-Meteo WMO codes, including day/night states, fog, precipitation intensity, sleet, snow, thunderstorms and hail. The current icon is animated on-device; the compact forecast stays still.' },
+      { label: 'Fix', text: 'Bambu print stage and connection state now sit on compact near-black header badges. Printing stays white, while Running and its indicator use Bambu green with reliable contrast across bright themes such as Tokyo Transit.' },
+      { label: 'Polish', text: 'Primary on-device header titles now use Dosis SemiBold at 20 px: one restrained size step up from Regular 18 px, while secondary status, time and metadata retain their existing hierarchy.' },
+      { label: 'Polish', text: 'Bambu print progress now fills its left rail with a vertically centred 126 px ring, a wider and lighter remaining track, rounded green endpoints, and larger SemiBold telemetry captions.' },
+      { label: 'Polish', text: 'A full physical-view typography audit aligned Now Playing with the Dosis hierarchy: its compact header is now SemiBold 18 px, track titles use SemiBold 25 px, and the artist follows the actual one- or two-line title height instead of a fixed empty gap.' },
+      { label: 'Polish', text: 'Bambu progress now retains 8 px of breathing room above and below its body-centred ring. The rotating telemetry footer uses Dosis 18 px with Bambu-green labels and white values/separators for faster scanning.' },
+      { label: 'Polish', text: 'Weather Meteocons are tightly cropped at native 84 px and animate at a calmer 5 fps only while Home is visible. The three-hour forecast uses a crisp monochrome 30 px icon with automatic contrast across every theme.' },
+      { label: 'Fix', text: 'Now Playing restores album artwork even when a player exposes no native cover identifier: Companion v0.3.1 build 36 creates a stable local artwork identity, while the physical view now shows the album title beneath the artist when available.' },
+      { label: 'Fix', text: 'Now Playing duration is positioned relative to the live sync label, preventing the longer Out of Sync state from colliding with the time in the compact header.' },
+      { label: 'Polish', text: 'Home weather now uses a dark theme-tinted surface across all seven themes. Current Meteocons gain stronger contrast, while a subtly lifted forecast rail and automatic soft-white text preserve hierarchy on the 640×172 display.' },
+      { label: 'Fix', text: 'Companion v0.3.1 sizes its popover from the display’s real usable height. It now opens tall enough for its content whenever space permits and scrolls only when the screen is genuinely too short.' },
+    ],
+  },
+  {
     version: 'v0.8.2',
     tag: 'r283',
     date: '2026-07-21',

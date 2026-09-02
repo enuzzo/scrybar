@@ -1,6 +1,6 @@
-# Fonts — ScryBar (r256+)
+# Fonts — ScryBar (r286+)
 
-Single source of truth for every `scry_font_funnel_display_*` file that ships
+Single source of truth for every `scry_font_dosis_*` file that ships
 in the firmware. If something here disagrees with the `.c` files, **regenerate
 the `.c` files** — never hand-edit them. The generator is
 `tools/regen_fonts.sh` and its top-of-file comment tells the same story as
@@ -8,19 +8,18 @@ this document.
 
 ## Typeface
 
-Only one typeface: **Funnel Display** (Google Fonts, SIL OFL).
+Only one typeface: **Dosis** (Google Fonts, SIL OFL).
 
-Two weights, both instanced from the same variable font (`wght` axis) so their
-metrics line up perfectly:
+Two official static weights from the Google Fonts Dosis source:
 
-| Weight   | TTF in `assets/fonts/`            | `wght` value |
-|----------|-----------------------------------|--------------|
-| Regular  | `FunnelDisplay-Regular.ttf`       | 400          |
-| SemiBold | `FunnelDisplay-SemiBold.ttf`      | 600          |
+| Weight   | TTF in `assets/fonts/`       | `wght` value |
+|----------|------------------------------|--------------|
+| Regular  | `Dosis-Regular.ttf`          | 400          |
+| SemiBold | `Dosis-SemiBold.ttf`         | 600          |
 
 We don't ship Bold / ExtraBold / Light. If a future layout needs a different
-weight, instance a new TTF from the variable font with
-`fonttools varLib.mutator FunnelDisplay-VF.ttf wght=<N> -o <output>.ttf`.
+weight, add that official static file and keep the same OFL notice. The complete
+license is bundled as `assets/fonts/Dosis-OFL-1.1.txt`.
 
 ## Charset
 
@@ -38,7 +37,7 @@ This covers every launch/station place name we actually receive from
 Chişinău, Łódź, etc. Cyrillic, Greek, CJK and Arabic are **explicitly out of
 scope** — those names arrive romanized from the APIs.
 
-The narrow **countdown font** uses only 15 glyphs so the 60px file stays
+The narrow **countdown font** uses only 16 glyphs so the 60px file stays
 manageable (~50 KB instead of ~700 KB with Latin Extended):
 
 ```
@@ -47,6 +46,7 @@ manageable (~50 KB instead of ~700 KB with Latin Extended):
 0x2D  -
 0x30-0x39  0..9
 0x3A  :
+0x54  T    (for the countdown prefix)
 0x64  d    (for "2d 18:42" day format)
 ```
 
@@ -59,36 +59,37 @@ Every size that any accessor in `scrybar.ino` currently needs. Add to
 
 | Size | File                                    | Fallback              |
 |------|-----------------------------------------|-----------------------|
-| 12   | `scry_font_funnel_display_12.c`         | `lv_font_montserrat_14` |
-| 14   | `scry_font_funnel_display_14.c`         | `lv_font_montserrat_14` |
-| 16   | `scry_font_funnel_display_16.c`         | `lv_font_montserrat_16` |
-| 18   | `scry_font_funnel_display_18.c`         | `lv_font_montserrat_18` |
-| 20   | `scry_font_funnel_display_20.c`         | `lv_font_montserrat_20` |
-| 22   | `scry_font_funnel_display_22.c`         | `lv_font_montserrat_22` |
-| 23   | `scry_font_funnel_display_23.c`         | `lv_font_montserrat_24` |
-| 24   | `scry_font_funnel_display_24.c`         | `lv_font_montserrat_24` |
-| 25   | `scry_font_funnel_display_25.c`         | `lv_font_montserrat_24` |
-| 30   | `scry_font_funnel_display_30.c`         | `lv_font_montserrat_30` |
-| 32   | `scry_font_funnel_display_32.c`         | `lv_font_montserrat_32` |
-| 38   | `scry_font_funnel_display_38.c`         | `lv_font_montserrat_38` |
+| 12   | `scry_font_dosis_12.c`         | `lv_font_montserrat_14` |
+| 14   | `scry_font_dosis_14.c`         | `lv_font_montserrat_14` |
+| 16   | `scry_font_dosis_16.c`         | `lv_font_montserrat_16` |
+| 18   | `scry_font_dosis_18.c`         | `lv_font_montserrat_18` |
+| 20   | `scry_font_dosis_20.c`         | `lv_font_montserrat_20` |
+| 22   | `scry_font_dosis_22.c`         | `lv_font_montserrat_22` |
+| 23   | `scry_font_dosis_23.c`         | `lv_font_montserrat_24` |
+| 24   | `scry_font_dosis_24.c`         | `lv_font_montserrat_24` |
+| 25   | `scry_font_dosis_25.c`         | `lv_font_montserrat_24` |
+| 30   | `scry_font_dosis_30.c`         | `lv_font_montserrat_30` |
+| 32   | `scry_font_dosis_32.c`         | `lv_font_montserrat_32` |
+| 38   | `scry_font_dosis_38.c`         | `lv_font_montserrat_38` |
 
-### SemiBold family — 4 sizes
+### SemiBold family — 5 sizes
 
 Narrow set — only the places that need tangible typographic emphasis. Add to
 `SEMIBOLD_SIZES` in the generator script if you find another genuine need.
 
 | Size | File                                            | Fallback              | Primary use                               |
 |------|-------------------------------------------------|-----------------------|-------------------------------------------|
-| 18   | `scry_font_funnel_display_semibold_18.c`        | `lv_font_montserrat_18` | Page titles, provider badge labels       |
-| 25   | `scry_font_funnel_display_semibold_25.c`        | `lv_font_montserrat_24` | LAUNCH hero mission name, Now Playing title |
-| 32   | `scry_font_funnel_display_semibold_32.c`        | `lv_font_montserrat_32` | Reserved — emphatic clock / weather       |
-| 38   | `scry_font_funnel_display_semibold_38.c`        | `lv_font_montserrat_38` | Reserved — future oversized headlines     |
+| 18   | `scry_font_dosis_semibold_18.c`        | `lv_font_montserrat_18` | Provider badge labels and compact emphasis |
+| 20   | `scry_font_dosis_semibold_20.c`        | `lv_font_montserrat_20` | Primary page-header titles               |
+| 25   | `scry_font_dosis_semibold_25.c`        | `lv_font_montserrat_24` | LAUNCH hero mission name, Now Playing title |
+| 32   | `scry_font_dosis_semibold_32.c`        | `lv_font_montserrat_32` | Reserved — emphatic clock / weather       |
+| 38   | `scry_font_dosis_semibold_38.c`        | `lv_font_montserrat_38` | Reserved — future oversized headlines     |
 
 ### Countdown font — single narrow file
 
 | Size | File                                            | Charset        | Use                               |
 |------|-------------------------------------------------|---------------|-----------------------------------|
-| 60   | `scry_font_funnel_display_countdown_60.c`       | 15 glyphs     | LAUNCH hero countdown value only  |
+| 60   | `scry_font_dosis_countdown_60.c`       | 15 glyphs     | LAUNCH hero countdown value only  |
 
 ## Accessors in `scrybar.ino`
 
@@ -101,7 +102,7 @@ generated symbol directly from page code.
 ```c
 lvglFontTiny()      // 14px  — small caption
 lvglFontMini()      // 16px  — metadata, secondary rows
-lvglFontSmall()     // 18px  — header titles
+lvglFontSmall()     // 18px  — secondary labels and compact values
 lvglFontMeta()      // 20px  — transit destinations, launch location
 lvglFontRssNews()   // 22px  — RSS headline body
 lvglFontBody()      // 24px  — generic body
@@ -115,7 +116,8 @@ Plus the Now Playing accessors and the screen saver accessors.
 ### SemiBold (NEW r256)
 
 ```c
-lvglFontSmallBold()   // 18px  — emphatic page titles, badges
+lvglFontSmallBold()   // 18px  — badges and compact emphasis
+lvglFontHeaderTitle() // 20px  — primary page-header title
 lvglFontLaunchName()  // 25px  — LAUNCH hero mission name
 lvglFontClockBold()   // 32px  — reserved (future emphatic clock)
 lvglFontBigBold()     // 38px  — reserved (future oversized headline)
@@ -157,7 +159,7 @@ in-place overwrites.
    `0xA0-0xFF` the dot tofus. The shared charset definition prevents this.
 4. **Tofu on international place names.** "Andøya" used to fall back to
    Montserrat for the `ø` glyph (different typeface, different baseline). Now
-   Funnel Display renders it natively.
+   Dosis renders it natively.
 
 ## Lv_conf.h fallback coverage
 
