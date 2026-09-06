@@ -32,6 +32,30 @@ enum BambuConnectionPhase: Equatable {
     }
 }
 
+enum BambuRecoveryScanPolicy {
+    static func shouldStart(
+        status: String,
+        isScanning: Bool,
+        lastStartedAt: Date?,
+        now: Date,
+        minimumInterval: TimeInterval = 15
+    ) -> Bool {
+        guard !isScanning else { return false }
+        if let lastStartedAt, now.timeIntervalSince(lastStartedAt) < minimumInterval {
+            return false
+        }
+
+        let normalized = status.lowercased()
+        guard !normalized.contains("rejected") && !normalized.contains("authentication failed") else {
+            return false
+        }
+        return normalized.contains("connection failed") ||
+            normalized.contains("connection closed") ||
+            normalized.contains("mqtt receive failed") ||
+            normalized.contains("printer closed the connection")
+    }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var providerKind: ProviderKind = .system
@@ -84,6 +108,7 @@ final class AppModel: ObservableObject {
     private var pollTask: Task<Void, Never>?
     private var macStatsPollTask: Task<Void, Never>?
     private var bambuBaselineReceived = false
+    private var lastBambuDiscoveryStartedAt: Date?
 
     init() {
         bambuAccessCode = BambuKeychain.loadAccessCode(serial: bambuSerial, allowLegacyFallback: true)
@@ -146,6 +171,8 @@ final class AppModel: ObservableObject {
     }
 
     func scanForBambuPrinters() {
+        lastBambuDiscoveryStartedAt = .now
+        isBambuScanning = true
         bambuDiscovery.start()
     }
 
@@ -247,6 +274,15 @@ final class AppModel: ObservableObject {
     private func receiveBambuConnectionStatus(_ status: String) {
         bambuConnectionStatus = status
         bambuConnectionPhase = BambuConnectionPhase(status: status)
+        if BambuRecoveryScanPolicy.shouldStart(
+            status: status,
+            isScanning: isBambuScanning,
+            lastStartedAt: lastBambuDiscoveryStartedAt,
+            now: .now
+        ) {
+            bambuDiscoveryStatus = "Connection lost. Looking for the saved printer…"
+            scanForBambuPrinters()
+        }
     }
 
     private func receiveDiscoveredBambuPrinters(_ printers: [BambuDiscoveredPrinter]) {
@@ -254,6 +290,7 @@ final class AppModel: ObservableObject {
         guard let preferred = BambuPrinterSelectionPolicy.preferredPrinter(
             in: printers,
             savedSerial: bambuSerial,
+            savedName: bambuPrinterName,
             savedHost: bambuHost,
             selectedID: selectedBambuPrinterID
         ) else {

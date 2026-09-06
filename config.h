@@ -24,8 +24,8 @@
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r301"
-#define FW_RELEASE_DATE "2026-09-02"
+#define FW_BUILD_TAG "r302"
+#define FW_RELEASE_DATE "2026-09-06"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
 typedef struct {

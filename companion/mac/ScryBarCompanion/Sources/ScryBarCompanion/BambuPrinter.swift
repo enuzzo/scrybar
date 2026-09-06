@@ -27,6 +27,50 @@ struct BambuAMSUnitTelemetry: Codable, Equatable, Sendable, Identifiable {
     var trays: [BambuTrayTelemetry] = []
 }
 
+struct BambuFilamentChangeCounter: Sendable {
+    private(set) var completed = 0
+    private var jobIdentity = ""
+    private var lastSettledTray = -1
+    private var jobWasActive = false
+
+    mutating func update(
+        jobIdentity: String,
+        status: String,
+        activeTray: Int,
+        targetTray: Int,
+        filamentSensorState: Int,
+        amsStatus: Int
+    ) -> Int {
+        let normalizedIdentity = jobIdentity.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStatus = status.uppercased()
+        let jobIsActive = ["RUNNING", "PREPARE", "SLICING", "INIT", "PAUSE", "PAUSED"]
+            .contains(normalizedStatus)
+        let identityChanged = !normalizedIdentity.isEmpty && normalizedIdentity != self.jobIdentity
+
+        if jobIsActive && (!jobWasActive || identityChanged) {
+            completed = 0
+            lastSettledTray = -1
+            if !normalizedIdentity.isEmpty { self.jobIdentity = normalizedIdentity }
+        } else if identityChanged {
+            self.jobIdentity = normalizedIdentity
+        }
+        jobWasActive = jobIsActive
+
+        guard jobIsActive, activeTray >= 0 else { return completed }
+        let amsMainStatus = amsStatus < 0 ? -1 : ((amsStatus >> 8) & 0xFF)
+        let changingFilament = amsStatus == 1 || amsMainStatus == 1
+        let targetIsSeated = targetTray < 0 || activeTray == targetTray
+        let filamentIsLoaded = filamentSensorState != 0
+        guard !changingFilament, targetIsSeated, filamentIsLoaded else { return completed }
+
+        if lastSettledTray >= 0, lastSettledTray != activeTray {
+            completed += 1
+        }
+        lastSettledTray = activeTray
+        return completed
+    }
+}
+
 struct BambuPrinterPayload: Codable, Equatable, Sendable {
     var connected = false
     var status = "OFFLINE"
@@ -62,6 +106,11 @@ struct BambuPrinterPayload: Codable, Equatable, Sendable {
     var activeFilamentLabel = ""
     var activeFilamentColorHex = ""
     var activeFilamentRemainingPercent = -1
+    var printFilamentTrayIDs: [Int] = []
+    var printFilamentLabels: [String] = []
+    var printFilamentColors: [String] = []
+    var filamentChangesCompleted = 0
+    var filamentChangesTotal = -1
     var amsHumidityPercent = -1
     var amsTemperatureC: Float = 0
     var estimatedFilamentWeightG: Float = 0
@@ -161,6 +210,7 @@ final class BambuPrinterMonitor: @unchecked Sendable {
     private var reconnectWorkItem: DispatchWorkItem?
     private var connectionTimeoutWorkItem: DispatchWorkItem?
     private var pingTimer: DispatchSourceTimer?
+    private var filamentChangeCounter = BambuFilamentChangeCounter()
     private var stopped = true
 
     func start(configuration: BambuPrinterConfiguration) {
@@ -384,6 +434,24 @@ final class BambuPrinterMonitor: @unchecked Sendable {
             return nil
         }
         func string(_ key: String) -> String? { print[key] as? String }
+        func intArray(_ key: String) -> [Int]? {
+            let raw = print[key]
+            let values: [Any]
+            if let array = raw as? [Any] {
+                values = array
+            } else if let text = raw as? String,
+                      let data = text.data(using: .utf8),
+                      let array = try? JSONSerialization.jsonObject(with: data) as? [Any] {
+                values = array
+            } else {
+                return nil
+            }
+            return values.compactMap { value in
+                if let number = value as? NSNumber { return number.intValue }
+                if let text = value as? String { return Int(text) }
+                return nil
+            }
+        }
 
         func fanPercent(_ key: String) -> Int? {
             guard let raw = print[key] else { return nil }
@@ -401,6 +469,7 @@ final class BambuPrinterMonitor: @unchecked Sendable {
                 : min(max(value, 0), 100)
         }
 
+        let previousJobIdentity = Self.jobIdentity(for: snapshot)
         if let value = string("gcode_state"), !value.isEmpty { snapshot.status = value.uppercased() }
         if let value = string("subtask_name"), !value.isEmpty { snapshot.jobName = value }
         if let value = string("gcode_file"), !value.isEmpty {
@@ -408,6 +477,20 @@ final class BambuPrinterMonitor: @unchecked Sendable {
             if snapshot.jobName.isEmpty { snapshot.jobName = value }
         }
         if let value = string("print_type"), !value.isEmpty { snapshot.printType = value }
+        let currentJobIdentity = Self.jobIdentity(for: snapshot)
+        if !currentJobIdentity.isEmpty, currentJobIdentity != previousJobIdentity {
+            snapshot.printFilamentTrayIDs = []
+            snapshot.printFilamentLabels = []
+            snapshot.printFilamentColors = []
+            snapshot.filamentChangesCompleted = 0
+            snapshot.filamentChangesTotal = -1
+        }
+        if let mapping = intArray("ams_mapping"), !mapping.isEmpty {
+            snapshot.printFilamentTrayIDs = mapping
+        }
+        if let sequence = intArray("filament_change_sequence"), !sequence.isEmpty {
+            snapshot.filamentChangesTotal = max(sequence.count - 1, 0)
+        }
         if let value = int("mc_percent") ?? int("percent") ?? int("progress") {
             snapshot.progressPercent = min(max(value, 0), 100)
         }
@@ -441,6 +524,16 @@ final class BambuPrinterMonitor: @unchecked Sendable {
 
         mergeAMS(print: print)
         refreshAMSSummary()
+        rememberObservedPrintFilament()
+        refreshPrintFilamentSummary()
+        snapshot.filamentChangesCompleted = filamentChangeCounter.update(
+            jobIdentity: currentJobIdentity,
+            status: snapshot.status,
+            activeTray: snapshot.activeTray,
+            targetTray: snapshot.targetTray,
+            filamentSensorState: snapshot.filamentSensorState,
+            amsStatus: snapshot.amsStatus
+        )
 
         if let stage = print["stage"] as? [String: Any],
            let name = stage["name"] as? String, !name.isEmpty {
@@ -575,6 +668,47 @@ final class BambuPrinterMonitor: @unchecked Sendable {
             snapshot.amsHumidityPercent = unit.humidityPercent
             snapshot.amsTemperatureC = unit.temperatureC
         }
+    }
+
+    private func rememberObservedPrintFilament() {
+        guard snapshot.isPrinting || ["PAUSE", "PAUSED"].contains(snapshot.status.uppercased()) else { return }
+        let observed = [snapshot.activeTray, snapshot.targetTray].filter { $0 >= 0 }
+        for trayID in observed where !snapshot.printFilamentTrayIDs.contains(trayID) {
+            snapshot.printFilamentTrayIDs.append(trayID)
+        }
+    }
+
+    private func refreshPrintFilamentSummary() {
+        var labels: [String] = []
+        var colors: [String] = []
+        var seen = Set<String>()
+
+        func append(_ tray: BambuTrayTelemetry?) {
+            guard let tray, tray.present else { return }
+            let identity = tray.id.isEmpty ? "\(tray.unitIndex)-\(tray.trayIndex)" : tray.id
+            guard seen.insert(identity).inserted else { return }
+            labels.append(tray.displayName)
+            colors.append(tray.colorHex.isEmpty ? "#FFFFFF" : tray.colorHex)
+        }
+
+        for trayID in snapshot.printFilamentTrayIDs {
+            if trayID < 0 || trayID == 254 || trayID == 255 {
+                append(snapshot.externalSpool)
+                continue
+            }
+            append(snapshot.amsUnits.lazy.flatMap(\.trays).first {
+                $0.unitIndex * 4 + $0.trayIndex == trayID
+            })
+        }
+        if labels.isEmpty { append(snapshot.activeFilament) }
+
+        snapshot.printFilamentLabels = Array(labels.prefix(8))
+        snapshot.printFilamentColors = Array(colors.prefix(8))
+    }
+
+    private static func jobIdentity(for payload: BambuPrinterPayload) -> String {
+        if !payload.gcodeFile.isEmpty { return payload.gcodeFile }
+        return payload.jobName
     }
 
     private static func parseTray(

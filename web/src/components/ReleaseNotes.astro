@@ -1,6 +1,16 @@
 ---
 const releases = [
   {
+    version: 'v0.9.2',
+    tag: 'r302',
+    date: '2026-09-06',
+    headline: 'Bambu connection recovery and filament telemetry',
+    items: [
+      { label: 'Fix', text: 'Companion v0.3.3 restarts rate-limited discovery after network failures and uses the saved LAN name as a fallback after printer serial matching.' },
+      { label: 'New', text: 'The Bambu display rotates through print filament labels and colors. Companion and firmware show observed settled filament changes, with a total when supplied by the printer.' },
+    ],
+  },
+  {
     version: 'v0.9.1',
     tag: 'r301',
     date: '2026-09-02',

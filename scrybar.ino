@@ -1243,6 +1243,8 @@ struct MacStatsUi {
   lv_obj_t *noData     = nullptr;
 };
 
+static constexpr uint8_t BAMBU_PRINT_FILAMENT_MAX = 8;
+
 struct BambuPrintState {
   bool valid = false;
   bool connected = false;
@@ -1264,6 +1266,8 @@ struct BambuPrintState {
   int targetTray = -1;
   int amsStatus = -1;
   int activeFilamentRemainingPercent = -1;
+  int filamentChangesCompleted = 0;
+  int filamentChangesTotal = -1;
   int amsHumidityPercent = -1;
   float nozzleTempC = 0.0f;
   float nozzleTargetC = 0.0f;
@@ -1281,6 +1285,9 @@ struct BambuPrintState {
   char wifiSignal[20] = {0};
   char activeFilamentLabel[64] = {0};
   char activeFilamentColorHex[12] = {0};
+  uint8_t printFilamentCount = 0;
+  char printFilamentLabels[BAMBU_PRINT_FILAMENT_MAX][64] = {};
+  char printFilamentColors[BAMBU_PRINT_FILAMENT_MAX][12] = {};
 };
 
 struct BambuPrintUi {
@@ -7478,6 +7485,25 @@ static void handleWebBambuPostApi() {
   if (extractJsonStringFieldLoose(body, "activeFilamentColorHex", text))
     copyStringSafe(next.activeFilamentColorHex, sizeof(next.activeFilamentColorHex), text.c_str());
 
+  if (body.indexOf("\"printFilamentLabels\"") >= 0 ||
+      body.indexOf("\"printFilamentColors\"") >= 0) {
+    next.printFilamentCount = 0;
+    memset(next.printFilamentLabels, 0, sizeof(next.printFilamentLabels));
+    memset(next.printFilamentColors, 0, sizeof(next.printFilamentColors));
+    for (uint8_t i = 0; i < BAMBU_PRINT_FILAMENT_MAX; ++i) {
+      char label[64] = {0};
+      char color[12] = {0};
+      const bool hasLabel = extractJsonArrayStringAt(
+        body.c_str(), "\"printFilamentLabels\":[", i, label, sizeof(label));
+      const bool hasColor = extractJsonArrayStringAt(
+        body.c_str(), "\"printFilamentColors\":[", i, color, sizeof(color));
+      if (!hasLabel && !hasColor) break;
+      if (hasLabel) copyStringSafe(next.printFilamentLabels[i], sizeof(next.printFilamentLabels[i]), label);
+      if (hasColor) copyStringSafe(next.printFilamentColors[i], sizeof(next.printFilamentColors[i]), color);
+      next.printFilamentCount = i + 1;
+    }
+  }
+
   float value = 0.0f;
   if (extractJsonNumberField(body.c_str(), "\"progressPercent\"", value)) next.progressPercent = constrain((int)lroundf(value), 0, 100);
   if (extractJsonNumberField(body.c_str(), "\"remainingMinutes\"", value)) next.remainingMinutes = max(0, (int)lroundf(value));
@@ -7496,6 +7522,8 @@ static void handleWebBambuPostApi() {
   if (extractJsonNumberField(body.c_str(), "\"targetTray\"", value)) next.targetTray = (int)lroundf(value);
   if (extractJsonNumberField(body.c_str(), "\"amsStatus\"", value)) next.amsStatus = (int)lroundf(value);
   if (extractJsonNumberField(body.c_str(), "\"activeFilamentRemainingPercent\"", value)) next.activeFilamentRemainingPercent = (int)lroundf(value);
+  if (extractJsonNumberField(body.c_str(), "\"filamentChangesCompleted\"", value)) next.filamentChangesCompleted = max(0, (int)lroundf(value));
+  if (extractJsonNumberField(body.c_str(), "\"filamentChangesTotal\"", value)) next.filamentChangesTotal = (int)lroundf(value);
   if (extractJsonNumberField(body.c_str(), "\"amsHumidityPercent\"", value)) next.amsHumidityPercent = (int)lroundf(value);
   if (extractJsonNumberField(body.c_str(), "\"nozzleTempC\"", value)) next.nozzleTempC = value;
   if (extractJsonNumberField(body.c_str(), "\"nozzleTargetC\"", value)) next.nozzleTargetC = value;
@@ -16096,10 +16124,17 @@ static void lvglUpdateBambuUi(bool force) {
   lv_label_set_text(g_bambuPrintUi.bed, buf);
   snprintf(buf, sizeof(buf), "%.0f C", s.chamberTempC);
   lv_label_set_text(g_bambuPrintUi.chamber, buf);
-  lv_label_set_text(g_bambuPrintUi.filament,
-                    s.activeFilamentLabel[0] ? s.activeFilamentLabel : "--");
+  const uint8_t filamentIndex = s.printFilamentCount > 1
+    ? (uint8_t)((millis() / 3500UL) % s.printFilamentCount)
+    : 0;
+  const char *filamentLabel = s.printFilamentCount > 0 && s.printFilamentLabels[filamentIndex][0]
+    ? s.printFilamentLabels[filamentIndex]
+    : (s.activeFilamentLabel[0] ? s.activeFilamentLabel : "--");
+  lv_label_set_text(g_bambuPrintUi.filament, filamentLabel);
   if (g_bambuPrintUi.filamentDot) {
-    const char *hex = s.activeFilamentColorHex;
+    const char *hex = s.printFilamentCount > 0 && s.printFilamentColors[filamentIndex][0]
+      ? s.printFilamentColors[filamentIndex]
+      : s.activeFilamentColorHex;
     if (hex[0] == '#') ++hex;
     const uint32_t filamentColor = strlen(hex) >= 6 ? strtoul(hex, nullptr, 16) >> (strlen(hex) >= 8 ? 8 : 0) : 0xFFFFFF;
     lv_obj_set_style_bg_color(g_bambuPrintUi.filamentDot, lv_color_hex(filamentColor), LV_PART_MAIN);
@@ -16115,15 +16150,20 @@ static void lvglUpdateBambuUi(bool force) {
   } else {
     const uint8_t telemetryPage = (millis() / 5000UL) % 3U;
     if (telemetryPage == 0U) {
-      const char *sensor = s.filamentSensorState < 0 ? "--" : (s.filamentSensorState > 0 ? "OK" : "EMPTY");
-      char remain[8], humidity[8];
+      char remain[8], humidity[8], changes[16];
       if (s.activeFilamentRemainingPercent >= 0) snprintf(remain, sizeof(remain), "%d", s.activeFilamentRemainingPercent);
       else copyStringSafe(remain, sizeof(remain), "--");
       if (s.amsHumidityPercent >= 0) snprintf(humidity, sizeof(humidity), "%d", s.amsHumidityPercent);
       else copyStringSafe(humidity, sizeof(humidity), "--");
+      if (s.filamentChangesTotal >= 0)
+        snprintf(changes, sizeof(changes), "%d/%d", s.filamentChangesCompleted, s.filamentChangesTotal);
+      else if (s.filamentChangesCompleted > 0 || s.printFilamentCount > 1)
+        snprintf(changes, sizeof(changes), "%d", s.filamentChangesCompleted);
+      else
+        copyStringSafe(changes, sizeof(changes), "--");
       snprintf(buf, sizeof(buf),
-               "AMS #FFFFFF %s%% left | #RH #FFFFFF %s%% | #TEMP #FFFFFF %.0fC | #SENSOR #FFFFFF %s#",
-               remain, humidity, s.amsTemperatureC, sensor);
+               "AMS #FFFFFF %s%% left | #CHANGES #FFFFFF %s | #RH #FFFFFF %s%% | #TEMP #FFFFFF %.0fC#",
+               remain, changes, humidity, s.amsTemperatureC);
     } else if (telemetryPage == 1U) {
       char speed[8], heatbreak[8], aux[8], chamber[8];
       if (s.speedPercent > 0) snprintf(speed, sizeof(speed), "%d", s.speedPercent); else copyStringSafe(speed, sizeof(speed), "--");

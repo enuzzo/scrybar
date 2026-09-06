@@ -22,6 +22,7 @@ enum BambuPrinterSelectionPolicy {
     static func preferredPrinter(
         in printers: [BambuDiscoveredPrinter],
         savedSerial: String,
+        savedName: String,
         savedHost: String,
         selectedID: String?
     ) -> BambuDiscoveredPrinter? {
@@ -32,6 +33,19 @@ enum BambuPrinterSelectionPolicy {
                $0.serial.caseInsensitiveCompare(normalizedSerial) == .orderedSame
            }) {
             return identityMatch
+        }
+
+        // DevName.bambu.com is the stable, user-visible LAN identity (for
+        // example "3DP-039-146"). It is not the full serial required by MQTT,
+        // but it is a safer way to recover the printer's current address than
+        // preferring a stale selection or DHCP address.
+        let normalizedName = savedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedName.isEmpty,
+           let nameMatch = printers.first(where: {
+               !$0.name.isEmpty &&
+               $0.name.caseInsensitiveCompare(normalizedName) == .orderedSame
+           }) {
+            return nameMatch
         }
 
         if let selectedID,

@@ -354,6 +354,10 @@ struct BambuPopoverSection: View {
                 HStack(spacing: 12) {
                     Label(remainingText, systemImage: "clock")
                     Spacer()
+                    if showsFilamentChanges {
+                        Label(filamentChangesText, systemImage: "arrow.triangle.2.circlepath")
+                        Spacer()
+                    }
                     Label(layerText, systemImage: "square.3.layers.3d")
                 }
                 .font(.system(size: 11.5, weight: .medium, design: .rounded))
@@ -413,6 +417,18 @@ struct BambuPopoverSection: View {
         printer.totalLayers > 0
             ? "Layer \(printer.currentLayer) / \(printer.totalLayers)"
             : "Layer —"
+    }
+
+    private var showsFilamentChanges: Bool {
+        printer.filamentChangesTotal >= 0 || printer.filamentChangesCompleted > 0 ||
+            printer.printFilamentColors.count > 1
+    }
+
+    private var filamentChangesText: String {
+        if printer.filamentChangesTotal >= 0 {
+            return "Changes \(printer.filamentChangesCompleted)/\(printer.filamentChangesTotal)"
+        }
+        return "Changes \(printer.filamentChangesCompleted)"
     }
 
     private var alertText: String {

@@ -37,6 +37,11 @@ import Testing
     payload.wifiSignal = "-48dBm"
     payload.activeFilamentLabel = "Bambu PLA Basic"
     payload.activeFilamentRemainingPercent = 76
+    payload.printFilamentTrayIDs = [0, 1]
+    payload.printFilamentLabels = ["Bambu PLA Basic", "Bambu PETG HF"]
+    payload.printFilamentColors = ["#FFFFFF", "#00AE42"]
+    payload.filamentChangesCompleted = 2
+    payload.filamentChangesTotal = 10
     payload.amsHumidityPercent = 30
 
     let encoder = JSONEncoder()
@@ -56,8 +61,58 @@ import Testing
     #expect(object["wifiSignal"] as? String == "-48dBm")
     #expect(object["activeFilamentLabel"] as? String == "Bambu PLA Basic")
     #expect(object["activeFilamentRemainingPercent"] as? Int == 76)
+    #expect(object["printFilamentTrayIDs"] as? [Int] == [0, 1])
+    #expect(object["printFilamentLabels"] as? [String] == ["Bambu PLA Basic", "Bambu PETG HF"])
+    #expect(object["printFilamentColors"] as? [String] == ["#FFFFFF", "#00AE42"])
+    #expect(object["filamentChangesCompleted"] as? Int == 2)
+    #expect(object["filamentChangesTotal"] as? Int == 10)
     #expect(object["amsHumidityPercent"] as? Int == 30)
     #expect(object["accessCode"] == nil)
+}
+
+@Test func filamentChangeCounterCountsOnlySettledTrayTransitions() {
+    var counter = BambuFilamentChangeCounter()
+
+    #expect(counter.update(
+        jobIdentity: "plate_1.gcode",
+        status: "RUNNING",
+        activeTray: 0,
+        targetTray: 0,
+        filamentSensorState: 1,
+        amsStatus: 0
+    ) == 0)
+    #expect(counter.update(
+        jobIdentity: "plate_1.gcode",
+        status: "RUNNING",
+        activeTray: 0,
+        targetTray: 1,
+        filamentSensorState: 1,
+        amsStatus: 0x0100
+    ) == 0)
+    #expect(counter.update(
+        jobIdentity: "plate_1.gcode",
+        status: "RUNNING",
+        activeTray: 1,
+        targetTray: 1,
+        filamentSensorState: 1,
+        amsStatus: 0
+    ) == 1)
+    #expect(counter.update(
+        jobIdentity: "plate_1.gcode",
+        status: "PAUSE",
+        activeTray: 1,
+        targetTray: 1,
+        filamentSensorState: 1,
+        amsStatus: 0
+    ) == 1)
+    #expect(counter.update(
+        jobIdentity: "plate_2.gcode",
+        status: "RUNNING",
+        activeTray: 2,
+        targetTray: 2,
+        filamentSensorState: 1,
+        amsStatus: 0
+    ) == 0)
 }
 
 @Test func parsesBambuSSDPDiscoveryResponse() throws {
@@ -144,7 +199,38 @@ import Testing
     let preferred = try #require(BambuPrinterSelectionPolicy.preferredPrinter(
         in: [staleFallback, currentIdentity],
         savedSerial: "039012345678901",
+        savedName: "Workshop A1",
         savedHost: "192.168.1.33",
+        selectedID: staleFallback.id
+    ))
+
+    #expect(preferred.id == currentIdentity.id)
+    #expect(preferred.host == "192.168.1.96")
+}
+
+@Test func selectionPrefersSavedLANNameOverStaleSelectedAddress() throws {
+    let staleFallback = BambuDiscoveredPrinter(
+        id: "192.168.1.33",
+        name: "",
+        model: "Bambu Lab printer",
+        modelCode: "",
+        host: "192.168.1.33",
+        serial: ""
+    )
+    let currentIdentity = BambuDiscoveredPrinter(
+        id: "192.168.1.96",
+        name: "3DP-039-146",
+        model: "Bambu Lab A1",
+        modelCode: "N2S",
+        host: "192.168.1.96",
+        serial: ""
+    )
+
+    let preferred = try #require(BambuPrinterSelectionPolicy.preferredPrinter(
+        in: [staleFallback, currentIdentity],
+        savedSerial: "039012345678901",
+        savedName: "3dp-039-146",
+        savedHost: staleFallback.host,
         selectedID: staleFallback.id
     ))
 
@@ -173,6 +259,7 @@ import Testing
     let preferred = try #require(BambuPrinterSelectionPolicy.preferredPrinter(
         in: [first, second],
         savedSerial: "",
+        savedName: "",
         savedHost: second.host,
         selectedID: second.id
     ))
@@ -206,6 +293,46 @@ import Testing
     #expect(BambuConnectionPhase.connecting.title == "Connecting…")
     #expect(BambuConnectionPhase.live.title == "Connected")
     #expect(BambuConnectionPhase.failed.title == "Connection failed")
+}
+
+@Test func networkFailureStartsRateLimitedPrinterRecoveryDiscovery() {
+    let now = Date(timeIntervalSince1970: 1_000)
+
+    #expect(BambuRecoveryScanPolicy.shouldStart(
+        status: "Connection failed: host is down. Retrying in 5 s…",
+        isScanning: false,
+        lastStartedAt: now.addingTimeInterval(-20),
+        now: now
+    ))
+    #expect(!BambuRecoveryScanPolicy.shouldStart(
+        status: "Connection failed: host is down. Retrying in 5 s…",
+        isScanning: true,
+        lastStartedAt: nil,
+        now: now
+    ))
+    #expect(!BambuRecoveryScanPolicy.shouldStart(
+        status: "Connection failed: host is down. Retrying in 5 s…",
+        isScanning: false,
+        lastStartedAt: now.addingTimeInterval(-5),
+        now: now
+    ))
+}
+
+@Test func authenticationFailureDoesNotStartPrinterDiscovery() {
+    let now = Date(timeIntervalSince1970: 1_000)
+
+    #expect(!BambuRecoveryScanPolicy.shouldStart(
+        status: "Printer rejected the LAN access code. Retrying in 5 s…",
+        isScanning: false,
+        lastStartedAt: nil,
+        now: now
+    ))
+    #expect(!BambuRecoveryScanPolicy.shouldStart(
+        status: "MQTT authentication failed (5). Retrying in 5 s…",
+        isScanning: false,
+        lastStartedAt: nil,
+        now: now
+    ))
 }
 
 @Test @MainActor func secureAccessCodeFieldHandlesCommandV() throws {

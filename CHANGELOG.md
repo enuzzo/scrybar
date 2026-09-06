@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-06
+
+### ScryBar v0.9.2 — Firmware r302 / Companion v0.3.3 (38)
+
+- Restart rate-limited printer discovery after network failures and use the saved LAN name as a fallback identity after the serial.
+- Forward print filament labels and colors, rotating them on the physical Bambu display.
+- Show observed settled filament changes in the Companion and firmware; show the total when the printer supplies a change sequence. Counts cover transitions observed by the running Companion.
+- Add regression coverage for LAN-name selection, recovery throttling, authentication failures and filament transitions.
+
 ## 2026-09-02
 
 ### ScryBar v0.9.1 — Firmware DB-M0-r301 / Companion v0.3.2 (37)
