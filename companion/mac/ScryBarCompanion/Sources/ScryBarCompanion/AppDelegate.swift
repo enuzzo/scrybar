@@ -2,14 +2,16 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let model = AppModel()
+    private var cameraWindow: NSWindow?
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
     private let popoverLayout = PopoverLayoutModel()
     private var observation: NSKeyValueObservation?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        model.openCameraWindow = { [weak self] in self?.showCamera() }
         let opensBambuSetup = ProcessInfo.processInfo.arguments.contains("--bambu-setup")
         let opensPopover = opensBambuSetup || ProcessInfo.processInfo.arguments.contains("--open")
         model.showSettingsOnOpen = opensBambuSetup
@@ -26,6 +28,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.togglePopover(button)
             }
         }
+    }
+
+    private func showCamera() {
+        if cameraWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 450),
+                                  styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                  backing: .buffered, defer: false)
+            window.title = "Bambu Camera"
+            window.isReleasedWhenClosed = false
+            window.contentMinSize = NSSize(width: 480, height: 340)
+            window.contentViewController = NSHostingController(rootView: BambuCameraView(camera: model.camera))
+            window.delegate = self
+            window.center()
+            cameraWindow = window
+        }
+        popover.performClose(nil)
+        cameraWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        model.camera.viewOnMac(true)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        if let window = notification.object as? NSWindow, window === cameraWindow {
+            model.camera.viewOnMac(false)
+        }
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Task { @MainActor in
+            let safe = await model.camera.prepareToQuit()
+            if !safe {
+                let alert = NSAlert()
+                alert.messageText = "Printer light-off could not be confirmed"
+                alert.informativeText = "Keep Companion open to retry, or quit with light cleanup saved for the next launch."
+                alert.addButton(withTitle: "Keep open")
+                alert.addButton(withTitle: "Quit anyway")
+                sender.reply(toApplicationShouldTerminate: alert.runModal() == .alertSecondButtonReturn)
+            } else { sender.reply(toApplicationShouldTerminate: true) }
+        }
+        return .terminateLater
     }
 
     func applicationWillTerminate(_ notification: Notification) {

@@ -117,3 +117,139 @@ until a supported source supplies real values.
 The ignored `_references/BambuSphere` checkout was used to study observable protocol behavior and the categories of telemetry exposed by the printer. BambuSphere is distributed under the **Federation Non-Commercial License (FNCL) v1.1**: commercial use is prohibited without separate written permission, redistribution carries notice and change-marking duties, and the license grants no trademark or patent rights.
 
 ScryBar's implementation is an independent rewrite using Apple `Network.framework`; it does not copy BambuSphere source, UI, graphics, sounds, or assets. Keep the reference checkout ignored and do not redistribute it as part of ScryBar.
+
+## On-demand camera (v0.9.3 / r306 / Companion v0.3.4)
+
+Release acceptance: real A1 frames and the r306 header were verified on the
+physical ScryBar; the user confirmed light-on and light-off on camera close.
+The universal Companion DMG was mounted and verified as v0.3.4 (39), with both
+architectures, valid ad-hoc signature and Applications link. All 24 non-clipboard
+Swift tests and the host camera-touch regression passed. The macOS clipboard
+integration test was excluded because of its earlier graphical-service failure.
+Network-loss and simultaneous Mac/device behavior have automated lifecycle
+coverage, but have not received a complete physical acceptance run. The dated
+checkpoints below preserve the implementation history and earlier pending gates.
+
+The A1/P1 LAN camera is available from **Cam** in ScryBar's Bambu header and
+from the video button in the companion's Bambu section. The Mac opens a separate
+camera window; Bambu Studio is not needed. The device camera view has only a light action and Back; the Mac retains its
+Start/Stop controls. Light control is explicit: opening the camera does not
+turn the lamp on.
+
+The companion owns one TLS connection to port 6000 for both viewers. It decodes
+bounded JPEG frames, displays the original aspect ratio on the Mac, and sends a
+letterboxed 240×135 RGB565 image to the device. No camera credentials are sent
+to ScryBar, and no images are saved. X1/H2 RTSPS cameras are not implemented by
+this transport. A1's native low camera cadence remains the limiting factor.
+
+ScryBar's `GET /api/bambu/camera` supplies a fresh session ID, active flag and
+light revision. The companion polls approximately once per second, then posts
+status and only a new image to the same endpoint. The device rejects inactive or
+outdated sessions and malformed/wrong-sized images. A missing device expires
+its viewer lease after five seconds; a missing companion stops the device view
+after ten seconds. Stale frames are hidden after twelve seconds. Back, changing
+pages and entering the screensaver close the device viewer. After a connection
+error, return with Back and open CAM again.
+
+Closing one viewer preserves the other. Closing the last viewer stops the LAN
+stream and requests lamp-off. Light cleanup is saved in companion preferences
+before a lamp command is sent, retried while pending, and cleared only after a
+matching printer's `lights_report` reports off. An unconfirmed cleanup blocks a
+new stream. Normal application quit waits up to five seconds; if the printer
+cannot confirm off, the app offers to keep retrying or quit with recovery saved
+for next launch. A power loss, forced process kill or unreachable printer cannot
+guarantee immediate lamp-off. Printer identity changes are blocked while a
+camera session or cleanup is active; changes to the same printer's IP remain
+supported.
+
+The protocol implementation is independent and based on the published
+[OpenBambuAPI LAN video description](https://github.com/Doridian/OpenBambuAPI/blob/main/video.md).
+Light control uses `system.ledctrl` / `chamber_light`, as documented by the
+[Home Assistant Bambu integration](https://github.com/greghesp/ha-bambulab/blob/main/custom_components/bambu_lab/pybambu/commands.py).
+No BambuSphere code or proprietary plugin is included.
+
+Validation on 2026-09-08: Swift protocol, shared-viewer lifecycle, lease expiry,
+cleanup recovery and RGB565 tests pass. Firmware and the macOS app compile.
+The unrelated macOS clipboard test requires a graphical service unavailable in
+the build sandbox and was excluded after that environment failure. Real A1
+frames, touchscreen placement, close/reopen behavior, light readback, network
+loss and concurrent viewing still require the updated firmware and companion
+running against the printer. No hardware flash or deployment is implied.
+
+Live checkpoint, 2026-09-08: the connected USB device was identified before
+flashing by its ScryBar 640×172 framebuffer and live Bambu telemetry. The camera
+firmware was uploaded to `/dev/cu.usbmodem83101`; esptool verified the written
+hash and reset the board. The post-flash framebuffer shows the Cam button and
+the new camera HTTP endpoint responds. The new Debug companion process started,
+but its initial Keychain read is waiting for user authorization; camera and lamp
+acceptance remain pending until that prompt is resolved.
+
+Follow-up: the user completed Keychain authorization and confirmed that the
+camera displayed successfully on ScryBar. Automatic light-off still awaits an
+explicit real-printer check. Firmware r303 makes the header action easier to
+find: a 96×28 solid Bambu-green button, dark semibold CAM label and video icon;
+the touch target matches the wider button. Before the follow-up upload, the
+chip MAC was matched to the device identified during the first flash.
+
+Firmware r303 upload completed with hash verification. Its live 640×172
+framebuffer was inspected: the larger green CAM button is legible and does not
+overlap the stage or status badges. Bambu telemetry resumed (RUNNING, 95%,
+layer 75/85). Real lamp-off confirmation remains open.
+
+### Navbar and touch follow-up (r304)
+
+The user reported CAM taps no longer responding after r303. CAM had been using
+the generic 350 ms / 12 px tap classifier, including the delayed release scan,
+instead of owning its gesture like the other display buttons. Camera controls
+now capture touch-down, suppress page dragging for that press, debounce release
+for 70 ms, and validate the actual contact duration and release target. A press
+up to 1400 ms with up to 32 px movement inside the same control is accepted;
+ending outside or on another control is cancelled. Serial diagnostics report
+camera press and release acceptance. Drawing and hit-testing share geometry in
+`src/bambu_camera_controls.h`. The host regression check is:
+
+```sh
+clang++ -std=c++17 tests/bambu_camera_controls_test.cpp -o /tmp/scrybar-camera-controls-test
+/tmp/scrybar-camera-controls-test
+```
+
+The navbar retains its 30 px height: Printing (210 px), CAM (112 px), and status
+(152 px) use the same 18 px semibold font and 28 px boxes, with 12 px gaps.
+Printing and status have a green outline; CAM keeps its solid green fill. The
+redundant status dot is removed. Physical tap acceptance must be checked after
+flashing; passing geometry tests alone does not prove the touchscreen behavior.
+
+r304 was uploaded after matching the ScryBar chip identity; esptool verified the
+flash hash. A live framebuffer then showed the camera open with a real image of
+the ongoing print, establishing that the new touch path can open the viewer.
+The first navbar capture occurred mid-swipe and was rejected as layout evidence.
+Automatic lamp-off and the settled navbar are being checked separately.
+
+### Camera acceptance and polish (r305)
+
+The user confirmed on the real A1 that the light button turns the lamp on and
+closing the camera turns it off. This closes the basic physical lamp lifecycle
+check; abrupt network/power-loss recovery remains a separate acceptance case.
+
+The device viewer now has only Back and a light command. A separate label shows
+`Light: ON` (yellow indicator) or `Light: OFF` (gray indicator), while the button
+says `Turn off` or `Turn on`. Unknown state is shown explicitly and pending
+commands display `Switching...`; requested state is not passed off as reported
+state. Smart punctuation received from the companion is converted to ASCII
+ellipsis/hyphen before rendering with the embedded font.
+
+The startup logo asset is little-endian RGB565, but the display canvas requires
+swapped bytes. Its old verbatim copy produced colored speckles in the gray edge
+pixels. r305 swaps bytes only for a swapped canvas, preserving the original
+283×152 asset and placement. `SPLASH` is available on serial for framebuffer QA
+without another boot.
+
+r305 upload completed with hardware identity and flash hash verification. The
+SPLASH framebuffer shows clean grayscale antialiased logo edges. The camera
+framebuffer shows the real printer image, gray `Light: OFF` state, `Turn on`
+action and Back, with no Stop button. Camera was then closed with CAMBACK.
+
+r306 displays the printer's `FINISH` status as `FINISHED` in the header, so it
+reads as a completed state. The protocol value remains unchanged. Build and
+identity-checked upload passed; the device framebuffer confirms the full label
+fits the existing status box at 100% completion.

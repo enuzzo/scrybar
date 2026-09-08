@@ -1,3 +1,4 @@
+#include "src/bambu_camera_controls.h"
 #include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
@@ -802,6 +803,8 @@ static void handleWebNowPlayingPostApi();
 static bool applyNowPlayingPayloadJson(const String &body, String &err);
 static void handleWebMacStatsPostApi();
 static void handleWebBambuPostApi();
+static void handleWebBambuCameraGetApi();
+static void handleWebBambuCameraPostApi();
 static void ensureScryBarMdnsStarted();
 static void stopScryBarMdns();
 #endif
@@ -1337,6 +1340,25 @@ static MacStatsState g_macStats = {};
 static MacStatsUi    g_macStatsUi;
 static BambuPrintState g_bambuPrint = {};
 static BambuPrintUi g_bambuPrintUi;
+// The companion polls this lease; credentials and JPEG decoding stay on the Mac.
+static bool g_bambuCameraOpen = false, g_bambuCameraActive = false;
+static bool g_bambuCameraLight = false, g_bambuCameraReportedLight = false;
+static bool g_bambuCameraLightKnown = false, g_bambuCameraLightPending = false;
+static uint32_t g_bambuCameraLightRevision = 0, g_bambuCameraReplyMs = 0, g_bambuCameraFrameMs = 0;
+static char g_bambuCameraSession[24] = "";
+static char g_bambuCameraStatus[100] = "Camera stopped";
+static lv_obj_t *g_bambuCameraButton = nullptr;
+static lv_obj_t *g_bambuCameraOverlay = nullptr, *g_bambuCameraImage = nullptr;
+static lv_obj_t *g_bambuCameraCaption = nullptr, *g_bambuCameraLightLabel = nullptr;
+static lv_obj_t *g_bambuCameraLightState = nullptr, *g_bambuCameraLightDot = nullptr, *g_bambuCameraLightButton = nullptr;
+static uint8_t *g_bambuCameraPixels = nullptr;
+static lv_img_dsc_t g_bambuCameraDescriptor = {};
+static void bambuCameraClose();
+static void bambuCameraStart();
+static BambuCameraControls::Button bambuCameraControlAt(int x, int y);
+static void bambuCameraActivate(BambuCameraControls::Button button);
+static void bambuCameraSetPressed(bool pressed);
+static void bambuCameraUpdate();
 // Circular history buffers for the CPU/GPU sparkline (updated every API push, ~5 s cadence)
 static uint8_t g_cpuUsageHistory[MAC_STATS_HISTORY_SIZE] = {};
 static uint8_t g_gpuUsageHistory[MAC_STATS_HISTORY_SIZE] = {};
@@ -1720,6 +1742,8 @@ struct TouchState {
   uint8_t rawPresenceCount = 0;
   bool pageDragging = false;
   TouchAuxButton auxBtnDown = TOUCH_AUX_BTN_NONE;
+  BambuCameraControls::Button cameraBtnDown = BambuCameraControls::none;
+  uint32_t lastContactMs = 0;
   uint32_t lastSwipeToggleMs = 0;
   bool awaitRelease = false;
   uint32_t releaseStartMs = 0;
@@ -6214,6 +6238,8 @@ static void ensureWebConfigServerStarted() {
     g_webCfg.server.on("/api/brightness", HTTP_POST, handleWebBrightnessApi);
     g_webCfg.server.on("/api/mac-stats", HTTP_POST, handleWebMacStatsPostApi);
     g_webCfg.server.on("/api/bambu", HTTP_POST, handleWebBambuPostApi);
+    g_webCfg.server.on("/api/bambu/camera", HTTP_GET, handleWebBambuCameraGetApi);
+    g_webCfg.server.on("/api/bambu/camera", HTTP_POST, handleWebBambuCameraPostApi);
     g_webCfg.server.onNotFound([]() {
       if (g_wifiSt.setupApActive) {
         sendWebCaptiveRedirect();
@@ -7452,6 +7478,70 @@ static void handleWebMacStatsPostApi() {
                 next.diskUsedGB, next.diskTotalGB);
   g_webCfg.server.sendHeader("Cache-Control", "no-store", true);
   g_webCfg.server.send(200, "application/json", "{\"ok\":true}");
+}
+
+static void handleWebBambuCameraGetApi() {
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
+  char body[200];
+  snprintf(body, sizeof(body), "{\"session\":\"%s\",\"active\":%s,\"lightRevision\":%lu,\"light\":%s}",
+      g_bambuCameraSession, g_bambuCameraActive ? "true" : "false",
+      (unsigned long)g_bambuCameraLightRevision, g_bambuCameraLight ? "true" : "false");
+  g_webCfg.server.sendHeader("Cache-Control", "no-store");
+  g_webCfg.server.send(200, "application/json", body);
+#else
+  g_webCfg.server.send(404, "application/json", "{}");
+#endif
+}
+
+static void handleWebBambuCameraPostApi() {
+#if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && DB_HAS_MBEDTLS_BASE64
+  const String body = g_webCfg.server.arg("plain");
+  String session, encoded, status;
+  if (body.length() > 88000 || !g_bambuCameraActive ||
+      !extractJsonStringFieldLoose(body, "session", session) || session != g_bambuCameraSession) {
+    g_webCfg.server.send(409, "application/json", "{\"ok\":false}"); return;
+  }
+  if (extractJsonStringFieldLoose(body, "rgb565", encoded)) {
+    constexpr size_t bytes = 240 * 135 * 2;
+    uint8_t *pixels = (uint8_t *)heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    size_t decoded = 0;
+    if (!pixels || mbedtls_base64_decode(pixels, bytes, &decoded,
+        (const unsigned char *)encoded.c_str(), encoded.length()) != 0 || decoded != bytes) {
+      free(pixels);
+      g_webCfg.server.send(400, "application/json", "{\"ok\":false}"); return;
+    }
+    // HTTP and LVGL run on the same loop; replace only between renders.
+    lv_img_cache_invalidate_src(&g_bambuCameraDescriptor);
+    uint8_t *previous = g_bambuCameraPixels;
+    g_bambuCameraPixels = pixels;
+    g_bambuCameraDescriptor.header.cf = LV_IMG_CF_TRUE_COLOR;
+    g_bambuCameraDescriptor.header.w = 240;
+    g_bambuCameraDescriptor.header.h = 135;
+    g_bambuCameraDescriptor.data_size = bytes;
+    g_bambuCameraDescriptor.data = pixels;
+    if (g_bambuCameraImage) lv_img_set_src(g_bambuCameraImage, &g_bambuCameraDescriptor);
+    free(previous);
+    g_bambuCameraFrameMs = millis();
+  }
+  if (extractJsonStringFieldLoose(body, "status", status)) {
+    // The embedded font has ASCII punctuation but no ellipsis/em dash glyphs.
+    status.replace("…", "...");
+    status.replace("—", "-");
+    copyStringSafe(g_bambuCameraStatus, sizeof(g_bambuCameraStatus), status.c_str());
+  }
+  extractJsonBoolFieldLoose(body, "lightKnown", g_bambuCameraLightKnown);
+  extractJsonBoolFieldLoose(body, "lightOn", g_bambuCameraReportedLight);
+  bool reportedPending = false;
+  extractJsonBoolFieldLoose(body, "lightPending", reportedPending);
+  if (!g_bambuCameraLightPending ||
+      (g_bambuCameraLightKnown && g_bambuCameraReportedLight == g_bambuCameraLight))
+    g_bambuCameraLightPending = reportedPending;
+  if (!g_bambuCameraLightPending) g_bambuCameraLight = g_bambuCameraReportedLight;
+  g_bambuCameraReplyMs = millis();
+  g_webCfg.server.send(200, "application/json", "{\"ok\":true}");
+#else
+  g_webCfg.server.send(404, "application/json", "{}");
+#endif
 }
 
 static void handleWebBambuPostApi() {
@@ -9811,7 +9901,17 @@ static void runStartupSplash() {
     if (yy < 0 || yy >= canvasH) continue;
     const size_t srcOff = (size_t)y * (size_t)kLogoW * 2U;
     uint8_t *dst = reinterpret_cast<uint8_t *>(&g_dispHw.canvasBuf[(size_t)yy * (size_t)DB_CANVAS_W + (size_t)startX]);
+    // This asset is RGB565 little-endian. LVGL's display canvas stores swapped
+    // (big-endian) pixels on this panel; copying it verbatim colors the gray
+    // antialiased edges and makes the logo look dithered.
+#if defined(LV_COLOR_DEPTH) && (LV_COLOR_DEPTH == 16) && defined(LV_COLOR_16_SWAP) && (LV_COLOR_16_SWAP != 0)
+    for (int16_t x = 0; x < kLogoW; ++x) {
+      dst[x * 2] = src[srcOff + x * 2 + 1];
+      dst[x * 2 + 1] = src[srcOff + x * 2];
+    }
+#else
     memcpy(dst, src + srcOff, (size_t)kLogoW * 2U);
+#endif
   }
   dispFlush();
   delay(DISPLAY_SPLASH_MS);
@@ -10700,14 +10800,15 @@ static inline void lvglStyleBambuHeaderBadge(lv_obj_t *label, uint32_t textHex) 
   lv_obj_set_style_bg_color(label, lv_color_hex(0x061018), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(label, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(label, 1, LV_PART_MAIN);
-  lv_obj_set_style_border_color(label, lv_color_hex(0x425466), LV_PART_MAIN);
-  lv_obj_set_style_border_opa(label, LV_OPA_80, LV_PART_MAIN);
+  lv_obj_set_style_border_color(label, lv_color_hex(0x00FF00), LV_PART_MAIN);
+  lv_obj_set_style_border_opa(label, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_radius(label, 5, LV_PART_MAIN);
   lv_obj_set_style_pad_left(label, 8, LV_PART_MAIN);
   lv_obj_set_style_pad_right(label, 8, LV_PART_MAIN);
   lv_obj_set_style_pad_top(label, 2, LV_PART_MAIN);
   lv_obj_set_style_pad_bottom(label, 2, LV_PART_MAIN);
   lv_obj_set_style_text_color(label, lv_color_hex(textHex), LV_PART_MAIN);
+  lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
 }
 
 // Create opaque panel: flat bg, no border/shadow/scroll.
@@ -11126,6 +11227,7 @@ static void setUiPage(UiPageMode mode) {
     mode = uiFirstEnabledSwipePageNoEnsure();
   }
   if (g_uiPageMode == mode) return;
+  if (g_uiPageMode == UI_PAGE_BAMBU) bambuCameraClose();
 #if TEST_DISPLAY && DOOM_SPIKE_ENABLED
   if (g_uiPageMode == UI_PAGE_DOOM && mode != UI_PAGE_DOOM) {
     if (g_lvglDoomRoot) lv_obj_add_flag(g_lvglDoomRoot, LV_OBJ_FLAG_HIDDEN);
@@ -12144,6 +12246,7 @@ static void lvglScreenSaverRespawnCow() {
 static void lvglSetScreenSaverActive(bool on) {
   if (!g_saver.root || !g_lvglReady) return;
   if (g_saver.active == on) return;
+  if (on) bambuCameraClose();
   g_saver.active = on;
   if (on) {
     lv_obj_clear_flag(g_saver.root, LV_OBJ_FLAG_HIDDEN);
@@ -12658,6 +12761,8 @@ static void handleTouchSwipeInput() {
       lvglSetScreenSaverActive(false);
       g_touch.down = false; g_touch.pageDragging = false;
       g_touch.auxBtnDown = TOUCH_AUX_BTN_NONE;
+      g_touch.cameraBtnDown = BambuCameraControls::none;
+      bambuCameraSetPressed(false);
       g_touch.awaitRelease = true; g_touch.releaseStartMs = 0;
       return;
     }
@@ -12677,6 +12782,12 @@ static void handleTouchSwipeInput() {
     if (!g_touch.down) {
       g_touch.down = true; g_touch.startX = x; g_touch.startY = y;
       g_touch.startMs = now; g_touch.pageDragging = false;
+      g_touch.cameraBtnDown = g_uiPageMode == UI_PAGE_BAMBU
+          ? bambuCameraControlAt(x, y) : BambuCameraControls::none;
+      if (g_touch.cameraBtnDown != BambuCameraControls::none) {
+        bambuCameraSetPressed(true);
+        Serial.printf("[CAM][TOUCH] down button=%u x=%d y=%d\n", (unsigned)g_touch.cameraBtnDown, x, y);
+      }
       g_touch.auxBtnDown = TOUCH_AUX_BTN_NONE;
       if (uiPageIsFeedDeck(g_uiPageMode)) {
         if (lvglFeedQrButtonContainsPoint(x, y)) g_touch.auxBtnDown = TOUCH_AUX_BTN_QR;
@@ -12694,12 +12805,13 @@ static void handleTouchSwipeInput() {
 #endif
     }
     g_touch.lastX = x; g_touch.lastY = y;
+    g_touch.lastContactMs = now;
 #if TEST_DISPLAY
     if (g_uiPageMode == UI_PAGE_DOOM) return;
 #endif
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI
     if (g_lvglReady) {
-      if (g_touch.auxBtnDown != TOUCH_AUX_BTN_NONE) return;
+      if (g_touch.auxBtnDown != TOUCH_AUX_BTN_NONE || g_touch.cameraBtnDown != BambuCameraControls::none) return;
       const int16_t liveDx = g_touch.lastX - g_touch.startX;
       const int16_t liveDy = g_touch.lastY - g_touch.startY;
       constexpr int16_t kDragStartPx = DISPLAY_TOUCH_TAP_MAX_PX + 2;
@@ -12713,7 +12825,14 @@ static void handleTouchSwipeInput() {
   }
 
   // ── Miss counter (touch controller scan rate bridge) ──
-  if (g_touch.down) { if (++g_touch.missCount < 12) return; g_touch.missCount = 0; }
+  if (g_touch.down) {
+    // Camera buttons own the gesture from touch-down. Release debounce uses
+    // elapsed time, not a loop count inflated by network work.
+    if (g_touch.cameraBtnDown != BambuCameraControls::none) {
+      if (now - g_touch.lastContactMs < 70) return;
+    } else if (++g_touch.missCount < 12) return;
+    g_touch.missCount = 0;
+  }
   if (!g_touch.down) return;
   g_touch.down = false;
 
@@ -12750,6 +12869,18 @@ static void handleTouchSwipeInput() {
   if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_QR) lvglSetFeedQrButtonPressed(false);
   else if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_REFRESH) lvglSetFeedRefreshButtonPressed(false);
   else if ((TouchAuxButton)r.auxBtnDown == TOUCH_AUX_BTN_NEXT) lvglSetFeedNextFeedButtonPressed(false);
+
+  if (g_touch.cameraBtnDown != BambuCameraControls::none) {
+    const auto button = g_touch.cameraBtnDown;
+    g_touch.cameraBtnDown = BambuCameraControls::none;
+    bambuCameraSetPressed(false);
+    const bool accepted = g_uiPageMode == UI_PAGE_BAMBU &&
+        BambuCameraControls::validRelease(button, bambuCameraControlAt(g_touch.lastX, g_touch.lastY),
+            g_touch.lastContactMs - g_touch.startMs, r.dx, r.dy);
+    Serial.printf("[CAM][TOUCH] release button=%u accepted=%u\n", (unsigned)button, accepted ? 1 : 0);
+    if (accepted) bambuCameraActivate(button);
+    return;
+  }
 
   // Dispatch by priority
   if ((TouchAuxButton)r.auxBtnDown != TOUCH_AUX_BTN_NONE) { handleFeedDeckButtonRelease(r); return; }
@@ -15934,6 +16065,93 @@ static void lvglUpdateMacStatsUi(bool force) {
 
 // ── End Mac Stats Page LVGL ───────────────────────────────────────────────
 
+static void bambuCameraClearFrame() {
+  if (g_bambuCameraImage) lv_obj_add_flag(g_bambuCameraImage, LV_OBJ_FLAG_HIDDEN);
+  lv_img_cache_invalidate_src(&g_bambuCameraDescriptor);
+  free(g_bambuCameraPixels);
+  g_bambuCameraPixels = nullptr;
+  g_bambuCameraDescriptor.data = nullptr;
+  g_bambuCameraDescriptor.data_size = 0;
+  g_bambuCameraFrameMs = 0;
+}
+
+static void bambuCameraClose() {
+  g_bambuCameraOpen = false;
+  g_bambuCameraActive = false;
+  if (g_bambuCameraOverlay) lv_obj_add_flag(g_bambuCameraOverlay, LV_OBJ_FLAG_HIDDEN);
+  bambuCameraClearFrame();
+}
+
+static void bambuCameraStart() {
+  bambuCameraClearFrame();
+  snprintf(g_bambuCameraSession, sizeof(g_bambuCameraSession), "%08lx-%08lx",
+      (unsigned long)esp_random(), (unsigned long)millis());
+  g_bambuCameraOpen = true;
+  g_bambuCameraActive = true;
+  g_bambuCameraLightRevision = 0;
+  g_bambuCameraLightKnown = false;
+  g_bambuCameraLightPending = false;
+  g_bambuCameraReplyMs = millis();
+  copyStringSafe(g_bambuCameraStatus, sizeof(g_bambuCameraStatus), "Connecting to Companion...");
+  if (g_bambuCameraOverlay) lv_obj_clear_flag(g_bambuCameraOverlay, LV_OBJ_FLAG_HIDDEN);
+}
+
+static BambuCameraControls::Button bambuCameraControlAt(int x, int y) {
+  return BambuCameraControls::hit(g_bambuCameraOpen,
+      g_bambuCameraActive && g_bambuCameraLightKnown && !g_bambuCameraLightPending, x, y);
+}
+
+static void bambuCameraSetPressed(bool pressed) {
+  if (g_bambuCameraButton)
+    lvglSetBgFlat(g_bambuCameraButton, pressed ? 0x00B828 : 0x00FF00);
+}
+
+static void bambuCameraActivate(BambuCameraControls::Button button) {
+  switch (button) {
+    case BambuCameraControls::open: bambuCameraStart(); break;
+    case BambuCameraControls::close: bambuCameraClose(); break;
+    case BambuCameraControls::toggleLight:
+      if (g_bambuCameraActive && g_bambuCameraLightKnown && !g_bambuCameraLightPending) {
+        g_bambuCameraLight = !g_bambuCameraReportedLight;
+        g_bambuCameraLightPending = true;
+        ++g_bambuCameraLightRevision;
+      }
+      break;
+    default: break;
+  }
+}
+
+static void bambuCameraUpdate() {
+  if (!g_bambuCameraOpen) return;
+  if (g_bambuCameraActive && millis() - g_bambuCameraReplyMs > 10000UL) {
+    g_bambuCameraActive = false;
+    bambuCameraClearFrame();
+    copyStringSafe(g_bambuCameraStatus, sizeof(g_bambuCameraStatus), "Companion unavailable. Go Back and reopen CAM.");
+  }
+  if (g_bambuCameraImage) {
+    if (g_bambuCameraActive && g_bambuCameraPixels && millis() - g_bambuCameraFrameMs < 12000UL)
+      lv_obj_clear_flag(g_bambuCameraImage, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(g_bambuCameraImage, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (g_bambuCameraCaption) lv_label_set_text(g_bambuCameraCaption, g_bambuCameraStatus);
+  const bool known = g_bambuCameraLightKnown && g_bambuCameraActive;
+  const uint32_t lightColor = g_bambuCameraLightPending ? 0xFFB340 :
+      !known ? 0x888888 : g_bambuCameraReportedLight ? 0xFFD75A : 0xA8B0B8;
+  if (g_bambuCameraLightState) {
+    lv_label_set_text(g_bambuCameraLightState, !known ? "Light: --" :
+        g_bambuCameraReportedLight ? "Light: ON" : "Light: OFF");
+    lv_obj_set_style_text_color(g_bambuCameraLightState, lv_color_hex(lightColor), 0);
+  }
+  if (g_bambuCameraLightDot) lvglSetBgFlat(g_bambuCameraLightDot, lightColor);
+  if (g_bambuCameraLightLabel) lv_label_set_text(g_bambuCameraLightLabel,
+      g_bambuCameraLightPending ? "Switching..." : !known ? "Please wait" :
+      g_bambuCameraReportedLight ? "Turn off" : "Turn on");
+  if (g_bambuCameraLightButton) {
+    lvglSetBgFlat(g_bambuCameraLightButton, known && g_bambuCameraReportedLight ? 0x3C3010 : 0x163021);
+    lv_obj_set_style_border_color(g_bambuCameraLightButton, lv_color_hex(lightColor), 0);
+  }
+}
+
 static void lvglInitBambuUi() {
   if (!g_lvglBambuRoot) return;
   const UiThemeLvglTokens &t = activeUiTheme().lvgl;
@@ -15970,23 +16188,24 @@ static void lvglInitBambuUi() {
   lv_obj_clear_flag(g_bambuPrintUi.header, LV_OBJ_FLAG_SCROLLABLE);
 
   g_bambuPrintUi.title = makeLabel(g_bambuPrintUi.header, "BAMBU LAB", lvglFontHeaderTitle(),
-                                   t.headerText, 10, 3, 180);
-  g_bambuPrintUi.stage = makeLabel(g_bambuPrintUi.header, "Waiting for Companion", lvglFontTiny(),
-                                   primaryText, 132, 4, 210);
-  lv_obj_set_height(g_bambuPrintUi.stage, 22);
+                                   t.headerText, 10, 3, 112);
+  g_bambuPrintUi.stage = makeLabel(g_bambuPrintUi.header, "Waiting for Companion", lvglFontSmallBold(),
+                                   primaryText, 132, 1, 210);
+  lv_obj_set_height(g_bambuPrintUi.stage, 28);
   lvglStyleBambuHeaderBadge(g_bambuPrintUi.stage, primaryText);
-  g_bambuPrintUi.statusDot = lvglCreatePanel(g_bambuPrintUi.header, 8, 8, 0, 0,
-                                             lv_color_hex(0x666666), 4);
-  lv_obj_align(g_bambuPrintUi.statusDot, LV_ALIGN_RIGHT_MID, -12, 0);
-  lv_obj_set_style_border_width(g_bambuPrintUi.statusDot, 1, LV_PART_MAIN);
-  lv_obj_set_style_border_color(g_bambuPrintUi.statusDot, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-  lv_obj_set_style_border_opa(g_bambuPrintUi.statusDot, LV_OPA_80, LV_PART_MAIN);
-  g_bambuPrintUi.status = makeLabel(g_bambuPrintUi.header, "OFFLINE", lvglFontTiny(),
-                                    0xA8B0B8, 508, 4, 122);
-  lv_obj_set_height(g_bambuPrintUi.status, 22);
+  g_bambuPrintUi.status = makeLabel(g_bambuPrintUi.header, "OFFLINE", lvglFontSmallBold(),
+                                    0xA8B0B8, 478, 1, 152);
+  lv_obj_set_height(g_bambuPrintUi.status, 28);
   lvglStyleBambuHeaderBadge(g_bambuPrintUi.status, 0xA8B0B8);
-  lv_obj_set_style_pad_right(g_bambuPrintUi.status, 24, LV_PART_MAIN);
-  lv_obj_set_style_text_align(g_bambuPrintUi.status, LV_TEXT_ALIGN_RIGHT, 0);
+
+  const auto &cameraRect = BambuCameraControls::camera;
+  g_bambuCameraButton = lvglCreatePanel(g_bambuPrintUi.header, cameraRect.width, cameraRect.height,
+      cameraRect.x, cameraRect.y, lv_color_hex(bambuAccent), 5);
+  lv_obj_set_style_border_width(g_bambuCameraButton, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(g_bambuCameraButton, lv_color_hex(bambuAccent), LV_PART_MAIN);
+  makeLabel(g_bambuCameraButton, LV_SYMBOL_VIDEO, lvglFontTiny(), 0x001A08, 20, 5, 18);
+  lv_obj_t *cameraButtonLabel = makeLabel(g_bambuCameraButton, "CAM", lvglFontSmallBold(), 0x001A08, 43, 1, 49);
+  lv_obj_set_style_text_align(cameraButtonLabel, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
 
   g_bambuPrintUi.progressArc = lv_arc_create(g_lvglBambuRoot);
   // Centre within the body below the 30 px navbar, retaining 8 px of real
@@ -16046,9 +16265,34 @@ static void lvglInitBambuUi() {
       "Open ScryBar Companion > Settings > Bambu Lab printer",
       lvglFontSmall(), secondaryText, 70, 84, 500);
   lv_obj_set_style_text_align(g_bambuPrintUi.noData, LV_TEXT_ALIGN_CENTER, 0);
+
+  g_bambuCameraOverlay = lvglCreatePanel(g_lvglBambuRoot, 640, 172, 0, 0, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_border_width(g_bambuCameraOverlay, 0, 0);
+  lv_obj_set_style_pad_all(g_bambuCameraOverlay, 0, 0);
+  makeLabel(g_bambuCameraOverlay, "PRINTER CAMERA", lvglFontSmallBold(), bambuAccent, 10, 12, 212);
+  g_bambuCameraCaption = makeLabel(g_bambuCameraOverlay, "Connecting...", lvglFontSmall(), primaryText, 10, 47, 212);
+  lv_label_set_long_mode(g_bambuCameraCaption, LV_LABEL_LONG_WRAP);
+  lv_obj_set_height(g_bambuCameraCaption, 110);
+  g_bambuCameraImage = lv_img_create(g_bambuCameraOverlay);
+  lv_obj_set_pos(g_bambuCameraImage, 242, 18);
+  lv_obj_add_flag(g_bambuCameraImage, LV_OBJ_FLAG_HIDDEN);
+  auto cameraControl = [&](const BambuCameraControls::Rect &r, const char *title) -> lv_obj_t* {
+    lv_obj_t *button = lvglCreatePanel(g_bambuCameraOverlay, r.width, r.height, r.x, r.y, lv_color_hex(0x163021), 6);
+    return makeLabel(button, title, lvglFontSmallBold(), primaryText, 12, 8, 106);
+  };
+  g_bambuCameraLightDot = lvglCreatePanel(g_bambuCameraOverlay, 8, 8, 504, 29, lv_color_hex(0x888888), 4);
+  g_bambuCameraLightState = makeLabel(g_bambuCameraOverlay, "Light: --", lvglFontSmallBold(), 0xA8B0B8, 520, 20, 108);
+  g_bambuCameraLightButton = lvglCreatePanel(g_bambuCameraOverlay,
+      BambuCameraControls::light.width, BambuCameraControls::light.height,
+      BambuCameraControls::light.x, BambuCameraControls::light.y, lv_color_hex(0x163021), 6);
+  lv_obj_set_style_border_width(g_bambuCameraLightButton, 1, 0);
+  g_bambuCameraLightLabel = makeLabel(g_bambuCameraLightButton, "Please wait", lvglFontSmallBold(), primaryText, 10, 8, 106);
+  cameraControl(BambuCameraControls::back, "Back");
+  lv_obj_add_flag(g_bambuCameraOverlay, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void lvglUpdateBambuUi(bool force) {
+  bambuCameraUpdate();
   (void)force;
   if (!g_lvglBambuRoot) return;
   const BambuPrintState &s = g_bambuPrint;
@@ -16079,7 +16323,8 @@ static void lvglUpdateBambuUi(bool force) {
   if (g_bambuPrintUi.statusDot)
     lv_obj_set_style_bg_color(g_bambuPrintUi.statusDot, lv_color_hex(statusColor), LV_PART_MAIN);
   if (g_bambuPrintUi.status) {
-    lv_label_set_text(g_bambuPrintUi.status, live ? (s.status[0] ? s.status : "ONLINE") : "OFFLINE");
+    const char* statusLabel = strcmp(s.status, "FINISH") == 0 ? "FINISHED" : s.status;
+    lv_label_set_text(g_bambuPrintUi.status, live ? (statusLabel[0] ? statusLabel : "ONLINE") : "OFFLINE");
     lv_obj_set_style_text_color(g_bambuPrintUi.status, lv_color_hex(statusColor), LV_PART_MAIN);
   }
   if (g_bambuPrintUi.stage) {
@@ -19289,6 +19534,7 @@ struct SerialCmd {
 
 static const SerialCmd kSerialCmds[] = {
   { "HELP",          cmdHelp },
+  { "SPLASH",        [](const String &) { runStartupSplash(); } },
   { "SNAP",          cmdSnap },
   { "SCREENSHOT",    cmdSnap },
   { "VIEW",          cmdViewToggle },
@@ -19328,6 +19574,8 @@ static const SerialCmd kSerialCmds[] = {
   { "MACSTATS",      cmdViewMacStats },
   { "VIEW9",         cmdViewBambu },
   { "VIEWBAMBU",     cmdViewBambu },
+  { "VIEWCAM",       [](const String &) { setUiPage(UI_PAGE_BAMBU); bambuCameraStart(); } },
+  { "CAMBACK",       [](const String &) { bambuCameraClose(); } },
   { "BAMBU",         cmdViewBambu },
   { "THEME",         cmdTheme },
   { "LANG",          cmdLang },

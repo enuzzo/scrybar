@@ -292,6 +292,11 @@ struct BambuPopoverSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
+                Button { model.openCameraWindow?() } label: {
+                    Image(systemName: "video.fill")
+                }
+                .buttonStyle(.plain)
+                .help("Open printer camera")
                 Label("BAMBU LAB", systemImage: "printer.fill")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(printer.connected ? CompanionTheme.bambuAccent : CompanionTheme.textTertiary)

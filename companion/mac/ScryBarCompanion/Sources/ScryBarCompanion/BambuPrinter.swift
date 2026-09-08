@@ -199,6 +199,7 @@ enum BambuKeychain {
 /// Minimal MQTT 3.1.1 client for Bambu's LAN broker. It intentionally supports
 /// only CONNECT, SUBSCRIBE, PUBLISH, PING and the corresponding acknowledgements.
 final class BambuPrinterMonitor: @unchecked Sendable {
+    var onLight: (@Sendable (String, Bool) -> Void)?
     var onPayload: (@Sendable (BambuPrinterPayload) -> Void)?
     var onStatus: (@Sendable (String) -> Void)?
 
@@ -238,6 +239,15 @@ final class BambuPrinterMonitor: @unchecked Sendable {
             self.snapshot.status = "OFFLINE"
             self.snapshot.updatedAt = .now
             self.onPayload?(self.snapshot)
+        }
+    }
+
+    func setCameraLight(_ enabled: Bool, serial: String) {
+        queue.async { [weak self] in
+            guard let self, self.configuration?.serial == serial, self.snapshot.connected else { return }
+            let mode = enabled ? "on" : "off"
+            self.publish(json: "{\"system\":{\"sequence_id\":\"9001\",\"command\":\"ledctrl\",\"led_node\":\"chamber_light\",\"led_mode\":\"\(mode)\",\"led_on_time\":500,\"led_off_time\":500,\"loop_times\":0,\"interval_time\":0}}")
+            self.publish(json: #"{"pushing":{"sequence_id":"9002","command":"pushall"}}"#)
         }
     }
 
@@ -416,6 +426,12 @@ final class BambuPrinterMonitor: @unchecked Sendable {
         let payload = body.subdata(in: cursor..<body.count)
         guard let root = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
               let print = root["print"] as? [String: Any] else { return }
+        if let lights = print["lights_report"] as? [[String: Any]],
+           let light = lights.first(where: { $0["node"] as? String == "chamber_light" }),
+           let mode = light["mode"] as? String, ["on", "off"].contains(mode),
+           let serial = configuration?.serial {
+            onLight?(serial, mode == "on")
+        }
         merge(print: print)
     }
 

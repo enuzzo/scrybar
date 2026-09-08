@@ -94,6 +94,10 @@ final class AppModel: ObservableObject {
         FileManager.default.isExecutableFile(atPath: "/usr/local/bin/macmon")
     }()
 
+    var openCameraWindow: (() -> Void)?
+    let camera = BambuCameraModel()
+    private var activeBambuConfiguration = BambuPrinterConfiguration(host: "", serial: "", accessCode: "")
+
     private let discovery = ScryBarDiscovery()
     private let client = ScryBarClient()
     private let systemProvider: any NowPlayingProviding = FallbackNowPlayingProvider([
@@ -142,6 +146,15 @@ final class AppModel: ObservableObject {
         bambuMonitor.onPayload = { [weak self] payload in
             Task { @MainActor in self?.receiveBambu(payload) }
         }
+        camera.configuration = { [weak self] in
+            self?.activeBambuConfiguration ?? BambuPrinterConfiguration(host: "", serial: "", accessCode: "")
+        }
+        camera.endpoint = { [weak self] in self?.selectedEndpoint }
+        camera.setLight = { [weak self] enabled, serial in self?.bambuMonitor.setCameraLight(enabled, serial: serial) }
+        bambuMonitor.onLight = { [weak self] serial, on in
+            Task { @MainActor in self?.camera.receiveLight(serial: serial, on: on) }
+        }
+        camera.startPolling()
         startBambuMonitor()
         startPolling()
         startMacStatsPolling()
@@ -177,8 +190,12 @@ final class AppModel: ObservableObject {
     }
 
     func selectBambuPrinter(id: String?) {
+        guard let id, let printer = discoveredBambuPrinters.first(where: { $0.id == id }) else {
+            selectedBambuPrinterID = id
+            return
+        }
+        guard canSwitchBambuPrinter(to: printer.serial.isEmpty ? bambuSerial : printer.serial.uppercased()) else { return }
         selectedBambuPrinterID = id
-        guard let id, let printer = discoveredBambuPrinters.first(where: { $0.id == id }) else { return }
         let previousHost = bambuHost
         bambuHost = printer.host
         if !printer.serial.isEmpty {
@@ -214,13 +231,14 @@ final class AppModel: ObservableObject {
             bambuConnectionStatus = previousHost == bambuHost
                 ? "Printer selected. Connecting securely…"
                 : "Printer address updated. Reconnecting securely…"
-            bambuMonitor.start(configuration: configuration)
+            connectBambu(configuration: configuration)
         }
     }
 
     /// Clean shutdown for app termination: stop polling and terminate the
     /// long-lived macmon subprocess so it can't be orphaned.
     func shutdown() {
+        camera.shutdown()
         pollTask?.cancel()
         macStatsPollTask?.cancel()
         macStatsProvider.stop()
@@ -250,6 +268,7 @@ final class AppModel: ObservableObject {
             return
         }
 
+        guard canSwitchBambuPrinter(to: configuration.serial) else { return }
         bambuHost = configuration.host
         bambuSerial = configuration.serial
         bambuBaselineReceived = false
@@ -267,7 +286,7 @@ final class AppModel: ObservableObject {
             UserDefaults.standard.set(self.bambuPrinterName, forKey: "bambuPrinterName")
             BambuKeychain.saveAccessCode(configuration.accessCode, serial: configuration.serial)
             self.bambuConnectionStatus = "Settings saved. Connecting securely…"
-            self.bambuMonitor.start(configuration: configuration)
+            self.connectBambu(configuration: configuration)
         }
     }
 
@@ -316,13 +335,29 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.set(enabled, forKey: "bambuSoundsEnabled")
     }
 
+    private func canSwitchBambuPrinter(to serial: String) -> Bool {
+        if !activeBambuConfiguration.serial.isEmpty,
+           activeBambuConfiguration.serial != serial,
+           camera.running || camera.lightPending {
+            bambuConnectionStatus = "Close camera and wait for light-off before switching printers"
+            return false
+        }
+        return true
+    }
+
+    private func connectBambu(configuration: BambuPrinterConfiguration) {
+        guard canSwitchBambuPrinter(to: configuration.serial) else { return }
+        activeBambuConfiguration = configuration
+        bambuMonitor.start(configuration: configuration)
+    }
+
     private func startBambuMonitor() {
         let configuration = BambuPrinterConfiguration(
             host: bambuHost,
             serial: bambuSerial,
             accessCode: bambuAccessCode
         )
-        bambuMonitor.start(configuration: configuration)
+        connectBambu(configuration: configuration)
     }
 
     private func receiveBambu(_ payload: BambuPrinterPayload) {

@@ -4,6 +4,25 @@ macOS menu-bar app (Swift/SwiftUI) that feeds **Now Playing**, **Mac Stats**, an
 
 ---
 
+## Installation
+
+Current release: **v0.3.4 (39)** for macOS 14+, Apple Silicon and Intel.
+
+1. Download [ScryBarCompanion-0.3.4.dmg](https://github.com/enuzzo/scrybar/releases/download/v0.9.3/ScryBarCompanion-0.3.4.dmg).
+2. Close camera viewers and quit the previous Companion normally, allowing any pending light-off cleanup to finish.
+3. Open the DMG and drag **ScryBarCompanion.app** into **Applications**, replacing the previous version if present.
+4. Launch the app. For the first-launch Gatekeeper prompt, follow the instructions below. Allow Local Network access and any Keychain prompt for your saved printer.
+5. Update ScryBar to **r306 / v0.9.3** with the [web firmware installer](https://enuzzo.github.io/scrybar/#flash), selecting the correct connected display. Printer credentials stay in the Companion's Keychain.
+
+## Bambu camera
+
+- Enable LAN access on a supported A1/P1 printer. In the Companion's Bambu section, select the printer and save its LAN access code. Wait for live printer status.
+- Open **Camera** in the Companion, or tap **CAM** in ScryBar's Bambu header. Bambu Studio is not required; keep the Companion running and both devices on the reachable LAN.
+- On ScryBar, **Light: ON** (yellow) and **Light: OFF** (gray) report the lamp state. **Turn on** / **Turn off** is the action; **Back** closes the camera. Opening the camera does not turn the light on automatically.
+- On the Mac, Start/Stop controls that viewer; close the camera window to leave it. If another viewer remains open, the shared stream continues.
+- Closing the last viewer stops the stream and requests light-off. If the printer is unreachable, the Companion persists and retries cleanup; a normal app quit waits for confirmation. Forced termination, lost power or an unreachable printer can delay cleanup, so check the physical lamp in those cases.
+- This release supports the A1/P1 LAN JPEG camera, including its native low frame rate. X1/H2 RTSPS cameras are not supported. Camera images are not saved.
+
 ## Features
 
 | Feature | Notes |
@@ -12,6 +31,7 @@ macOS menu-bar app (Swift/SwiftUI) that feeds **Now Playing**, **Mac Stats**, an
 | **Music.app provider** | Direct AppleScript integration for richer metadata |
 | **Mac Stats** | CPU/GPU usage %, CPU/GPU temperature, RAM and disk usage |
 | **Bambu Lab monitor** | SSDP discovery plus direct LAN MQTT/TLS status with Keychain-protected access codes |
+| **A1/P1 camera** | On-demand Mac and ScryBar viewers, shared LAN stream and light-off cleanup |
 | **Multiple printers** | Select a discovered printer; credentials remain separate for each serial number |
 | **Setup Help** | Short ASD-STE100-style connection and troubleshooting instructions in the app |
 | **Print event sounds** | Distinct macOS sounds for start, pause/fault, and completion |

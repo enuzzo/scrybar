@@ -21,12 +21,12 @@ import imgIcon from '../assets/scrybar-icon.png';
       </h2>
       <p class="companion-lede">
         Live Now Playing metadata, album art, CPU/GPU temperature, RAM,
-        disk usage, and credential-free Bambu Lab print telemetry — streamed
+        disk usage, Bambu Lab print telemetry and an on-demand A1/P1 camera — streamed
         from your Mac to the strip over your LAN.
       </p>
       <div class="companion-meta">
         <span class="vm-badge vm-badge--brand">macOS 14+</span>
-        <span class="vm-badge vm-badge--info">v0.3.3</span>
+        <span class="vm-badge vm-badge--info">v0.3.4</span>
         <span class="companion-meta__sep" aria-hidden="true"></span>
         <span class="companion-meta__note">Menu bar · ~8 MB · Swift 6</span>
       </div>
@@ -76,12 +76,12 @@ import imgIcon from '../assets/scrybar-icon.png';
     <!-- Primary CTA row -->
     <div class="companion-cta">
       <a
-        href="https://github.com/enuzzo/scrybar/releases/download/v0.9.2/ScryBarCompanion-0.3.3.dmg"
+        href="https://github.com/enuzzo/scrybar/releases/download/v0.9.3/ScryBarCompanion-0.3.4.dmg"
         class="vm-btn vm-btn--primary vm-btn--lg companion-cta__btn"
       >
         <span class="companion-cta__arrow" aria-hidden="true">↓</span>
         Download stable DMG
-        <span class="companion-cta__ver">v0.3.3</span>
+        <span class="companion-cta__ver">v0.3.4</span>
       </a>
       <span class="companion-cta__hint">
         Ad-hoc signed · Apple Silicon + Intel · ~8 MB
@@ -104,6 +104,19 @@ import imgIcon from '../assets/scrybar-icon.png';
         <pre class="companion-prereq__cmd"><code>brew install macmon</code></pre>
         Without it the popover still streams CPU/GPU <em>usage %</em>, RAM,
         and disk — temperatures just read as <code>—</code>.
+      </div>
+    </aside>
+
+    <aside class="companion-prereq">
+      <span class="companion-prereq__tag">Bambu camera</span>
+      <div class="companion-prereq__body">
+        <strong>Your printer, without opening Bambu Studio.</strong>
+        Connect an A1/P1 printer in the Companion, then open Camera on your Mac
+        or tap CAM on ScryBar (firmware r306). On the strip, Light: ON/OFF shows
+        the current state; Turn on/off changes it and Back closes the view.
+        Closing the last camera viewer stops the stream and requests light-off.
+        Keep the Companion running for the ScryBar camera.
+        <a href="https://github.com/enuzzo/scrybar/blob/main/companion/mac/ScryBarCompanion/README.md#bambu-camera">Setup and camera instructions</a>.
       </div>
     </aside>
 

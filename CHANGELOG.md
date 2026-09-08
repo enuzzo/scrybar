@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-08
+
+### ScryBar v0.9.3 — Firmware r306 / Companion v0.3.4 (39)
+
+- Add on-demand Bambu A1/P1 camera viewing on ScryBar and in the macOS Companion, sharing a single LAN stream without Bambu Studio.
+- Add light controls with persisted light-off cleanup when the last camera viewer closes, retry after reconnection, and graceful Companion quit handling.
+- Improve the Bambu header with aligned outlined state badges and a prominent CAM button; display FINISHED instead of FINISH.
+- Fix CAM touch handling so normal finger drift does not turn a camera tap into page navigation.
+- Keep only light and Back controls on the device camera view; separate Light: ON/OFF state from Turn on/off actions and remove unsupported Connecting punctuation.
+- Correct the boot logo RGB565 byte order, restoring clean grayscale edges without changing the source asset.
+- Add camera protocol, viewer lifecycle, recovery, image conversion and touch regression checks.
+
 ## 2026-09-06
 
 ### ScryBar v0.9.2 — Firmware r302 / Companion v0.3.3 (38)

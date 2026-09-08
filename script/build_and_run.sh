@@ -11,14 +11,29 @@ DERIVED_DATA="$ROOT_DIR/dist/companion-derived-data"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
-pkill -x "$APP_NAME" >/dev/null 2>&1 || true
-
 xcodebuild \
   -project "$PROJECT" \
   -scheme "$APP_NAME" \
   -configuration Debug \
   -derivedDataPath "$DERIVED_DATA" \
   build
+
+# Build-only checks must not interrupt a running companion or its camera cleanup.
+if [[ "$MODE" == "--build-only" ]]; then exit 0; fi
+
+# A normal quit gives the camera time to switch the printer light off. SIGTERM
+# bypasses applicationShouldTerminate and can strand the light on.
+if pgrep -x "$APP_NAME" >/dev/null; then
+  /usr/bin/osascript -e 'tell application id "com.netmilk.ScryBarCompanion" to quit'
+  for attempt in {1..20}; do
+    if ! pgrep -x "$APP_NAME" >/dev/null; then break; fi
+    sleep 0.5
+  done
+  if pgrep -x "$APP_NAME" >/dev/null; then
+    echo "Companion is still open; resolve its light cleanup prompt before relaunching." >&2
+    exit 1
+  fi
+fi
 
 open_app() {
   if [[ $# -gt 0 ]]; then
@@ -55,7 +70,7 @@ case "$MODE" in
     open_app --open
     ;;
   *)
-    echo "usage: $0 [run|--debug|--logs|--telemetry|--verify|--bambu-setup|--open]" >&2
+    echo "usage: $0 [run|--build-only|--debug|--logs|--telemetry|--verify|--bambu-setup|--open]" >&2
     exit 2
     ;;
 esac

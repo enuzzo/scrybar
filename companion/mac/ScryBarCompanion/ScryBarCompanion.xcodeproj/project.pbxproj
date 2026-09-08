@@ -10,9 +10,11 @@
 		06F32E47268A0EC3E08D735A /* CompanionTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */; };
 		095EE31AE5D86F1A533F6AE7 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E22A120EAA9F0E38CDE52E /* Providers.swift */; };
 		153681E18B8A702FBDCA3DBA /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B39588B77F90F5443B7C566 /* AppModel.swift */; };
+		227ACA0DCFC468797803EA59 /* BambuCameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D47FE356C1FE24226C1BFD /* BambuCameraView.swift */; };
 		3AF38F9540ADEDB98E4E5013 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8457A3E5152784A5FAE2409D /* PopoverView.swift */; };
 		661EF4ED3C28FC96B302735D /* ScryBarDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */; };
 		73F1490C073A22D9F2A5E31B /* MacStatsProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE76FA671EFB2D923FD32D1A /* MacStatsProvider.swift */; };
+		AA4696DB9046E247051334BB /* BambuCameraTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49C2FF7EBD44D80EB5FB4DA /* BambuCameraTransport.swift */; };
 		BA955C8E6E772F57D54F1910 /* BambuPrinterDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */; };
 		BB24A8275CCF1DCECFB60E1A /* CompanionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F1C85B96397D8D6F8FA52E /* CompanionSettingsView.swift */; };
 		C3E8A6A20FD0BCDAA53365D2 /* BambuPrinter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */; };
@@ -22,12 +24,15 @@
 		CF26052E9B8B1568F26601DB /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 04CC5359BE9C5DEE6F953EDC /* AppIcon.icns */; };
 		D2C4F19151AA9B1825BDD110 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5953F94113F0DC311E0FB3BC /* SettingsView.swift */; };
 		EA4615C1C064F288A261B81F /* ScryBarCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */; };
+		F82CD802C19C149215512C59 /* BambuCameraModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1765426E1EC8C87F72CBDC27 /* BambuCameraModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		04CC5359BE9C5DEE6F953EDC /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
+		1765426E1EC8C87F72CBDC27 /* BambuCameraModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuCameraModel.swift; sourceTree = "<group>"; };
 		1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarCompanionApp.swift; sourceTree = "<group>"; };
 		2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarDiscovery.swift; sourceTree = "<group>"; };
+		31D47FE356C1FE24226C1BFD /* BambuCameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuCameraView.swift; sourceTree = "<group>"; };
 		5953F94113F0DC311E0FB3BC /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5B39588B77F90F5443B7C566 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionTheme.swift; sourceTree = "<group>"; };
@@ -41,6 +46,7 @@
 		C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuPrinterDiscovery.swift; sourceTree = "<group>"; };
 		C8E22A120EAA9F0E38CDE52E /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
 		E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuPrinter.swift; sourceTree = "<group>"; };
+		F49C2FF7EBD44D80EB5FB4DA /* BambuCameraTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuCameraTransport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -65,6 +71,9 @@
 			children = (
 				75DD8079B5ADB50FEE32FF69 /* AppDelegate.swift */,
 				5B39588B77F90F5443B7C566 /* AppModel.swift */,
+				1765426E1EC8C87F72CBDC27 /* BambuCameraModel.swift */,
+				F49C2FF7EBD44D80EB5FB4DA /* BambuCameraTransport.swift */,
+				31D47FE356C1FE24226C1BFD /* BambuCameraView.swift */,
 				E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */,
 				C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */,
 				90F1C85B96397D8D6F8FA52E /* CompanionSettingsView.swift */,
@@ -163,6 +172,9 @@
 			files = (
 				C4606DA61C5D5D5F6284D891 /* AppDelegate.swift in Sources */,
 				153681E18B8A702FBDCA3DBA /* AppModel.swift in Sources */,
+				F82CD802C19C149215512C59 /* BambuCameraModel.swift in Sources */,
+				AA4696DB9046E247051334BB /* BambuCameraTransport.swift in Sources */,
+				227ACA0DCFC468797803EA59 /* BambuCameraView.swift in Sources */,
 				C3E8A6A20FD0BCDAA53365D2 /* BambuPrinter.swift in Sources */,
 				BA955C8E6E772F57D54F1910 /* BambuPrinterDiscovery.swift in Sources */,
 				BB24A8275CCF1DCECFB60E1A /* CompanionSettingsView.swift in Sources */,
@@ -216,7 +228,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -240,7 +252,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.3;
+				MARKETING_VERSION = 0.3.4;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -288,7 +300,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -306,7 +318,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.3;
+				MARKETING_VERSION = 0.3.4;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netmilk.ScryBarCompanion;
