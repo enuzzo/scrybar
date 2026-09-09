@@ -1,4 +1,5 @@
 #include "src/bambu_camera_controls.h"
+#include "src/touch_timing.h"
 #include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
@@ -1738,7 +1739,6 @@ struct TouchState {
   bool ready = false;
   bool useAltBus = true;
   bool down = false;
-  uint8_t missCount = 0;
   uint8_t rawPresenceCount = 0;
   bool pageDragging = false;
   TouchAuxButton auxBtnDown = TOUCH_AUX_BTN_NONE;
@@ -12598,7 +12598,7 @@ static void handlePageDragRelease(const TouchReleaseInfo &r) {
     Serial.printf("[TOUCH] drag ignored (qr-open) dx=%d dy=%d dur=%lums\n", r.dx, r.dy, (unsigned long)r.durMs);
     return;
   }
-  if (r.durMs <= 3000 && r.pageSwipe && ((millis() - g_touch.lastSwipeToggleMs) >= 140)) {
+  if (r.pageSwipe && ((millis() - g_touch.lastSwipeToggleMs) >= 140)) {
     const int8_t dir = (r.dx < 0) ? 1 : -1;
     bool moved = stepUiPage(dir, false);
     g_touch.lastSwipeToggleMs = millis();
@@ -12778,7 +12778,6 @@ static void handleTouchSwipeInput() {
 
   // ── Phase 2: Touch-down registration + drag tracking ──
   if (touched) {
-    g_touch.missCount = 0;
     if (!g_touch.down) {
       g_touch.down = true; g_touch.startX = x; g_touch.startY = y;
       g_touch.startMs = now; g_touch.pageDragging = false;
@@ -12824,23 +12823,17 @@ static void handleTouchSwipeInput() {
     return;
   }
 
-  // ── Miss counter (touch controller scan rate bridge) ──
-  if (g_touch.down) {
-    // Camera buttons own the gesture from touch-down. Release debounce uses
-    // elapsed time, not a loop count inflated by network work.
-    if (g_touch.cameraBtnDown != BambuCameraControls::none) {
-      if (now - g_touch.lastContactMs < 70) return;
-    } else if (++g_touch.missCount < 12) return;
-    g_touch.missCount = 0;
-  }
+  // Debounce against elapsed time, independent of rendering/network loop load.
+  if (g_touch.down && !TouchTiming::released(now, g_touch.lastContactMs)) return;
   if (!g_touch.down) return;
   g_touch.down = false;
 
   // ── Phase 3: Release — compute gesture + dispatch ──
+  const uint32_t heldMs = TouchTiming::contactDuration(g_touch.startMs, g_touch.lastContactMs);
   const TouchReleaseInfo r = {
     .dx = (int16_t)(g_touch.lastX - g_touch.startX),
     .dy = (int16_t)(g_touch.lastY - g_touch.startY),
-    .durMs = millis() - g_touch.startMs,
+    .durMs = heldMs,
     .horizontalIntent = (abs(g_touch.lastX - g_touch.startX) >= abs(g_touch.lastY - g_touch.startY)),
     .pageSwipe = [&]() {
       const int16_t adx = abs(g_touch.lastX - g_touch.startX);
@@ -12848,10 +12841,10 @@ static void handleTouchSwipeInput() {
       const bool horiz = (adx >= ady);
       return horiz && (adx >= DISPLAY_TOUCH_SWIPE_MIN_PX);
     }(),
-    .isTap = ((millis() - g_touch.startMs) <= DISPLAY_TOUCH_TAP_MAX_MS &&
+    .isTap = (heldMs <= DISPLAY_TOUCH_TAP_MAX_MS &&
               abs(g_touch.lastX - g_touch.startX) <= DISPLAY_TOUCH_TAP_MAX_PX &&
               abs(g_touch.lastY - g_touch.startY) <= DISPLAY_TOUCH_TAP_MAX_PX),
-    .isBtnTap = ((millis() - g_touch.startMs) <= 1400 &&
+    .isBtnTap = (heldMs <= 1400 &&
                  abs(g_touch.lastX - g_touch.startX) <= 72 &&
                  abs(g_touch.lastY - g_touch.startY) <= 72),
     .auxBtnDown = (uint8_t)g_touch.auxBtnDown,

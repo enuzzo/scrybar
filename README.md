@@ -107,9 +107,11 @@
 
 **A print status strip without putting printer credentials on the display.** The macOS companion connects directly to a Bambu Lab printer on the local network over MQTT/TLS, then forwards a credential-free snapshot to ScryBar. The view shows job and stage, progress, remaining time, layer, nozzle/bed/chamber temperatures, and printer alerts. The companion can play distinct macOS sounds when printing starts, pauses or reports a fault, and finishes.
 
-**New in v0.9.3 (r306):** tap **CAM** for the A1/P1 live camera, or open Camera in Companion **v0.3.4 (39)**. The display separates the light state from its action; Back closes the view. Closing the last viewer stops the stream and requests light-off, with cleanup retries if the printer is temporarily unreachable.
+**New in v0.9.4 (r307):** restored reliable page swipes, including slow drags, and added the estimated print finish day/time in Companion v0.3.5 (40).
 
-[Download Companion DMG](https://github.com/enuzzo/scrybar/releases/download/v0.9.3/ScryBarCompanion-0.3.4.dmg) · [Install firmware](https://enuzzo.github.io/scrybar/#flash) · [Release binaries and changelog](https://github.com/enuzzo/scrybar/releases/tag/v0.9.3) · [Installation and camera instructions](companion/mac/ScryBarCompanion/README.md#installation)
+**Camera support:** tap **CAM** for the A1/P1 live camera, or open Camera in Companion **v0.3.5 (40)**. The display separates the light state from its action; Back closes the view. Closing the last viewer stops the stream and requests light-off, with cleanup retries if the printer is temporarily unreachable.
+
+[Download Companion DMG](https://github.com/enuzzo/scrybar/releases/download/v0.9.4/ScryBarCompanion-0.3.5.dmg) · [Install firmware](https://enuzzo.github.io/scrybar/#flash) · [Release binaries and changelog](https://github.com/enuzzo/scrybar/releases/tag/v0.9.4) · [Installation and camera instructions](companion/mac/ScryBarCompanion/README.md#installation)
 
 Setup and protocol notes live in [`docs/bambu-lan-integration.md`](docs/bambu-lan-integration.md).
 

@@ -368,6 +368,16 @@ struct BambuPopoverSection: View {
                 .font(.system(size: 11.5, weight: .medium, design: .rounded))
                 .foregroundStyle(CompanionTheme.bambuTextSecondary)
 
+                if let finish = printer.estimatedFinishAt {
+                    Label {
+                        Text("Estimated finish: \(finish.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
+                    } icon: {
+                        Image(systemName: "clock.badge.checkmark")
+                    }
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(CompanionTheme.bambuTextSecondary)
+                }
+
                 if !printer.gcodeFile.isEmpty || !printer.printType.isEmpty {
                     Text([printer.printType, printer.gcodeFile].filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.system(size: 10.5, weight: .medium, design: .monospaced))

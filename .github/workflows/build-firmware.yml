@@ -29,6 +29,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test touch timing and camera controls
+        run: |
+          c++ -std=c++17 tests/touch_timing_test.cpp -o /tmp/touch-timing-test
+          /tmp/touch-timing-test
+          c++ -std=c++17 tests/bambu_camera_controls_test.cpp -o /tmp/camera-controls-test
+          /tmp/camera-controls-test
+
       # ── Node.js / Astro landing page ─────────────────────────────────
       - uses: actions/setup-node@v4
         with:

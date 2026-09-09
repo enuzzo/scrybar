@@ -6,13 +6,13 @@ macOS menu-bar app (Swift/SwiftUI) that feeds **Now Playing**, **Mac Stats**, an
 
 ## Installation
 
-Current release: **v0.3.4 (39)** for macOS 14+, Apple Silicon and Intel.
+Current release: **v0.3.5 (40)** for macOS 14+, Apple Silicon and Intel.
 
-1. Download [ScryBarCompanion-0.3.4.dmg](https://github.com/enuzzo/scrybar/releases/download/v0.9.3/ScryBarCompanion-0.3.4.dmg).
+1. Download [ScryBarCompanion-0.3.5.dmg](https://github.com/enuzzo/scrybar/releases/download/v0.9.4/ScryBarCompanion-0.3.5.dmg).
 2. Close camera viewers and quit the previous Companion normally, allowing any pending light-off cleanup to finish.
 3. Open the DMG and drag **ScryBarCompanion.app** into **Applications**, replacing the previous version if present.
 4. Launch the app. For the first-launch Gatekeeper prompt, follow the instructions below. Allow Local Network access and any Keychain prompt for your saved printer.
-5. Update ScryBar to **r306 / v0.9.3** with the [web firmware installer](https://enuzzo.github.io/scrybar/#flash), selecting the correct connected display. Printer credentials stay in the Companion's Keychain.
+5. Update ScryBar to **r307 / v0.9.4** with the [web firmware installer](https://enuzzo.github.io/scrybar/#flash), selecting the correct connected display. Printer credentials stay in the Companion's Keychain.
 
 ## Bambu camera
 
@@ -192,3 +192,7 @@ Bump `CURRENT_PROJECT_VERSION` in `project.yml` with every published build.
 - Source/app naming is best-effort — some sessions expose `displayName`, others only metadata.
 - macmon is a third-party tool. If Homebrew paths differ (e.g. Rosetta Intel prefix), macmon detection may fail; set `MACMON_PATH` env override (planned).
 - SMC key-based temperature reading (legacy fallback for Intel Macs) returns `0` on M3 Ultra / M4 — macmon is the only supported path on those chips.
+
+### Estimated print finish
+
+During an active print, the Bambu card shows **Estimated finish** with the local day and time, calculated from the latest telemetry timestamp and remaining minutes. This is an estimate and changes as printer telemetry changes. It is hidden when disconnected, paused, blocked, finished, or when no positive remaining time is available.

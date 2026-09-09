@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-09
+
+### ScryBar v0.9.4 — Firmware r307 / Companion v0.3.5 (40)
+
+- Fix page drags snapping back instead of selecting the next view: release debounce now uses elapsed time rather than loop count, and recognized drags no longer expire after three seconds.
+- Measure tap duration using actual finger contact, excluding release processing delays.
+- Show the estimated print finish day and local time in Companion, alongside remaining time. Hide the estimate when disconnected, paused, blocked, finished or without a positive remaining duration.
+- Add touch timing regression coverage, including delayed processing and timer wraparound, plus estimated-finish tests.
+- Verify r307 on the physical ScryBar; page swiping was confirmed working after installation.
+
 ## 2026-09-08
 
 ### ScryBar v0.9.3 — Firmware r306 / Companion v0.3.4 (39)

@@ -134,6 +134,11 @@ struct BambuPrinterPayload: Codable, Equatable, Sendable {
         ["PAUSE", "PAUSED", "FAILED", "ERROR"].contains(status.uppercased()) || errorCode != 0 || hmsCount > 0
     }
 
+    var estimatedFinishAt: Date? {
+        guard connected, isPrinting, !isPausedOrBlocked, remainingMinutes > 0 else { return nil }
+        return updatedAt.addingTimeInterval(TimeInterval(remainingMinutes) * 60)
+    }
+
     var isFinished: Bool { ["FINISH", "FINISHED", "COMPLETED"].contains(status.uppercased()) }
 }
 

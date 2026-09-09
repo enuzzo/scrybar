@@ -523,3 +523,9 @@ Entry format:
 - Impact/Tradeoffs: flush avg 21ms→16ms, max ~19ms (idle). LVGL handler avg ~1.5ms. netTask stack HWM 6384→9792 bytes remaining after HTTP/1.1 switch. Weather resolves at boot in ~226ms (was 60s+ delay). Zero queue overflows in steady state. free_heap stable at 21.6KB internal. PSRAM used: ~430KB for dual LVGL buffers. Core 0 never blocks on HTTP — swipes are smooth during all network activity.
 
 ---
+
+## 2026-09-09 — r307: Touch release follows elapsed time
+
+- Replace the twelve-loop release bridge with a 70 ms gap since the last valid contact, shared by page gestures and camera buttons. Rendering and network work must not change release timing.
+- Compute gesture duration from first to last contact, excluding release debounce. A recognized horizontal page drag has no three-second expiry; retain distance, direction, overlay and navigation cooldown guards.
+- Validation: host tests cover delayed release processing and millis wraparound; r307 compiled, flashed and identified on the physical display, and the user confirmed page swiping works again.

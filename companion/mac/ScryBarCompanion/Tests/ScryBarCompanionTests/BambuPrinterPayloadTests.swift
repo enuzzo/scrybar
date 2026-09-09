@@ -3,6 +3,25 @@ import Foundation
 import Testing
 @testable import ScryBarCompanion
 
+@Test func estimatedFinishUsesTelemetryTimeAndOnlyActivePrints() {
+    var payload = BambuPrinterPayload()
+    payload.connected = true
+    payload.status = "RUNNING"
+    payload.updatedAt = Date(timeIntervalSince1970: 1_000)
+    payload.remainingMinutes = 125
+    #expect(payload.estimatedFinishAt == Date(timeIntervalSince1970: 8_500))
+    for state in ["PAUSE", "FAILED", "FINISH", "IDLE", "OFFLINE"] {
+        payload.status = state
+        #expect(payload.estimatedFinishAt == nil)
+    }
+    payload.status = "RUNNING"
+    payload.connected = false
+    #expect(payload.estimatedFinishAt == nil)
+    payload.connected = true
+    payload.remainingMinutes = 0
+    #expect(payload.estimatedFinishAt == nil)
+}
+
 @Test func printStateClassifiesSoundTransitions() {
     var payload = BambuPrinterPayload()
     #expect(!payload.isPrinting)
