@@ -116,7 +116,15 @@ actor ScryBarClient {
             guard (200...299).contains(reply.status) else { throw URLError(.badServerResponse) }
             lastArtworkUploadAtByEndpoint[key] = .now
         }
-        lastSentArtworkIDByEndpoint[key] = artworkKey == nil && caps.product == "meguru" ? nil : deliveryID
+        if caps.product == "meguru" {
+            lastSentArtworkIDByEndpoint[key] = artworkKey == nil ? nil : deliveryID
+        } else if includeArtwork {
+            // Metadata can arrive before the asynchronous cover. Only bytes
+            // actually uploaded may suppress its later first delivery.
+            lastSentArtworkIDByEndpoint[key] = deliveryID
+        } else if deliveryID == nil {
+            lastSentArtworkIDByEndpoint[key] = nil
+        }
     }
     private static func artworkKey(_ identifier: String) -> String {
         var hash: UInt64 = 0xcbf29ce484222325

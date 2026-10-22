@@ -239,3 +239,23 @@ private let meguruCaps = CompanionCapabilities(version: 1, product: "meguru", fe
     #expect(old.isDemo == nil)
     #expect(NowPlayingPayload.placeholder(source: "System").isDemo == nil)
 }
+
+@Test func metadataFirstDoesNotSuppressLateArtworkOnEitherDisplay() async throws {
+    let http = DisplayMockHTTP(), client = ScryBarClient(transport: http)
+    let strip = display("late-strip"), circle = display("late-circle", product: "meguru")
+    await http.configure("late-circle", cap: .init(version: 1, product: "meguru", feeds: ["now-playing"], maxBodyBytes: 98304, artwork: true, camera: false))
+    var payload = NowPlayingPayload.placeholder(source: "fixture")
+    payload.title = "Current track"; payload.artworkID = "current-edition"
+    try await client.send(payload, to: strip)
+    try await client.send(payload, to: circle)
+    payload.artworkWidth = 150; payload.artworkHeight = 150
+    payload.artworkRGB565B64 = Data(repeating: 0x23, count: 45000).base64EncodedString()
+    try await client.send(payload, to: strip)
+    try await client.send(payload, to: circle)
+    let posts = await http.posts("late-strip")
+    let first = try JSONSerialization.jsonObject(with: posts[0].httpBody!) as! [String: Any]
+    let second = try JSONSerialization.jsonObject(with: posts[1].httpBody!) as! [String: Any]
+    #expect(first["title"] as? String == "Current track" && first["artworkRGB565B64"] == nil)
+    #expect(second["artworkRGB565B64"] as? String == payload.artworkRGB565B64)
+    #expect(await http.posts("late-circle").last?.httpBody?.count == 45000)
+}

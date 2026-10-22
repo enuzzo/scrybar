@@ -125,17 +125,17 @@ final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     private let cacheDataURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/TIDAL/Cache/Cache_Data")
 
+    private var scanDeadline: TimeInterval = 0
+    private var catalog: [URL] = []
+    private var catalogAt: TimeInterval = -.infinity
+    private var metadataCache: [String: TidalTrackMetadata] = [:]
+    private var metadataMisses: [String: TimeInterval] = [:]
     private var cachedPayloadKey: String?
     private var cachedPayload: NowPlayingPayload?
 
     func snapshot() -> NowPlayingPayload? {
+        scanDeadline = ProcessInfo.processInfo.systemUptime + 0.75
         let candidates = rankedPlaybackCandidates()
-        NSLog("[ScryBar] TidalProvider: %d candidates found", candidates.count)
-        for (i, c) in candidates.prefix(5).enumerated() {
-            let ageSec = (nowMs() - c.timestampMs) / 1000
-            NSLog("[ScryBar]   candidate[%d]: mediaID=%@ conf=%d age=%llds origin=%@ playing=%@",
-                  i, c.mediaID, c.confidence, ageSec, c.origin, String(describing: c.isPlaying))
-        }
         guard let resolved = bestResolvedCandidate(from: candidates) else {
             NSLog("[ScryBar] TidalProvider: no resolved candidate (metadata lookup failed for all)")
             return nil
@@ -187,7 +187,8 @@ final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     }
 
     private func bestResolvedCandidate(from candidates: [TidalPlaybackCandidate]) -> (candidate: TidalPlaybackCandidate, metadata: TidalTrackMetadata)? {
-        for candidate in candidates {
+        for candidate in candidates.prefix(8) {
+            guard ProcessInfo.processInfo.systemUptime < scanDeadline else { break }
             if let metadata = cachedTrackMetadata(for: candidate.mediaID) {
                 return (candidate, metadata)
             }
@@ -222,48 +223,32 @@ final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     }
 
     private func candidateFiles(in directory: URL, extensions: Set<String>) -> [URL] {
-        guard let enumerator = fileManager.enumerator(
-            at: directory,
-            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return []
-        }
-
-        return enumerator.compactMap { item in
-            guard let url = item as? URL else { return nil }
-            guard extensions.contains(url.pathExtension.lowercased()) else { return nil }
-            return url
-        }
-        .sorted { lhs, rhs in
-            let lhsDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            let rhsDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            return lhsDate > rhsDate
-        }
+        recentFiles(in: directory) { extensions.contains($0.pathExtension.lowercased()) }
     }
 
-    /// Chromium Simple Cache files use `hash_0` / `hash_s` naming (no dot extension).
-    /// Match by filename suffix instead of pathExtension.
-    private func candidateCacheDataFiles(suffixes: Set<String> = ["_0", "_s"]) -> [URL] {
-        guard let enumerator = fileManager.enumerator(
-            at: cacheDataURL,
-            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
-            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-        ) else {
-            return []
+    private func recentFiles(in directory: URL, matches: (URL) -> Bool) -> [URL] {
+        guard let enumerator = fileManager.enumerator(at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]) else { return [] }
+        var files: [(URL, Date)] = []
+        var visited = 0
+        while let url = enumerator.nextObject() as? URL {
+            visited += 1
+            guard visited <= 20000, ProcessInfo.processInfo.systemUptime < scanDeadline else { break }
+            guard matches(url) else { continue }
+            files.append((url, modificationDate(for: url) ?? .distantPast))
         }
+        return files.sorted { $0.1 > $1.1 }.map(\.0)
+    }
 
-        return enumerator.compactMap { item in
-            guard let url = item as? URL else { return nil }
-            let name = url.lastPathComponent
-            guard suffixes.contains(where: { name.hasSuffix($0) }) else { return nil }
-            return url
+    private func candidateCacheDataFiles(suffixes: Set<String> = ["_0", "_s"]) -> [URL] {
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - catalogAt < 15 { return catalog }
+        catalog = recentFiles(in: cacheDataURL) { url in
+            suffixes.contains { url.lastPathComponent.hasSuffix($0) }
         }
-        .sorted { lhs, rhs in
-            let lhsDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            let rhsDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            return lhsDate > rhsDate
-        }
+        catalogAt = now
+        return catalog
     }
 
     private func playerStates(in fileURL: URL) -> [TidalPlayerState] {
@@ -420,17 +405,25 @@ final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     }
 
     private func cachedTrackMetadata(for mediaID: String) -> TidalTrackMetadata? {
+        if let cached = metadataCache[mediaID] { return cached }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let missed = metadataMisses[mediaID], now - missed < 15 { return nil }
         let files = candidateCacheDataFiles()
-        for file in files {
+        for file in files.prefix(128) {
+            guard ProcessInfo.processInfo.systemUptime < scanDeadline else { return nil }
             guard let string = lossyString(from: file) else { continue }
             guard string.contains("\"id\":\(mediaID),") || string.contains("/track/\(mediaID)") || string.contains("/v1/tracks/\(mediaID)") else {
                 continue
             }
 
             if let metadata = extractTrackMetadata(mediaID: mediaID, from: string) {
+                if metadataCache.count >= 64 { metadataCache.removeAll(keepingCapacity: true) }
+                metadataCache[mediaID] = metadata
                 return metadata
             }
         }
+        if metadataMisses.count >= 64 { metadataMisses.removeAll(keepingCapacity: true) }
+        metadataMisses[mediaID] = now
         return nil
     }
 
@@ -486,9 +479,15 @@ final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     }
 
     private func lossyString(from fileURL: URL) -> String? {
-        guard let data = try? Data(contentsOf: fileURL, options: [.mappedIfSafe]) else {
-            return nil
-        }
+        guard ProcessInfo.processInfo.systemUptime < scanDeadline,
+              let handle = try? FileHandle(forReadingFrom: fileURL) else { return nil }
+        defer { try? handle.close() }
+        let limit: UInt64 = 512 * 1024
+        guard let size = try? handle.seekToEnd() else { return nil }
+        // LevelDB's recent state is appended; skip huge Chromium media bodies.
+        if size > limit && fileURL.pathExtension.isEmpty { return nil }
+        try? handle.seek(toOffset: size > limit ? size - limit : 0)
+        guard let data = try? handle.read(upToCount: Int(limit)) else { return nil }
         return String(decoding: data, as: UTF8.self)
     }
 
@@ -582,6 +581,190 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     private var lastTrackKey: String = ""
     private static let pauseDebounceCount = 3
 
+    private let artworkCache: NowPlayingArtworkCache
+    private let readSnapshot: @Sendable () -> Data?
+
+    init(artworkCache: NowPlayingArtworkCache? = nil, readSnapshot: (@Sendable () -> Data?)? = nil) {
+        let resolver = SystemArtworkResolver()
+        self.artworkCache = artworkCache ?? NowPlayingArtworkCache { resolver.resolve($0) }
+        self.readSnapshot = readSnapshot ?? Self.readSystemSnapshot
+    }
+
+    // JXA script that loads MediaRemote.framework and reads now-playing via
+    // MRNowPlayingRequest — an Obj-C class that osascript can access without
+    // the entitlement that blocks the C function API on macOS 15.4+.
+    // Computes real-time elapsed from: elapsedTime + (now - timestamp) * playbackRate,
+    // because kMRMediaRemoteNowPlayingInfoElapsedTime alone is a stale snapshot.
+    private static let jxaScript = """
+    function run() {
+      var MR = $.NSBundle.bundleWithPath("/System/Library/PrivateFrameworks/MediaRemote.framework/");
+      MR.load;
+      var Req = $.NSClassFromString("MRNowPlayingRequest");
+      var client = Req.localNowPlayingPlayerPath.client;
+      var ci = {};
+      try { ci.bundleIdentifier = client.bundleIdentifier.js; } catch(e) {}
+      try { ci.parentApplicationBundleIdentifier = client.parentApplicationBundleIdentifier.js; } catch(e) {}
+      var dict = Req.localNowPlayingItem.nowPlayingInfo;
+      var info = {};
+      var keys = dict.allKeys;
+      for (var i = 0; i < keys.count; i++) {
+        var k = keys.objectAtIndex(i).js;
+        var v = dict.valueForKey(keys.objectAtIndex(i));
+        if (k === "kMRMediaRemoteNowPlayingInfoArtworkData") continue;
+        try { info[k] = v.js; } catch(e) { try { info[k] = v.toString(); } catch(e2) {} }
+      }
+      var rawElapsed = 0;
+      try { rawElapsed = dict.valueForKey("kMRMediaRemoteNowPlayingInfoElapsedTime").doubleValue; } catch(e) {}
+      var rate = 0;
+      try { rate = dict.valueForKey("kMRMediaRemoteNowPlayingInfoPlaybackRate").doubleValue; } catch(e) {}
+      var computedElapsed = rawElapsed;
+      var ts = dict.valueForKey("kMRMediaRemoteNowPlayingInfoTimestamp");
+      if (ts) {
+        try { computedElapsed = rawElapsed + $.NSDate.date.timeIntervalSinceDate(ts) * rate; } catch(e) {}
+      }
+      return JSON.stringify({ isPlaying: Req.localIsPlaying, client: ci, info: info, computedElapsed: computedElapsed });
+    }
+    """
+
+    private static func readSystemSnapshot() -> Data? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-l", "JavaScript", "-e", Self.jxaScript]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        let didExit = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in didExit.signal() }
+
+        do {
+            try process.run()
+        } catch {
+            NSLog("[ScryBar] SystemProvider: osascript launch failed: %@", error.localizedDescription)
+            return nil
+        }
+        if didExit.wait(timeout: .now() + 3) == .timedOut {
+            process.terminate()
+            _ = didExit.wait(timeout: .now() + 1)
+            NSLog("[ScryBar] SystemProvider: osascript timed out")
+            return nil
+        }
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard !data.isEmpty else {
+            NSLog("[ScryBar] SystemProvider: no output from osascript")
+            return nil
+        }
+
+        return data
+    }
+
+    func snapshot() -> NowPlayingPayload? {
+        guard let data = readSnapshot(),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let info = json["info"] as? [String: Any] ?? [:]
+        let client = json["client"] as? [String: Any] ?? [:]
+        let isPlaying = json["isPlaying"] as? Bool ?? false
+
+        guard let title = info["kMRMediaRemoteNowPlayingInfoTitle"] as? String, !title.isEmpty else {
+            return nil
+        }
+
+        let artist = info["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? ""
+        let album = info["kMRMediaRemoteNowPlayingInfoAlbum"] as? String ?? ""
+        let durationSec = (info["kMRMediaRemoteNowPlayingInfoDuration"] as? Double) ?? 0
+        let playbackRate = (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? Double) ?? 0
+        let bundleIdentifier = client["bundleIdentifier"] as? String
+        let appName = bundleIdentifier ?? "System"
+
+        // Privacy first: a source outside the policy (video players, browsers, unknown apps) stops here,
+        // before artwork lookup, caching or logging. Only the category is remembered, never the title.
+        let policy = SourcePolicy.current
+        guard policy.allows(bundleID: bundleIdentifier) else {
+            SourcePolicyLog.shared.lastHidden = SourcePolicy.category(of: bundleIdentifier)
+            return nil
+        }
+        SourcePolicyLog.shared.lastHidden = nil
+
+        // Real-time elapsed computed in JXA from: elapsedTime + (now - timestamp) * rate
+        var elapsedSec = (json["computedElapsed"] as? Double) ?? 0
+        if elapsedSec < 0 { elapsedSec = 0 }
+        if durationSec > 0 && elapsedSec > durationSec { elapsedSec = durationSec }
+
+        let source: String
+        if let bid = bundleIdentifier {
+            source = NSWorkspace.shared.runningApplications
+                .first(where: { $0.bundleIdentifier == bid })?
+                .localizedName ?? bid
+        } else {
+            source = "System"
+        }
+
+        // artworkIdentifier may be a direct URL, a template with {w}/{h}/{f} placeholders,
+        // or an opaque hash (TIDAL). Resolve to a concrete URL when possible.
+        let artworkID = info["kMRMediaRemoteNowPlayingInfoArtworkIdentifier"] as? String
+        let artworkURL: String? = {
+            guard var id = artworkID else { return nil }
+            // Expand Apple template placeholders: {w}x{h}bb.{f}
+            if id.contains("{w}") || id.contains("{h}") || id.contains("{f}") {
+                id = id.replacingOccurrences(of: "{w}", with: "600")
+                id = id.replacingOccurrences(of: "{h}", with: "600")
+                id = id.replacingOccurrences(of: "{f}", with: "jpg")
+            }
+            guard let url = URL(string: id),
+                  let scheme = url.scheme?.lowercased(),
+                  scheme == "http" || scheme == "https" else { return nil }
+            return id
+        }()
+
+        // Transcode artwork to RGB565 for the device display.
+        // Cache by artworkID to avoid re-downloading every poll cycle.
+        let artwork = artworkCache.value(for: .init(
+            artworkURL: artworkURL, artworkID: artworkID, title: title, artist: artist,
+            album: album, tidal: bundleIdentifier == "com.tidal.desktop"
+        ))
+
+        // Debounce isPlaying: MediaRemote can flicker, so require consecutive paused polls.
+        let actuallyPlaying = isPlaying || playbackRate > 0.001
+        let trackKey = "\(title)|\(artist)"
+
+        if trackKey != lastTrackKey {
+            consecutivePausedPolls = 0
+            stableIsPlaying = actuallyPlaying
+            lastTrackKey = trackKey
+        } else if actuallyPlaying {
+            consecutivePausedPolls = 0
+            stableIsPlaying = true
+        } else {
+            consecutivePausedPolls += 1
+            if consecutivePausedPolls >= Self.pauseDebounceCount {
+                stableIsPlaying = false
+            }
+        }
+
+        return NowPlayingPayload(
+            title: title,
+            artist: artist,
+            album: album,
+            source: source,
+            appName: appName,
+            durationSec: durationSec,
+            elapsedSec: elapsedSec,
+            isPlaying: stableIsPlaying,
+            inSync: true,
+            artworkURL: artworkURL,
+            artworkID: artworkID,
+            artworkWidth: artwork?.width,
+            artworkHeight: artwork?.height,
+            artworkRGB565B64: artwork?.rgb565,
+            updatedAt: Date(),
+            artworkRGB565HD: artwork?.hd,
+            webArtworkURL: artwork?.webURL
+        )
+    }
+}
+
+private final class SystemArtworkResolver: @unchecked Sendable {
     // Cached artwork transcoding — only re-download when artworkID changes
     private let tidalArtworkProvider = TidalNowPlayingProvider()
     private var cachedArtworkHD: Data?
@@ -595,10 +778,11 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
         artworkID: String?,
         title: String,
         artist: String,
+        album: String,
         tidal: Bool
     ) -> (Int?, Int?, String?) {
         // Return cached result if artwork hasn't changed
-        let effectiveID = "\(artworkID ?? artworkURL ?? "")|\(title)|\(artist)"
+        let effectiveID = "\(artworkID ?? artworkURL ?? "")|\(title)|\(artist)|\(album)"
         if effectiveID == cachedArtworkID, let cached = cachedArtworkResult {
             return (cached.width, cached.height, cached.rgb565Base64)
         }
@@ -608,7 +792,8 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
         var resolvedURL = artworkURL
         if tidal, let track = tidalArtworkProvider.snapshot(),
            track.title.caseInsensitiveCompare(title) == .orderedSame,
-           track.artist.caseInsensitiveCompare(artist) == .orderedSame {
+           track.artist.caseInsensitiveCompare(artist) == .orderedSame,
+           album.isEmpty || track.album.isEmpty || track.album.caseInsensitiveCompare(album) == .orderedSame {
             resolvedURL = track.artworkURL ?? resolvedURL
         }
         // Prefer a 640 px source for the 512 px Meguru variant.
@@ -680,175 +865,15 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
         return artURL.value
     }
 
-    // JXA script that loads MediaRemote.framework and reads now-playing via
-    // MRNowPlayingRequest — an Obj-C class that osascript can access without
-    // the entitlement that blocks the C function API on macOS 15.4+.
-    // Computes real-time elapsed from: elapsedTime + (now - timestamp) * playbackRate,
-    // because kMRMediaRemoteNowPlayingInfoElapsedTime alone is a stale snapshot.
-    private static let jxaScript = """
-    function run() {
-      var MR = $.NSBundle.bundleWithPath("/System/Library/PrivateFrameworks/MediaRemote.framework/");
-      MR.load;
-      var Req = $.NSClassFromString("MRNowPlayingRequest");
-      var client = Req.localNowPlayingPlayerPath.client;
-      var ci = {};
-      try { ci.bundleIdentifier = client.bundleIdentifier.js; } catch(e) {}
-      try { ci.parentApplicationBundleIdentifier = client.parentApplicationBundleIdentifier.js; } catch(e) {}
-      var dict = Req.localNowPlayingItem.nowPlayingInfo;
-      var info = {};
-      var keys = dict.allKeys;
-      for (var i = 0; i < keys.count; i++) {
-        var k = keys.objectAtIndex(i).js;
-        var v = dict.valueForKey(keys.objectAtIndex(i));
-        if (k === "kMRMediaRemoteNowPlayingInfoArtworkData") continue;
-        try { info[k] = v.js; } catch(e) { try { info[k] = v.toString(); } catch(e2) {} }
-      }
-      var rawElapsed = 0;
-      try { rawElapsed = dict.valueForKey("kMRMediaRemoteNowPlayingInfoElapsedTime").doubleValue; } catch(e) {}
-      var rate = 0;
-      try { rate = dict.valueForKey("kMRMediaRemoteNowPlayingInfoPlaybackRate").doubleValue; } catch(e) {}
-      var computedElapsed = rawElapsed;
-      var ts = dict.valueForKey("kMRMediaRemoteNowPlayingInfoTimestamp");
-      if (ts) {
-        try { computedElapsed = rawElapsed + $.NSDate.date.timeIntervalSinceDate(ts) * rate; } catch(e) {}
-      }
-      return JSON.stringify({ isPlaying: Req.localIsPlaying, client: ci, info: info, computedElapsed: computedElapsed });
-    }
-    """
 
-    func snapshot() -> NowPlayingPayload? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-l", "JavaScript", "-e", Self.jxaScript]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        let didExit = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in didExit.signal() }
-
-        do {
-            try process.run()
-        } catch {
-            NSLog("[ScryBar] SystemProvider: osascript launch failed: %@", error.localizedDescription)
-            return nil
-        }
-        if didExit.wait(timeout: .now() + 3) == .timedOut {
-            process.terminate()
-            _ = didExit.wait(timeout: .now() + 1)
-            NSLog("[ScryBar] SystemProvider: osascript timed out")
-            return nil
-        }
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard !data.isEmpty,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            NSLog("[ScryBar] SystemProvider: no output from osascript")
-            return nil
-        }
-
-        let info = json["info"] as? [String: Any] ?? [:]
-        let client = json["client"] as? [String: Any] ?? [:]
-        let isPlaying = json["isPlaying"] as? Bool ?? false
-
-        guard let title = info["kMRMediaRemoteNowPlayingInfoTitle"] as? String, !title.isEmpty else {
-            return nil
-        }
-
-        let artist = info["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? ""
-        let album = info["kMRMediaRemoteNowPlayingInfoAlbum"] as? String ?? ""
-        let durationSec = (info["kMRMediaRemoteNowPlayingInfoDuration"] as? Double) ?? 0
-        let playbackRate = (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? Double) ?? 0
-        let bundleIdentifier = client["bundleIdentifier"] as? String
-        let appName = bundleIdentifier ?? "System"
-
-        // Privacy first: a source outside the policy (video players, browsers, unknown apps) stops here,
-        // before artwork lookup, caching or logging. Only the category is remembered, never the title.
-        let policy = SourcePolicy.current
-        guard policy.allows(bundleID: bundleIdentifier) else {
-            SourcePolicyLog.shared.lastHidden = SourcePolicy.category(of: bundleIdentifier)
-            return nil
-        }
-        SourcePolicyLog.shared.lastHidden = nil
-
-        // Real-time elapsed computed in JXA from: elapsedTime + (now - timestamp) * rate
-        var elapsedSec = (json["computedElapsed"] as? Double) ?? 0
-        if elapsedSec < 0 { elapsedSec = 0 }
-        if durationSec > 0 && elapsedSec > durationSec { elapsedSec = durationSec }
-
-        let source: String
-        if let bid = bundleIdentifier {
-            source = NSWorkspace.shared.runningApplications
-                .first(where: { $0.bundleIdentifier == bid })?
-                .localizedName ?? bid
-        } else {
-            source = "System"
-        }
-
-        // artworkIdentifier may be a direct URL, a template with {w}/{h}/{f} placeholders,
-        // or an opaque hash (TIDAL). Resolve to a concrete URL when possible.
-        let artworkID = info["kMRMediaRemoteNowPlayingInfoArtworkIdentifier"] as? String
-        let artworkURL: String? = {
-            guard var id = artworkID else { return nil }
-            // Expand Apple template placeholders: {w}x{h}bb.{f}
-            if id.contains("{w}") || id.contains("{h}") || id.contains("{f}") {
-                id = id.replacingOccurrences(of: "{w}", with: "600")
-                id = id.replacingOccurrences(of: "{h}", with: "600")
-                id = id.replacingOccurrences(of: "{f}", with: "jpg")
-            }
-            guard let url = URL(string: id),
-                  let scheme = url.scheme?.lowercased(),
-                  scheme == "http" || scheme == "https" else { return nil }
-            return id
-        }()
-
-        // Transcode artwork to RGB565 for the device display.
-        // Cache by artworkID to avoid re-downloading every poll cycle.
-        let (artWidth, artHeight, artRGB565) = resolveArtworkRGB565(
-            artworkURL: artworkURL,
-            artworkID: artworkID,
-            title: title,
-            artist: artist,
-            tidal: (bundleIdentifier ?? "").localizedCaseInsensitiveContains("tidal")
+    func resolve(_ request: NowPlayingArtworkRequest) -> NowPlayingArtwork? {
+        let (width, height, pixels) = resolveArtworkRGB565(
+            artworkURL: request.artworkURL, artworkID: request.artworkID,
+            title: request.title, artist: request.artist, album: request.album, tidal: request.tidal
         )
-
-        // Debounce isPlaying: MediaRemote can flicker, so require consecutive paused polls.
-        let actuallyPlaying = isPlaying || playbackRate > 0.001
-        let trackKey = "\(title)|\(artist)"
-
-        if trackKey != lastTrackKey {
-            consecutivePausedPolls = 0
-            stableIsPlaying = actuallyPlaying
-            lastTrackKey = trackKey
-        } else if actuallyPlaying {
-            consecutivePausedPolls = 0
-            stableIsPlaying = true
-        } else {
-            consecutivePausedPolls += 1
-            if consecutivePausedPolls >= Self.pauseDebounceCount {
-                stableIsPlaying = false
-            }
-        }
-
-        return NowPlayingPayload(
-            title: title,
-            artist: artist,
-            album: album,
-            source: source,
-            appName: appName,
-            durationSec: durationSec,
-            elapsedSec: elapsedSec,
-            isPlaying: stableIsPlaying,
-            inSync: true,
-            artworkURL: artworkURL,
-            artworkID: artworkID,
-            artworkWidth: artWidth,
-            artworkHeight: artHeight,
-            artworkRGB565B64: artRGB565,
-            updatedAt: Date(),
-            artworkRGB565HD: cachedArtworkHD,
-            webArtworkURL: cachedArtworkWebURL
-        )
+        guard let width, let height, let pixels else { return nil }
+        return .init(width: width, height: height, rgb565: pixels,
+                     hd: cachedArtworkHD, webURL: cachedArtworkWebURL)
     }
 }
 

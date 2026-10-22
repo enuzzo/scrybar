@@ -2,6 +2,18 @@
 
 ## 2026-10-22
 
+### Companion v0.3.13 (49) — Keep Now Playing responsive
+
+- Publish permitted music metadata immediately; resolve covers on one background
+  worker so TIDAL cache scans, image downloads and transcoding cannot stall the
+  app or either display's song/elapsed updates.
+- Bound TIDAL fallback scans and reuse short-lived catalogs/metadata lookups.
+  Match asynchronous covers to the complete track and album edition.
+- Deliver artwork that becomes available after the first metadata-only payload
+  to both ScryBar and Meguru. Retain privacy gates and 150/512-pixel variants.
+- Add stalled-cover, late-cover delivery and optional actual-music smoke checks.
+  See the [release record](docs/releases/companion-0.3.13.md).
+
 ### Companion v0.3.12 (48) — Recover stale network collection
 
 - Recover when nettop emits bytes but stops producing usable frames, or reaches

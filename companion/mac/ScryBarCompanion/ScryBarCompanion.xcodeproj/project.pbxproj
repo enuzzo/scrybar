@@ -30,6 +30,7 @@
 		CE5B8FADF8C6C51D37197122 /* DisplayTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C8F87D23221AE6D60F65810 /* DisplayTargets.swift */; };
 		CF26052E9B8B1568F26601DB /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 04CC5359BE9C5DEE6F953EDC /* AppIcon.icns */; };
 		D2C4F19151AA9B1825BDD110 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5953F94113F0DC311E0FB3BC /* SettingsView.swift */; };
+		DABB67816ABD689D5C5FC737 /* NowPlayingArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD4A9981E609EA026DF873D5 /* NowPlayingArtwork.swift */; };
 		EA4615C1C064F288A261B81F /* ScryBarCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */; };
 		F4944D4D2BEB06724A0D9847 /* NetworkScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = C32E390A4088C41D852D8C73 /* NetworkScope.swift */; };
 		F82CD802C19C149215512C59 /* BambuCameraModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1765426E1EC8C87F72CBDC27 /* BambuCameraModel.swift */; };
@@ -63,6 +64,7 @@
 		E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuPrinter.swift; sourceTree = "<group>"; };
 		F49C2FF7EBD44D80EB5FB4DA /* BambuCameraTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuCameraTransport.swift; sourceTree = "<group>"; };
 		F5244D91BDA262FE07DDC9EF /* SourcePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcePolicy.swift; sourceTree = "<group>"; };
+		FD4A9981E609EA026DF873D5 /* NowPlayingArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingArtwork.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -102,6 +104,7 @@
 				C32E390A4088C41D852D8C73 /* NetworkScope.swift */,
 				4A46A814378D7818BFD9A787 /* NetworkStatsProvider.swift */,
 				BFD2ADC22CE3D507E790DAFA /* NetworkStatsView.swift */,
+				FD4A9981E609EA026DF873D5 /* NowPlayingArtwork.swift */,
 				8457A3E5152784A5FAE2409D /* PopoverView.swift */,
 				C8E22A120EAA9F0E38CDE52E /* Providers.swift */,
 				696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */,
@@ -211,6 +214,7 @@
 				F4944D4D2BEB06724A0D9847 /* NetworkScope.swift in Sources */,
 				A09C48ABEF49E5C269A8BE4A /* NetworkStatsProvider.swift in Sources */,
 				8A44F51F5B97A4D3676EBF3A /* NetworkStatsView.swift in Sources */,
+				DABB67816ABD689D5C5FC737 /* NowPlayingArtwork.swift in Sources */,
 				3AF38F9540ADEDB98E4E5013 /* PopoverView.swift in Sources */,
 				095EE31AE5D86F1A533F6AE7 /* Providers.swift in Sources */,
 				C4A8CD9C086EB31EB4423EA7 /* ScryBarClient.swift in Sources */,
@@ -260,7 +264,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 48;
+				CURRENT_PROJECT_VERSION = 49;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -284,7 +288,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.12;
+				MARKETING_VERSION = 0.3.13;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -332,7 +336,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 48;
+				CURRENT_PROJECT_VERSION = 49;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -350,7 +354,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.12;
+				MARKETING_VERSION = 0.3.13;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netmilk.ScryBarCompanion;
