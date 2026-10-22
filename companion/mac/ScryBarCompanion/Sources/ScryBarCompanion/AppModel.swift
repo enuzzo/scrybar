@@ -78,6 +78,21 @@ final class AppModel: ObservableObject {
     @Published var lastSendStatus = "Idle"
     @Published var latestMacStats: MacStatsPayload? = nil
     @Published var latestNetworkStats: NetworkStatsSnapshot? = nil
+    @Published var networkScope = NetworkScope.stored() {
+        didSet {
+            guard oldValue != networkScope else { return }
+            UserDefaults.standard.set(networkScope.rawValue, forKey: "network.scope")
+            latestNetworkStats = nil
+            // Immediately clear the previous scope locally and on displays.
+            if let stats = latestMacStats {
+                let cleared = stats.withNetwork(.init(downloadBytesPerSec: nil, uploadBytesPerSec: nil,
+                    apps: [], attributionAvailable: false, attributionMessage: "Changing network scope…",
+                    scope: networkScope), hostName: macStatsHostName)
+                latestMacStats = cleared
+                if autoSendEnabled { delivery.send(stats: cleared) }
+            }
+        }
+    }
     @Published var bambuHost = UserDefaults.standard.string(forKey: "bambuHost") ?? ""
     @Published var bambuSerial = UserDefaults.standard.string(forKey: "bambuSerial") ?? ""
     @Published var bambuPrinterName = UserDefaults.standard.string(forKey: "bambuPrinterName") ?? ""
@@ -490,14 +505,16 @@ final class AppModel: ObservableObject {
             while !Task.isCancelled {
                 guard let self else { return }
                 // Sample on a detached thread (IOKit + syscalls may block)
+                let scope = self.networkScope
                 let sample = await Task.detached(priority: .background) {
-                    let network = self.networkStatsProvider.snapshot()
+                    let network = self.networkStatsProvider.snapshot(scope: scope)
                     let stats = self.macStatsProvider.snapshot().withNetwork(
                         network, hostName: self.macStatsHostName
                     )
                     return (stats, network)
                 }.value
                 guard !Task.isCancelled else { return }
+                guard self.networkScope == scope else { continue }
                 self.latestMacStats = sample.0
                 self.latestNetworkStats = sample.1
 

@@ -15,6 +15,8 @@ struct NetworkStatsSnapshot: Sendable {
     let apps: [NetworkAppActivity]
     let attributionAvailable: Bool
     let attributionMessage: String?
+    var scope: NetworkScope = .internet
+    var coveragePartial = false
 }
 
 struct NetworkByteCounters: Sendable, Equatable {
@@ -189,10 +191,9 @@ struct NetworkAttributionSample {
     }
 }
 
-/// Total traffic is sampled from physical Ethernet/Wi-Fi interface counters,
-/// once per interface. nettop separately attributes TCP/UDP traffic to apps.
-/// Its app totals can differ: VPN transports, kernel traffic and framing are
-/// represented differently. No endpoints or DNS names are requested or stored.
+/// Socket byte deltas power both scope totals and rankings. Destinations stay
+/// transient in RAM; DNS resolution is disabled. No physical-counter fallback
+/// can leak internal traffic into the Internet scope.
 final class NetworkStatsProvider: @unchecked Sendable {
     private static let secondsPerTick: Double = {
         var timebase = mach_timebase_info_data_t()
@@ -207,9 +208,8 @@ final class NetworkStatsProvider: @unchecked Sendable {
     }
 
     private let lock = NSLock()
-    private var totalRates = NetworkRateTracker<String>()
-    private var appRates = NetworkRateTracker<NettopProcessKey>()
-    private var parser = NettopCSVParser()
+    private var appRates = NetworkRateTracker<NettopConnectionKey>()
+    private var parser = NettopConnectionCSVParser()
     private var process: Process?
     private var output: FileHandle?
     private var generation: UUID?
@@ -217,13 +217,13 @@ final class NetworkStatsProvider: @unchecked Sendable {
     private var lastOutputAt: TimeInterval = 0
     private var retryAt: TimeInterval = 0
     private var stopped = false
-    private var latest: NetworkAttributionSample?
+    private var latest: NetworkConnectionSample?
     private var attributionMessage = "Measuring app traffic…"
     private var identities: [NettopProcessKey: (identity: NetworkAppIdentity, at: TimeInterval)] = [:]
 
     deinit { stop() }
 
-    func snapshot() -> NetworkStatsSnapshot {
+    func snapshot(scope: NetworkScope = .internet) -> NetworkStatsSnapshot {
         lock.lock()
         defer { lock.unlock() }
         guard !stopped else {
@@ -232,19 +232,12 @@ final class NetworkStatsProvider: @unchecked Sendable {
         }
         let now = Self.sampleTime
         ensureRunning(at: now)
-        var download: Double?, upload: Double?
-        if let counters = Self.physicalInterfaceCounters() {
-            if let rates = totalRates.update(counters, at: now) {
-                download = rates.values.reduce(0) { $0 + $1.download }
-                upload = rates.values.reduce(0) { $0 + $1.upload }
-            }
-        } else {
-            totalRates.reset()
+        if let latest, latest.isFresh(at: now), process?.isRunning == true {
+            return latest.snapshot(scope: scope, onLink: .current()) { resolveIdentity($0, at: now) }
         }
-        let fresh = latest?.isFresh(at: now) == true && process?.isRunning == true
-        return .init(downloadBytesPerSec: download, uploadBytesPerSec: upload,
-                     apps: fresh ? latest!.apps : [], attributionAvailable: fresh,
-                     attributionMessage: fresh ? nil : latest == nil ? attributionMessage : "App traffic sample is stale")
+        return .init(downloadBytesPerSec: nil, uploadBytesPerSec: nil, apps: [],
+                     attributionAvailable: false,
+                     attributionMessage: latest == nil ? attributionMessage : "Network sample is stale", scope: scope)
     }
 
     /// Permanent, idempotent shutdown. A later snapshot cannot restart nettop.
@@ -300,8 +293,7 @@ final class NetworkStatsProvider: @unchecked Sendable {
         let writer = FileHandle(fileDescriptor: slave, closeOnDealloc: true)
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        proc.arguments = ["-c", "-P", "-n", "-x", "-L", "0", "-s", "1",
-                          "-t", "wifi", "-t", "wired", "-J", "bytes_in,bytes_out"]
+        proc.arguments = ["-c", "-n", "-x", "-L", "0", "-s", "1", "-J", "bytes_in,bytes_out"]
         proc.standardOutput = writer
         proc.standardError = FileHandle.nullDevice
         // Keep an idle terminal input open. /dev/null is always readable at
@@ -344,9 +336,8 @@ final class NetworkStatsProvider: @unchecked Sendable {
         let now = Self.sampleTime
         lastOutputAt = now
         for sample in parser.consume(chunk, at: now) {
-            guard let rates = appRates.update(sample.counters, at: sample.sampledAt) else { continue }
-            let apps = NetworkActivityBuilder.activities(rates) { resolveIdentity($0, at: now) }
-            latest = .init(apps: Array(apps.prefix(10)), sampledAt: sample.sampledAt)
+            guard let rates = appRates.update(sample.counters, at: sample.sampledAt) else { latest = nil; continue }
+            latest = .init(rates: rates, sampledAt: sample.sampledAt, missingCounters: sample.missingCounters)
         }
         if identities.count > 1024 {
             identities = identities.filter { now - $0.value.at < 30 }
@@ -394,37 +385,4 @@ final class NetworkStatsProvider: @unchecked Sendable {
         return identity
     }
 
-    private static func physicalInterfaceCounters() -> [String: NetworkByteCounters]? {
-        var first: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&first) == 0 else { return nil }
-        defer { freeifaddrs(first) }
-        var interfaces: [String: UInt32] = [:]
-        var cursor = first
-        while let current = cursor {
-            defer { cursor = current.pointee.ifa_next }
-            let entry = current.pointee
-            guard let address = entry.ifa_addr, Int32(address.pointee.sa_family) == AF_LINK,
-                  let data = entry.ifa_data else { continue }
-            let name = String(cString: entry.ifa_name)
-            // macOS physical Ethernet, USB/Thunderbolt Ethernet and Wi-Fi
-            // use en<number>. Exclude bridge/utun/awdl/llw/loopback counters,
-            // which would count the same packet at multiple network layers.
-            guard name.hasPrefix("en"), !name.dropFirst(2).isEmpty,
-                  name.dropFirst(2).allSatisfy(\.isNumber),
-                  Int32(entry.ifa_flags) & (IFF_UP | IFF_RUNNING) == (IFF_UP | IFF_RUNNING),
-                  data.assumingMemoryBound(to: if_data.self).pointee.ifi_type == IFT_ETHER else { continue }
-            interfaces[name] = if_nametoindex(entry.ifa_name)
-        }
-        var result: [String: NetworkByteCounters] = [:]
-        for (name, index) in interfaces {
-            var mib: [Int32] = [CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_IFDATA, Int32(index), IFDATA_GENERAL]
-            var statistics = ifmibdata()
-            var length = MemoryLayout<ifmibdata>.size
-            guard sysctl(&mib, u_int(mib.count), &statistics, &length, nil, 0) == 0,
-                  length == MemoryLayout<ifmibdata>.size else { return nil }
-            result[name] = .init(download: statistics.ifmd_data.ifi_ibytes,
-                                 upload: statistics.ifmd_data.ifi_obytes)
-        }
-        return result
-    }
 }

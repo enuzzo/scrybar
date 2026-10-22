@@ -251,7 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium), .paragraphStyle: paragraph]
         )
         let leader = model.latestMacStats?.networkApp
-        button.toolTip = "Download \(down) · Upload \(up)" + (stale ? " · Waiting for fresh data" : leader.map { " · \($0)" } ?? "")
+        button.toolTip = "\(model.networkScope.title) · Download \(down) · Upload \(up)" + (stale ? " · Waiting for fresh data" : leader.map { " · \($0)" } ?? "")
         button.setAccessibilityValue(button.toolTip)
     }
 }

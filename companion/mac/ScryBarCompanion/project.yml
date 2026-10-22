@@ -14,8 +14,8 @@ configs:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    CURRENT_PROJECT_VERSION: 46
-    MARKETING_VERSION: "0.3.10"
+    CURRENT_PROJECT_VERSION: 47
+    MARKETING_VERSION: "0.3.11"
     PRODUCT_BUNDLE_IDENTIFIER: com.netmilk.ScryBarCompanion
     PRODUCT_NAME: ScryBarCompanion
     CODE_SIGN_STYLE: Automatic

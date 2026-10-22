@@ -218,7 +218,8 @@ struct NowPlayingPopoverView: View {
 
             NetworkStatsSection(
                 snapshot: model.latestNetworkStats,
-                isStale: model.latestMacStats.map { now.timeIntervalSince($0.updatedAt) > 15 } ?? false
+                isStale: model.latestMacStats.map { now.timeIntervalSince($0.updatedAt) > 15 } ?? false,
+                scope: $model.networkScope
             )
 
             Divider()

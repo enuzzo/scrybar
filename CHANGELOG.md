@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-22
+
+### Companion v0.3.11 (47) — Destination scopes
+
+- Add persistent Internet / Rete interna / Tutto selection, default Internet.
+  Filter totals, app rankings and display payloads from the same socket deltas.
+- Classify numeric peers, including private/shared addresses, Tailscale and
+  physical on-link IPv6 prefixes; avoid counting Tailscale transport twice.
+- Keep wildcard peers and missing byte counters explicit as partial coverage.
+  No destination logging, DNS lookups or endpoint delivery. Clear old-scope
+  values immediately and discard old-scope computations after a selection change.
+- Preserve legacy display compatibility with optional `networkScope` and
+  `networkCoveragePartial` fields. See the [contract](docs/mac-stats-live-v1.md).
+
+
 ## 2026-09-09
 
 ### ScryBar v0.9.4 — Firmware r307 / Companion v0.3.5 (40)

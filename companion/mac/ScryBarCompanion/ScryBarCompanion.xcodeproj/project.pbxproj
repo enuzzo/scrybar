@@ -31,6 +31,7 @@
 		CF26052E9B8B1568F26601DB /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 04CC5359BE9C5DEE6F953EDC /* AppIcon.icns */; };
 		D2C4F19151AA9B1825BDD110 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5953F94113F0DC311E0FB3BC /* SettingsView.swift */; };
 		EA4615C1C064F288A261B81F /* ScryBarCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */; };
+		F4944D4D2BEB06724A0D9847 /* NetworkScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = C32E390A4088C41D852D8C73 /* NetworkScope.swift */; };
 		F82CD802C19C149215512C59 /* BambuCameraModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1765426E1EC8C87F72CBDC27 /* BambuCameraModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -55,6 +56,7 @@
 		AC6442DD4FA04ABEE250C188 /* DisplayDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayDelivery.swift; sourceTree = "<group>"; };
 		AE76FA671EFB2D923FD32D1A /* MacStatsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStatsProvider.swift; sourceTree = "<group>"; };
 		BFD2ADC22CE3D507E790DAFA /* NetworkStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkStatsView.swift; sourceTree = "<group>"; };
+		C32E390A4088C41D852D8C73 /* NetworkScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkScope.swift; sourceTree = "<group>"; };
 		C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuPrinterDiscovery.swift; sourceTree = "<group>"; };
 		C8E22A120EAA9F0E38CDE52E /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
 		E399E951B76591E93AC3657E /* YakamozPush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YakamozPush.swift; sourceTree = "<group>"; };
@@ -97,6 +99,7 @@
 				914ACA19961BFE36F2A3D2B0 /* MacStatsNetwork.swift */,
 				AE76FA671EFB2D923FD32D1A /* MacStatsProvider.swift */,
 				9FD873F0A8B6D5871731A68D /* Models.swift */,
+				C32E390A4088C41D852D8C73 /* NetworkScope.swift */,
 				4A46A814378D7818BFD9A787 /* NetworkStatsProvider.swift */,
 				BFD2ADC22CE3D507E790DAFA /* NetworkStatsView.swift */,
 				8457A3E5152784A5FAE2409D /* PopoverView.swift */,
@@ -205,6 +208,7 @@
 				34CFC65843BB526F4CF9999C /* MacStatsNetwork.swift in Sources */,
 				73F1490C073A22D9F2A5E31B /* MacStatsProvider.swift in Sources */,
 				C8D821386881FE043880AEF0 /* Models.swift in Sources */,
+				F4944D4D2BEB06724A0D9847 /* NetworkScope.swift in Sources */,
 				A09C48ABEF49E5C269A8BE4A /* NetworkStatsProvider.swift in Sources */,
 				8A44F51F5B97A4D3676EBF3A /* NetworkStatsView.swift in Sources */,
 				3AF38F9540ADEDB98E4E5013 /* PopoverView.swift in Sources */,
@@ -256,7 +260,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -280,7 +284,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.10;
+				MARKETING_VERSION = 0.3.11;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -328,7 +332,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -346,7 +350,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.10;
+				MARKETING_VERSION = 0.3.11;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netmilk.ScryBarCompanion;

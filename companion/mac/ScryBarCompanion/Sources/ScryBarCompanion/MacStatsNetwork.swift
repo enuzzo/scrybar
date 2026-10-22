@@ -38,6 +38,8 @@ extension MacStatsPayload {
         result.netDownBytesPerSec = NetworkRateFormatter.validRate(network.downloadBytesPerSec)
         result.netUpBytesPerSec = NetworkRateFormatter.validRate(network.uploadBytesPerSec)
         result.networkAttributionAvailable = network.attributionAvailable
+        result.networkScope = network.scope.rawValue
+        result.networkCoveragePartial = network.coveragePartial
         result.hostName = NetworkRateFormatter.wireName(hostName)
         result.networkApp = nil
         result.networkAppDownBytesPerSec = nil

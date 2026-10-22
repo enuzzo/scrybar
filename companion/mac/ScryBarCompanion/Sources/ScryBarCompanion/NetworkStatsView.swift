@@ -3,6 +3,7 @@ import SwiftUI
 struct NetworkStatsSection: View {
     let snapshot: NetworkStatsSnapshot?
     var isStale = false
+    var scope: Binding<NetworkScope>? = nil
 
     private var apps: [NetworkAppActivity] {
         guard !isStale, snapshot?.attributionAvailable == true else { return [] }
@@ -20,6 +21,14 @@ struct NetworkStatsSection: View {
                     .foregroundStyle(isStale ? CompanionTheme.warning : CompanionTheme.textTertiary)
             }
             .font(.system(size: 11, weight: .semibold))
+
+            if let scope {
+                Picker("Traffico", selection: scope) {
+                    ForEach(NetworkScope.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityLabel("Ambito del traffico di rete")
+            }
 
             HStack(spacing: 16) {
                 rate("DOWNLOAD", symbol: "arrow.down", value: snapshot?.downloadBytesPerSec, tint: CompanionTheme.accent)
@@ -67,7 +76,9 @@ struct NetworkStatsSection: View {
                 }
             }
 
-            Text("Current traffic · app accounting can differ from totals")
+            Text(snapshot?.coveragePartial == true
+                 ? "Partial · some sockets have no peer or byte counters"
+                 : "Socket traffic · VPN transport counted only once")
                 .font(.system(size: 9))
                 .foregroundStyle(CompanionTheme.textDisabled)
         }
@@ -76,7 +87,7 @@ struct NetworkStatsSection: View {
     private var emptyMessage: String {
         if isStale { return "Waiting for a fresh network sample…" }
         guard let snapshot else { return "Measuring network activity…" }
-        if !snapshot.attributionAvailable { return snapshot.attributionMessage ?? "App activity is unavailable. Total rates remain independent." }
+        if !snapshot.attributionAvailable { return snapshot.attributionMessage ?? "App activity is unavailable. Waiting for a classifiable sample." }
         return "No app traffic in the last sample."
     }
 

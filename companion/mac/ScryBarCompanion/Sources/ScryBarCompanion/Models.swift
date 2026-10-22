@@ -19,6 +19,8 @@ struct MacStatsPayload: Codable, Sendable {
     var networkAppDownBytesPerSec: Double? = nil
     var networkAppUpBytesPerSec: Double? = nil
     var networkAttributionAvailable: Bool? = nil
+    var networkScope: String? = nil
+    var networkCoveragePartial: Bool? = nil
     var hostName: String? = nil
 }
 
