@@ -257,8 +257,9 @@ struct NetworkLocalNetworks: Sendable {
 /// producing invalid/incomplete frames. Both clocks have a bounded grace period.
 enum NettopStreamHealth {
     static func isStalled(now: TimeInterval, started: TimeInterval,
-                          output: TimeInterval, sample: TimeInterval) -> Bool {
-        now - max(started, output) > 5 || now - max(started, sample) > 5
+                          output: TimeInterval, sample: TimeInterval, measurement: TimeInterval? = nil) -> Bool {
+        if let measurement, now - measurement > 3.5 { return true }
+        return now - max(started, output) > 5 || now - max(started, sample) > 5
     }
 }
 

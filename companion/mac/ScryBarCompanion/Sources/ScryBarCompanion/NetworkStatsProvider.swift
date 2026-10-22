@@ -267,7 +267,8 @@ final class NetworkStatsProvider: @unchecked Sendable {
     private func ensureRunning(at now: TimeInterval) {
         if let process, process.isRunning {
             if !parser.capacityExceeded && !NettopStreamHealth.isStalled(
-                now: now, started: startedAt, output: lastOutputAt, sample: lastValidSampleAt
+                now: now, started: startedAt, output: lastOutputAt, sample: lastValidSampleAt,
+                measurement: latest?.sampledAt
             ) { return }
             restarts += 1
             output?.readabilityHandler = nil

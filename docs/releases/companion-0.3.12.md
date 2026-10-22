@@ -8,6 +8,7 @@ bytes, so the previous output-only health check could not recover the collector.
 
 - Track usable-frame progress independently from raw output. Five seconds
   without usable frames triggers bounded recovery even if output continues.
+  A complete but already stale measurement also triggers recovery.
 - Keep memory/socket limits and request restart on capacity exhaustion.
 - Preserve valid sockets when individual rows are unreadable, marking partial
   coverage. Unknown process rows clear ownership. Fully unusable frames reset
@@ -23,7 +24,7 @@ bytes, so the previous output-only health check could not recover the collector.
 | Check | Result |
 | --- | --- |
 | Native suite without foreground windows | 70 tests passed; existing secure-paste window test excluded |
-| Sustained real collector | Two 75-second runs passed; final run 73 measured samples, 79 frames, zero restarts and final usable-frame age 0.156 s |
+| Sustained real collector | Three 75-second runs passed; exact final revision: 73 measured samples, 78 frames, zero restarts and final usable-frame age 0.204 s |
 | Recovery regression fixtures | Output-without-usable-frame timeout, per-row isolation, owner reset, socket cap and measured-idle distinction |
 | Actual local TCP traffic | Visible in Local/All and excluded from Internet |
 | Host-name wire formatting | Apostrophe regression passed after the final package change |
@@ -36,8 +37,8 @@ installed menu app or physical rate display. The exact reason the old nettop
 stream stopped producing accepted frames was not recovered from its output;
 capacity and malformed-frame recovery are bounded regardless of that trigger.
 
-DMG SHA-256: `b914c73d45569f2a44f707a8b59f0efb775fdbbbccaf7557443032a76d67e1c2`.
+DMG SHA-256: `cf841a383ce787922d2a39eac028cf8cc65eb8a0d87c9ec89312c325c4733f63`.
 Universal executable SHA-256:
-`75abba674a7c5d6e0ef8c2f5ef2e5e70f41e6f03160ab2f32bd5cf5bd4d24523`.
+`8a1aeb8eaed98d4306e474333626ef3cf5a1dba07238671e279a1cb1b7e3fb73`.
 The app is ad-hoc signed, not notarized. Source, package, installation, firmware
 publication and physical acceptance are recorded separately.

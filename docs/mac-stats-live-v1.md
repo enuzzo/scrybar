@@ -100,7 +100,9 @@ either limit requests collector restart. A separate progress clock for usable
 frames triggers recovery after five seconds even when raw bytes keep arriving.
 Only genuinely empty complete frames or frames with usable counters refresh that
 clock; restarts use the existing bounded retry delay. Numeric diagnostics expose
-sample age/count/restarts without endpoints or app names.
+sample age/count/restarts without endpoints or app names. A complete frame whose
+measurement is already older than the 3.5-second freshness limit also triggers
+recovery, rather than refreshing health with obsolete data.
 
 A pseudo-terminal flushes samples promptly and keeps stdin open: `/dev/null`
 on stdin caused nettop's event loop to spin on EOF during native testing.

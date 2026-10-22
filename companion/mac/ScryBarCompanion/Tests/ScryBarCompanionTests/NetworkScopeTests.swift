@@ -195,6 +195,9 @@ import Testing
     #expect(!NettopStreamHealth.isStalled(now: 14, started: 10, output: 14, sample: 10))
     #expect(NettopStreamHealth.isStalled(now: 16, started: 10, output: 16, sample: 10))
     #expect(!NettopStreamHealth.isStalled(now: 16, started: 10, output: 16, sample: 15))
+    // A slow complete frame can still contain an obsolete measurement.
+    #expect(NettopStreamHealth.isStalled(now: 30, started: 10, output: 30, sample: 30, measurement: 26))
+    #expect(!NettopStreamHealth.isStalled(now: 30, started: 10, output: 30, sample: 30, measurement: 29))
     #expect(NettopStreamHealth.isStalled(now: 22, started: 10, output: 16, sample: 21))
 }
 
