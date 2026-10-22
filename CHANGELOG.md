@@ -2,6 +2,14 @@
 
 ## 2026-10-22
 
+### Companion v0.3.14 (50) — Center menu-bar network rates
+
+- Render download/upload as one native template image with the visible glyph
+  block vertically centered, replacing the multiline status-button title.
+- Retain the same font, directional rows, item width, click actions and accessible
+  live value. The system tints the template for appearance and selection.
+- Check visible top/bottom bounds offscreen at 1× and 2× before installation.
+
 ### Companion v0.3.13 (49) — Keep Now Playing responsive
 
 - Publish permitted music metadata immediately; resolve covers on one background

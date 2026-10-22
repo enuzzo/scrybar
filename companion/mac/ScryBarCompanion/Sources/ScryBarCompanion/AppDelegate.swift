@@ -120,8 +120,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         networkStatusItem = NSStatusBar.system.statusItem(withLength: 94)
         if let networkButton = networkStatusItem.button {
-            networkButton.cell?.wraps = true
-            networkButton.cell?.usesSingleLineMode = false
+            networkButton.imagePosition = .imageOnly
+            networkButton.imageScaling = .scaleNone
             networkButton.target = self
             networkButton.action = #selector(statusItemClicked(_:))
             networkButton.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -242,14 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let stale = model.latestMacStats.map { Date.now.timeIntervalSince($0.updatedAt) > 15 } ?? true
         let down = NetworkRateFormatter.string(stale ? nil : model.latestNetworkStats?.downloadBytesPerSec)
         let up = NetworkRateFormatter.string(stale ? nil : model.latestNetworkStats?.uploadBytesPerSec)
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .left
-        paragraph.minimumLineHeight = 10
-        paragraph.maximumLineHeight = 10
-        button.attributedTitle = NSAttributedString(
-            string: "↓ \(down)\n↑ \(up)",
-            attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium), .paragraphStyle: paragraph]
-        )
+        button.image = NetworkStatusImage.make(download: down, upload: up)
         let leader = model.latestMacStats?.networkApp
         button.toolTip = "\(model.networkScope.title) · Download \(down) · Upload \(up)" + (stale ? " · Waiting for fresh data" : leader.map { " · \($0)" } ?? "")
         button.setAccessibilityValue(button.toolTip)

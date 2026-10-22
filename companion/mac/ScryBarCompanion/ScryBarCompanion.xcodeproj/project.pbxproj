@@ -20,6 +20,7 @@
 		A09C48ABEF49E5C269A8BE4A /* NetworkStatsProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A46A814378D7818BFD9A787 /* NetworkStatsProvider.swift */; };
 		AA4696DB9046E247051334BB /* BambuCameraTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49C2FF7EBD44D80EB5FB4DA /* BambuCameraTransport.swift */; };
 		AF4C8863C47F0017945615B5 /* SourcePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5244D91BDA262FE07DDC9EF /* SourcePolicy.swift */; };
+		B4C1EBD603E42A27CB4104F5 /* NetworkStatusImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA02B64F5FA61C3F3FE05C6F /* NetworkStatusImage.swift */; };
 		BA955C8E6E772F57D54F1910 /* BambuPrinterDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */; };
 		BB24A8275CCF1DCECFB60E1A /* CompanionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F1C85B96397D8D6F8FA52E /* CompanionSettingsView.swift */; };
 		C3E8A6A20FD0BCDAA53365D2 /* BambuPrinter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */; };
@@ -60,6 +61,7 @@
 		C32E390A4088C41D852D8C73 /* NetworkScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkScope.swift; sourceTree = "<group>"; };
 		C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuPrinterDiscovery.swift; sourceTree = "<group>"; };
 		C8E22A120EAA9F0E38CDE52E /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
+		DA02B64F5FA61C3F3FE05C6F /* NetworkStatusImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkStatusImage.swift; sourceTree = "<group>"; };
 		E399E951B76591E93AC3657E /* YakamozPush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YakamozPush.swift; sourceTree = "<group>"; };
 		E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuPrinter.swift; sourceTree = "<group>"; };
 		F49C2FF7EBD44D80EB5FB4DA /* BambuCameraTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuCameraTransport.swift; sourceTree = "<group>"; };
@@ -104,6 +106,7 @@
 				C32E390A4088C41D852D8C73 /* NetworkScope.swift */,
 				4A46A814378D7818BFD9A787 /* NetworkStatsProvider.swift */,
 				BFD2ADC22CE3D507E790DAFA /* NetworkStatsView.swift */,
+				DA02B64F5FA61C3F3FE05C6F /* NetworkStatusImage.swift */,
 				FD4A9981E609EA026DF873D5 /* NowPlayingArtwork.swift */,
 				8457A3E5152784A5FAE2409D /* PopoverView.swift */,
 				C8E22A120EAA9F0E38CDE52E /* Providers.swift */,
@@ -214,6 +217,7 @@
 				F4944D4D2BEB06724A0D9847 /* NetworkScope.swift in Sources */,
 				A09C48ABEF49E5C269A8BE4A /* NetworkStatsProvider.swift in Sources */,
 				8A44F51F5B97A4D3676EBF3A /* NetworkStatsView.swift in Sources */,
+				B4C1EBD603E42A27CB4104F5 /* NetworkStatusImage.swift in Sources */,
 				DABB67816ABD689D5C5FC737 /* NowPlayingArtwork.swift in Sources */,
 				3AF38F9540ADEDB98E4E5013 /* PopoverView.swift in Sources */,
 				095EE31AE5D86F1A533F6AE7 /* Providers.swift in Sources */,
@@ -264,7 +268,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 49;
+				CURRENT_PROJECT_VERSION = 50;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -288,7 +292,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.13;
+				MARKETING_VERSION = 0.3.14;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -336,7 +340,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 49;
+				CURRENT_PROJECT_VERSION = 50;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -354,7 +358,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.13;
+				MARKETING_VERSION = 0.3.14;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netmilk.ScryBarCompanion;
