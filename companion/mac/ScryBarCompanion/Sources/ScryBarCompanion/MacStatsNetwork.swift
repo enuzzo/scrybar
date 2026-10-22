@@ -40,7 +40,10 @@ extension MacStatsPayload {
         result.networkAttributionAvailable = network.attributionAvailable
         result.networkScope = network.scope.rawValue
         result.networkCoveragePartial = network.coveragePartial
-        result.hostName = NetworkRateFormatter.wireName(hostName)
+        // Embedded display fonts have the ASCII apostrophe, not curly quotes.
+        result.hostName = NetworkRateFormatter.wireName(hostName?
+            .replacingOccurrences(of: "’", with: "'")
+            .replacingOccurrences(of: "‘", with: "'"))
         result.networkApp = nil
         result.networkAppDownBytesPerSec = nil
         result.networkAppUpBytesPerSec = nil

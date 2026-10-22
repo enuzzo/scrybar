@@ -82,6 +82,7 @@ struct NettopConnectionCounters: Sendable {
     let counters: [NettopConnectionKey: NetworkByteCounters]
     let sampledAt: TimeInterval
     let missingCounters: Bool
+    var hasUsableCounters: Bool { !counters.isEmpty || !missingCounters }
 }
 
 /// Process summaries establish ownership only. Only socket rows enter totals.
@@ -91,26 +92,37 @@ struct NettopConnectionCSVParser {
     private var owner: NettopProcessKey?
     private var current: [NettopConnectionKey: NetworkByteCounters] = [:]
     private var sampledAt: TimeInterval?
-    private var valid = true
     private var missingCounters = false
+    private(set) var capacityExceeded = false
+    private(set) var partialSamples = 0
 
     mutating func consume(_ chunk: Data, at now: TimeInterval) -> [NettopConnectionCounters] {
         incoming.append(chunk)
-        guard incoming.count <= 1024 * 1024 else { self = .init(); return [] }
+        guard incoming.count <= 1024 * 1024 else {
+            self = .init(); capacityExceeded = true; return []
+        }
         var samples: [NettopConnectionCounters] = []
         while let end = incoming.firstIndex(of: 10) {
             let line = String(decoding: incoming.prefix(upTo: end), as: UTF8.self)
             incoming.removeSubrange(...end)
             let fields = NettopCSVParser.csvFields(line.trimmingCharacters(in: .newlines))
             if fields.first == "", let down = fields.firstIndex(of: "bytes_in"), let up = fields.firstIndex(of: "bytes_out") {
-                if let sampledAt, valid { samples.append(.init(counters: current, sampledAt: sampledAt, missingCounters: missingCounters)) }
-                columns = (down, up); sampledAt = now; current = [:]; owner = nil; valid = true; missingCounters = false
+                if let sampledAt {
+                    samples.append(.init(counters: current, sampledAt: sampledAt, missingCounters: missingCounters))
+                    if missingCounters { partialSamples += 1 }
+                }
+                columns = (down, up); sampledAt = now; current = [:]; owner = nil; missingCounters = false
                 continue
             }
             guard let columns, sampledAt != nil, let label = fields.first, !label.isEmpty else { continue }
             if label.hasPrefix("tcp") || label.hasPrefix("udp"), label.contains("<->") {
-                guard let owner, fields.count > max(columns.download, columns.upload),
-                      current.count < 16384 else { valid = false; continue }
+                guard let owner, fields.count > max(columns.download, columns.upload) else {
+                    missingCounters = true; continue
+                }
+                let key = NettopConnectionKey(process: owner, label: label)
+                guard current[key] != nil || current.count < 16384 else {
+                    capacityExceeded = true; missingCounters = true; continue
+                }
                 // Native nettop emits empty fields for sockets without byte
                 // accounting (including listeners). They are not measured 0.
                 if fields[columns.download].isEmpty && fields[columns.upload].isEmpty {
@@ -118,16 +130,15 @@ struct NettopConnectionCSVParser {
                     continue
                 }
                 guard let down = UInt64(fields[columns.download]), let up = UInt64(fields[columns.upload]) else {
-                    valid = false; continue
+                    missingCounters = true; continue
                 }
-                let key = NettopConnectionKey(process: owner, label: label)
                 let old = current[key]
                 current[key] = .init(download: max(down, old?.download ?? 0), upload: max(up, old?.upload ?? 0))
             } else if let dot = label.lastIndex(of: "."), let pid = Int32(label[label.index(after: dot)...]), pid >= 0 {
                 owner = .init(pid: pid, name: String(label[..<dot]))
             } else {
                 owner = nil
-                valid = false
+                missingCounters = true
             }
         }
         return samples
@@ -144,14 +155,14 @@ struct NetworkConnectionSample {
 
     func snapshot(scope: NetworkScope, onLink: NetworkLocalNetworks = .init(), resolve: (NettopProcessKey) -> NetworkAppIdentity) -> NetworkStatsSnapshot {
         var processes: [NettopProcessKey: NetworkByteRates] = [:]
-        var partial = missingCounters
+        var unknownActive = false
         for (key, rate) in rates {
             let identity = resolve(key.process)
             // Count original app sockets once, not the encrypted VPN transport
             // a second time as a public peer/DERP connection.
             if identity.isTailscaleTransport { continue }
             let destination = key.destination(onLink: onLink)
-            if destination == .unknown, rate.download > 0 || rate.upload > 0 { partial = true }
+            if destination == .unknown, rate.download > 0 || rate.upload > 0 { unknownActive = true }
             guard scope == .all || scope == .internet && destination == .internet || scope == .local && destination == .local else { continue }
             let old = processes[key.process]
             processes[key.process] = .init(download: (old?.download ?? 0) + rate.download,
@@ -159,12 +170,12 @@ struct NetworkConnectionSample {
         }
         let down = processes.values.reduce(0) { $0 + $1.download }
         let up = processes.values.reduce(0) { $0 + $1.upload }
-        let unknownOnly = (scope != .all && partial || missingCounters) && down == 0 && up == 0
+        let unknownOnly = scope != .all && unknownActive && down == 0 && up == 0 || missingCounters && rates.isEmpty
         let apps = NetworkActivityBuilder.activities(processes, resolve: resolve)
         return .init(downloadBytesPerSec: unknownOnly ? nil : down, uploadBytesPerSec: unknownOnly ? nil : up,
                      apps: unknownOnly ? [] : Array(apps.prefix(10)), attributionAvailable: !unknownOnly,
-                     attributionMessage: unknownOnly ? "Active traffic has no classifiable peer." : nil,
-                     scope: scope, coveragePartial: missingCounters || scope != .all && partial)
+                     attributionMessage: unknownOnly ? (rates.isEmpty ? "Socket byte counters are unavailable." : "Active traffic has no classifiable peer.") : nil,
+                     scope: scope, coveragePartial: missingCounters || scope != .all && unknownActive)
     }
 }
 
@@ -240,4 +251,23 @@ struct NetworkLocalNetworks: Sendable {
         }
         return result
     }
+}
+
+/// Byte activity is not proof of usable samples: a live CSV stream can keep
+/// producing invalid/incomplete frames. Both clocks have a bounded grace period.
+enum NettopStreamHealth {
+    static func isStalled(now: TimeInterval, started: TimeInterval,
+                          output: TimeInterval, sample: TimeInterval) -> Bool {
+        now - max(started, output) > 5 || now - max(started, sample) > 5
+    }
+}
+
+struct NetworkCollectorDiagnostics: Sendable {
+    let running: Bool
+    let outputAge: TimeInterval
+    let sampleAge: TimeInterval
+    let validSamples: Int
+    let restarts: Int
+    let partialSamples: Int
+    let capacityExceeded: Bool
 }

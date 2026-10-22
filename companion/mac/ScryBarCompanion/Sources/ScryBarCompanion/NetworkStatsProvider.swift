@@ -215,6 +215,9 @@ final class NetworkStatsProvider: @unchecked Sendable {
     private var generation: UUID?
     private var startedAt: TimeInterval = 0
     private var lastOutputAt: TimeInterval = 0
+    private var lastValidSampleAt: TimeInterval = 0
+    private var validSamples = 0
+    private var restarts = 0
     private var retryAt: TimeInterval = 0
     private var stopped = false
     private var latest: NetworkConnectionSample?
@@ -263,7 +266,10 @@ final class NetworkStatsProvider: @unchecked Sendable {
     // of missing data). -L keeps CSV logging mode even though stdout is a TTY.
     private func ensureRunning(at now: TimeInterval) {
         if let process, process.isRunning {
-            if now - max(startedAt, lastOutputAt) <= 5 { return }
+            if !parser.capacityExceeded && !NettopStreamHealth.isStalled(
+                now: now, started: startedAt, output: lastOutputAt, sample: lastValidSampleAt
+            ) { return }
+            restarts += 1
             output?.readabilityHandler = nil
             try? output?.close()
             output = nil
@@ -294,6 +300,7 @@ final class NetworkStatsProvider: @unchecked Sendable {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
         proc.arguments = ["-c", "-n", "-x", "-L", "0", "-s", "1", "-J", "bytes_in,bytes_out"]
+        proc.environment = ProcessInfo.processInfo.environment.merging(["LC_ALL": "C", "LANG": "C"]) { _, value in value }
         proc.standardOutput = writer
         proc.standardError = FileHandle.nullDevice
         // Keep an idle terminal input open. /dev/null is always readable at
@@ -314,6 +321,7 @@ final class NetworkStatsProvider: @unchecked Sendable {
             generation = token
             startedAt = now
             lastOutputAt = now
+            lastValidSampleAt = now
             attributionMessage = "Measuring app traffic…"
         } catch {
             reader.readabilityHandler = nil
@@ -336,12 +344,30 @@ final class NetworkStatsProvider: @unchecked Sendable {
         let now = Self.sampleTime
         lastOutputAt = now
         for sample in parser.consume(chunk, at: now) {
+            guard sample.hasUsableCounters else {
+                latest = nil
+                appRates.reset()
+                attributionMessage = "Socket byte counters are unavailable."
+                continue
+            }
+            lastValidSampleAt = now
+            validSamples += 1
             guard let rates = appRates.update(sample.counters, at: sample.sampledAt) else { latest = nil; continue }
             latest = .init(rates: rates, sampledAt: sample.sampledAt, missingCounters: sample.missingCounters)
         }
         if identities.count > 1024 {
             identities = identities.filter { now - $0.value.at < 30 }
         }
+    }
+
+    func diagnostics() -> NetworkCollectorDiagnostics {
+        lock.lock()
+        defer { lock.unlock() }
+        let now = Self.sampleTime
+        return .init(running: process?.isRunning == true, outputAge: now - lastOutputAt,
+                     sampleAge: now - lastValidSampleAt, validSamples: validSamples,
+                     restarts: restarts, partialSamples: parser.partialSamples,
+                     capacityExceeded: parser.capacityExceeded)
     }
 
     private func didExit(generation token: UUID) {

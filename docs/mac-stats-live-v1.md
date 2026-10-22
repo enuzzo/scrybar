@@ -1,6 +1,6 @@
 # Live Mac Stats network extension
 
-Shared by ScryBar Companion 0.3.11 (network scopes; 0.3.10 introduced the feed), the ScryBar strip and Meguru. This is an
+Shared by ScryBar Companion 0.3.12 (network scopes since 0.3.11; feed since 0.3.10), the ScryBar strip and Meguru. This is an
 additive extension of protocol v1, delivered to `POST /api/mac-stats` only when
 the display advertises `mac-stats` in `GET /api/companion` (or the established
 legacy ScryBar fallback applies).
@@ -50,8 +50,9 @@ Do not infer Internet line capacity from current socket traffic.
 Unconnected UDP sockets can have a wildcard peer, and nettop can leave byte
 counters empty. Neither is assigned an invented destination or a fake zero.
 Known attributable rates remain usable with `networkCoveragePartial=true`;
-when there is only unclassifiable active traffic or unavailable counters and no
-positive selected traffic, both rates are absent. All includes measured wildcard
+when there is only unclassifiable active traffic and no positive selected
+traffic, or no usable byte counters at all, both rates are absent. Known idle
+sockets remain measured zero with partial coverage if other sockets lack counters. All includes measured wildcard
 traffic but cannot recover absent byte counters. Short-lived sockets absent
 from two consecutive samples are omitted rather than billed lifetime bytes.
 These are observable socket rates, not a complete physical-link traffic meter.
@@ -91,8 +92,15 @@ One long-lived `/usr/bin/nettop -n -x -c -L 0 -s 1 -J bytes_in,bytes_out`
 subprocess returns socket counters and numeric peers grouped under processes.
 Process-summary counters establish ownership only and never enter totals.
 Duplicate socket observations are not summed. Repeated headers delimit complete
-CSV samples; malformed numeric data invalidates a sample, while documented
-empty native fields mark incomplete coverage. Buffer and socket counts are bounded.
+CSV samples. Unreadable rows are isolated and mark incomplete coverage; unknown
+process rows clear ownership so their connections cannot be attributed to the
+preceding app. A frame without usable counters cannot masquerade as measured idle.
+The child locale is fixed to C. Buffer/socket capacity stays bounded; reaching
+either limit requests collector restart. A separate progress clock for usable
+frames triggers recovery after five seconds even when raw bytes keep arriving.
+Only genuinely empty complete frames or frames with usable counters refresh that
+clock; restarts use the existing bounded retry delay. Numeric diagnostics expose
+sample age/count/restarts without endpoints or app names.
 
 A pseudo-terminal flushes samples promptly and keeps stdin open: `/dev/null`
 on stdin caused nettop's event loop to spin on EOF during native testing.

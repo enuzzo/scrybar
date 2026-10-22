@@ -68,6 +68,7 @@ import Testing
                .init(id: "browser", name: "Demo Browser", downloadBytesPerSec: 200, uploadBytesPerSec: 50)],
         attributionAvailable: true, attributionMessage: nil)
     let live = legacy.withNetwork(fresh, hostName: nil)
+    #expect(legacy.withNetwork(fresh, hostName: "Demo’s Mac").hostName == "Demo's Mac")
     #expect(live.netDownBytesPerSec == nil && live.netUpBytesPerSec == 0)
     #expect(live.networkApp == "Demo Browser" && live.networkAppUpBytesPerSec == 50)
     let idle = NetworkStatsSnapshot(downloadBytesPerSec: 0, uploadBytesPerSec: 0, apps: [],

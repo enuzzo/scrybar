@@ -26,8 +26,8 @@ Date: 2026-10-22. Additive update to the shared ScryBar/Meguru Mac app.
 | Fixtures | Mixed WAN/LAN/tailnet flows, IPv4/IPv6, public IPv6 on-link, socket ownership/duplicates, missing counters, unknown peers, persisted preference, wire scope |
 | Tailscale identity | Real system-extension executable path readable and recognized by transport predicate |
 | Universal DMG | x86_64 + arm64, ad-hoc signature strict validation, readonly mounted version 0.3.11 (47), executable parity and DMG checksum passed |
-| Installed Mac GUI | Pending coordinated normal quit/install/reopen by the GUI owner |
-| ScryBar USB | Await the Meguru chat's handoff before opening serial; r309 not yet installed |
+| Installed Mac GUI | Installed after normal quit; selector/default/persistence verified, but a prolonged real test found persistent stale network data while hardware delivery stayed live. Corrected by 0.3.12 |
+| ScryBar USB | Owner-confirmed handoff completed; [r309 installed and read back](scrybar-r309-installed.md). Network acceptance depends on the Companion correction |
 
 The package is ad-hoc signed, not notarized. The 0.3.10 release and its immutable
 assets remain available independently. Firmware and website publication are

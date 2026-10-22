@@ -37,7 +37,7 @@ import Testing
     #expect(sample.counters.keys.first { $0.process.pid == 43 }?.destination == .local)
     #expect(parser.consume(Data(header.utf8), at: 3).first?.counters.isEmpty == true)
     _ = parser.consume(Data("App.42,100,20,\ntcp4 *:1<->1.1.1.1:80,invalid,20,\n".utf8), at: 3)
-    #expect(parser.consume(Data(header.utf8), at: 4).isEmpty)
+    #expect(parser.consume(Data(header.utf8), at: 4).first?.hasUsableCounters == false)
 }
 
 @Test func networkScopeTotalsAppsAndWireUseSameFilteredConnections() throws {
@@ -189,4 +189,55 @@ import Testing
         try await Task.sleep(for: .seconds(1))
     }
     #expect(observed)
+}
+
+@Test func networkLiveOutputWithoutUsableSamplesTriggersRecovery() {
+    #expect(!NettopStreamHealth.isStalled(now: 14, started: 10, output: 14, sample: 10))
+    #expect(NettopStreamHealth.isStalled(now: 16, started: 10, output: 16, sample: 10))
+    #expect(!NettopStreamHealth.isStalled(now: 16, started: 10, output: 16, sample: 15))
+    #expect(NettopStreamHealth.isStalled(now: 22, started: 10, output: 16, sample: 21))
+}
+
+@Test func networkOneBadRowDoesNotDiscardOtherAppsAndSocketCapRequestsRestart() throws {
+    let header = ",bytes_in,bytes_out,\n"
+    var parser = NettopConnectionCSVParser()
+    _ = parser.consume(Data((header + "App.1,100,20,\ntcp4 127.0.0.1:1<->1.1.1.1:443,100,20,\nudp4 *:1<->*:*,unavailable,20,\n").utf8), at: 1)
+    let sample = try #require(parser.consume(Data(header.utf8), at: 2).first)
+    #expect(sample.counters.count == 1 && sample.missingCounters)
+    #expect(parser.partialSamples == 1 && !parser.capacityExceeded)
+    let rows = (0..<16400).map { "tcp4 127.0.0.1:\($0)<->1.1.1.1:443,10,20,\n" }.joined()
+    _ = parser.consume(Data(("App.1,100,20,\n" + rows).utf8), at: 2)
+    #expect(parser.capacityExceeded)
+    let capped = try #require(parser.consume(Data(header.utf8), at: 3).first)
+    #expect(capped.counters.count == 16384 && capped.missingCounters)
+}
+
+@Test func networkUnavailableListenersDoNotHideMeasuredIdleSockets() {
+    let key = NettopConnectionKey(process: .init(pid: 1, name: "Idle"), label: "tcp4 127.0.0.1:1<->1.1.1.1:443")
+    let sample = NetworkConnectionSample(rates: [key: .init(download: 0, upload: 0)], sampledAt: 1, missingCounters: true)
+    for scope in NetworkScope.allCases {
+        let result = sample.snapshot(scope: scope) { .init(id: $0.name, name: $0.name) }
+        #expect(result.downloadBytesPerSec == 0 && result.uploadBytesPerSec == 0)
+        #expect(result.coveragePartial && result.attributionAvailable)
+    }
+}
+
+@Test func networkLongRunWhenExplicitlyEnabled() async throws {
+    guard let setting = ProcessInfo.processInfo.environment["SCRYBAR_NETWORK_LONG_SMOKE_SECONDS"],
+          let duration = Int(setting), duration >= 60 else { return }
+    let provider = NetworkStatsProvider()
+    defer { provider.stop() }
+    var observed = 0
+    for second in 0..<duration {
+        let sample = provider.snapshot(scope: .all)
+        if sample.downloadBytesPerSec != nil { observed += 1 }
+        let health = provider.diagnostics()
+        if second > 10 {
+            #expect(health.sampleAge < 6 || !health.running)
+        }
+        try await Task.sleep(for: .seconds(1))
+    }
+    let health = provider.diagnostics()
+    print("Collector long run: seconds=\(duration), measured=\(observed), frames=\(health.validSamples), restarts=\(health.restarts), lastSampleAge=\(health.sampleAge)")
+    #expect(observed > duration * 3 / 4)
 }

@@ -2,6 +2,17 @@
 
 ## 2026-10-22
 
+### Companion v0.3.12 (48) — Recover stale network collection
+
+- Recover when nettop emits bytes but stops producing usable frames, or reaches
+  the bounded socket/buffer capacity. Do not leave old rates stale indefinitely.
+- Isolate unreadable socket rows with explicit partial coverage while preserving
+  valid app traffic; fully unusable frames cannot masquerade as measured idle.
+- Keep known idle sockets distinct from active traffic with an unknown peer;
+  fix the child protocol locale and normalize host-name apostrophes for the
+  embedded display fonts.
+- Add sustained native collection and overload/recovery regression checks.
+
 ### Companion v0.3.11 (47) — Destination scopes
 
 - Add persistent Internet / Rete interna / Tutto selection, default Internet.
