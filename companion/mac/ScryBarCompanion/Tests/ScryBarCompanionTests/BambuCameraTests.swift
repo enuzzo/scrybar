@@ -125,3 +125,116 @@ private final class CameraTestStream: BambuCameraStreaming {
     #expect(stream.stops == 1)
     #expect(commands == [false])
 }
+
+@Test @MainActor func cameraTwoDisplaysHaveIndependentLeasesAndRevisionAcks() throws {
+    let suite = "camera-tests-\(UUID())", defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let stream = CameraTestStream(), model = BambuCameraModel(defaults: defaults, makeTransport: { stream })
+    model.configuration = { .init(host: "127.0.0.1", serial: "PRINTER-A", accessCode: "12345678") }
+    var commands: [Bool] = []
+    model.setLight = { on, _ in commands.append(on) }
+    let now = Date(), format = ISO8601DateFormatter()
+    let first = ScryBarCameraRequest(session: "circle-boot-1-view-1", active: true, lightRevision: 1, light: true,
+        issuedAt: format.string(from: now), expiresAt: format.string(from: now.addingTimeInterval(4)))
+    model.receiveDeviceControl(first, device: "circle", requiresFreshness: true, at: now)
+    model.receiveDeviceControl(first, device: "circle", requiresFreshness: true, at: now)
+    model.receiveDeviceControl(.init(session: "strip-view", active: true, lightRevision: 0, light: false), device: "strip", at: now)
+    #expect(stream.starts == 1)
+    #expect(commands == [true])
+    #expect(model.deviceStatusBody("circle")["lightPending"] as? Bool == true)
+    #expect(model.deviceStatusBody("circle")["lightRevision"] as? Int == 1)
+    model.receiveLight(serial: "PRINTER-A", on: true)
+    #expect(model.deviceStatusBody("circle")["lightPending"] as? Bool == false)
+    model.receiveDeviceControl(.init(session: first.session, active: false, lightRevision: 1, light: true), device: "circle", at: now)
+    #expect(model.running)
+    #expect(commands == [true])
+    model.expireDeviceLease(at: now.addingTimeInterval(6))
+    #expect(!model.running)
+    #expect(commands == [true, false])
+    model.receiveLight(serial: "PRINTER-A", on: false)
+    // Reopening the old request cannot replay an already consumed revision.
+    model.receiveDeviceControl(first, device: "circle", requiresFreshness: true, at: now)
+    #expect(commands == [true, false])
+    model.shutdown()
+}
+
+@Test @MainActor func cameraRejectsExpiredLightAndPersistsConsumedRevisionAcrossRelaunch() throws {
+    let suite = "camera-tests-\(UUID())", defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let now = Date(), format = ISO8601DateFormatter()
+    let model = BambuCameraModel(defaults: defaults, makeTransport: { CameraTestStream() })
+    model.configuration = { .init(host: "localhost", serial: "A", accessCode: "12345678") }
+    var commands = 0; model.setLight = { _, _ in commands += 1 }
+    var command = ScryBarCameraRequest(session: "unique-boot-view", active: true, lightRevision: 4, light: true,
+        issuedAt: format.string(from: now.addingTimeInterval(-8)), expiresAt: format.string(from: now.addingTimeInterval(-3)))
+    model.receiveDeviceControl(command, device: "circle", requiresFreshness: true, at: now)
+    #expect(commands == 0)
+    #expect(model.deviceStatusBody("circle")["lightError"] as? String == "expired_or_invalid_command")
+    model.shutdown()
+    // Rewriting the timestamp cannot revive the same command revision after restart.
+    command.issuedAt = format.string(from: now); command.expiresAt = format.string(from: now.addingTimeInterval(4))
+    let restored = BambuCameraModel(defaults: defaults, makeTransport: { CameraTestStream() })
+    restored.configuration = model.configuration; restored.setLight = { _, _ in commands += 1 }
+    restored.receiveDeviceControl(command, device: "circle", requiresFreshness: true, at: now)
+    #expect(commands == 0)
+    #expect(restored.deviceStatusBody("circle")["lightRevision"] as? Int == 4)
+    restored.shutdown()
+}
+
+@Test @MainActor func closingCommandOwnerCancelsRetriesWithoutStoppingOtherViewer() throws {
+    let suite = "camera-tests-\(UUID())", defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let stream = CameraTestStream(), model = BambuCameraModel(defaults: defaults, makeTransport: { stream })
+    model.configuration = { .init(host: "localhost", serial: "A", accessCode: "12345678") }
+    var commands: [Bool] = []; model.setLight = { on, _ in commands.append(on) }
+    model.viewOnMac(true)
+    model.receiveDeviceControl(.init(session: "view", active: true, lightRevision: 1, light: true), device: "circle")
+    #expect(commands == [true])
+    model.receiveDeviceControl(.init(session: "view", active: false, lightRevision: 1, light: true), device: "circle")
+    #expect(commands == [true, false])
+    #expect(model.running)
+    #expect(stream.stops == 0)
+    #expect(model.deviceStatusBody("circle")["lightError"] as? String == "view_closed")
+    model.receiveDeviceControl(.init(session: "view", active: true, lightRevision: 1, light: true), device: "circle")
+    #expect(commands == [true, false])
+    model.shutdown()
+}
+
+private actor CameraMockHTTP: CompanionHTTPTransport {
+    var replies: [String: ScryBarCameraRequest] = [:]
+    var postedSessions: [String: [String]] = [:]
+    func control(_ host: String, _ value: ScryBarCameraRequest) { replies[host] = value }
+    func send(_ request: URLRequest) async throws -> CompanionHTTPReply {
+        let host = request.url!.host!
+        if host == "slow" { try await Task.sleep(for: .milliseconds(400)); throw URLError(.timedOut) }
+        if request.httpMethod == "POST" {
+            let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+            postedSessions[host, default: []].append(body["session"] as! String)
+            return .init(data: Data(), status: 200)
+        }
+        guard let control = replies[host] else { return .init(data: Data(), status: 404) }
+        let body: [String: Any] = ["session": control.session, "active": control.active,
+            "lightRevision": control.lightRevision, "light": control.light]
+        return .init(data: try JSONSerialization.data(withJSONObject: body), status: 200)
+    }
+    func posts(_ host: String) -> [String] { postedSessions[host] ?? [] }
+}
+
+@Test @MainActor func cameraHTTPPollingHasNoHeadOfLineBlocking() async throws {
+    let suite = "camera-tests-\(UUID())", defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let http = CameraMockHTTP(), stream = CameraTestStream()
+    await http.control("fast", .init(session: "fast-session", active: true, lightRevision: 0, light: false))
+    let model = BambuCameraModel(defaults: defaults, http: http, makeTransport: { stream })
+    model.configuration = { .init(host: "localhost", serial: "A", accessCode: "12345678") }
+    model.endpoints = { ["slow", "fast"].map { .init(name: $0, host: $0, port: 8080, source: .manual) } }
+    model.startPolling()
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(await http.posts("fast") == ["fast-session"])
+    #expect(stream.starts == 1)
+    model.endpoints = { [] }; model.targetsDidChange()
+    try await Task.sleep(for: .milliseconds(450))
+    #expect(!model.running)
+    #expect(await http.posts("slow").isEmpty)
+    model.shutdown()
+}

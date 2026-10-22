@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var showBambuHelp = false
     @FocusState private var headerHasFocus: Bool
     @State private var measuredBodyHeight: CGFloat = 0
+    @AppStorage("network.showInMenuBar") private var networkInMenuBar = true
 
     private let fixedChromeHeight: CGFloat = 78
 
@@ -22,6 +23,8 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         Color.clear.frame(height: 0).id("settings-top")
                         scryBarSettingsSection
+                        privacySettingsSection
+                        yakamozSettingsSection
                         bambuSettingsSection
                     }
                     .padding(.vertical, 14)
@@ -122,36 +125,27 @@ struct SettingsView: View {
                     .accessibilityLabel("Content source")
                 }
 
-                settingRow("ScryBar") {
-                    if model.discoveredEndpoints.isEmpty {
-                        Text("No display found")
-                            .font(CompanionTheme.Typography.caption)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Displays").font(CompanionTheme.Typography.label)
+                    if model.displayTargets.isEmpty {
+                        Text("Searching for ScryBar and Meguru…")
                             .foregroundStyle(CompanionTheme.textTertiary)
-                    } else {
-                        Picker("ScryBar target", selection: $model.selectedDiscoveredEndpointID) {
-                            ForEach(model.discoveredEndpoints) { endpoint in
-                                Text(endpoint.name).tag(Optional(endpoint.id))
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .accessibilityLabel("ScryBar target")
                     }
-                }
-
-                if let endpoint = model.selectedEndpoint {
-                    HStack(spacing: 7) {
-                        Circle()
-                            .fill(model.selectedEndpointIsConnected ? CompanionTheme.success : CompanionTheme.warning)
-                            .frame(width: 7, height: 7)
-                        Text(model.selectedEndpointIsConnected ? "Display connected" : "Waiting for display")
-                            .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundStyle(model.selectedEndpointIsConnected ? CompanionTheme.success : CompanionTheme.warning)
-                        Spacer()
-                        Text("\(endpoint.host):\(endpoint.port)")
-                            .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                            .foregroundStyle(CompanionTheme.textTertiary)
-                            .lineLimit(1)
+                    ForEach(model.displayTargets) { target in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Toggle(target.endpoint.name, isOn: Binding(
+                                get: { target.enabled },
+                                set: { model.setDisplayEnabled($0, id: target.id) }
+                            ))
+                            .toggleStyle(.checkbox)
+                            let state = model.displayStates[target.id]
+                            Text(!target.enabled ? "Disabled" : state?.error ?? (state?.connected() == true ? "Connected" : "Waiting for display"))
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(state?.error != nil ? CompanionTheme.warning : CompanionTheme.textSecondary)
+                            Text("\(target.endpoint.product.capitalized) · \(target.endpoint.host):\(target.endpoint.port)")
+                                .font(.system(size: 10.5, design: .monospaced))
+                                .foregroundStyle(CompanionTheme.textTertiary)
+                        }
                     }
                 }
 
@@ -165,12 +159,16 @@ struct SettingsView: View {
                         Text("Auto-send")
                             .font(CompanionTheme.Typography.label)
                             .foregroundStyle(CompanionTheme.textPrimary)
-                        Text("Send live Companion data to the selected display.")
+                        Text("Send live Companion data to the enabled displays simultaneously.")
                             .font(.system(size: 11.5))
                             .foregroundStyle(CompanionTheme.textTertiary)
                     }
                 }
                 .toggleStyle(.switch)
+
+                Toggle("Network rates in the menu bar", isOn: $networkInMenuBar)
+                    .font(CompanionTheme.Typography.label)
+                    .toggleStyle(.switch)
 
                 DisclosureGroup("Manual display connection") {
                     VStack(alignment: .leading, spacing: 9) {
@@ -183,6 +181,49 @@ struct SettingsView: View {
                 }
                 .font(CompanionTheme.Typography.caption)
                 .foregroundStyle(CompanionTheme.textSecondary)
+            }
+        }
+    }
+
+    // MARK: privacy (music-only sources, on by default) and the optional studio TV destination
+
+    @AppStorage(SourcePolicy.musicOnlyKey) private var musicOnly = true
+    @AppStorage(SourcePolicy.allowBrowsersKey) private var allowBrowsers = false
+    @AppStorage(SourcePolicy.allowVideoPlayersKey) private var allowVideoPlayers = false
+    @AppStorage(YakamozPush.enabledKey) private var yakamozEnabled = false
+    @AppStorage(YakamozPush.urlKey) private var yakamozURL = ""
+    @State private var yakamozKey = ""
+
+    private var privacySettingsSection: some View {
+        settingsSection(title: "PRIVACY", systemImage: "hand.raised") {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(isOn: $musicOnly) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Music apps only").font(CompanionTheme.Typography.label).foregroundStyle(CompanionTheme.textPrimary)
+                        Text("Only Apple Music, Spotify and TIDAL reach the displays. Video players, browser tabs and any other app are never shown, looked up or sent.")
+                            .font(.system(size: 11.5)).foregroundStyle(CompanionTheme.textTertiary)
+                    }
+                }
+                .toggleStyle(.switch)
+                Toggle("Also browsers and YouTube (any site)", isOn: $allowBrowsers)
+                    .toggleStyle(.checkbox).disabled(musicOnly)
+                Toggle("Also video players (VLC, IINA, QuickTime, TV…)", isOn: $allowVideoPlayers)
+                    .toggleStyle(.checkbox).disabled(musicOnly)
+            }
+        }
+    }
+
+    private var yakamozSettingsSection: some View {
+        settingsSection(title: "STUDIO TV", systemImage: "tv") {
+            VStack(alignment: .leading, spacing: 9) {
+                Toggle("Send now playing to the studio TV", isOn: $yakamozEnabled).toggleStyle(.switch)
+                labeledField("Push URL", placeholder: "https://<HOST>/api/musica_push", text: $yakamozURL)
+                HStack {
+                    SecureField("Push key (stored in Keychain)", text: $yakamozKey)
+                    Button("Save key") { YakamozKeychain.save(yakamozKey); yakamozKey = "" }
+                        .buttonStyle(CompanionSecondaryButtonStyle())
+                }
+                Text(model.yakamozStatus).font(.system(size: 11.5)).foregroundStyle(CompanionTheme.textSecondary)
             }
         }
     }

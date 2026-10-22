@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Mac Stats
 
-struct MacStatsPayload: Codable {
+struct MacStatsPayload: Codable, Sendable {
     var cpuTempC:    Float?   // nil = not available on this hardware
     var gpuTempC:    Float?
     var cpuUsagePct: Float?   // 0–100, delta between consecutive host_processor_info polls
@@ -12,6 +12,14 @@ struct MacStatsPayload: Codable {
     var diskUsedGB:  Float
     var diskTotalGB: Float
     var updatedAt:   Date
+    // Additive live-network extension. nil means unavailable, never idle zero.
+    var netDownBytesPerSec: Double? = nil
+    var netUpBytesPerSec: Double? = nil
+    var networkApp: String? = nil
+    var networkAppDownBytesPerSec: Double? = nil
+    var networkAppUpBytesPerSec: Double? = nil
+    var networkAttributionAvailable: Bool? = nil
+    var hostName: String? = nil
 }
 
 // MARK: -
@@ -24,25 +32,34 @@ enum ProviderKind: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum EndpointSource: String {
+enum EndpointSource: String, Codable, Sendable {
     case discovery = "Discovery"
     case manual = "Manual"
 }
 
-struct ScryBarEndpoint: Identifiable, Hashable {
+struct ScryBarEndpoint: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     var name: String
     var host: String
     var port: Int
     var source: EndpointSource
+    var product: String
+    var serviceID: String?
+    var aliases: [String]
 
-    init(id: UUID = UUID(), name: String, host: String, port: Int, source: EndpointSource) {
+    init(id: UUID = UUID(), name: String, host: String, port: Int, source: EndpointSource, product: String = "scrybar", serviceID: String? = nil, aliases: [String] = []) {
         self.id = id
         self.name = name
         self.host = host
         self.port = port
         self.source = source
+        self.product = product
+        self.serviceID = serviceID
+        self.aliases = aliases
     }
+
+    var addressKey: String { "\(host.lowercased()):\(port)" }
+    var stableKey: String { serviceID ?? "manual:\(addressKey)" }
 
     var displayName: String {
         "\(name) (\(host):\(port))"
@@ -53,7 +70,7 @@ struct ScryBarEndpoint: Identifiable, Hashable {
     }
 }
 
-struct NowPlayingPayload: Codable {
+struct NowPlayingPayload: Codable, Sendable {
     var title: String
     var artist: String
     var album: String
@@ -69,6 +86,11 @@ struct NowPlayingPayload: Codable {
     var artworkHeight: Int?
     var artworkRGB565B64: String?
     var updatedAt: Date
+    var isDemo: Bool? = nil
+    // Internal binary variant; networkPayload never embeds it in JSON.
+    var artworkRGB565HD: Data? = nil
+    // Internal: public https URL of the cover actually used (web displays such as the studio TV); not on the wire.
+    var webArtworkURL: String? = nil
 
     static func placeholder(source: String) -> Self {
         .init(
@@ -122,7 +144,7 @@ struct NowPlayingPayload: Codable {
         return "\(artworkID) (\(dims), metadata only)"
     }
 
-    func networkPayload(includeArtworkData: Bool) -> NowPlayingWirePayload {
+    func networkPayload(includeArtworkData: Bool, artworkKey: String? = nil) -> NowPlayingWirePayload {
         .init(
             title: title,
             artist: artist,
@@ -138,7 +160,9 @@ struct NowPlayingPayload: Codable {
             artworkWidth: artworkWidth,
             artworkHeight: artworkHeight,
             artworkRGB565B64: includeArtworkData ? artworkRGB565B64 : nil,
-            updatedAt: updatedAt
+            artworkKey: artworkKey,
+            updatedAt: updatedAt,
+            isDemo: isDemo
         )
     }
 
@@ -178,7 +202,8 @@ struct NowPlayingPayload: Codable {
             artworkWidth: artworkWidth,
             artworkHeight: artworkHeight,
             artworkRGB565B64: artworkRGB565B64.map { "<\($0.count) base64 chars>" },
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            isDemo: isDemo
         )
     }
 }
@@ -198,7 +223,9 @@ struct NowPlayingWirePayload: Codable {
     var artworkWidth: Int?
     var artworkHeight: Int?
     var artworkRGB565B64: String?
+    var artworkKey: String? = nil
     var updatedAt: Date
+    var isDemo: Bool? = nil
 }
 
 struct MockTrack {

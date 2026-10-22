@@ -53,7 +53,8 @@ final class MockNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             artworkWidth: nil,
             artworkHeight: nil,
             artworkRGB565B64: nil,
-            updatedAt: Date()
+            updatedAt: Date(),
+            isDemo: true
         )
     }
 }
@@ -147,7 +148,7 @@ final class TidalNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             return cachedPayload
         }
 
-        let artworkURL = metadata.coverID.flatMap { coverURLString(for: $0, size: 320) }
+        let artworkURL = metadata.coverID.flatMap { coverURLString(for: $0, size: 640) }
         let payload = NowPlayingPayload(
             title: metadata.title,
             artist: metadata.artist,
@@ -582,26 +583,42 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
     private static let pauseDebounceCount = 3
 
     // Cached artwork transcoding — only re-download when artworkID changes
+    private let tidalArtworkProvider = TidalNowPlayingProvider()
+    private var cachedArtworkHD: Data?
     private var cachedArtworkID: String?
     private var cachedArtworkResult: (width: Int, height: Int, rgb565Base64: String)?
+    // Public https URL of the image actually used (TIDAL edition or iTunes fallback), for web displays.
+    private var cachedArtworkWebURL: String?
 
     private func resolveArtworkRGB565(
         artworkURL: String?,
         artworkID: String?,
         title: String,
-        artist: String
+        artist: String,
+        tidal: Bool
     ) -> (Int?, Int?, String?) {
         // Return cached result if artwork hasn't changed
-        let effectiveID = artworkID ?? artworkURL ?? "\(title)|\(artist)"
+        let effectiveID = "\(artworkID ?? artworkURL ?? "")|\(title)|\(artist)"
         if effectiveID == cachedArtworkID, let cached = cachedArtworkResult {
             return (cached.width, cached.height, cached.rgb565Base64)
         }
+        cachedArtworkWebURL = nil
 
-        // Try to download from artworkURL first
-        if let data = downloadImageSync(from: artworkURL) {
+        // Match the actual TIDAL edition when its system artwork ID is opaque.
+        var resolvedURL = artworkURL
+        if tidal, let track = tidalArtworkProvider.snapshot(),
+           track.title.caseInsensitiveCompare(title) == .orderedSame,
+           track.artist.caseInsensitiveCompare(artist) == .orderedSame {
+            resolvedURL = track.artworkURL ?? resolvedURL
+        }
+        // Prefer a 640 px source for the 512 px Meguru variant.
+        if let data = downloadImageSync(from: ArtworkTranscoder.preferredURL(resolvedURL)) {
             if let result = ArtworkTranscoder.encodeRGB565Base64(from: data) {
+                cachedArtworkWebURL = ArtworkTranscoder.preferredURL(resolvedURL)
                 cachedArtworkID = effectiveID
                 cachedArtworkResult = result
+                cachedArtworkHD = ArtworkTranscoder.encodeRGB565Base64(from: data, size: 512)
+                    .flatMap { Data(base64Encoded: $0.rgb565Base64) }
                 NSLog("[ScryBar] SystemProvider: artwork transcoded %dx%d from URL", result.width, result.height)
                 return (result.width, result.height, result.rgb565Base64)
             }
@@ -611,10 +628,14 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
         let query = "\(artist) \(title)".trimmingCharacters(in: .whitespaces)
         if !query.isEmpty,
            let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-           let data = downloadImageSync(from: iTunesArtworkURL(query: encoded)) {
+           let itunesURL = iTunesArtworkURL(query: encoded),
+           let data = downloadImageSync(from: itunesURL) {
             if let result = ArtworkTranscoder.encodeRGB565Base64(from: data) {
+                cachedArtworkWebURL = itunesURL
                 cachedArtworkID = effectiveID
                 cachedArtworkResult = result
+                cachedArtworkHD = ArtworkTranscoder.encodeRGB565Base64(from: data, size: 512)
+                    .flatMap { Data(base64Encoded: $0.rgb565Base64) }
                 NSLog("[ScryBar] SystemProvider: artwork transcoded %dx%d from iTunes", result.width, result.height)
                 return (result.width, result.height, result.rgb565Base64)
             }
@@ -622,6 +643,7 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
 
         cachedArtworkID = effectiveID
         cachedArtworkResult = nil
+        cachedArtworkHD = nil
         return (nil, nil, nil)
     }
 
@@ -740,6 +762,15 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
         let bundleIdentifier = client["bundleIdentifier"] as? String
         let appName = bundleIdentifier ?? "System"
 
+        // Privacy first: a source outside the policy (video players, browsers, unknown apps) stops here,
+        // before artwork lookup, caching or logging. Only the category is remembered, never the title.
+        let policy = SourcePolicy.current
+        guard policy.allows(bundleID: bundleIdentifier) else {
+            SourcePolicyLog.shared.lastHidden = SourcePolicy.category(of: bundleIdentifier)
+            return nil
+        }
+        SourcePolicyLog.shared.lastHidden = nil
+
         // Real-time elapsed computed in JXA from: elapsedTime + (now - timestamp) * rate
         var elapsedSec = (json["computedElapsed"] as? Double) ?? 0
         if elapsedSec < 0 { elapsedSec = 0 }
@@ -777,7 +808,8 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             artworkURL: artworkURL,
             artworkID: artworkID,
             title: title,
-            artist: artist
+            artist: artist,
+            tidal: (bundleIdentifier ?? "").localizedCaseInsensitiveContains("tidal")
         )
 
         // Debounce isPlaying: MediaRemote can flicker, so require consecutive paused polls.
@@ -813,7 +845,9 @@ final class SystemNowPlayingProvider: NowPlayingProviding, @unchecked Sendable {
             artworkWidth: artWidth,
             artworkHeight: artHeight,
             artworkRGB565B64: artRGB565,
-            updatedAt: Date()
+            updatedAt: Date(),
+            artworkRGB565HD: cachedArtworkHD,
+            webArtworkURL: cachedArtworkWebURL
         )
     }
 }
@@ -864,10 +898,21 @@ private struct TidalTrackMetadata {
     let coverID: String?
 }
 
-private enum ArtworkTranscoder {
+enum ArtworkTranscoder {
     static let targetSize = 150
 
-    static func encodeRGB565Base64(from data: Data) -> (width: Int, height: Int, rgb565Base64: String)? {
+    static func preferredURL(_ original: String?) -> String? {
+        guard let original, var url = URLComponents(string: original),
+              url.scheme == "https", url.host == "resources.tidal.com",
+              url.path.hasPrefix("/images/") else { return original }
+        // Only upgrade the known TIDAL image-size suffix, preserving album ID.
+        url.path = url.path.replacingOccurrences(of: #"/[0-9]+x[0-9]+\.jpg$"#,
+                                                 with: "/640x640.jpg", options: .regularExpression)
+        return url.string ?? original
+    }
+
+    static func encodeRGB565Base64(from data: Data, size targetSize: Int = 150) -> (width: Int, height: Int, rgb565Base64: String)? {
+        guard [150, 512].contains(targetSize) else { return nil }
         guard let image = NSImage(data: data) else { return nil }
         var proposedRect = CGRect(origin: .zero, size: image.size)
         guard let cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) else {

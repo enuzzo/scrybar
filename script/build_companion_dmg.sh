@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_DIR="$ROOT_DIR/companion/mac/ScryBarCompanion"
 PROJECT="$PROJECT_DIR/ScryBarCompanion.xcodeproj"
-DERIVED_DATA="$ROOT_DIR/dist/companion-release-derived-data"
+DERIVED_DATA="${SCRYBAR_DERIVED_DATA:-${TMPDIR:-/tmp}/scrybar-companion-release-derived-data}"
 BUILT_APP="$DERIVED_DATA/Build/Products/Release/ScryBarCompanion.app"
 PUBLIC_APP="$ROOT_DIR/companion/mac/dist/ScryBarCompanion.app"
 
@@ -28,6 +28,7 @@ xcodebuild \
   -derivedDataPath "$DERIVED_DATA" \
   ARCHS="arm64 x86_64" \
   ONLY_ACTIVE_ARCH=NO \
+  SDK_STAT_CACHE_ENABLE="${SCRYBAR_SDK_STAT_CACHE_ENABLE:-YES}" \
   CODE_SIGN_IDENTITY="-" \
   build
 
