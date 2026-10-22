@@ -25,10 +25,14 @@ Date: 2026-10-22. Device installation is separate from public firmware release.
   exactly, and current firmware has no filesystem consumer beyond that probe;
   no formatting or repair was attempted.
 
-Network-rate acceptance is tracked with Companion: initial physical testing
-showed hardware live but network rates unavailable due to the Companion 0.3.11
-collector becoming stale. This is not a complete network-display PASS until the
-Companion correction is installed and real rates are observed.
+Network-rate acceptance passed after the final Companion 0.3.12 (48) was installed
+and reopened once by the GUI owner with Internet preserved. Two real serial
+framebuffers, six seconds apart, show LIVE with changing numeric download/upload,
+CPU/GPU and leading-app directional rates; the host-name apostrophe renders
+correctly. Earlier 0.3.11 testing showed hardware live but network unavailable;
+that earlier frame is retained privately as a failure, not counted as acceptance.
+The physical panel was woken with `SAVEROFF` and navigated to `VIEWMACSTATS`;
+those commands did not change persistent preferences or reset the device.
 
 Private backups, build artifacts, serial logs and framebuffer captures remain
 outside version control. No local credentials, device addresses or identifying

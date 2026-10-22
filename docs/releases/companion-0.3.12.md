@@ -29,7 +29,9 @@ bytes, so the previous output-only health check could not recover the collector.
 | Actual local TCP traffic | Visible in Local/All and excluded from Internet |
 | Host-name wire formatting | Apostrophe regression passed after the final package change |
 | Universal DMG | x86_64 + arm64, strict ad-hoc signature, checksum, readonly mounted 0.3.12 (48), executable parity passed |
-| Installed runtime/display rates | Pending the coordinated normal quit/install/reopen and live acceptance |
+| Installed Mac runtime | Owner-confirmed normal quit, final48 hash/signature verified independently, single reopen by GUI owner and Internet preserved; same app/collector after more than three minutes |
+| ScryBar physical | Two real 640 × 172 frames show LIVE, changing numeric down/up and CPU/GPU, leading-app rates and correct host apostrophe; independently inspected by the Meguru chat |
+| Meguru sustained feed | 16/16 fresh `receivedMacStats` checks over 153.1 seconds; physical owner confirmation pending |
 | ScryBar r309 | [Installed and read back](scrybar-r309-installed.md), NVS/outside sectors preserved and clean boot verified |
 
 These sustained checks cover the collector; they do not substitute for the
@@ -42,3 +44,8 @@ Universal executable SHA-256:
 `8a1aeb8eaed98d4306e474333626ef3cf5a1dba07238671e279a1cb1b7e3fb73`.
 The app is ad-hoc signed, not notarized. Source, package, installation, firmware
 publication and physical acceptance are recorded separately.
+
+The installed-runtime check is positive but brief relative to the intermittent
+failure observed in 0.3.11. Physical Meguru confirmation remains distinct from
+HTTP/parser freshness; it has been requested once through the GUI-owning chat.
+No extra app launch or desktop interaction was used for the ScryBar captures.
