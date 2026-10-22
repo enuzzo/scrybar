@@ -34,7 +34,7 @@ still precede cover lookup and the 150/512-pixel variants are retained.
 | Actual ScryBar music delivery | Six of six samples match current system title, artist and album; elapsed advances 82 to 98 seconds; receive age 18–1086 ms; cover 150 × 150 present |
 | ScryBar physical display | Real 640 × 172 Now Playing frame shows song, artist, album, artwork and IN SYNC; two MacStats frames show LIVE and changing network/CPU values |
 | Meguru joint feed | GUI-owning chat reports three of three samples receiving Now Playing, MacStats and Bambu together; late artwork becomes ready at 512 pixels, revision stable after arrival |
-| Meguru physical music | Owner confirmation requested separately; capability/receipt API does not expose title or elapsed and cannot prove that visual match |
+| Meguru physical music | Owner explicitly confirmed correct current song, cover and advancing elapsed through the GUI-owning chat; this physical confirmation is separate from the capability/receipt API, which does not expose title or elapsed |
 
 DMG SHA-256:
 `967d45e13dddeb64b821d1bb6cd368e90653dda7a7d4d1aff5119e5b2ed6d9b7`.
