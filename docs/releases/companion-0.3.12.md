@@ -31,7 +31,7 @@ bytes, so the previous output-only health check could not recover the collector.
 | Universal DMG | x86_64 + arm64, strict ad-hoc signature, checksum, readonly mounted 0.3.12 (48), executable parity passed |
 | Installed Mac runtime | Owner-confirmed normal quit, final48 hash/signature verified independently, single reopen by GUI owner and Internet preserved; same app/collector after more than three minutes |
 | ScryBar physical | Two real 640 × 172 frames show LIVE, changing numeric down/up and CPU/GPU, leading-app rates and correct host apostrophe; independently inspected by the Meguru chat |
-| Meguru sustained feed | 16/16 fresh `receivedMacStats` checks over 153.1 seconds; physical owner confirmation pending |
+| Meguru sustained feed | 16/16 fresh `receivedMacStats` checks over 153.1 seconds; owner confirmed LIVE and updated numeric rates on the physical Meguru with Internet selected |
 | ScryBar r309 | [Installed and read back](scrybar-r309-installed.md), NVS/outside sectors preserved and clean boot verified |
 
 These sustained checks cover the collector; they do not substitute for the
@@ -46,6 +46,21 @@ The app is ad-hoc signed, not notarized. Source, package, installation, firmware
 publication and physical acceptance are recorded separately.
 
 The installed-runtime check is positive but brief relative to the intermittent
-failure observed in 0.3.11. Physical Meguru confirmation remains distinct from
-HTTP/parser freshness; it has been requested once through the GUI-owning chat.
+failure observed in 0.3.11. Physical Meguru confirmation was obtained once through the GUI-owning chat,
+separately from HTTP/parser freshness.
 No extra app launch or desktop interaction was used for the ScryBar captures.
+
+## Publication
+
+Published [Companion 0.3.12](https://github.com/enuzzo/scrybar/releases/tag/companion-v0.3.12)
+with the already authorized source and DMG. The immutable source/tag snapshot is
+`25a456404627c4f6dba373c0775f9f5098420391` on the isolated
+`codex/companion-network-scopes` branch. It predates the owner's final visual
+confirmation; this updated record and the release notes carry that acceptance.
+The app sources and packaged executable remain unchanged.
+
+DMG, source ZIP and checksum manifests were downloaded again from GitHub; all
+asset hashes and every source-file hash matched. Stable firmware Latest remains
+v0.9.4, and no website deployment or main-branch push was performed. The source
+ZIP/tag retain their original checksums; later documentation does not replace
+published assets.
