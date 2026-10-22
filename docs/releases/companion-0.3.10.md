@@ -1,4 +1,4 @@
-# Companion 0.3.10 (45): live network preview
+# Companion 0.3.10 (46): live network preview
 
 Date: 2026-10-22. One macOS 14+ universal app serves ScryBar and Meguru.
 This preview is intended for testing on the two physical displays. Firmware
@@ -29,7 +29,9 @@ See the exact [wire contract and collector notes](../mac-stats-live-v1.md).
 | Live collector smoke | Real interface counters and app attribution observed; stop cannot restart the collector |
 | Collector CPU probe | 0.0893 CPU s / 8.63 elapsed s, about 1.04% of one core; 4.58 MB RSS; short local sample, not a whole-app benchmark |
 | Native SwiftUI layout | Live/waiting/stale, five apps, long names rendered and inspected; synthetic data labelled |
-| Installed Mac runtime | 0.3.10 (45) installed after normal Quit; real live rates/app ranking/popover inspected; network indicator switch tested off/on and restored on; music-only policy confirmed on |
+| Mac runtime, build 45 | Real live rates/app ranking/popover inspected; network indicator switch tested off/on and restored on; music-only policy confirmed on. Test-launch persistence caused a user-blocking popover; the owner requested immediate termination |
+| Dismissal correction, build 46 | Headless compile and universal package passed; strict signature and DMG checksum verified. Installed on disk and left stopped. Transient behavior retained even with `--open`; explicit Close and Escape in main/settings. No GUI relaunch or visual acceptance of this correction |
+| Meguru M0.15.0 real feed | Headless harness using the actual Companion collectors: 20/20 HTTP POSTs accepted; 19 measured total samples, 18 fresh attributed samples, receivedMacStats=true |
 | Universal release | x86_64 + arm64; strict code-signature validation; ad-hoc signature |
 | DMG integrity | hdiutil checksum verified |
 | ScryBar r309 | ESP32 build passed; 6,746,135-byte program; 182,096-byte static RAM; four C++ tests passed |
@@ -65,21 +67,37 @@ Firmware candidate artifacts are under `/tmp/arduino-build-scrybar-network-r309-
 
 ## Publication and device checkpoint
 
-- Companion DMG prepared locally; public preview release pending verification of
-  final package and upload.
+- Companion DMG prepared locally. Automatic approval review rejected source
+  publication to the public `enuzzo/scrybar` repository because the user had
+  authorized the app release but had not explicitly authorized source-code
+  egress. No source push, public source archive or release upload occurred.
 - Companion 0.3.10 is installed at `/Applications/ScryBarCompanion.app`, after
   the user quit 0.3.9 normally. The old app is preserved at
   `/Applications/.ScryBarCompanion.rollback-20261022-0.3.9.app`. Native live
   popover inspection observed real total rates, directional app rates and
   compact hardware statistics; one network collector process was running.
+  The `--open` test path incorrectly made that popover application-defined.
+  The user reported it could not be dismissed while working. The app was
+  terminated at their urgent request, and remains stopped. Build 46 removes
+  that override and adds an explicit Close/Escape action. No further visible
+  test, relaunch or focus change is authorized without advance agreement.
+  Build 46 replaced the installed files without launching; the previous build
+  45 is preserved at `/Applications/.ScryBarCompanion.rollback-20261022-0.3.10-45.app`.
   Printer status was waiting for saved Keychain access at this checkpoint;
   no printer credentials were inspected or changed.
 - ScryBar was not connected; no serial access or flash performed. The user will
   be notified when Meguru's USB work is complete and ScryBar can be connected.
-- Meguru implementation, native tests, firmware build and original-device
-  preflight are coordinated in the Meguru chat/repository. Its flash and live
-  telemetry evidence must be recorded before claiming the physical result.
+- Meguru M0.15.0 was installed app-only after verified original-device identity,
+  backup, exact readback and clean 45-second boot, as recorded in its repository
+  at `docs/builds/meguru-m0150-installed.json`. The real collector-only harness
+  confirmed delivery/parser acceptance. The owner still needs to inspect the
+  actual panel; transport/readback evidence is not physical visual acceptance.
 - Website deployment is separate; the website and firmware flasher are not
   redeployed by a Companion-only tag.
 - No Developer ID signing/notarization identity is configured for this package;
   it uses the same ad-hoc distribution model as earlier Companion packages.
+  The package script now disables Xcode signing and performs local ad-hoc signing
+  explicitly, avoiding an unnecessary automatic provisioning/Keychain lookup.
+
+Final build 46 DMG SHA256:
+`531274a47d842b22a2553a7701a9f61626fa62a23750972bcbfaa7b5520de54c`.

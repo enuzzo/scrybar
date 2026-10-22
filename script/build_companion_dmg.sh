@@ -29,9 +29,11 @@ xcodebuild \
   ARCHS="arm64 x86_64" \
   ONLY_ACTIVE_ARCH=NO \
   SDK_STAT_CACHE_ENABLE="${SCRYBAR_SDK_STAT_CACHE_ENABLE:-YES}" \
-  CODE_SIGN_IDENTITY="-" \
+  CODE_SIGN_STYLE=Manual \
+  CODE_SIGNING_ALLOWED=NO \
   build
 
+codesign --force --sign - --timestamp=none "$BUILT_APP"
 codesign --verify --deep --strict --verbose=2 "$BUILT_APP"
 
 rm -rf "$PUBLIC_APP"

@@ -2,7 +2,7 @@
 
 One ScryBar Companion application and one printer connection serve ScryBar,
 Meguru and the Mac viewer, with an optional studio TV Now Playing destination.
-The current package is 0.3.10 (45); publication and hardware evidence live in the
+The current package is 0.3.10 (46); publication and hardware evidence live in the
 [release record](releases/companion-0.3.10.md). The additive
 [live network extension](mac-stats-live-v1.md) needs ScryBar r309 for its compact
 network view, or Meguru firmware advertising `mac-stats`. Older firmware keeps

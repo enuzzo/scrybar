@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model.openCameraWindow = { [weak self] in self?.showCamera() }
+        model.closePopover = { [weak self] in self?.popover.performClose(nil) }
         let opensBambuSetup = ProcessInfo.processInfo.arguments.contains("--bambu-setup")
         let opensPopover = opensBambuSetup || ProcessInfo.processInfo.arguments.contains("--open")
         model.showSettingsOnOpen = opensBambuSetup
@@ -22,7 +23,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         startTitleUpdates()
 
         if opensPopover {
-            popover.behavior = .applicationDefined
             NSApp.activate(ignoringOtherApps: true)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self, let button = self.statusItem.button else { return }

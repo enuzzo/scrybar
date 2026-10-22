@@ -16,7 +16,7 @@ An optional **STUDIO TV** destination receives permitted Now Playing metadata ov
 
 ## Installation
 
-Current package: **v0.3.10 (45)** for macOS 14+, Apple Silicon and Intel,
+Current package: **v0.3.10 (46)** for macOS 14+, Apple Silicon and Intel,
 prepared on **2026-10-22**. [Download the DMG](https://github.com/enuzzo/scrybar/releases/download/companion-v0.3.10/ScryBarCompanion-0.3.10.dmg).
 One app serves both displays. This version adds live network rates and app
 attribution, includes music-only privacy and the optional studio TV push, and
@@ -193,7 +193,7 @@ root when the Xcode toolchain is available:
 ./script/build_companion_dmg.sh
 ```
 
-This builds version 0.3.10 (45), including live network activity, privacy/TV and
+This builds version 0.3.10 (46), including live network activity, privacy/TV and
 the resolved cover-URL change. Derived data defaults outside Dropbox. On the
 Xcode 27.1 machine used for this package, the SDK stat-cache process waited in
 its event loop; `SCRYBAR_SDK_STAT_CACHE_ENABLE=NO` disables only that build cache

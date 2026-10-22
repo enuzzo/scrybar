@@ -83,7 +83,6 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(CompanionTheme.accent)
-            .keyboardShortcut(.cancelAction)
             .focused($headerHasFocus)
 
             Spacer()
@@ -91,6 +90,19 @@ struct SettingsView: View {
             Text("Settings")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(CompanionTheme.textPrimary)
+
+            Button {
+                model.closePopover?()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(CompanionTheme.textTertiary)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .help("Close popover")
+            .accessibilityLabel("Close popover")
         }
         .frame(height: 34)
     }

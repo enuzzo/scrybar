@@ -99,6 +99,7 @@ final class AppModel: ObservableObject {
     }()
 
     var openCameraWindow: (() -> Void)?
+    var closePopover: (() -> Void)?
     let camera = BambuCameraModel()
     private var activeBambuConfiguration = BambuPrinterConfiguration(host: "", serial: "", accessCode: "")
 

@@ -140,7 +140,7 @@ struct NowPlayingPopoverView: View {
 
                 Spacer(minLength: 0)
 
-                // Gear + quit icons top-right
+                // Settings + close icons top-right
                 HStack(spacing: 8) {
                     Button {
                         showSettings = true
@@ -154,15 +154,17 @@ struct NowPlayingPopoverView: View {
                     .help("Settings")
 
                     Button {
-                        NSApplication.shared.terminate(nil)
+                        model.closePopover?()
                     } label: {
-                        Image(systemName: "power")
+                        Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(CompanionTheme.textTertiary)
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
-                    .help("Quit ScryBar Companion")
+                    .keyboardShortcut(.cancelAction)
+                    .help("Close popover")
+                    .accessibilityLabel("Close popover")
                 }
             }
 
