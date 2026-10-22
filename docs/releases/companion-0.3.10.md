@@ -67,10 +67,16 @@ Firmware candidate artifacts are under `/tmp/arduino-build-scrybar-network-r309-
 
 ## Publication and device checkpoint
 
-- Companion DMG prepared locally. Automatic approval review rejected source
-  publication to the public `enuzzo/scrybar` repository because the user had
-  authorized the app release but had not explicitly authorized source-code
-  egress. No source push, public source archive or release upload occurred.
+- Published as a [public preview](https://github.com/enuzzo/scrybar/releases/tag/companion-v0.3.10)
+  after the owner explicitly authorized both source and DMG publication on
+  2026-10-22. The initial source push had been rejected by automatic approval
+  review while that authorization was missing. The released source is
+  `a8a0ada412b18a6023c1adf125c97018389c2198` on the isolated
+  `codex/companion-live-network` branch, based on public main. Prior local
+  firmware, icon-proposal and package-history commits were not pushed.
+  DMG, Companion-only source ZIP and checksum manifests were uploaded, then
+  downloaded again from GitHub; all checksums passed. Firmware Latest stays
+  v0.9.4, and no website deployment was triggered.
 - Companion 0.3.10 is installed at `/Applications/ScryBarCompanion.app`, after
   the user quit 0.3.9 normally. The old app is preserved at
   `/Applications/.ScryBarCompanion.rollback-20261022-0.3.9.app`. Native live
@@ -87,6 +93,11 @@ Firmware candidate artifacts are under `/tmp/arduino-build-scrybar-network-r309-
   no printer credentials were inspected or changed.
 - ScryBar was not connected; no serial access or flash performed. The user will
   be notified when Meguru's USB work is complete and ScryBar can be connected.
+  After the crash, temporary firmware/toolchain artifacts were absent. The
+  candidate is being rebuilt from the preserved canonical sources under
+  `~/Documents/Codex/ScryBar/private/r309/`, outside Dropbox, at reduced process
+  priority with two compiler jobs. USB remains unopened. Device switching and
+  visible tests wait until the owner is free.
 - Meguru M0.15.0 was installed app-only after verified original-device identity,
   backup, exact readback and clean 45-second boot, as recorded in its repository
   at `docs/builds/meguru-m0150-installed.json`. The real collector-only harness
@@ -101,3 +112,8 @@ Firmware candidate artifacts are under `/tmp/arduino-build-scrybar-network-r309-
 
 Final build 46 DMG SHA256:
 `531274a47d842b22a2553a7701a9f61626fa62a23750972bcbfaa7b5520de54c`.
+
+Release assets and independent download verification are retained under
+`~/Documents/Codex/ScryBar/releases/companion-0.3.10/`. The installed binary and
+canonical/release build-input parity were rechecked after the crash and passed;
+the installed app remains stopped.
