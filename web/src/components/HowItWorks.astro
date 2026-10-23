@@ -1,30 +1,5 @@
 ---
-import { CircleCheck, PlugZap, Wifi, Zap } from '@lucide/astro';
-
-const steps = [
-  { num: '1', icon: PlugZap,     title: 'Plug In', desc: 'Connect USB-C to your device and computer.' },
-  { num: '2', icon: Zap,         title: 'Flash',   desc: 'One click from your browser. No toolchain, no drivers.' },
-  { num: '3', icon: Wifi,        title: 'Connect', desc: 'Device creates a WiFi AP. Open the config page and set up.' },
-  { num: '4', icon: CircleCheck, title: 'Enjoy',   desc: 'Clock, weather, news, transit, Mac and Bambu telemetry — all running on your desk.' },
-];
+import {languages} from '../data/product';
 ---
-<section id="setup">
-  <div class="container">
-    <span class="section-label">Setup</span>
-    <h2>Up and running in minutes</h2>
-    <p class="section-sub">
-      No soldering, no SDK, no app store. Plug in, flash, configure.
-    </p>
-
-    <div class="steps-grid">
-      {steps.map(({ icon: Icon, num, title, desc }) => (
-        <div class="vm-card step-card">
-          <span class="step-icon" aria-hidden="true"><Icon size={30} strokeWidth={1.8} /></span>
-          <span class="step-num">Step {num}</span>
-          <h3>{title}</h3>
-          <p>{desc}</p>
-        </div>
-      ))}
-    </div>
-  </div>
-</section>
+<section id="setup" class="chapter"><div class="container setup-layout"><div><h2>Plug in.<br />Make it yours.</h2><p class="section-intro">No soldering. Start with the board, a USB-C data cable and a supported desktop browser.</p><a class="text-link" href="#flash">Go to installer</a></div><ol class="setup-steps"><li><h3>Connect</h3><p>Use a USB-C cable that carries data as well as power.</p></li><li><h3>Install</h3><p>Choose Install firmware, then select the board’s serial port in your browser.</p></li><li><h3>Join</h3><p>Connect your phone to the ScryBar setup network and open its configuration page.</p></li><li><h3>Choose</h3><p>Set Wi-Fi, location, theme, language and the views you want.</p></li></ol></div>
+<div class="container language-line"><h3>Time speaks your language</h3><p>Fourteen ways to tell it. Some more dignified than others.</p><details><summary>See all fourteen languages</summary><ul class="language-list">{languages.map(l=><li>{l}</li>)}</ul></details></div></section>

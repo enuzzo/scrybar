@@ -92,7 +92,7 @@ struct NowPlayingPopoverView: View {
     private var deviceConnected: Bool { model.selectedEndpointIsConnected }
     private var deviceStatus: String {
         if !hasDevice { return "No device" }
-        return deviceConnected ? "Connected" : "Waiting"
+        return deviceConnected ? "\(model.connectedDisplayCount)/\(model.enabledEndpoints.count) displays connected" : "Waiting"
     }
     private var hasProgress: Bool { payload.durationSec > 0 && interpolatedElapsed > 0 }
 
@@ -140,7 +140,7 @@ struct NowPlayingPopoverView: View {
 
                 Spacer(minLength: 0)
 
-                // Gear + quit icons top-right
+                // Settings + close icons top-right
                 HStack(spacing: 8) {
                     Button {
                         showSettings = true
@@ -154,15 +154,17 @@ struct NowPlayingPopoverView: View {
                     .help("Settings")
 
                     Button {
-                        NSApplication.shared.terminate(nil)
+                        model.closePopover?()
                     } label: {
-                        Image(systemName: "power")
+                        Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(CompanionTheme.textTertiary)
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
-                    .help("Quit ScryBar Companion")
+                    .keyboardShortcut(.cancelAction)
+                    .help("Close popover")
+                    .accessibilityLabel("Close popover")
                 }
             }
 
@@ -210,6 +212,16 @@ struct NowPlayingPopoverView: View {
             }
 
             // ── Mac Stats section ─────────────────────────────────────────
+            Divider()
+                .background(CompanionTheme.dividerStrong)
+                .padding(.vertical, 2)
+
+            NetworkStatsSection(
+                snapshot: model.latestNetworkStats,
+                isStale: model.latestMacStats.map { now.timeIntervalSince($0.updatedAt) > 15 } ?? false,
+                scope: $model.networkScope
+            )
+
             Divider()
                 .background(CompanionTheme.dividerStrong)
                 .padding(.vertical, 2)
@@ -614,8 +626,10 @@ struct ArtworkView: View {
     let artist: String
     @State private var image: NSImage?
 
-    /// Cache key: reload artwork only when the track changes
-    private var trackKey: String { "\(title)|\(artist)|\(artworkID ?? artworkURL ?? "")" }
+    private var artworkLoadKey: NowPlayingArtworkViewKey {
+        .init(title: title, artist: artist, artworkURL: artworkURL, artworkID: artworkID,
+              artworkWidth: artworkWidth, artworkHeight: artworkHeight, artworkRGB565B64: artworkRGB565B64)
+    }
 
     var body: some View {
         ZStack {
@@ -637,8 +651,11 @@ struct ArtworkView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(CompanionTheme.border, lineWidth: 1)
         )
-        .task(id: trackKey) {
-            image = await loadArtwork()
+        .task(id: artworkLoadKey) {
+            image = nil
+            let loaded = await loadArtwork()
+            guard !Task.isCancelled else { return }
+            image = loaded
         }
     }
 
@@ -800,22 +817,21 @@ struct MacStatsPopoverSection: View {
                 .frame(maxWidth: .infinity)
                 .fixedSize(horizontal: false, vertical: true)
 
-                // ── RAM bar ──────────────────────────────────────────────
-                MacStatBar(
-                    label: "RAM",
-                    used: s.ramUsedGB, total: s.ramTotalGB,
-                    unit: "GB", tone: .accent
-                )
-
-                // ── Disk bar ─────────────────────────────────────────────
-                MacStatBar(
-                    label: "DISK",
-                    used: s.diskUsedGB, total: s.diskTotalGB,
-                    unit: "GB",
-                    tone: s.diskTotalGB > 0 && (s.diskUsedGB / s.diskTotalGB) > 0.9 ? .danger
-                        : s.diskTotalGB > 0 && (s.diskUsedGB / s.diskTotalGB) > 0.75 ? .warning
-                        : .accent
-                )
+                HStack(spacing: 14) {
+                    MacStatBar(
+                        label: "RAM",
+                        used: s.ramUsedGB, total: s.ramTotalGB,
+                        unit: "GB", tone: .accent
+                    )
+                    MacStatBar(
+                        label: "DISK",
+                        used: s.diskUsedGB, total: s.diskTotalGB,
+                        unit: "GB",
+                        tone: s.diskTotalGB > 0 && (s.diskUsedGB / s.diskTotalGB) > 0.9 ? .danger
+                            : s.diskTotalGB > 0 && (s.diskUsedGB / s.diskTotalGB) > 0.75 ? .warning
+                            : .accent
+                    )
+                }
 
                 // macmon hint if temps unavailable
                 if s.cpuTempC == nil && !model.macmonAvailable {
@@ -909,7 +925,7 @@ private struct MacStatBar: View {
                     .tracking(0.5)
                 Spacer()
                 Text(barLabel)
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(CompanionTheme.textSecondary)
             }
             GeometryReader { geo in

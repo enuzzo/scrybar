@@ -1,114 +1,31 @@
-<section id="flash">
-  <div class="container">
-    <span class="section-label">Install</span>
-    <h2>Flash from your browser</h2>
-    <p class="section-sub">
-      No toolchain. No drivers. Plug in USB-C, click flash.
-      Powered by Web Serial API.
-    </p>
-
-    <div class="flash-firsttime">
-      <strong>First install?</strong>
-      If the browser can't detect your device, put it in bootloader mode first:
-      hold <kbd>BOOT</kbd>, tap <kbd>RST</kbd>, release <kbd>BOOT</kbd> — then click
-      <em>Install Firmware</em>. Only needed the very first time, or whenever the
-      button shows "No device found".
-    </div>
-
-    <div class="flash-layout">
-      <div class="vm-card flash-card">
-        <div class="flash-card__header">
-          <h3>ScryBar Firmware</h3>
-          <span class="vm-badge vm-badge--success">latest</span>
-        </div>
-        <p class="flash-card__desc">
-          Word clock, weather, RSS, Wikipedia, Now Playing, live public-transport
-          timetable, rocket countdowns, Mac stats, and the Bambu Lab print view.
-          Everything ready to use out of the box.
-        </p>
-        <div class="flash-card__action">
-          <esp-web-install-button manifest="manifest.json">
-            <button
-              id="js-flash-activate"
-              slot="activate"
-              class="vm-btn vm-btn--primary vm-btn--block"
-              aria-describedby="js-flash-status"
-              disabled
-            >
-              Install Firmware
-            </button>
-            <span slot="unsupported" class="flash-alert">
-              Web Serial is not available in this browser. Open this page in Chrome, Edge, or Opera on desktop.
-            </span>
-            <span slot="not-allowed" class="flash-alert">
-              Firmware installation requires a secure HTTPS connection.
-            </span>
-          </esp-web-install-button>
-          <p id="js-flash-status" class="flash-status" role="status">Loading secure installer…</p>
-        </div>
-      </div>
-
-      <div class="vm-card post-flash">
-        <h3>After flashing</h3>
-        <ol>
-          <li>
-            Device boots and starts a WiFi access point
-            <code>ScryBar-Setup-XXXX</code>
-          </li>
-          <li>Connect from your phone or laptop</li>
-          <li>
-            Open <code>http://192.168.4.1:8080</code> to configure
-            WiFi, theme, language, weather, RSS feeds, and view order
-          </li>
-        </ol>
-      </div>
-    </div>
-
-    <p class="flash-compat">
-      Requires a desktop browser with{' '}
-      <a
-        href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Web Serial
-      </a>{' '}
-      support (Chrome, Edge, or Opera). Safari, Firefox, and iOS browsers are not supported.
-    </p>
-  </div>
-</section>
-
+---
+import manifest from '../../public/manifest.json';
+const manifestPath = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/manifest.json`;
+---
+<section id="flash" class="chapter installer"><div class="container installer-layout"><div><h2>Install ScryBar</h2><p class="section-intro">Connect the board by USB-C. The installer asks you to choose its serial port.</p><p>Published firmware {manifest.version}. The previews above can show newer development firmware.</p></div><div class="installer-panel"><h3>Ready for your board</h3><esp-web-install-button manifest={manifestPath}><button id="js-flash-activate" slot="activate" class="button" aria-describedby="js-flash-status" disabled>Install firmware</button></esp-web-install-button><p id="js-flash-status" role="status">Loading installer…</p><button id="js-flash-retry" class="quiet-button" type="button" hidden>Try again</button><details><summary>Board not detected?</summary><p>Hold <kbd>BOOT</kbd>, press and release <kbd>RST</kbd>, then release <kbd>BOOT</kbd>. Try the installer again. Also check that your cable carries data.</p></details><details><summary>After installation</summary><ol><li>Join the device’s <code>ScryBar-Setup-XXXX</code> Wi-Fi network.</li><li>Open <code>http://192.168.4.1:8080</code>.</li><li>Choose Wi-Fi, theme, language, location and the views you want.</li></ol></details><p class="installer-mobile-note">You can configure ScryBar from your phone after installing firmware from a supported desktop browser.</p></div></div></section>
 <script>
-  const inject = () => {
-    if (document.querySelector('script[data-esp-web-tools]')) return;
-    const status = document.getElementById('js-flash-status');
-    const activate = document.getElementById('js-flash-activate');
-    const s = document.createElement('script');
-    s.type = 'module';
-    s.src = 'https://unpkg.com/esp-web-tools@10.2.1/dist/web/install-button.js?module';
-    s.dataset.espWebTools = '';
-    s.addEventListener('load', async () => {
-      await customElements.whenDefined('esp-web-install-button');
-      activate?.removeAttribute('disabled');
-      if (status) status.textContent = 'Installer ready. Connect ScryBar over USB-C.';
-    }, { once: true });
-    s.addEventListener('error', () => {
-      if (status) status.textContent = 'Installer failed to load. Check the connection and reload this page.';
-    }, { once: true });
-    document.head.appendChild(s);
-  };
-
-  const schedule = () => {
-    if ('requestIdleCallback' in window) {
-      requestIdleCallback(inject, { timeout: 1500 });
-    } else {
-      setTimeout(inject, 600);
-    }
-  };
-
-  if (document.readyState === 'loading') {
-    window.addEventListener('load', schedule, { once: true });
-  } else {
-    schedule();
-  }
+ const status=document.getElementById('js-flash-status')!;
+ const activate=document.getElementById('js-flash-activate') as HTMLButtonElement;
+ const retry=document.getElementById('js-flash-retry') as HTMLButtonElement;
+ const supportsSerial='serial' in navigator;
+ let attempt=0;
+ function loadInstaller(){
+  if(!window.isSecureContext){status.textContent='Open the HTTPS version of this page to use the installer.';activate.hidden=true;return;}
+  if(!supportsSerial){status.textContent='This browser cannot install firmware. Use a desktop browser with Web Serial support. You can configure ScryBar from your phone after installation.';activate.hidden=true;return;}
+  if(document.querySelector('script[data-esp-web-tools]'))return;
+  status.textContent='Loading installer…';retry.hidden=true;
+  const script=document.createElement('script');script.type='module';script.dataset.espWebTools='';
+  // Browsers cache failed module fetches for the life of the document.
+  // A fresh URL lets a retry actually request the loader again.
+  const retryQuery=attempt++ ? `&retry=${attempt}` : '';
+  script.src=`https://unpkg.com/esp-web-tools@10.2.1/dist/web/install-button.js?module${retryQuery}`;
+  let finished=false;
+  const fail=()=>{if(finished)return;finished=true;script.remove();activate.disabled=true;status.textContent='The installer could not load. Check your connection and try again.';retry.hidden=false;};
+  const timeout=window.setTimeout(fail,15000);
+  script.addEventListener('error',()=>{window.clearTimeout(timeout);fail();},{once:true});
+  script.addEventListener('load',async()=>{await customElements.whenDefined('esp-web-install-button');if(finished)return;finished=true;window.clearTimeout(timeout);activate.disabled=false;status.textContent='Installer ready. Connect ScryBar by USB-C.';},{once:true});
+  document.head.appendChild(script);
+ }
+ retry.addEventListener('click',loadInstaller);
+ loadInstaller();
 </script>

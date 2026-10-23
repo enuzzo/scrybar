@@ -1,5 +1,262 @@
 # Changelog
 
+## 2026-10-23
+
+### v0.9.5 (firmware r322) — active frame pacing, live Stats and WebUI redesign
+
+- Isolate HTTP parsing and response transmission from the visual loop, retain
+  main-thread ownership of callbacks and pace cached slides against absolute
+  deadlines. Final r322 hardware profiling measured approximately 60 fps during
+  active motion with zero missed periods in the stated 30-second trial under
+  live traffic and delayed HTTP clients. Preparation, stationary time and handoff
+  have separate costs; this is not a hard 60 fps or optical scanout guarantee.
+  See the [measurements and limits](docs/performance/2026-10-23-frame-pacing.md).
+- Plot raw 60-second Mac Stats samples at real receipt timestamps with a shared
+  network scale, destination scope, leading-app rates and explicit unknown gaps.
+  Preserve isolated observations and measured zero while the window scrolls.
+- Review native typography, alignment, copy and seven-theme contrast across the
+  display views. Preserve the existing artwork, fonts and native resolution;
+  anonymous render fixtures are labelled separately from hardware evidence.
+- Rebuild the public Astro page and mobile Control Surface around real previews
+  and Display / Wi-Fi / Content tasks. Keep pending choices during Reload,
+  distinguish live brightness from persisted levels, and retain unsaved state
+  after reopening. Validate Chromium/WebKit, ROOT/Pages paths and the actual
+  installer manifest. See the [web QA record](docs/design/2026-10-23-webui/QA.md).
+- Update installer metadata for firmware v0.9.5 and link Companion 0.3.15 (53)
+  as a Preview signed ad hoc, not notarized. Earlier release entries remain below.
+
+
+### Companion v0.3.15 (53) — read native artwork and preserve track identity
+
+- Read the allowed player's real artwork through a bundled native MediaRemote
+  stream, instead of depending on a metadata-only JXA read and a catalog search
+  for every track. Keep source, track and album identity together; publish
+  permitted metadata while optional cover work completes asynchronously.
+- Prevent the startup path from launching a competing JXA read while the native
+  reader is starting. Reject stale or mismatched artwork and retain the last
+  coherent current-track image through temporary missing artwork.
+- Refresh covers after a display restart without requiring a track change, using
+  a monotonic 15-second bound per successful endpoint delivery. Update the
+  Companion preview when cover pixels arrive after metadata; incomplete pixels
+  do not consume the first valid delivery.
+- Preserve ScryBar's 150 px artwork. Meguru's optional 512 px variant requires a
+  genuine source of at least 512 px and a cover/edition match; do not enlarge
+  small artwork into HD. The current source returned 150 × 150 px even for
+  explicit 512/768 px requests; that is an observation, not a universal API cap.
+- Pass 92 Swift regression tests and 22 native Objective-C identity cases.
+  A bounded producer check observed a first native frame in 110.9 ms, then 20/20
+  valid in-sync snapshots with 19 covers while the first transcode completed
+  asynchronously. No HD source was available in that check. Automated and
+  producer evidence does not itself establish installed receiver acceptance.
+- Package the universal app as Preview 0.3.15 (53), signed ad hoc and not notarized.
+  Bundle the pinned BSD-3-Clause reader and its license notices; see the
+  [Companion release record](docs/releases/companion-0.3.15.md) for package,
+  publication and installed-test status.
+
+### Firmware r316 — preserve network trace chronology
+
+- Plot real receipt timestamps and raw rates with native LVGL XY lines. Advancing
+  the clock now translates existing points without rebinning peaks or changing
+  their values and automatic scale. Update scroll positions every 200 ms.
+- Let the page orchestrator honor that cadence for valid Stats while retaining
+  the other pages' clock cadence and the waiting screen's idle behavior.
+- Connect known samples at their actual spacing when delivery skips an
+  intermediate update; explicit unknown values and freshness-length outages
+  still break continuity. Preserve isolated known markers around unknowns.
+- Add on-demand `NETGRAPH` diagnostics containing relative sample times, rates
+  and validity flags without host, application or network identifiers.
+- Count actual accepted bytes during `SNAP`; retry partial/zero writes and
+  report a bounded stall without falsely claiming a complete transfer.
+- Verify temporal stability, isolated peaks, native rendering and serial
+  screenshot sequences. See the [follow-up record](docs/performance/2026-10-23-network-scroll.md).
+
+### Firmware r313 — cached page motion and Mac Stats history
+
+- Skip unchanged LVGL text and local style assignments while preserving explicit
+  text refreshes, inheritance and state selectors. Refit the HOME sentence only
+  when its text changes. Register a 16 ms display refresh period explicitly.
+- Compose adjacent page slides from two native-order PSRAM snapshots through
+  the existing DMA buffers. Support finger tracking, completion and cancellation;
+  return overlays, unsupported pages and interrupted gestures to normal LVGL.
+- Work around the installed ESP-IDF 5.5.2 SPI LCD callback's missing ISR yield.
+- Implement the owner's selected Stats concept 2: prominent network rates,
+  shared-scale 60-second history, destination scope/partial-coverage context and
+  leading-app directional rates. Keep missing samples distinct from measured zero.
+- Preserve continuous traces across normal sampling jitter, leave true gaps and
+  explicit unknown values visible, and reserve headroom for peak strokes.
+- Add native pixel/state tests, actual-LVGL visual checks and bounded serial
+  `PERFBENCH` telemetry. See the [performance record](docs/performance/2026-10-23-display-and-stats.md)
+  for device measurements, installation and remaining physical acceptance.
+
+### Companion artifact cleanup
+
+- Keep Companion 0.3.14 (50) in Applications and its DMG in root `dist/`.
+  Archive 44 duplicate/old artifacts in a verified local ZIP before removal.
+  Future builds use external derived data and avoid a second loose app copy.
+  See the [cleanup record](docs/maintenance/2026-10-23-companion-artifact-cleanup.md).
+
+## 2026-10-22
+
+### Companion v0.3.14 (50) — Center menu-bar network rates
+
+- Render download/upload as one native template image with the visible glyph
+  block vertically centered, replacing the multiline status-button title.
+- Retain the same font, directional rows, item width, click actions and accessible
+  live value. The system tints the template for appearance and selection.
+- Check visible top/bottom bounds offscreen at 1× and 2× before installation.
+
+### Companion v0.3.13 (49) — Keep Now Playing responsive
+
+- Publish permitted music metadata immediately; resolve covers on one background
+  worker so TIDAL cache scans, image downloads and transcoding cannot stall the
+  app or either display's song/elapsed updates.
+- Bound TIDAL fallback scans and reuse short-lived catalogs/metadata lookups.
+  Match asynchronous covers to the complete track and album edition.
+- Deliver artwork that becomes available after the first metadata-only payload
+  to both ScryBar and Meguru. Retain privacy gates and 150/512-pixel variants.
+- Add stalled-cover, late-cover delivery and optional actual-music smoke checks.
+  See the [release record](docs/releases/companion-0.3.13.md).
+
+### Companion v0.3.12 (48) — Recover stale network collection
+
+- Recover when nettop emits bytes but stops producing usable frames, or reaches
+  the bounded socket/buffer capacity. Do not leave old rates stale indefinitely.
+- Isolate unreadable socket rows with explicit partial coverage while preserving
+  valid app traffic; fully unusable frames cannot masquerade as measured idle.
+- Keep known idle sockets distinct from active traffic with an unknown peer;
+  fix the child protocol locale and normalize host-name apostrophes for the
+  embedded display fonts.
+- Add sustained native collection and overload/recovery regression checks.
+
+### Companion v0.3.11 (47) — Destination scopes
+
+- Add persistent Internet / Rete interna / Tutto selection, default Internet.
+  Filter totals, app rankings and display payloads from the same socket deltas.
+- Classify numeric peers, including private/shared addresses, Tailscale and
+  physical on-link IPv6 prefixes; avoid counting Tailscale transport twice.
+- Keep wildcard peers and missing byte counters explicit as partial coverage.
+  No destination logging, DNS lookups or endpoint delivery. Clear old-scope
+  values immediately and discard old-scope computations after a selection change.
+- Preserve legacy display compatibility with optional `networkScope` and
+  `networkCoveragePartial` fields. See the [contract](docs/mac-stats-live-v1.md).
+
+### Companion v0.3.10 (46) — Live network preview
+
+- One universal Mac app for ScryBar and Meguru, retaining the music-only source
+  policy, optional studio TV push, Bambu camera cleanup and negotiated HD artwork.
+- Add a compact download/upload menu item alongside the existing music item.
+  Clicking either opens the same popover with up to five ranked apps and separate
+  directional rates. The network indicator can be hidden in Settings.
+- Sample hardware/network at approximately 1 Hz. Total rates use public 64-bit
+  physical-interface counters; process summaries come from one persistent nettop
+  process. App helpers aggregate by containing bundle. No destinations or domains
+  are collected. Only the leading app goes to displays; rankings stay on the Mac.
+- Distinguish measured idle from unknown/stale. Sleep, counter resets and long
+  gaps require a new baseline. A PTY keeps nettop output prompt and its input open,
+  fixing a native EOF busy loop found during profiling.
+- Add the backward-compatible optional network payload fields and ScryBar r309's
+  compact CPU/GPU, RAM/disk and network/app layout. Meguru's native circular view
+  is implemented and verified in its own repository.
+- Build the universal ad-hoc signed DMG outside Dropbox's source tree. See the
+  [release record](docs/releases/companion-0.3.10.md) for exact checks and remaining
+  installation, publication and physical-display acceptance.
+- Correct the test-launch popover persistence exposed by build 45: every launch
+  retains transient dismissal, and both main/settings headers have an explicit
+  Close action with Escape. Build 46 was prepared without relaunching the app;
+  visible testing must be agreed with the owner before interrupting their Mac.
+
+
+## 2026-10-19
+
+### Unreleased — Companion v0.3.10 planned
+
+- `092b279d`: retain `NowPlayingPayload.webArtworkURL`, the public URL of the
+  cover actually resolved by the System provider (matching TIDAL edition or
+  iTunes fallback). Studio TV push prefers it over the original `artworkURL`.
+- Keep this field internal to the Companion/web destination. The
+  `NowPlayingWirePayload` schema and ScryBar/Meguru transport are unchanged.
+- This commit is **not in the 0.3.9 DMG**. Next package is planned as 0.3.10;
+  source version metadata still reads 0.3.9 (44) pending the release bump.
+
+### Companion v0.3.9 (44) — Local package
+
+- `e68add4`: add `SourcePolicy.swift` and PRIVACY settings. **Music apps only is
+  on by default in every build** (when unset): only Apple Music (`com.apple.Music`),
+  Spotify (`com.spotify.client`) and TIDAL (`com.tidal.desktop`) pass. Studio
+  privacy is mandatory: video players, browsers, YouTube/YouTube Music and unknown
+  apps must never expose content on displays, in logs or through cover searches.
+- Gate the System provider after bundle-ID resolution, before artwork/iTunes
+  lookup, caching or logging; gate all providers again in `AppModel.refreshPayload`.
+  Blocked content becomes an empty placeholder with `Hidden for privacy`; remember
+  only the hidden category, never its title.
+- Add disabled-by-default browser/YouTube and video-player extras, usable only
+  with music-only off. Turning it off also allows unknown apps; these opt-outs
+  are incompatible with the required studio configuration.
+- Add optional STUDIO TV HTTPS push (`YakamozPush.swift`), off by default.
+  `yakamoz.url` / `yakamoz.enabled` persist configuration; a separate Keychain
+  service holds the push key. With Auto-send on, send permitted metadata on change
+  and every 10 seconds; send `{"bundleId":"none"}` when nothing permitted is
+  available. The TV receiver has an independent music-source allowlist.
+- `da6bf78`: package `companion/mac/ScryBarCompanion-0.3.9.dmg`. The owner reports
+  installation in `/Applications`. This local package is distinct from the older
+  published 0.3.5 (40) baseline; no new public release or firmware update is implied.
+- Implementation-session validation reported on 2026-10-19: **44/44 Swift tests
+  passed**, including six `SourcePolicyTests`. This documentation-only pass does
+  not rerun tests or verify live app/TV/display state.
+- Document the binding owner privacy decision and recommend an additional
+  ScryBar firmware source allowlist before logging/artwork/rendering. That second
+  firmware defence is **not implemented** in this update.
+
+### Local source checkpoint — Firmware r308 / Companion v0.3.8 (43)
+
+This saves existing work; it is not a new public release, package, tag or device
+installation. Published baseline remains ScryBar v0.9.4 / Companion v0.3.5 (40).
+
+- Add persistent multi-display selection and simultaneous Bonjour discovery for
+  ScryBar and Meguru. Negotiate protocol v1 capabilities and deliver feeds through
+  independent destination/feed tasks with bounded timeouts and stale-data handling.
+- Add separate Meguru RGB565 artwork delivery: 150 px legacy covers or negotiated
+  512 px covers, with resolution-aware caching and preferred 640 px TIDAL sources.
+  Preserve ScryBar's 150 px JSON artwork; identify Mock metadata as demo content.
+- Replace the empty launch Settings scene while keeping the menu-bar popover.
+  Project metadata records Companion 0.3.8 (43); retain the earlier Apple Silicon
+  0.3.7 (42) candidate DMG without presenting it as the 0.3.8 source build.
+- Read saved Bambu credentials off the main thread. Share one camera stream with
+  independent display leases and frame acknowledgements; persist consumed light
+  revisions, reject expired commands and bound ON retries while retaining OFF
+  cleanup and printer-state confirmation.
+- Preserve r308 / 2026-09-10 firmware changes: screensaver at 5 minutes and backlight
+  off at 15 minutes on USB/battery, including QR overlays. Qualify touch for 40 ms,
+  bound stuck contact to 30 seconds, remove raw-touch/IMU wake and add inactivity
+  diagnostics. Brightness updates respect idle-off.
+- Save the PNG and Icon Composer proposals without replacing the active app icon.
+- Record removal of six obsolete tracked DMGs (0.2.4 and 0.3.1 through 0.3.5) from
+  the current tree; previous versions remain in Git history. Leave untracked
+  `output/` untouched and outside all commits.
+- Refresh the Companion README, shared project knowledge, decision log and
+  multi-display protocol with source/package boundaries and dated evidence.
+
+Validation on 2026-10-19 (Apple Silicon, Swift 6.4):
+
+- Default `swift test`: blocked before test execution. The default `swiftbuild`
+  engine's ad-hoc test-bundle signing failed with `resource fork, Finder information,
+  or similar detritus not allowed` on generated Dropbox-local output.
+- `swift test --build-system native`: compilation/linking succeeded; 38 tests
+  started, 33 passed, one failed and four had no completion result before abort.
+  `secureAccessCodeFieldHandlesCommandV` failed at
+  `BambuPrinterPayloadTests.swift:360` because `NSPasteboard.setString` returned
+  false. The sandbox logged denied service access; the runner then aborted with
+  signal 6 while reporting an invalid/null NSPasteboard value. Sandboxed run: FAIL.
+- Re-run the same native test binary with `--skip-build` outside the sandbox so
+  the named test pasteboard can use macOS services: **all 38 tests passed**, exit 0.
+  No app launch, developer signing or code/test changes were needed. The native
+  build engine reports its deprecation; the two earlier failures above remain
+  recorded as environment/toolchain limitations.
+- Host C++ tests `display_idle_test`, `touch_timing_test` and
+  `bambu_camera_controls_test`: all compiled with C++17 and passed (exit 0).
+- Retained 0.3.7 DMG checksum: valid (`hdiutil verify`). No firmware build/flash,
+  app launch/install or physical camera/light/display checks were performed.
+
 ## 2026-09-09
 
 ### ScryBar v0.9.4 — Firmware r307 / Companion v0.3.5 (40)

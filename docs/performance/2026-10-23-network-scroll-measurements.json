@@ -1,0 +1,275 @@
+{
+  "date": "2026-10-23",
+  "installed_firmware": "r316",
+  "app_bytes": 6758448,
+  "app_sha256": "081154f26dd869d97605387361052ba603c667fd3ecdac1da6aa4903311da8b6",
+  "firmware_source_manifest_matches": true,
+  "firmware_source_files_verified": 196,
+  "runtime_firmware_verified": "r316",
+  "app_partition_only": true,
+  "screenshots": {
+    "before_firmware": "r313",
+    "before_verified_frames": 16,
+    "after_firmware": "r316",
+    "after_verified_frames": 16,
+    "dimensions": [
+      640,
+      172
+    ],
+    "verified_raw_bytes_per_frame": 220160,
+    "nominal_request_interval_s": 2,
+    "actual_spacing_is_irregular": true,
+    "failed_attempts_excluded": [
+      {
+        "frame": 1,
+        "attempt": 1,
+        "error": "Snapshot short: 82780/220160 bytes",
+        "elapsed_s": 22.029
+      }
+    ],
+    "after_frames": [
+      {
+        "frame": 1,
+        "request_elapsed_s": 25.034,
+        "capture_elapsed_s": 25.957,
+        "bytes_verified": 220160,
+        "visible_samples": 56,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 1555
+      },
+      {
+        "frame": 2,
+        "request_elapsed_s": 25.957,
+        "capture_elapsed_s": 26.886,
+        "bytes_verified": 220160,
+        "visible_samples": 56,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 1784
+      },
+      {
+        "frame": 3,
+        "request_elapsed_s": 26.887,
+        "capture_elapsed_s": 27.839,
+        "bytes_verified": 220160,
+        "visible_samples": 55,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 1784
+      },
+      {
+        "frame": 4,
+        "request_elapsed_s": 27.84,
+        "capture_elapsed_s": 28.828,
+        "bytes_verified": 220160,
+        "visible_samples": 56,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 1895
+      },
+      {
+        "frame": 5,
+        "request_elapsed_s": 28.828,
+        "capture_elapsed_s": 29.81,
+        "bytes_verified": 220160,
+        "visible_samples": 55,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 1895
+      },
+      {
+        "frame": 6,
+        "request_elapsed_s": 29.81,
+        "capture_elapsed_s": 34.295,
+        "bytes_verified": 220160,
+        "visible_samples": 55,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 1971
+      },
+      {
+        "frame": 7,
+        "request_elapsed_s": 34.296,
+        "capture_elapsed_s": 35.232,
+        "bytes_verified": 220160,
+        "visible_samples": 51,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 1971
+      },
+      {
+        "frame": 8,
+        "request_elapsed_s": 35.232,
+        "capture_elapsed_s": 36.199,
+        "bytes_verified": 220160,
+        "visible_samples": 49,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 1971
+      },
+      {
+        "frame": 9,
+        "request_elapsed_s": 36.199,
+        "capture_elapsed_s": 37.162,
+        "bytes_verified": 220160,
+        "visible_samples": 48,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 1971
+      },
+      {
+        "frame": 10,
+        "request_elapsed_s": 37.162,
+        "capture_elapsed_s": 38.118,
+        "bytes_verified": 220160,
+        "visible_samples": 47,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 1971
+      },
+      {
+        "frame": 11,
+        "request_elapsed_s": 38.119,
+        "capture_elapsed_s": 41.677,
+        "bytes_verified": 220160,
+        "visible_samples": 48,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 8308
+      },
+      {
+        "frame": 12,
+        "request_elapsed_s": 41.677,
+        "capture_elapsed_s": 42.661,
+        "bytes_verified": 220160,
+        "visible_samples": 44,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 8308
+      },
+      {
+        "frame": 13,
+        "request_elapsed_s": 42.661,
+        "capture_elapsed_s": 43.62,
+        "bytes_verified": 220160,
+        "visible_samples": 43,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 8308
+      },
+      {
+        "frame": 14,
+        "request_elapsed_s": 43.62,
+        "capture_elapsed_s": 44.6,
+        "bytes_verified": 220160,
+        "visible_samples": 42,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 8308
+      },
+      {
+        "frame": 15,
+        "request_elapsed_s": 44.601,
+        "capture_elapsed_s": 45.562,
+        "bytes_verified": 220160,
+        "visible_samples": 41,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 8308
+      },
+      {
+        "frame": 16,
+        "request_elapsed_s": 45.562,
+        "capture_elapsed_s": 50.558,
+        "bytes_verified": 220160,
+        "visible_samples": 37,
+        "unknown_down": 0,
+        "unknown_up": 0,
+        "maximum_receipt_interval_ms": 8308
+      }
+    ],
+    "visual_review": "All 16 final framebuffer captures inspected: continuous known traces, intact crests and coherent leftward chronology. Automatic scale changes when the previous real peak leaves the viewport.",
+    "diagnostic_caveat": "NETGRAPH immediately precedes SNAP; ages describe the nearby diagnostic instant, not a simultaneous optical observation. Serial capture blocks normal servicing and is excluded from FPS measurements."
+  },
+  "quiet_stats_comparison": {
+    "r315": {
+      "window": 30049,
+      "flush": 201,
+      "flush_hz": 6.7,
+      "flush_avg_us": 15773,
+      "flush_max_us": 22487,
+      "render": 201,
+      "render_avg_us": 49945,
+      "render_max_us": 60085,
+      "copy": 1809,
+      "copy_avg_us": 568,
+      "copied_px": 19167360,
+      "labels_set": 168,
+      "labels_skipped": 2807,
+      "styles_skipped": 14174
+    },
+    "r316": {
+      "window": 30001,
+      "flush": 201,
+      "flush_hz": 6.7,
+      "flush_avg_us": 15821,
+      "flush_max_us": 20829,
+      "render": 201,
+      "render_avg_us": 23559,
+      "render_max_us": 63157,
+      "copy": 791,
+      "copy_avg_us": 500,
+      "copied_px": 7868658,
+      "labels_set": 189,
+      "labels_skipped": 752,
+      "styles_skipped": 3833
+    },
+    "render_mean_reduction_percent": 52.83,
+    "copied_pixel_reduction_percent": 58.95
+  },
+  "warm_home_info_benchmark": {
+    "elapsed_ms": 30369,
+    "whole_window": {
+      "window": 30369,
+      "flush": 1341,
+      "flush_hz": 44.2,
+      "flush_avg_us": 12839,
+      "flush_max_us": 16568,
+      "render": 0,
+      "render_avg_us": 0,
+      "render_max_us": 0,
+      "copy": 902,
+      "copy_avg_us": 553,
+      "copied_px": 9026560,
+      "labels_set": 51,
+      "labels_skipped": 1246,
+      "styles_skipped": 4900
+    },
+    "active_intervals": {
+      "intervals": 1259,
+      "fps": 58.3,
+      "interval_p95_upper_us": 25000,
+      "interval_max_us": 260933,
+      "within_16_7ms": 905,
+      "handler_calls": 1389,
+      "handler_max_us": 18735
+    }
+  },
+  "native_checks": {
+    "clock_only_phases": 100,
+    "temporal_renders": 49,
+    "themes": 7,
+    "transition_comparisons": 98,
+    "chart_only_update_copied_pixels": 89490,
+    "full_stats_update_copied_pixels": 476800,
+    "chart_only_update_reduction_percent": 81.2,
+    "static_ram_increase_bytes": 528
+  },
+  "limits": [
+    "Quiet Stats windows contain different live input and are representative runtime measurements, not a controlled CPU benchmark.",
+    "Warm active intervals average 58.3 fps; one 260933 us interval prevents a claim of sustained locked 60 fps. Whole-window transfer rate is 44.2 Hz including transition preparation.",
+    "Framebuffer review is distinct from optical panel or final owner acceptance. Owner confirmation of corrected curves referred to r313; final r316 is installed and framebuffer-verified.",
+    "No commit, push or public firmware release."
+  ]
+}

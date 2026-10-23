@@ -1,0 +1,45 @@
+{
+  "engine": "chromium",
+  "at": "2026-10-23T12:08:06.534Z",
+  "notes": "Current production JS + captured/redacted markup. RAM/stored metadata are explicit unit fixtures, not a claim that NVS writes succeeded on hardware.",
+  "checks": [
+    {
+      "name": "reopened unsaved preview: Save state",
+      "pass": true
+    },
+    {
+      "name": "reopened unsaved preview: truthful pending text",
+      "pass": true
+    },
+    {
+      "name": "undo to stored level returns clean",
+      "pass": true
+    },
+    {
+      "name": "acknowledged stored levels: Save state",
+      "pass": true
+    },
+    {
+      "name": "acknowledged stored levels: truthful pending text",
+      "pass": true
+    },
+    {
+      "name": "failed persistence retains old metadata: Save state",
+      "pass": true
+    },
+    {
+      "name": "failed persistence retains old metadata: truthful pending text",
+      "pass": true
+    },
+    {
+      "name": "partial persistence remains dirty for battery: Save state",
+      "pass": true
+    },
+    {
+      "name": "partial persistence remains dirty for battery: truthful pending text",
+      "pass": true
+    }
+  ],
+  "passed": 9,
+  "failed": 0
+}

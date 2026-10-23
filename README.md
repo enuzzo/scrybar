@@ -9,6 +9,12 @@
 
 **ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, nine swipeable views, a word clock that composes real sentences in fourteen languages (from Italian and Latin to Klingon, 1337 Speak, Bellazio, and Pirate) — actual grammar, not uppercase tiles. Plus RSS, a Wikipedia deck, a `Now Playing` strip with cover art, a live public-transport timetable, a rocket launch countdown, Mac and Bambu Lab print monitors driven by a macOS companion, and a LAN web config UI.
 
+**Release v0.9.5 (firmware r322)** · [Install firmware](https://enuzzo.github.io/scrybar/#flash) · [Firmware release and binaries](https://github.com/enuzzo/scrybar/releases/tag/v0.9.5) · [Companion 0.3.15 (53) DMG](https://github.com/enuzzo/scrybar/releases/download/companion-v0.3.15/ScryBarCompanion-0.3.15.dmg)
+
+This release adds smoother page motion, a raw-timestamp 60-second network chart, a seven-theme display quality pass and a rebuilt mobile web configuration flow. Final r322 hardware profiling measured approximately 60 fps **during active cached slides**, with zero missed periods in the stated 30-second trial, including delayed HTTP clients. Cache preparation and handoff are separate costs; this is not an optical scanout measurement or a guarantee of exactly 16.667 ms per frame. See the [measurements and limits](docs/performance/2026-10-23-frame-pacing.md), [display review](docs/design/2026-10-23-display-quality/native-pages.md) and [web QA](docs/design/2026-10-23-webui/QA.md).
+
+Companion 0.3.15 is a **Preview**, signed ad hoc and **not notarized**. See its [installation instructions](companion/mac/ScryBarCompanion/README.md#installation) before first launch. The [Companion release record](docs/releases/companion-0.3.15.md) separates regression tests, live snapshots and installed checks.
+
 *Why "ScryBar"?* Part [scry](https://en.wikipedia.org/wiki/Scrying) (gazing into a surface to see things you shouldn't), part *scribe* (it writes sentences, not just numbers), part *bar* (look at it, it's a bar). A 640×172 strip that tells time in Klingon, fetches weather from an API you could just open yourself, scrolls headlines you already read on your phone, pulls Wikipedia facts nobody asked for, counts down rocket launches SpaceX will probably slip by three hours anyway, and shows the next train from the stop you already know by heart. On your desk. Between the coffee mug and the cable spaghetti. If that's not scrying, nothing is.
 
 ## HOME
@@ -25,8 +31,10 @@
 ## INFO Panel
 
 <table><tr>
-<td width="55%"><img src="assets/readme_previews/info_panel.png" alt="INFO panel, system diagnostics" width="100%"></td>
+<td width="55%"><img src="web/src/assets/screenshots/diagnostics-example-native.png" alt="INFO panel native firmware render with sample network values" width="100%"></td>
 <td>
+
+*Image: native firmware render with sample network values and an example QR code.*
 
 **The nervous system, exposed.** Wi-Fi signal, IP, MAC, battery level, firmware tag, NTP sync. The QR code points straight to the web config UI: scan it from your phone and you're in. Swipe right to get back to the interesting stuff.
 
@@ -61,7 +69,9 @@
 <td width="55%"><img src="assets/readme_previews/now_playing.png" alt="NOW PLAYING view with album art and progress bar" width="100%"></td>
 <td>
 
-**What macOS is playing, on your desk.** Album art on the left, title and artist on the right, elapsed / duration, source tag (Music, Spotify, Podcasts, whatever). The [companion app](companion/mac/) sits in the menu bar, reads the system-wide `Now Playing` session through `MediaRemote.framework` (so it works with anything AVFoundation can see), and posts the metadata to `/api/now-playing` over your LAN. No API tokens, no OAuth dance.
+**Your music, on your desk.** Album art on the left, title and artist on the right, elapsed / duration and source tag. The [companion app](companion/mac/ScryBarCompanion/README.md) sits in the menu bar, reads the system `Now Playing` session through `MediaRemote.framework`, and posts permitted metadata to `/api/now-playing` over your LAN. **Companion 0.3.9 and later default to Apple Music, Spotify and TIDAL only**: browser/video activity, YouTube Music and unknown apps must stay out of studio displays, logs and cover searches. Keep [PRIVACY → Music apps only](companion/mac/ScryBarCompanion/README.md#settings--privacy) enabled; older public Companion builds predate this protection. No API tokens or OAuth are needed for ScryBar/Meguru delivery.
+
+Companion **0.3.15 (53)** reads the current player's own cover through a bundled native MediaRemote reader, checking source, track and album identity together. It refreshes covers after a display restart and updates its preview when pixels arrive after metadata. ScryBar uses 150 px artwork. Meguru receives optional 512 px artwork only when a genuine source of at least that resolution matches the current cover; a smaller image is not enlarged into HD. In the current live-source checks, the player supplied 150 × 150 px even when larger artwork was requested. This observation is not a resolution limit for every player or track; see the [Companion release record](docs/releases/companion-0.3.15.md) for the evidence and remaining checks.
 
 </td>
 </tr></table>
@@ -91,10 +101,12 @@
 ## MAC STATS: your Mac, on the desk
 
 <table><tr>
-<td width="55%"><img src="assets/readme_previews/mac_stats.png" alt="MAC STATS view with CPU/GPU load and temperatures" width="100%"></td>
+<td width="55%"><img src="web/src/assets/screenshots/mac_stats_scrybar-default--live.png" alt="MAC STATS native firmware render with sample data" width="100%"></td>
 <td>
 
-**Activity Monitor, but ambient.** CPU and GPU utilization with temperatures, RAM and disk usage bars, all pushed from the [ScryBar Companion](companion/mac/) menu-bar app every five seconds. Temperatures are color-coded (green / amber / red) and bars tint warm above 75% full. Works with Apple Silicon via the free [`macmon`](https://github.com/vladkens/macmon) helper (no `sudo` needed); Intel Macs fall back to IOKit SMC.
+*Image: native firmware render with sample data.*
+
+**Activity Monitor, but ambient.** CPU/GPU utilization and temperatures, RAM and disk usage, plus live download/upload and the app using the most network traffic. Firmware v0.9.5 (r322) gives network activity its own 60-second dual trace at actual sample timestamps, shared automatic scale, destination scope and leading-app directional rates. Known observations retain their values as the window scrolls; explicit unknown data and freshness-length outages break continuity, while measured idle remains zero. The [native design record](docs/design/2026-10-23-display-quality/native-pages.md) records the reviewed layouts and anonymous sample renders. [Companion 0.3.10+](companion/mac/ScryBarCompanion/README.md) samples at approximately 1 Hz and shows a fuller app ranking on the Mac. Temperatures work on Apple Silicon via [`macmon`](https://github.com/vladkens/macmon) without sudo; Intel Macs fall back to IOKit SMC.
 
 </td>
 </tr></table>
@@ -107,11 +119,11 @@
 
 **A print status strip without putting printer credentials on the display.** The macOS companion connects directly to a Bambu Lab printer on the local network over MQTT/TLS, then forwards a credential-free snapshot to ScryBar. The view shows job and stage, progress, remaining time, layer, nozzle/bed/chamber temperatures, and printer alerts. The companion can play distinct macOS sounds when printing starts, pauses or reports a fault, and finishes.
 
-**New in v0.9.4 (r307):** restored reliable page swipes, including slow drags, and added the estimated print finish day/time in Companion v0.3.5 (40).
+**Since v0.9.4 (r307):** restored reliable page swipes, including slow drags, and added the estimated print finish day/time in Companion v0.3.5 (40).
 
 **Camera support:** tap **CAM** for the A1/P1 live camera, or open Camera in Companion **v0.3.5 (40)**. The display separates the light state from its action; Back closes the view. Closing the last viewer stops the stream and requests light-off, with cleanup retries if the printer is temporarily unreachable.
 
-[Download Companion DMG](https://github.com/enuzzo/scrybar/releases/download/v0.9.4/ScryBarCompanion-0.3.5.dmg) · [Install firmware](https://enuzzo.github.io/scrybar/#flash) · [Release binaries and changelog](https://github.com/enuzzo/scrybar/releases/tag/v0.9.4) · [Installation and camera instructions](companion/mac/ScryBarCompanion/README.md#installation)
+[Download Companion DMG](https://github.com/enuzzo/scrybar/releases/download/companion-v0.3.15/ScryBarCompanion-0.3.15.dmg) · [Install firmware](https://enuzzo.github.io/scrybar/#flash) · [Release binaries and changelog](https://github.com/enuzzo/scrybar/releases/tag/v0.9.5) · [Installation and camera instructions](companion/mac/ScryBarCompanion/README.md#installation)
 
 Setup and protocol notes live in [`docs/bambu-lan-integration.md`](docs/bambu-lan-integration.md).
 
@@ -165,7 +177,7 @@ The physical profile: a horizontal bar that sits flat on your desk. Wide enough 
 
 ## Views
 
-Nine public views, navigated by swipe. Their physical swipe sequence can be reordered from the web UI and persists in NVS. The original eight pages can be toggled off; the Bambu page joins the carousel automatically whenever Wi-Fi is connected.
+Nine public views, navigated by swipe. Their physical swipe sequence can be reordered from the web UI and persists in NVS. Home remains available as a fallback; optional views can be toggled off. The Bambu page joins the carousel whenever Wi-Fi is connected, and the panel marks fixed views.
 
 ```
   INFO ◄─► HOME ◄─► AUX (RSS) ◄─► WIKI ◄─► NOW PLAYING ◄─► TIMETABLE ◄─► LAUNCHES ◄─► MAC STATS ◄─► BAMBU
@@ -179,13 +191,13 @@ Nine public views, navigated by swipe. Their physical swipe sequence can be reor
 
 **WIKI** — Wikipedia stream: Featured Article, On This Day, and Random Article. Language independently selectable (8 real languages) from the system language via web UI. Same `SKIP`/`NXT`/`QR` controls as AUX. A bottomless pit of trivia that you didn't need but now can't stop reading.
 
-**NOW PLAYING** — Album art, title, artist, progress, source. The companion reads the system-wide `Now Playing` session through `MediaRemote.framework` and posts over LAN. One feed for Music, Spotify, TIDAL, podcasts, and whatever else macOS is already surfacing.
+**NOW PLAYING** — Album art, title, artist, progress, source. The companion reads the system-wide `Now Playing` session through `MediaRemote.framework` and posts over LAN. Apple Music, Spotify and TIDAL are allowed by default; other app sources depend on the explicit privacy setting.
 
 **TIMETABLE** — Live public-transport departures via [Transitous](https://transitous.org) (free global GTFS, no API key). Colored line badges, delays, arrival times, platform. Adaptive countdown: `3'` / `14'` / `45'` under the hour, `HH:MM` above. Handles trains, metro, trams, buses, coaches. Tap to peek at origin → terminus; destination filter via web UI. Twenty-plus countries confirmed.
 
 **LAUNCHES** — Upcoming rocket launches from [The Space Devs](https://thespacedevs.com/) Launch Library 2. Cinematic T-minus hero, weather at the pad, QR jump to mission page. Second view shows the next two missions in a compact list.
 
-**MAC STATS** — CPU and GPU load + temperatures, RAM and disk bars, pushed from the companion every five seconds. Color-coded above the thermal shrug zone. Needs the [macOS companion app](companion/mac/) running to be populated.
+**MAC STATS** — Compact CPU/GPU and RAM/disk, live network rates, a shared-scale 60-second history and leading-app directional rates (v0.9.5 / r322). Pushed by the [macOS Companion](companion/mac/) at approximately 1 Hz. Earlier firmware retains its CPU/GPU/RAM/disk layout.
 
 **BAMBU** — Live Bambu Lab job name, print stage, progress, remaining time, layer, temperatures, and alert state. The companion keeps the LAN access code in macOS Keychain and sends only a sanitized status payload to ScryBar. Details in the [Bambu LAN integration guide](docs/bambu-lan-integration.md).
 
@@ -241,7 +253,9 @@ Touch passes through anti-ghost filtering (AXS15231B produces spurious frames at
 
 ## Quick Start
 
-**Prerequisites:** `arduino-cli`, `esp32` board package by Espressif, libraries listed in `firmware_readme.md`.
+**Prerequisites:** `arduino-cli`, Espressif **esp32 3.3.6**, **LVGL 8.3.11** and **ArduinoJson 7.4.2**, plus the project libraries listed in [firmware_readme.md](firmware_readme.md). These versions match the release workflow. Keep Arduino cores and libraries outside Dropbox, for example in the default `~/Library/Arduino15` and `~/Documents/Arduino/libraries` locations. Build output and caches also belong outside the synced checkout; the example below uses `/tmp` for output and Arduino's external default cache.
+
+The macOS Companion is a separate build. Its bundled native reader additionally needs **CMake**; see the [Companion build instructions](companion/mac/ScryBarCompanion/README.md) for the universal framework, third-party notices and external build directories.
 
 ### Compile
 
@@ -312,16 +326,19 @@ http://<DEVICE_IP>:8080
 
 | Endpoint | Method | Does |
 |---|---|---|
-| `GET /` | | Config UI (Tron-grid themed, responsive, reduced-motion fallback) |
+| `GET /` | | Control Surface: Display / Wi-Fi / Content, seven themes, responsive layout and reduced-motion fallback |
 | `GET /api/config` | | Current config as JSON |
 | `GET /api/wifi/scan` | | Scan nearby 2.4 GHz Wi-Fi networks (bounded timeout, safe in AP setup mode) |
 | `GET /api/wifi/setup-qr.svg` | | SVG QR for setup URL (`http://192.168.4.1:8080` in AP mode) |
 | `POST /api/config` | JSON body | Update config fields |
 | `POST /config` | Form body | Update config via form UI |
 | `POST /api/bambu` | JSON body | Update the credential-free Bambu print snapshot |
-| `POST /reload` | | Force refresh weather and RSS feeds |
+| `POST /reload` | | Queue weather, RSS and Wikipedia refresh; the UI sends an empty body to retain pending edits |
+| `POST /api/brightness` | Form body | Preview USB/battery brightness in RAM; Save changes persists it |
 
-Config persists to NVS. Configurable: Wi-Fi preferred SSID, Wi-Fi Direct mode, new Wi-Fi provisioning (scan + password), weather city/lat/lon, logo URL, up to 5 RSS feeds, system language, Wikipedia language, and UI theme.
+Save changes persists configuration to NVS; browser theme preview and live brightness preview are labelled separately. Brightness metadata keeps an unsaved RAM preview dirty even after reopening the page. Reload content queues work without navigating away or applying pending fields.
+
+Configurable: Wi-Fi preferred SSID, Wi-Fi Direct mode, new Wi-Fi provisioning (scan + password), weather city/lat/lon, logo URL, up to 5 RSS feeds, system language, Wikipedia language, and UI theme.
 
 ### Wi-Fi Field Recovery
 
@@ -372,6 +389,16 @@ Commands sent over Serial at 115200 baud. Case-insensitive.
 | `WEBCFG` | Print web config server status + URL |
 | `WIFIDIRECT` | Print Wi-Fi Direct mode / AP status |
 | `WIFIDIRECT off\|auto\|on` | Set Wi-Fi Direct mode and persist to NVS |
+| `PERF` | Print/reset display counters: completed transfers, rendering/copy work, skipped setters and active page-motion frame intervals |
+| `NETGRAPH` | Print bounded network-history sample ages, numeric rates and known/unknown flags; no host, app or destination identifiers |
+| `PERFBENCH <5..30>` / `PERFBENCH STOP` | Run/stop a bounded HOME ↔ INFO transition workload; restores its original page and leaves preferences unchanged |
+
+For a repeatable animation measurement, start on HOME or INFO with the
+screensaver off, let startup requests settle, then send `PERFBENCH 30`. Keep
+hands off during that test and capture screenshots separately. Active frame
+intervals and whole-window transfer rate include different amounts of idle and
+preparation time; neither measures physical panel scanout. See the
+[display performance record](docs/performance/2026-10-23-display-and-stats.md).
 
 **Power & Screensaver:**
 

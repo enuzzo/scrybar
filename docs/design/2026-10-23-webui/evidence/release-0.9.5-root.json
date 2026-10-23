@@ -1,0 +1,494 @@
+{
+  "url": "http://127.0.0.1:5181/",
+  "engine": "chromium",
+  "at": "2026-10-23T12:34:56.283Z",
+  "notes": "Browser engine responsive checks, not physical-phone acceptance. Installer success/failure uses a loader fixture. No USB or backend persistence checked.",
+  "checks": [
+    {
+      "name": "real manifest path and release 320",
+      "pass": true,
+      "path": "/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "320 no horizontal overflow",
+      "pass": true,
+      "viewport": 320,
+      "scroll": 320,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "320 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "320 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "320 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "real manifest path and release 375",
+      "pass": true,
+      "path": "/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "375 no horizontal overflow",
+      "pass": true,
+      "viewport": 375,
+      "scroll": 375,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "375 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "375 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "375 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "real manifest path and release 390",
+      "pass": true,
+      "path": "/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "390 no horizontal overflow",
+      "pass": true,
+      "viewport": 390,
+      "scroll": 390,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "390 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "390 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "390 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "all page pictures decode 390",
+      "pass": true,
+      "unloaded": []
+    },
+    {
+      "name": "keyboard opens mobile menu",
+      "pass": true
+    },
+    {
+      "name": "menu first link reachable with ArrowDown",
+      "pass": true
+    },
+    {
+      "name": "Escape closes menu and restores focus",
+      "pass": true
+    },
+    {
+      "name": "seven themes and nine views",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/home",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/music",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/home",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/music",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/home",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/music",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/home",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/music",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/home",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/music",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/home",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/music",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/home",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/music",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "dialog opens with Close focus",
+      "pass": true
+    },
+    {
+      "name": "dialog advances view",
+      "pass": true
+    },
+    {
+      "name": "dialog closes and restores focus",
+      "pass": true
+    },
+    {
+      "name": "reduced motion disables nonessential motion",
+      "pass": true,
+      "smooth": "auto",
+      "active": 0
+    },
+    {
+      "name": "real manifest path and release 430",
+      "pass": true,
+      "path": "/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "430 no horizontal overflow",
+      "pass": true,
+      "viewport": 430,
+      "scroll": 430,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "430 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "430 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "430 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "real manifest path and release 768",
+      "pass": true,
+      "path": "/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "768 no horizontal overflow",
+      "pass": true,
+      "viewport": 768,
+      "scroll": 768,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "768 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "768 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "768 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "real manifest path and release 1440",
+      "pass": true,
+      "path": "/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "1440 no horizontal overflow",
+      "pass": true,
+      "viewport": 1440,
+      "scroll": 1440,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "1440 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "1440 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "1440 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "all page pictures decode 1440",
+      "pass": true,
+      "unloaded": []
+    },
+    {
+      "name": "unsupported browser has one clear fallback",
+      "pass": true
+    },
+    {
+      "name": "insecure context gives HTTPS fallback",
+      "pass": true
+    },
+    {
+      "name": "loader error offers retry",
+      "pass": true
+    },
+    {
+      "name": "retry refetches a failed module and recovers",
+      "pass": true
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "checks": {
+    "manifestChangesVersionOnly": true,
+    "lockfileUnchanged": true,
+    "scrybarInoFrozenR322": true
+  },
+  "scope": "Release web/docs only. No Meguru firmware writes, no source rebuild/flash by this agent.",
+  "pending": {
+    "companionDmgDownload": "Not checked before publication; target0.3.15(51)."
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "source": "private GET after r322",
+  "sourceSha256": "0c56f321bcb586435a95a0d2313aaa6241c6df701c8d1c2a33eb732daa5f44f2",
+  "fixtureSha256": "abafdf041b735fdc20ed0d803188f63e3b0b3048fd29bcfc43823cd5353181d1",
+  "redaction": {
+    "networkNames": 3,
+    "addresses": 3,
+    "macAddresses": "documentation identity"
+  },
+  "note": "Only local fixture; HTML/CSS/JS and field identifiers preserved. No forwarding."
+}

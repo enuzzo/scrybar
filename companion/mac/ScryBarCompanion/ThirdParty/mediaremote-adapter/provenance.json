@@ -1,0 +1,39 @@
+{
+  "repository": "https://github.com/ungive/mediaremote-adapter",
+  "commit": "0e82bf1c44ec39554fbfc402ec88a48c6ae2a0fd",
+  "archive_sha256": "649860e05b246401cb88d70939fc1a50e87a6ca5d1017cb0b9334d187865ae0d",
+  "license": "BSD-3-Clause",
+  "local_modifications": [
+    {
+      "path": "src/adapter/now_playing.m",
+      "patch": "scrybar-artwork-identifier.patch",
+      "description": "Export optional artworkIdentifier metadata for precise provider artwork identity",
+      "upstream_sha256": "7d53073adac8934576d8efb137c0e529caa882efadcd6506e2514bed7c997314",
+      "patched_sha256": "24f3eef5a04af8764350d30e7143b320d9f339f89934f53322b9ea30cea98df2"
+    },
+    {
+      "path": "src/adapter/keys.m",
+      "patch": "scrybar-retention-identity.patch",
+      "description": "Include unique/content/artwork identifiers before retaining missing artwork",
+      "upstream_sha256": "c14ff8fdf1a5f82bde9e1c45b8e6c59847130e0491df658d103a93cbc5bbce49",
+      "patched_sha256": "aac4942e143aa9bd7a1970f2e7073371f3fcfb4bbef41af55d78d7a9de9fa933"
+    }
+  ],
+  "vendored_files": 32,
+  "source_selection": [
+    "CMakeLists.txt",
+    "LICENSE",
+    "README.md",
+    ".gitmodules",
+    "bin/mediaremote-adapter.pl",
+    "include/**",
+    "src/**"
+  ],
+  "submodules": [],
+  "build_target": "MediaRemoteAdapter",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "minimum_macos": "14.0"
+}

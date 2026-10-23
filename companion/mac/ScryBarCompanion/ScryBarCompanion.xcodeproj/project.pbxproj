@@ -11,19 +11,31 @@
 		095EE31AE5D86F1A533F6AE7 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E22A120EAA9F0E38CDE52E /* Providers.swift */; };
 		153681E18B8A702FBDCA3DBA /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B39588B77F90F5443B7C566 /* AppModel.swift */; };
 		227ACA0DCFC468797803EA59 /* BambuCameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D47FE356C1FE24226C1BFD /* BambuCameraView.swift */; };
+		34CFC65843BB526F4CF9999C /* MacStatsNetwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914ACA19961BFE36F2A3D2B0 /* MacStatsNetwork.swift */; };
 		3AF38F9540ADEDB98E4E5013 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8457A3E5152784A5FAE2409D /* PopoverView.swift */; };
+		43EAD7DC787F8D2CD4B4A88E /* YakamozPush.swift in Sources */ = {isa = PBXBuildFile; fileRef = E399E951B76591E93AC3657E /* YakamozPush.swift */; };
 		661EF4ED3C28FC96B302735D /* ScryBarDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */; };
 		73F1490C073A22D9F2A5E31B /* MacStatsProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE76FA671EFB2D923FD32D1A /* MacStatsProvider.swift */; };
+		8A44F51F5B97A4D3676EBF3A /* NetworkStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD2ADC22CE3D507E790DAFA /* NetworkStatsView.swift */; };
+		A09C48ABEF49E5C269A8BE4A /* NetworkStatsProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A46A814378D7818BFD9A787 /* NetworkStatsProvider.swift */; };
 		AA4696DB9046E247051334BB /* BambuCameraTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49C2FF7EBD44D80EB5FB4DA /* BambuCameraTransport.swift */; };
+		AF4C8863C47F0017945615B5 /* SourcePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5244D91BDA262FE07DDC9EF /* SourcePolicy.swift */; };
+		B4C1EBD603E42A27CB4104F5 /* NetworkStatusImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA02B64F5FA61C3F3FE05C6F /* NetworkStatusImage.swift */; };
+		B4E203E7792F7CCC9D90C4B0 /* VerifiedArtworkEnrichment.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBD5F7E1AA545340B030924 /* VerifiedArtworkEnrichment.swift */; };
 		BA955C8E6E772F57D54F1910 /* BambuPrinterDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */; };
 		BB24A8275CCF1DCECFB60E1A /* CompanionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F1C85B96397D8D6F8FA52E /* CompanionSettingsView.swift */; };
+		BC5D31159BE7BADE052FD3E6 /* NativeMediaRemote.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99A05AE71A75CC87C9DC9C1 /* NativeMediaRemote.swift */; };
 		C3E8A6A20FD0BCDAA53365D2 /* BambuPrinter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */; };
 		C4606DA61C5D5D5F6284D891 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75DD8079B5ADB50FEE32FF69 /* AppDelegate.swift */; };
 		C4A8CD9C086EB31EB4423EA7 /* ScryBarClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */; };
 		C8D821386881FE043880AEF0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD873F0A8B6D5871731A68D /* Models.swift */; };
+		CA30C6AF6F62DA9A05DCC9F2 /* DisplayDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6442DD4FA04ABEE250C188 /* DisplayDelivery.swift */; };
+		CE5B8FADF8C6C51D37197122 /* DisplayTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C8F87D23221AE6D60F65810 /* DisplayTargets.swift */; };
 		CF26052E9B8B1568F26601DB /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 04CC5359BE9C5DEE6F953EDC /* AppIcon.icns */; };
 		D2C4F19151AA9B1825BDD110 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5953F94113F0DC311E0FB3BC /* SettingsView.swift */; };
+		DABB67816ABD689D5C5FC737 /* NowPlayingArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD4A9981E609EA026DF873D5 /* NowPlayingArtwork.swift */; };
 		EA4615C1C064F288A261B81F /* ScryBarCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */; };
+		F4944D4D2BEB06724A0D9847 /* NetworkScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = C32E390A4088C41D852D8C73 /* NetworkScope.swift */; };
 		F82CD802C19C149215512C59 /* BambuCameraModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1765426E1EC8C87F72CBDC27 /* BambuCameraModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -32,7 +44,9 @@
 		1765426E1EC8C87F72CBDC27 /* BambuCameraModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuCameraModel.swift; sourceTree = "<group>"; };
 		1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarCompanionApp.swift; sourceTree = "<group>"; };
 		2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryBarDiscovery.swift; sourceTree = "<group>"; };
+		2C8F87D23221AE6D60F65810 /* DisplayTargets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTargets.swift; sourceTree = "<group>"; };
 		31D47FE356C1FE24226C1BFD /* BambuCameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuCameraView.swift; sourceTree = "<group>"; };
+		4A46A814378D7818BFD9A787 /* NetworkStatsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkStatsProvider.swift; sourceTree = "<group>"; };
 		5953F94113F0DC311E0FB3BC /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5B39588B77F90F5443B7C566 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionTheme.swift; sourceTree = "<group>"; };
@@ -41,12 +55,22 @@
 		75DD8079B5ADB50FEE32FF69 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		8457A3E5152784A5FAE2409D /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		90F1C85B96397D8D6F8FA52E /* CompanionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionSettingsView.swift; sourceTree = "<group>"; };
+		914ACA19961BFE36F2A3D2B0 /* MacStatsNetwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStatsNetwork.swift; sourceTree = "<group>"; };
 		9FD873F0A8B6D5871731A68D /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		AC6442DD4FA04ABEE250C188 /* DisplayDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayDelivery.swift; sourceTree = "<group>"; };
+		ACBD5F7E1AA545340B030924 /* VerifiedArtworkEnrichment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerifiedArtworkEnrichment.swift; sourceTree = "<group>"; };
 		AE76FA671EFB2D923FD32D1A /* MacStatsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStatsProvider.swift; sourceTree = "<group>"; };
+		B99A05AE71A75CC87C9DC9C1 /* NativeMediaRemote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMediaRemote.swift; sourceTree = "<group>"; };
+		BFD2ADC22CE3D507E790DAFA /* NetworkStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkStatsView.swift; sourceTree = "<group>"; };
+		C32E390A4088C41D852D8C73 /* NetworkScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkScope.swift; sourceTree = "<group>"; };
 		C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuPrinterDiscovery.swift; sourceTree = "<group>"; };
 		C8E22A120EAA9F0E38CDE52E /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
+		DA02B64F5FA61C3F3FE05C6F /* NetworkStatusImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkStatusImage.swift; sourceTree = "<group>"; };
+		E399E951B76591E93AC3657E /* YakamozPush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YakamozPush.swift; sourceTree = "<group>"; };
 		E9D517FA415AB094F06B6B59 /* BambuPrinter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuPrinter.swift; sourceTree = "<group>"; };
 		F49C2FF7EBD44D80EB5FB4DA /* BambuCameraTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BambuCameraTransport.swift; sourceTree = "<group>"; };
+		F5244D91BDA262FE07DDC9EF /* SourcePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcePolicy.swift; sourceTree = "<group>"; };
+		FD4A9981E609EA026DF873D5 /* NowPlayingArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingArtwork.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -78,14 +102,26 @@
 				C8C158F4CC9A20A0A01DAB87 /* BambuPrinterDiscovery.swift */,
 				90F1C85B96397D8D6F8FA52E /* CompanionSettingsView.swift */,
 				682CD8ED4E36FE118718AE21 /* CompanionTheme.swift */,
+				AC6442DD4FA04ABEE250C188 /* DisplayDelivery.swift */,
+				2C8F87D23221AE6D60F65810 /* DisplayTargets.swift */,
+				914ACA19961BFE36F2A3D2B0 /* MacStatsNetwork.swift */,
 				AE76FA671EFB2D923FD32D1A /* MacStatsProvider.swift */,
 				9FD873F0A8B6D5871731A68D /* Models.swift */,
+				B99A05AE71A75CC87C9DC9C1 /* NativeMediaRemote.swift */,
+				C32E390A4088C41D852D8C73 /* NetworkScope.swift */,
+				4A46A814378D7818BFD9A787 /* NetworkStatsProvider.swift */,
+				BFD2ADC22CE3D507E790DAFA /* NetworkStatsView.swift */,
+				DA02B64F5FA61C3F3FE05C6F /* NetworkStatusImage.swift */,
+				FD4A9981E609EA026DF873D5 /* NowPlayingArtwork.swift */,
 				8457A3E5152784A5FAE2409D /* PopoverView.swift */,
 				C8E22A120EAA9F0E38CDE52E /* Providers.swift */,
 				696FCA6D9D17C2F0EF85B3F2 /* ScryBarClient.swift */,
 				1E538C0049CB9E416EA07C47 /* ScryBarCompanionApp.swift */,
 				2909C1C538BA6080CA503027 /* ScryBarDiscovery.swift */,
 				5953F94113F0DC311E0FB3BC /* SettingsView.swift */,
+				F5244D91BDA262FE07DDC9EF /* SourcePolicy.swift */,
+				ACBD5F7E1AA545340B030924 /* VerifiedArtworkEnrichment.swift */,
+				E399E951B76591E93AC3657E /* YakamozPush.swift */,
 			);
 			path = ScryBarCompanion;
 			sourceTree = "<group>";
@@ -179,14 +215,26 @@
 				BA955C8E6E772F57D54F1910 /* BambuPrinterDiscovery.swift in Sources */,
 				BB24A8275CCF1DCECFB60E1A /* CompanionSettingsView.swift in Sources */,
 				06F32E47268A0EC3E08D735A /* CompanionTheme.swift in Sources */,
+				CA30C6AF6F62DA9A05DCC9F2 /* DisplayDelivery.swift in Sources */,
+				CE5B8FADF8C6C51D37197122 /* DisplayTargets.swift in Sources */,
+				34CFC65843BB526F4CF9999C /* MacStatsNetwork.swift in Sources */,
 				73F1490C073A22D9F2A5E31B /* MacStatsProvider.swift in Sources */,
 				C8D821386881FE043880AEF0 /* Models.swift in Sources */,
+				BC5D31159BE7BADE052FD3E6 /* NativeMediaRemote.swift in Sources */,
+				F4944D4D2BEB06724A0D9847 /* NetworkScope.swift in Sources */,
+				A09C48ABEF49E5C269A8BE4A /* NetworkStatsProvider.swift in Sources */,
+				8A44F51F5B97A4D3676EBF3A /* NetworkStatsView.swift in Sources */,
+				B4C1EBD603E42A27CB4104F5 /* NetworkStatusImage.swift in Sources */,
+				DABB67816ABD689D5C5FC737 /* NowPlayingArtwork.swift in Sources */,
 				3AF38F9540ADEDB98E4E5013 /* PopoverView.swift in Sources */,
 				095EE31AE5D86F1A533F6AE7 /* Providers.swift in Sources */,
 				C4A8CD9C086EB31EB4423EA7 /* ScryBarClient.swift in Sources */,
 				EA4615C1C064F288A261B81F /* ScryBarCompanionApp.swift in Sources */,
 				661EF4ED3C28FC96B302735D /* ScryBarDiscovery.swift in Sources */,
 				D2C4F19151AA9B1825BDD110 /* SettingsView.swift in Sources */,
+				AF4C8863C47F0017945615B5 /* SourcePolicy.swift in Sources */,
+				B4E203E7792F7CCC9D90C4B0 /* VerifiedArtworkEnrichment.swift in Sources */,
+				43EAD7DC787F8D2CD4B4A88E /* YakamozPush.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -228,7 +276,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 53;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -252,7 +300,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.5;
+				MARKETING_VERSION = 0.3.15;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -300,7 +348,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 53;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -318,7 +366,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.3.5;
+				MARKETING_VERSION = 0.3.15;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netmilk.ScryBarCompanion;

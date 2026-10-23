@@ -1,0 +1,18 @@
+{
+  "lockfileUnchanged": true,
+  "firmwareInoUnchanged": true,
+  "manifestOnlyVersionChangedFromHEAD": true,
+  "repositoryManifestVersion": "0.9.5",
+  "sourceHashes": {
+    "web/src/components/CompanionApp.astro": "be160d36da7f9e0097ee8d40a6bcbfc3edddf2728e18117fd3b9bc8cd2197712",
+    "web/src/components/ReleaseNotes.astro": "b9f4dd430d0d27af92f98b75ab6dd8eafc7fdf16ecba20a7c641308308d0ea02",
+    "README.md": "fd69c88e93226913b1d4b906a4df7df7e5eb877cec1065dcd700dd1380c42f3d",
+    "CHANGELOG.md": "d545105c9387fb1c0c6c114491d64f8cc0d4000c58e5cb7f9948c7b60a02e17d"
+  },
+  "buildManifestVersions": {
+    "root": "0.9.5",
+    "pages": "0.9.5",
+    "ci-root": "v0.9.5",
+    "ci-pages": "v0.9.5"
+  }
+}

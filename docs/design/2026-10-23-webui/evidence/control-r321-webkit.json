@@ -1,0 +1,502 @@
+{
+  "url": "http://127.0.0.1:5180/",
+  "engine": "webkit",
+  "at": "2026-10-23T12:04:06.573Z",
+  "notes": "Local fixture. Chromium/WebKit responsive emulation, not a physical phone. No USB, actual device writes, Wi-Fi provisioning or NVS persistence.",
+  "checks": [
+    {
+      "name": "clean save disabled 320",
+      "pass": true
+    },
+    {
+      "name": "seven actual themes 320",
+      "pass": true
+    },
+    {
+      "name": "fits 320 scrybar-default Display",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 scrybar-default Wi-Fi",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 scrybar-default Content",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 cyberpunk-2077 Display",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 cyberpunk-2077 Wi-Fi",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 cyberpunk-2077 Content",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 toxic-candy Display",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 toxic-candy Wi-Fi",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 toxic-candy Content",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 tokyo-transit Display",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 tokyo-transit Wi-Fi",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 tokyo-transit Content",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 minimal-brutalist-mono Display",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 minimal-brutalist-mono Wi-Fi",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 minimal-brutalist-mono Content",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 mint-protocol Display",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 mint-protocol Wi-Fi",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 mint-protocol Content",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 cathode-ray Display",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 cathode-ray Wi-Fi",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "fits 320 cathode-ray Content",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "last RSS action clears fixed save bar 320",
+      "pass": true
+    },
+    {
+      "name": "device details accessible 320",
+      "pass": true
+    },
+    {
+      "name": "no uncaught JS 320",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "clean save disabled 390",
+      "pass": true
+    },
+    {
+      "name": "seven actual themes 390",
+      "pass": true
+    },
+    {
+      "name": "fits 390 scrybar-default Display",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 scrybar-default Wi-Fi",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 scrybar-default Content",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 cyberpunk-2077 Display",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 cyberpunk-2077 Wi-Fi",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 cyberpunk-2077 Content",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 toxic-candy Display",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 toxic-candy Wi-Fi",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 toxic-candy Content",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 tokyo-transit Display",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 tokyo-transit Wi-Fi",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 tokyo-transit Content",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 minimal-brutalist-mono Display",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 minimal-brutalist-mono Wi-Fi",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 minimal-brutalist-mono Content",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 mint-protocol Display",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 mint-protocol Wi-Fi",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 mint-protocol Content",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 cathode-ray Display",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 cathode-ray Wi-Fi",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "fits 390 cathode-ray Content",
+      "pass": true,
+      "width": 390,
+      "scroll": 390,
+      "bad": []
+    },
+    {
+      "name": "last RSS action clears fixed save bar 390",
+      "pass": true
+    },
+    {
+      "name": "device details accessible 390",
+      "pass": true
+    },
+    {
+      "name": "no uncaught JS 390",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "brightness uses live RAM endpoint",
+      "pass": true
+    },
+    {
+      "name": "range changes enable Save",
+      "pass": true
+    },
+    {
+      "name": "brightness acknowledgement announced",
+      "pass": true
+    },
+    {
+      "name": "view ordering changes without saving",
+      "pass": true
+    },
+    {
+      "name": "manual negative coordinates accepted",
+      "pass": true
+    },
+    {
+      "name": "coordinates allow minus keyboard",
+      "pass": true
+    },
+    {
+      "name": "weather search applies selected fixture coordinates",
+      "pass": true
+    },
+    {
+      "name": "departure search retains selected stop ID",
+      "pass": true
+    },
+    {
+      "name": "reload sends no unsaved config fields",
+      "pass": true
+    },
+    {
+      "name": "reload preserves pending form and URL",
+      "pass": true
+    },
+    {
+      "name": "reload announces queued request and pending edits",
+      "pass": true
+    },
+    {
+      "name": "reload failure keeps pending fields",
+      "pass": true
+    },
+    {
+      "name": "reload failure does not claim completion",
+      "pass": true
+    },
+    {
+      "name": "RSS supports five feed rows",
+      "pass": true
+    },
+    {
+      "name": "RSS count remains visible",
+      "pass": true
+    },
+    {
+      "name": "RSS sixth feed rejected",
+      "pass": true
+    },
+    {
+      "name": "RSS edit updates existing row",
+      "pass": true
+    },
+    {
+      "name": "RSS remove updates list and count",
+      "pass": true
+    },
+    {
+      "name": "Save guards an unadded feed draft",
+      "pass": true
+    },
+    {
+      "name": "Save serializes view order and all five RSS slots",
+      "pass": true,
+      "fieldNames": [
+        "weather_city",
+        "weather_lat",
+        "weather_lon",
+        "wiki_lang",
+        "transit_from",
+        "transit_from_id",
+        "transit_to",
+        "rss_feed_name_1",
+        "rss_feed_url_1",
+        "rss_feed_items_1",
+        "rss_feed_name_2",
+        "rss_feed_url_2",
+        "rss_feed_items_2",
+        "rss_feed_name_3",
+        "rss_feed_url_3",
+        "rss_feed_items_3",
+        "rss_feed_name_4",
+        "rss_feed_url_4",
+        "rss_feed_items_4",
+        "rss_feed_name_5",
+        "rss_feed_url_5",
+        "rss_feed_items_5",
+        "rss_feed_name",
+        "rss_feed_url",
+        "rss_feed_items",
+        "wifi_pref_ssid",
+        "wifi_setup_mode",
+        "wifi_new_ssid",
+        "wifi_new_password",
+        "ui_theme",
+        "bl_usb",
+        "bl_batt",
+        "view_info",
+        "view_aux",
+        "view_wiki",
+        "view_now_playing",
+        "view_doom",
+        "view_transit",
+        "view_launch",
+        "view_mac_stats",
+        "view_order",
+        "wc_lang"
+      ]
+    },
+    {
+      "name": "interaction JS errors absent",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "tabs support arrow keys and selected focus",
+      "pass": true
+    },
+    {
+      "name": "disclosure supports keyboard and expanded state",
+      "pass": true
+    },
+    {
+      "name": "font-blocked 320 layout fits",
+      "pass": true,
+      "width": 320,
+      "scroll": 320,
+      "bad": []
+    },
+    {
+      "name": "reduced motion has no running animations",
+      "pass": true
+    },
+    {
+      "name": "no-JS Save remains enabled",
+      "pass": true
+    },
+    {
+      "name": "no-JS fields remain available",
+      "pass": true
+    }
+  ],
+  "passed": 79,
+  "failed": 0
+}

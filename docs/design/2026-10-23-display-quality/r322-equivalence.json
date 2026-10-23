@@ -1,0 +1,1622 @@
+{
+  "scope": "Read-only source equivalence; no render replay, firmware build, USB, NVS or secrets access.",
+  "checked_at_utc": "2026-10-23T12:14:21.235213+00:00",
+  "baseline_version": "r321",
+  "candidate_version": "r322",
+  "baseline_private_snapshot": "/Users/enuzzo/Documents/Codex/ScryBar/private/r321/sketch/scrybar",
+  "source": {
+    "baseline_sha256": "76cd1d728e86ba8a78807e9a77fb9eee8705cc028fe50b4365a28219c3fc84de",
+    "candidate_sha256": "10b0ac004e8942950c44db75d08fd33ec1b31a78509d1f42f2d0ebd285209dba",
+    "equal": false
+  },
+  "config": {
+    "baseline_sha256": "2a7fea6723480a9177d8cdb62cfe0a426020f63c095c2b6e3399274598677bbc",
+    "candidate_sha256": "dbf86640c67cebda6bc62e78e93c4280887b0ddefc61a77f82b2dcb292f53f9f",
+    "only_fw_tag_changed": true
+  },
+  "native_translation_unit": {
+    "baseline_sha256": "ab53fd3c7feb45063831385f6176395708d8a999c8c821b633d5b8df7706d15b",
+    "candidate_sha256": "fbe9ccfc9d2ae7306d42641752e0b9f8e08098a68e41d49cae36066d904362be",
+    "normalization": "Only exact #define FW_BUILD_TAG \"r321\" / \"r322\" is replaced with <VERSION_METADATA>.",
+    "normalized_sha256": "381ee0f3b1535e6d2a35ab8105c0c78f6ac97cd407d3fbd16fb65a5f80b8b081",
+    "normalized_bytewise_equal": true,
+    "baseline_matches_retained_gallery_manifest": true
+  },
+  "native_gallery_functions": [
+    {
+      "name": "appendAsciiFoldedCodepoint",
+      "sha256": "b2d51caf555c95abed9a3e5190a43f8a631be3bfcc3955f367f820154172587b",
+      "bytes": 3748,
+      "equal": true
+    },
+    {
+      "name": "buildRssSiteBadge",
+      "sha256": "fa6a11bd0b7a025b16b98f3c8cf1b494c43abcf6a97204b6cdb62ede845fd536",
+      "bytes": 377,
+      "equal": true
+    },
+    {
+      "name": "buildRssSiteShortName",
+      "sha256": "56dfdd891b85d4763e52cd1354eaeb46b6ba30d0921052ac2667e87cb8fbdb1f",
+      "bytes": 1191,
+      "equal": true
+    },
+    {
+      "name": "buildRssStoryBlock",
+      "sha256": "75bac20a7dedfc036968e319d64ba588a3866166564a5176de35b9ffc4a45095",
+      "bytes": 728,
+      "equal": true
+    },
+    {
+      "name": "buildRssWhenLabel",
+      "sha256": "e631b921880a4ea4d0a10801abbbacf3004955f0a2ead2668be82545a1caf36f",
+      "bytes": 671,
+      "equal": true
+    },
+    {
+      "name": "copyStringSafe",
+      "sha256": "f104444997c9faeaf9cec8d27951a560db1478652a83b23b1571954a05cc3f39",
+      "bytes": 189,
+      "equal": true
+    },
+    {
+      "name": "decodeHtmlEntitiesToAscii",
+      "sha256": "f547cafb0de2cb05afc7445b9ec9573b047c5b871036bab04f702f149ea674c7",
+      "bytes": 1168,
+      "equal": true
+    },
+    {
+      "name": "decodeNextUtf8Codepoint",
+      "sha256": "9095ffb420b8c14d9cb78f4bcb891827853add2baba3974d2afcbfa1ef7acc83",
+      "bytes": 1374,
+      "equal": true
+    },
+    {
+      "name": "doomBlitTitlePicToCanvas",
+      "sha256": "b876ce48adf3f7057c385d60bea4bec8854d9288872c528495375a1b0abfb684",
+      "bytes": 802,
+      "equal": true
+    },
+    {
+      "name": "doomBuildPalette",
+      "sha256": "f3de845222860b1b0268dc53fbfc459560b1e7f3eaff944e6ac9e8195fe8689b",
+      "bytes": 485,
+      "equal": true
+    },
+    {
+      "name": "doomDrawBandOverlay",
+      "sha256": "557494f1dc4b883ff65b02fe2d84b5694baaa36c298aa8645fb213a69f0e1e72",
+      "bytes": 10460,
+      "equal": true
+    },
+    {
+      "name": "doomDrawFontText",
+      "sha256": "4331d987c6452f945d6310fa4f67aa4fa761a8cd4f43f505ae692e81f133be4c",
+      "bytes": 1428,
+      "equal": true
+    },
+    {
+      "name": "doomDrawFontTextCentered",
+      "sha256": "e9dacd83da0c5854793d1ea3960fae389b70885d066a0e33ad05ff10a8bad2db",
+      "bytes": 369,
+      "equal": true
+    },
+    {
+      "name": "doomDrawRectOutline",
+      "sha256": "c2f59734d7526caa07c093c67eaf7e39b9f366af68b23551fbb624c693eed628",
+      "bytes": 288,
+      "equal": true
+    },
+    {
+      "name": "doomFillRect",
+      "sha256": "98af5089dbbe83269c748d5c76616fbc09be43881f68b6fbfaed8471a38f9b81",
+      "bytes": 524,
+      "equal": true
+    },
+    {
+      "name": "doomFontBitmapAlpha",
+      "sha256": "cba37130d9dcd0796b685c7fff4ed54dc50cc1bc313418b36cf3804b823640e1",
+      "bytes": 746,
+      "equal": true
+    },
+    {
+      "name": "doomMeasureFontText",
+      "sha256": "14c1553b292d3961d863e40d7089e07588d693b0019e52708ea10695e6eb0fb4",
+      "bytes": 341,
+      "equal": true
+    },
+    {
+      "name": "doomRgb888To565",
+      "sha256": "131901e68c5f85378f6d8c3b5fcf5fff2c2af801e2ccd68245c6b05e05e9e349",
+      "bytes": 228,
+      "equal": true
+    },
+    {
+      "name": "doomSetPixel",
+      "sha256": "7277fc60d1f8d864c5df12cb6d677ef755e78b802bb49cb966c9c899ac57ac09",
+      "bytes": 247,
+      "equal": true
+    },
+    {
+      "name": "extractRssHost",
+      "sha256": "54a0014c59690da4f0fbc8dbe1463154cc48a46162a60f31e2fb94fc67538276",
+      "bytes": 808,
+      "equal": true
+    },
+    {
+      "name": "foldUtf8ToAscii",
+      "sha256": "0e1b5e1cde376b68410dd93386df47d93549eefc201a5f6481a92a2fd58c6fdb",
+      "bytes": 269,
+      "equal": true
+    },
+    {
+      "name": "formatRssTextToLabelBounds",
+      "sha256": "4ca4194a349e3eed8270125cc90d681d8badc5ba02eef958575527d0dba8d5ac",
+      "bytes": 1658,
+      "equal": true
+    },
+    {
+      "name": "htmlNamedEntityToCodepoint",
+      "sha256": "9fa2c7ecdefde6b0ab055607eb89410715bdbdaa6db16247c78a07d7c6e493be",
+      "bytes": 3318,
+      "equal": true
+    },
+    {
+      "name": "initLvglClockPanel",
+      "sha256": "102b648c4c1315467b979a2f789ff22a20a3ea0e833d414265ae3fdf7b29601b",
+      "bytes": 7424,
+      "equal": true
+    },
+    {
+      "name": "initLvglInfoPanel",
+      "sha256": "c6724c9daceb7e91880cbb8339b190cc1872bfae1184d7ae425615fbca563df1",
+      "bytes": 7219,
+      "equal": true
+    },
+    {
+      "name": "initLvglWeatherBodyWidgets",
+      "sha256": "9a482b0c3efe5ada26a94038344ba2e9e9bad7a4623efd455993ff44745378ed",
+      "bytes": 9466,
+      "equal": true
+    },
+    {
+      "name": "initLvglWeatherPanel",
+      "sha256": "b7d5d2ee0d59f825db9d41cda72fa59c353a7d80686fdc1811574a8b414102e9",
+      "bytes": 7117,
+      "equal": true
+    },
+    {
+      "name": "launchProviderColor",
+      "sha256": "b5b4912c658010472350484b1c2529c9cb1b4189538b1fa7c9cc2df9b07c28ff",
+      "bytes": 664,
+      "equal": true
+    },
+    {
+      "name": "liveNowPlayingAvailable",
+      "sha256": "2d5045c25d7d43ae4dcb91310ac03289c8c270363308808f5b8294c6d3033d35",
+      "bytes": 111,
+      "equal": true
+    },
+    {
+      "name": "liveNowPlayingDisplayInSync",
+      "sha256": "c034060196af4a46d509195f5a775241e73412e0e17fe06939ad9a5a05bf9ef7",
+      "bytes": 240,
+      "equal": true
+    },
+    {
+      "name": "liveNowPlayingSourceLabel",
+      "sha256": "452376ceb6653865f5808a26be0901e1d1acebcc38b99165972ccdfda837edb1",
+      "bytes": 206,
+      "equal": true
+    },
+    {
+      "name": "lvglActivePanelBgForContrast",
+      "sha256": "a84f0130a8e509b774100535238634f82e5a64fa83c1ce90bb21004ba080cb47",
+      "bytes": 159,
+      "equal": true
+    },
+    {
+      "name": "lvglApplyClockSentenceAutoFit",
+      "sha256": "d00c3fd03f2d0e86f75534148821afa8f06599469a1a95b7caaa9529fc698ff5",
+      "bytes": 1321,
+      "equal": true
+    },
+    {
+      "name": "lvglApplyThemeFonts",
+      "sha256": "cd90878e8742f8db4dcb8c2962bbae3a1c21c2ab44a290db1cb7735f87311c64",
+      "bytes": 5642,
+      "equal": true
+    },
+    {
+      "name": "lvglApplyThemeStyles",
+      "sha256": "cc92316be893bcd7acedfa13f125fcfcc5ed49c5b7ae8faca705a7a98e3dba03",
+      "bytes": 14635,
+      "equal": true
+    },
+    {
+      "name": "lvglApplyThemeStylesFeedDecks",
+      "sha256": "0b006a14093c7293f3055d2967306a619b244d95587b9f1c0deedd4e83dff1b5",
+      "bytes": 3152,
+      "equal": true
+    },
+    {
+      "name": "lvglBuildWrappedTitle",
+      "sha256": "786a5ed2211fa8e15b3164809f14be652b7ec7a573312eda5d5e974fe5c5a0ac",
+      "bytes": 2648,
+      "equal": true
+    },
+    {
+      "name": "lvglCenterClockSentenceLabel",
+      "sha256": "f861ec240e72c621df60a85c1f1488681c06a118be7879fdd4a69a56fc669180",
+      "bytes": 752,
+      "equal": true
+    },
+    {
+      "name": "lvglClockLineSpaceForFont",
+      "sha256": "7023e518af19e2600410fde2c58fa8fe76e2d39b13a04972ee7266c8f0f22e35",
+      "bytes": 234,
+      "equal": true
+    },
+    {
+      "name": "lvglCollectClockFonts",
+      "sha256": "f6553eb33b970569b335ee34cd42463d7024f052860756df856e772541f19bb0",
+      "bytes": 408,
+      "equal": true
+    },
+    {
+      "name": "lvglColorContrastLuma",
+      "sha256": "60b5e7b3e17fcd60720940f2c41427a5f67f802901c659ab5cd6004290fff58f",
+      "bytes": 214,
+      "equal": true
+    },
+    {
+      "name": "lvglCreateDeckButton",
+      "sha256": "97deaae185d52080e557f217752dbaa444ba8493081f70db03b5591c6e2b1abb",
+      "bytes": 722,
+      "equal": true
+    },
+    {
+      "name": "lvglCreatePageRoot",
+      "sha256": "07a75ecb140470320e1fabcf1b413459f2f0b12a7fd6d779e71b738af3437d0b",
+      "bytes": 581,
+      "equal": true
+    },
+    {
+      "name": "lvglCreatePanel",
+      "sha256": "9b39c29eb7b9a9794cb607618bd47c79076a513fa3be1862b007bbc0de66099c",
+      "bytes": 733,
+      "equal": true
+    },
+    {
+      "name": "lvglFontBig",
+      "sha256": "7c53f899eab12cf3e83821ac596cf7c943c1dc0501db8693fdc0b3e79319c604",
+      "bytes": 74,
+      "equal": true
+    },
+    {
+      "name": "lvglFontBigBold",
+      "sha256": "861d7244ffc4cc5ed607c1d53dfaee42b2f475df407babd3c4a8ca5eeba90282",
+      "bytes": 86,
+      "equal": true
+    },
+    {
+      "name": "lvglFontClock",
+      "sha256": "0110575882be9cb0d5adecaea9d7d0c0a7baea949837cd76402c8221e6aeb1ae",
+      "bytes": 74,
+      "equal": true
+    },
+    {
+      "name": "lvglFontCountdown",
+      "sha256": "286c71d75ef2aec4b32bd6074a57b9927981ed6da1af0869c34af1e69cbe87ff",
+      "bytes": 84,
+      "equal": true
+    },
+    {
+      "name": "lvglFontInfoBody",
+      "sha256": "16ebdad386fd0aedbfe4726ab373ba9bb89ccc36be29c09c25f4b088c4f12e68",
+      "bytes": 74,
+      "equal": true
+    },
+    {
+      "name": "lvglFontLaunchCountdown",
+      "sha256": "d09dab4fd8cab96e13849af73a7107750df8621a6f1c62a22793f9fb7c98dfcf",
+      "bytes": 125,
+      "equal": true
+    },
+    {
+      "name": "lvglFontMeta",
+      "sha256": "e30b7276ae8ad8b046e3f0dcdf573f64812143711ab492d1cb112a4d58ed82e5",
+      "bytes": 74,
+      "equal": true
+    },
+    {
+      "name": "lvglFontMono",
+      "sha256": "1b0dc69d232c7c436cd3c707b08af14cf64ddac702183449877716c674c56cff",
+      "bytes": 74,
+      "equal": true
+    },
+    {
+      "name": "lvglFontMonoTiny",
+      "sha256": "a812d82efe5886d4e77994fb434ed614ed2ed2b3d41297ba3d78d457e370fa49",
+      "bytes": 72,
+      "equal": true
+    },
+    {
+      "name": "lvglFontRssNews",
+      "sha256": "e089f6354f5b87ee98e8457da27b2fb9a9f4ba129a68b1c210b953365c762408",
+      "bytes": 74,
+      "equal": true
+    },
+    {
+      "name": "lvglFontScreenSaverBalloonText",
+      "sha256": "68e8c00f02f4b87f7f93c683c18566395b105d83c9f0db55b76caba70f7b33e3",
+      "bytes": 88,
+      "equal": true
+    },
+    {
+      "name": "lvglFontScreenSaverFooterText",
+      "sha256": "dc771a0aa0dc0a6df9f74d3640901ece96585b8a9a99809977d497ee313804d4",
+      "bytes": 88,
+      "equal": true
+    },
+    {
+      "name": "lvglFontScreenSaverTail",
+      "sha256": "85989bdcbe4208d5e9047a80d0ea898b521214716750201092c465270c0579d1",
+      "bytes": 88,
+      "equal": true
+    },
+    {
+      "name": "lvglFontTemp",
+      "sha256": "0dc71b8915cf32ff70e9bd31f283fd9c30c3b6339d9ef74ad8b9c4e699d7d523",
+      "bytes": 74,
+      "equal": true
+    },
+    {
+      "name": "lvglFontTitle",
+      "sha256": "1deb42fed62552a852ded007357d9f820de7f891ab21486342f4fb614d6a2537",
+      "bytes": 74,
+      "equal": true
+    },
+    {
+      "name": "lvglForceLabelVisible",
+      "sha256": "2be5e67b4b78b9921f009b0cb00bf9ffb05e456e4815aa9d9878b3a446a48be8",
+      "bytes": 483,
+      "equal": true
+    },
+    {
+      "name": "lvglInitBambuUi",
+      "sha256": "81aa067421176862c5fb9ded7a38c43d0097a5cd334309319bc8ba2377e848b6",
+      "bytes": 8258,
+      "equal": true
+    },
+    {
+      "name": "lvglInitFeedDeck",
+      "sha256": "1d3122e28729a43889227d4ae82f754d1b32eec7f385a536fdd5d8d4d8c19254",
+      "bytes": 7727,
+      "equal": true
+    },
+    {
+      "name": "lvglInitLaunchUi",
+      "sha256": "b1fa2a4d7d1702611945956ed44d0e58e62001914452bb5ab52b0812ff7db1f5",
+      "bytes": 18150,
+      "equal": true
+    },
+    {
+      "name": "lvglInitNowPlayingUi",
+      "sha256": "d5a6727ed05c07150921873cd47d69110aaf1121dd12319ee04017839cf76616",
+      "bytes": 7646,
+      "equal": true
+    },
+    {
+      "name": "lvglInitTransitUi",
+      "sha256": "c892dc8adda29e8a498b29c2a28356cca472ec182947747ca690729eeb8c4d79",
+      "bytes": 9985,
+      "equal": true
+    },
+    {
+      "name": "lvglLaunchWeatherAccent",
+      "sha256": "3e7afe6692173de3ecc83411fb783579cf4be2f4c25abefbe6c5e3c10f88d102",
+      "bytes": 128,
+      "equal": true
+    },
+    {
+      "name": "lvglMeasureFontTextWidth",
+      "sha256": "1a4b323de7f5733fb614941b767ba28cfae9606f558ead90f2998b48b96b6c8b",
+      "bytes": 346,
+      "equal": true
+    },
+    {
+      "name": "lvglMeteoconFrameTimerCb",
+      "sha256": "ae98e57bafb8dff6ec20619d2488ec5070dc4e1e6a07e4bd6a95c5f1c51e1831",
+      "bytes": 502,
+      "equal": true
+    },
+    {
+      "name": "lvglNowPlayingArtistFont",
+      "sha256": "3a81eec88d5fcfdddb921f9b132035da2d9fef16ca2084920995ae581a1a6b04",
+      "bytes": 82,
+      "equal": true
+    },
+    {
+      "name": "lvglNowPlayingBodyFont",
+      "sha256": "621928e9a9793507616a49bbf9e59c72c294ad1046cfc98f151eb86f7da91139",
+      "bytes": 82,
+      "equal": true
+    },
+    {
+      "name": "lvglNowPlayingMetaFont",
+      "sha256": "adb914fa1734d3f2ba8fe3313c5b85f59b30918f618f2c96a07354fb9f9df6ff",
+      "bytes": 82,
+      "equal": true
+    },
+    {
+      "name": "lvglNowPlayingStaticCoverBackgroundColor",
+      "sha256": "b67c1d11639b975ae0f8bf6772ec164730e7c0d534ed9f8fe7a2c7f97c7deea1",
+      "bytes": 381,
+      "equal": true
+    },
+    {
+      "name": "lvglNowPlayingTitleFont",
+      "sha256": "ac53050a5b51cfbf17d5c0826619eeff3b76740d61c64a8c53b34c30a1c7b292",
+      "bytes": 91,
+      "equal": true
+    },
+    {
+      "name": "lvglOpenLaunchQr",
+      "sha256": "fb918bc6da81ea6f17bb9fbc97e5db8d670e85726d10be6a09705595d8969ba7",
+      "bytes": 1294,
+      "equal": true
+    },
+    {
+      "name": "lvglResolvedAuxButtonBg",
+      "sha256": "201a1d09f57c4898a3766c0fa9ec3d0d53b11a45484204a9449f3c808ad874e7",
+      "bytes": 421,
+      "equal": true
+    },
+    {
+      "name": "lvglResolvedAuxButtonText",
+      "sha256": "2ab0c9533908c4cda7da30ac82f423b55d16000a4cc8e3ac2960cbe37efd38dd",
+      "bytes": 182,
+      "equal": true
+    },
+    {
+      "name": "lvglResolvedForecastIconColor",
+      "sha256": "78a2412a238bc8ab7fd779dd39b11fecd98e8793e4360b0fe8b7f8115beeb943",
+      "bytes": 279,
+      "equal": true
+    },
+    {
+      "name": "lvglResolvedForecastText",
+      "sha256": "54e44a62aa824084b0290b9258e1cb13705313d7af78774fa48d6245ef7c5f9e",
+      "bytes": 172,
+      "equal": true
+    },
+    {
+      "name": "lvglResolvedWeatherBg",
+      "sha256": "52b4d1b86958e4b5582529af8bd5ddd3ea6a5fe498b619e9f79cac56cc5138a7",
+      "bytes": 654,
+      "equal": true
+    },
+    {
+      "name": "lvglResolvedWeatherForecastBg",
+      "sha256": "6aadb1f949b60e469e9fc86522497e39e4ec8d9164afd2a258e0f56a05e88442",
+      "bytes": 263,
+      "equal": true
+    },
+    {
+      "name": "lvglResolvedWeatherGlyphOffline",
+      "sha256": "a1b81b9c5a929987c621ba6bef710cb369e84d419a4f8954f3a0354b6da7c4e8",
+      "bytes": 183,
+      "equal": true
+    },
+    {
+      "name": "lvglResolvedWeatherGlyphOnline",
+      "sha256": "3538318dc3c59e7ef5bf27188616362380e56e06a7030b4d077f9bf018d26e4e",
+      "bytes": 178,
+      "equal": true
+    },
+    {
+      "name": "lvglResolvedWeatherPrimary",
+      "sha256": "889578e31f0f9568b22a1f914c2b306707e8571aacfbf2cec0a497426e2787f5",
+      "bytes": 342,
+      "equal": true
+    },
+    {
+      "name": "lvglResolvedWeatherSecondary",
+      "sha256": "46434d1345653ae15e88a2fa8cabc9686d1dd626461c17c360b370ea101fd739",
+      "bytes": 421,
+      "equal": true
+    },
+    {
+      "name": "lvglRgb565ToRgb888",
+      "sha256": "c24f0fffe4a4a7d0b4deab7d495487342243bef88160f4096ae6584b8f536d0f",
+      "bytes": 429,
+      "equal": true
+    },
+    {
+      "name": "lvglSetBgFlatR",
+      "sha256": "4a3e204f3d02a596892713a2c19d6d04331a87b8b8ad6a7d739d80e7cd6d3d80",
+      "bytes": 157,
+      "equal": true
+    },
+    {
+      "name": "lvglSetBtnBorder",
+      "sha256": "51488c00e6ad72b0d49aaa8a160b0c07a13ef058c257870eeca089b6131895eb",
+      "bytes": 265,
+      "equal": true
+    },
+    {
+      "name": "lvglSetDeckNextFeedButtonPressed",
+      "sha256": "04c428d7fb755cfab2716ce806a3ca6d86249d413e2b6be88b0605f3c667eee7",
+      "bytes": 601,
+      "equal": true
+    },
+    {
+      "name": "lvglSetDeckQrButtonPressed",
+      "sha256": "37d6bbac8e4a1221f07e89aa41f4763500222b24ae99bfe121083bcae801f1d0",
+      "bytes": 602,
+      "equal": true
+    },
+    {
+      "name": "lvglSetDeckQrModalOpen",
+      "sha256": "4c4c1b101c67c901018b695096f397964ece6896089dd0199117a810f9cb43d6",
+      "bytes": 570,
+      "equal": true
+    },
+    {
+      "name": "lvglSetDeckRefreshButtonPressed",
+      "sha256": "55fd0dd5ac780f3485053557252f0f02f89e3344c05224308a1342c9e8c99979",
+      "bytes": 604,
+      "equal": true
+    },
+    {
+      "name": "lvglSetHeaderBorder",
+      "sha256": "b844b6209b8d5711688448e2d60c10d562d35e4b59972c41c2ab78c8954a04d3",
+      "bytes": 308,
+      "equal": true
+    },
+    {
+      "name": "lvglSetLaunchView",
+      "sha256": "5085779c4887b9c7eb4fb433af2c9349888e4969ad7d1655316b782d85bc9f3f",
+      "bytes": 862,
+      "equal": true
+    },
+    {
+      "name": "lvglSetTextHex",
+      "sha256": "c176bc2b392c2781d07b7c2eec6a15ee746cbba1719b2a4e7126aafc57222bbe",
+      "bytes": 125,
+      "equal": true
+    },
+    {
+      "name": "lvglShowWeatherForecastIcon",
+      "sha256": "9681edd7eeeae3d2b6abd60e59e02d401d0999661873b914729c7d780ed4f3cc",
+      "bytes": 407,
+      "equal": true
+    },
+    {
+      "name": "lvglShowWeatherMainIcon",
+      "sha256": "e1688a616c581240d0a322b6d9078e102f8b3c896408b78eb8aa8bef7b7f19fd",
+      "bytes": 732,
+      "equal": true
+    },
+    {
+      "name": "lvglStyleBambuHeaderBadge",
+      "sha256": "4ea66b5f969fb893d155acb214e2d5fbc5738b78fad0f0f9da75b4615c80e3ec",
+      "bytes": 852,
+      "equal": true
+    },
+    {
+      "name": "lvglThemeIsCathodeRay",
+      "sha256": "39aeca7269a3a300f45c6891f41a05cb484ebe4fc9223e207a932adc84a59555",
+      "bytes": 95,
+      "equal": true
+    },
+    {
+      "name": "lvglThemeIsLight",
+      "sha256": "c94c207a106e7b2b7d12528e8a5162d6a18340ab1d872574961bf50682668ca0",
+      "bytes": 97,
+      "equal": true
+    },
+    {
+      "name": "lvglThemeIsMinimalBrutalistMono",
+      "sha256": "e41c45c27c41a17916832cf08fa89fc105f3bd015ce30a8ae3b27d71897ef6b4",
+      "bytes": 116,
+      "equal": true
+    },
+    {
+      "name": "lvglThemeIsTokyoTransit",
+      "sha256": "3fbd43c24ea0a5a342377aa4fa3df56f62758ad2d7dfebfe7454c63435abb96d",
+      "bytes": 99,
+      "equal": true
+    },
+    {
+      "name": "lvglThemeIsToxicCandy",
+      "sha256": "017b757f98a3508953207ff3cad562683574ab140d9e6b907ae87cf384e131fc",
+      "bytes": 95,
+      "equal": true
+    },
+    {
+      "name": "lvglTickLaunchCountdown",
+      "sha256": "ba0c888d014e2b1d01a8f79dd8c3d888e12209ce30944d36d57ee0746f26025e",
+      "bytes": 2805,
+      "equal": true
+    },
+    {
+      "name": "lvglUpdateBambuUi",
+      "sha256": "8cc2e7151d74278625a650e06bdb42027992da9702955ae4855477110ae59add",
+      "bytes": 7614,
+      "equal": true
+    },
+    {
+      "name": "lvglUpdateFeedDeck",
+      "sha256": "358708e81879027570296594fd3f26952b4bac9dd1fadbdf4d231b0e6d8ecd37",
+      "bytes": 10354,
+      "equal": true
+    },
+    {
+      "name": "lvglUpdateLaunchUi",
+      "sha256": "8f1d44790432379d03cba72c22743c6e18cbc1de6f5a84341082509a37bc5357",
+      "bytes": 5249,
+      "equal": true
+    },
+    {
+      "name": "lvglUpdateNowPlayingUi",
+      "sha256": "99cfd412f84ee3ceac3e52f4155401b1bc66a59ecaf7b0d0f5320ccc177bdf08",
+      "bytes": 9318,
+      "equal": true
+    },
+    {
+      "name": "lvglUpdateTransitUi",
+      "sha256": "eddf1259901b97eb7e85ef337bdc9be8ee98fc31260de43de79b2a7d79875610",
+      "bytes": 9172,
+      "equal": true
+    },
+    {
+      "name": "lvglUpdateWiFiBars",
+      "sha256": "d9fc858d2e6378f9ff38e453d8050c0c26f0ee0d145b3c6c9ab9320a7e6d2873",
+      "bytes": 1674,
+      "equal": true
+    },
+    {
+      "name": "lvglWeightedAverageColorFromRgb565",
+      "sha256": "8c62deac1de821639b615b6bc0c5798588ebbac2a31177e66f9c1cc2c4090213",
+      "bytes": 1535,
+      "equal": true
+    },
+    {
+      "name": "resolveFakeNowPlayingTrack",
+      "sha256": "940e8b94a024cc05b3e7096b8623c62204453799f4a899b1184a1b8d25223192",
+      "bytes": 763,
+      "equal": true
+    },
+    {
+      "name": "rssResolveSourceHost",
+      "sha256": "c751509f17839edbecbf9961900b29b2d52ec74d42f721b49a0bc3834dfc6d12",
+      "bytes": 484,
+      "equal": true
+    },
+    {
+      "name": "rssSiteColorHexFromHost",
+      "sha256": "5982f8b5a8165b52fa1bcbac50a9719a465c858c1b1258956d82c4ef7fc876f6",
+      "bytes": 388,
+      "equal": true
+    },
+    {
+      "name": "sanitizeAsciiBuffer",
+      "sha256": "c9021e37a582078540154fdcac117c271c1975bb41e39c2a34013b950f21ecdf",
+      "bytes": 258,
+      "equal": true
+    },
+    {
+      "name": "startsWithHttp",
+      "sha256": "059c4831d072cb20a1d95394824b1bcafb48e79ebe03fb0ca8d793496af1f823",
+      "bytes": 155,
+      "equal": true
+    },
+    {
+      "name": "transitCategoryColor",
+      "sha256": "8ba9951f7a3a8821eeb267a8a835015be45780f9b015dd79244954fff11374b3",
+      "bytes": 1240,
+      "equal": true
+    },
+    {
+      "name": "transitIsBus",
+      "sha256": "3d477d6768106bbc6ad2b996e7d389e2641b920cd7fe611a5943d29a356855a3",
+      "bytes": 210,
+      "equal": true
+    },
+    {
+      "name": "transitMinutesUntil",
+      "sha256": "8d7004de30b6e39fd4074dd9f19b6ff1f86803a66458ddb3be503db55fe69b4b",
+      "bytes": 312,
+      "equal": true
+    },
+    {
+      "name": "weatherForecastImageFromCode",
+      "sha256": "7b4bfa9092fef1b056845d129ad89f28697458e628e3e21b73d30547b8f10792",
+      "bytes": 677,
+      "equal": true
+    },
+    {
+      "name": "weatherImageFromCode",
+      "sha256": "64987d6dfe7536a76996146d95ca8ef7fe68c20ac48a18f7a13b19954ddf88c0",
+      "bytes": 690,
+      "equal": true
+    },
+    {
+      "name": "weatherMeteoconIdFromCode",
+      "sha256": "639df186582e23f98a4b6c467bb414e14cf4794f9fd9460885701f1d60903106",
+      "bytes": 1252,
+      "equal": true
+    },
+    {
+      "name": "wifiSignalBarsFromRssi",
+      "sha256": "38e04ceeeee006c3079225b3c62909d64fcc295f4dc19cbf4e4a254544767e54",
+      "bytes": 194,
+      "equal": true
+    },
+    {
+      "name": "wikiFeedUiBadge",
+      "sha256": "0caac3262d9f0396fae234cb7728fdd493ee6e6bbcfddc4d7e7f81bd265c374e",
+      "bytes": 174,
+      "equal": true
+    },
+    {
+      "name": "wikiFeedUiColorHex",
+      "sha256": "6ca3441c25d52603a9de3e40ce0bfe5d02b7844d4f2aae2de231bd41e8c8d956",
+      "bytes": 191,
+      "equal": true
+    },
+    {
+      "name": "wikiFeedUiName",
+      "sha256": "4bb27ece97418220818a7f4ee1ce15ce3adfb9b06a87f6f8fc0053257a3d44d7",
+      "bytes": 200,
+      "equal": true
+    }
+  ],
+  "clock_date_functions": [
+    {
+      "name": "bellazioCloserSeparator",
+      "sha256": "5177cc48290456e492e801bffbe5aeabfb05cb5e24153f6e990628fe7f7cfa02",
+      "bytes": 203,
+      "equal": true
+    },
+    {
+      "name": "bellazioMixSeed",
+      "sha256": "8857f2958a96b13bec21f9056fc68d6819b9747b6ea91fddb54e86e6e314efcc",
+      "bytes": 149,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceBellazio",
+      "sha256": "f30379379c53dc3854f89eb0ac83eb0aa67b7a9c2884dbee87ceb485a957f080",
+      "bytes": 3029,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceDe",
+      "sha256": "71554b45a9c65025215a1f055055b6f1fbe67956efd904585682e76df09029be",
+      "bytes": 999,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceEn",
+      "sha256": "b6a7dc3dafa4e8e9c6eb9727961d5195eba4beecf8291dbb05a32a6ca77172ae",
+      "bytes": 800,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceEo",
+      "sha256": "5ec5bf6ff493c36ee8f4cf195a425090f659c7fdaca322eba84f4d22505afba4",
+      "bytes": 846,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceEs",
+      "sha256": "e94c7c030e93af3d39c6985a433d6458c493fb2073cf1c7e828cae8c43153a85",
+      "bytes": 861,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceFr",
+      "sha256": "3bee6e78db6469513624940a7fb560146cda5165bbf498a727c2e67de5137809",
+      "bytes": 973,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceIt",
+      "sha256": "3e334408ed71b51d3f5284bda0c3b3103a1fc8c467fd375fc16f3bcc0ad87289",
+      "bytes": 523,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceL33t",
+      "sha256": "1cf3440467d3a97afe5ad1203ab2d35f2c16dc9119bd02e3c416397607321645",
+      "bytes": 814,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceLa",
+      "sha256": "ff797bb9b553dbbac74aa188d1514ef997f67be4483a00b42afefdbee60d5cda",
+      "bytes": 782,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentencePir",
+      "sha256": "8a8b037cba3de3f6e632974d4bd43622a17675b232373cd914bea6923068490d",
+      "bytes": 1007,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentencePt",
+      "sha256": "94fdccf7c90cef99baac77b8263ce32b1d1ece13579dbf5a54a52cac4d39f44d",
+      "bytes": 986,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceSha",
+      "sha256": "1c219034deaaf24eedc0be800c06355e08552ade5b661d424c613a53600c1a71",
+      "bytes": 912,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceTlh",
+      "sha256": "3ebb877ed4a12c73c95c43ddf5df3e14c9de699a62cd42ad3e10b69924eae5d6",
+      "bytes": 451,
+      "equal": true
+    },
+    {
+      "name": "composeWordClockSentenceVal",
+      "sha256": "5762612c531df33c6cb7d5562ae7e32e4a993f22f814790729153d4cbb38442c",
+      "bytes": 882,
+      "equal": true
+    },
+    {
+      "name": "formatDateBellazio",
+      "sha256": "1aa8e290e6bed01714fc318ccc9edb3f2ea87db4536dc6ffc270cfdb9655efae",
+      "bytes": 585,
+      "equal": true
+    },
+    {
+      "name": "formatDateDe",
+      "sha256": "127bd920c5d0e427a8cfbe299d56d51ea8da4e42e139855b1c3a4473dcbd378a",
+      "bytes": 569,
+      "equal": true
+    },
+    {
+      "name": "formatDateEn",
+      "sha256": "924ee310a2cb2398e07e4a94bed0e7a265601e8279e5af77597914be7c56e448",
+      "bytes": 566,
+      "equal": true
+    },
+    {
+      "name": "formatDateEo",
+      "sha256": "d5382a0030e9d7faa11161df0d50621f805b2ed6df791f4089d37d9497992d74",
+      "bytes": 566,
+      "equal": true
+    },
+    {
+      "name": "formatDateEs",
+      "sha256": "0211cbd83e2eca9530e3f4a3a6f6bd288bb918ba9238a15a8611d47f676bcdb9",
+      "bytes": 565,
+      "equal": true
+    },
+    {
+      "name": "formatDateFr",
+      "sha256": "ebf5035e3b1464b006f157fe4380bd087612d32094a6011e084aca293e360f15",
+      "bytes": 560,
+      "equal": true
+    },
+    {
+      "name": "formatDateIt",
+      "sha256": "b503f05c21738ce2e80a8b8396c956fc5de7f64bc66218f4c5a7decd6cab3b3c",
+      "bytes": 681,
+      "equal": true
+    },
+    {
+      "name": "formatDateL33t",
+      "sha256": "a523866d9091517425a70ce6eb7ab34c16de58bfffc638f7b9bb7be4e4e6e807",
+      "bytes": 568,
+      "equal": true
+    },
+    {
+      "name": "formatDateLa",
+      "sha256": "a1ebf77badce79865ef4c0d1b463af9338d0d5b3e98b9d6e4793bdd1e8eadc96",
+      "bytes": 610,
+      "equal": true
+    },
+    {
+      "name": "formatDatePir",
+      "sha256": "ca1385eb941e9ddff277f53dd11afb63391a9f7a603515e7f39b4ec4bca18576",
+      "bytes": 632,
+      "equal": true
+    },
+    {
+      "name": "formatDatePt",
+      "sha256": "33b92473aeff1fd05d66de9fabaa2d604cd2522dad1b677987c17850f7d6fa54",
+      "bytes": 561,
+      "equal": true
+    },
+    {
+      "name": "formatDateSha",
+      "sha256": "d2634438ed84c938e3364e08985ffb598475fc54a0dd4d2e06bba76c797aa285",
+      "bytes": 570,
+      "equal": true
+    },
+    {
+      "name": "formatDateTlh",
+      "sha256": "d1a40e76d9844192d71a11506a8acc7b9a10954a039ac372b2d638220829d67d",
+      "bytes": 500,
+      "equal": true
+    },
+    {
+      "name": "formatDateVal",
+      "sha256": "a941802521488c29f49fbca1e92eea6d0e0e203766e001ab56c6efd791fd18cd",
+      "bytes": 567,
+      "equal": true
+    },
+    {
+      "name": "pirateDaySuffix",
+      "sha256": "ed05c65cd2bb5a1ed275ef6d40085c6024c3234e6d2b71156e865fd1d3849d19",
+      "bytes": 217,
+      "equal": true
+    },
+    {
+      "name": "pirateExclaim",
+      "sha256": "43b91a0fde0cabd7501b562795ce355e535990b72763f06c321ebc1d51759edb",
+      "bytes": 179,
+      "equal": true
+    },
+    {
+      "name": "pirateInsult",
+      "sha256": "cd2c65b88a5a508a24e0acf4574ef1f8e9f7dc83384feb28c0b2208e3c5588e8",
+      "bytes": 216,
+      "equal": true
+    },
+    {
+      "name": "shaExclaim",
+      "sha256": "b1421866991190e6f6f4941207d24df965f72ea0ccdd444319bae3250a1dfc42",
+      "bytes": 152,
+      "equal": true
+    },
+    {
+      "name": "wordHourBellazio",
+      "sha256": "5cafca5981e24788a61e72700eb4c68ce65aca9887e4234665f755063cfcbda8",
+      "bytes": 412,
+      "equal": true
+    },
+    {
+      "name": "wordHourDe",
+      "sha256": "555dee249a7ba3cbf56136e078b2604907c7f4fbb6c0e0d9e701010bbc1a6604",
+      "bytes": 422,
+      "equal": true
+    },
+    {
+      "name": "wordHourEn",
+      "sha256": "dcb8a266a5c15db83b90a36f948df07ba8bfacfdcf78ef6083bd76c060e5feb7",
+      "bytes": 402,
+      "equal": true
+    },
+    {
+      "name": "wordHourEo",
+      "sha256": "59dc661c6e6ef95612ec1dc8961007a7a94dbb27186e599366e5485e6edaf294",
+      "bytes": 407,
+      "equal": true
+    },
+    {
+      "name": "wordHourEs",
+      "sha256": "34d86972a6926ce4923ed98e10b76bd02c2dfd379e0ed5439bc3cbe121c0b725",
+      "bytes": 449,
+      "equal": true
+    },
+    {
+      "name": "wordHourFr",
+      "sha256": "0b5e48cdd5cdc0a86c27c2390a163e92e0333d089bc20d477df6b185dbc9fa99",
+      "bytes": 400,
+      "equal": true
+    },
+    {
+      "name": "wordHourItSentence",
+      "sha256": "5cc83db6baa1d73a379ab33ebc8c57b75c659f0b25ba140d881c4375ae27b20b",
+      "bytes": 407,
+      "equal": true
+    },
+    {
+      "name": "wordHourL33t",
+      "sha256": "bec061aea291a46896300c761336bbaad17a0e3e61dde3927fd097daab1801d2",
+      "bytes": 404,
+      "equal": true
+    },
+    {
+      "name": "wordHourLa",
+      "sha256": "0a3482098f947c30e9842d0a1e6b8f053584ed3a9de6d4c19cb75868cb07f368",
+      "bytes": 426,
+      "equal": true
+    },
+    {
+      "name": "wordHourPir",
+      "sha256": "fd4353fbd5c3f3105d3499973dc0ca3c09a51be00682456ad530a12ddd142535",
+      "bytes": 403,
+      "equal": true
+    },
+    {
+      "name": "wordHourPt",
+      "sha256": "35577741cebad6dfdeeede9e515648abba9bc262e64f6627c935fcbe1feebb73",
+      "bytes": 410,
+      "equal": true
+    },
+    {
+      "name": "wordHourSha",
+      "sha256": "e80aebbdcc881ad913a92a334f4503ab899218a6f7631550531597ba56f38388",
+      "bytes": 403,
+      "equal": true
+    },
+    {
+      "name": "wordHourTlh",
+      "sha256": "c0f0a30bca549aa0b1b19046b958cbcd051cdc3018fc0b48146a78722c829331",
+      "bytes": 412,
+      "equal": true
+    },
+    {
+      "name": "wordHourVal",
+      "sha256": "daad9a19cb3d9aa79fd2d9306d227bf2e4d49bf1c68766e54da850c562843cda",
+      "bytes": 403,
+      "equal": true
+    },
+    {
+      "name": "wordMinuteBellazio",
+      "sha256": "4604ff758634c5f1be9b0ac81b30d7fb78004de89c81a75909127aa3eed6e727",
+      "bytes": 276,
+      "equal": true
+    },
+    {
+      "name": "wordMinuteItSentence",
+      "sha256": "eef25fdf4fe675988fc30f8235f203ee2c7c0f41596476153fdd063e465c3f89",
+      "bytes": 479,
+      "equal": true
+    },
+    {
+      "name": "wordMinuteTlh",
+      "sha256": "d5d99ecfc651ea404abc3b1b7846ff61242beca352f1eb863bed307b07989727",
+      "bytes": 445,
+      "equal": true
+    }
+  ],
+  "clock_declarations": [
+    {
+      "declaration": "enum UiClockMode : uint8_t {",
+      "sha256": "57929d1834bce4e1a202295113abbc6bb0a12ebf64dc123518293e287e256ee7",
+      "equal": true
+    },
+    {
+      "declaration": "struct ClockState {",
+      "sha256": "f7fce9932fd367caa7e4041d4034f567ee1c4e0d58117dfe66174acd07626137",
+      "equal": true
+    },
+    {
+      "declaration": "struct BellazioCloser {",
+      "sha256": "19e736ebd2a474c8805811c4a7c51db5622b34de8d3bdbfbc74b5c4f41d37926",
+      "equal": true
+    },
+    {
+      "declaration": "static const char* const kBellazioLeads",
+      "sha256": "a056c6b46ecb877b2d9bc5212725db00f0b4a610e2d5c0e7fd6155a81274eee9",
+      "equal": true
+    },
+    {
+      "declaration": "static const BellazioCloser kBellazioClosers",
+      "sha256": "a6b7a34c9a085ae61c6f05d0aa055a055808c69a865eaf88f00c2175d4b4badb",
+      "equal": true
+    }
+  ],
+  "firmware_display_gesture_scheduler_functions": [
+    {
+      "name": "canvasHeight",
+      "sha256": "4554226e621716d297628d0b272b861b7ff664fed6f8a1eb66cd4b679879b171",
+      "bytes": 180,
+      "equal": true
+    },
+    {
+      "name": "canvasWidth",
+      "sha256": "352c920fd26ea7be4a76ffe65e2836b25427853b7cac1838daef8a01f9213456",
+      "bytes": 210,
+      "equal": true
+    },
+    {
+      "name": "dispDrawRect",
+      "sha256": "36aa35ae534b4baadd69b1dc032876a162ea0799ac153aef867b06940471a590",
+      "bytes": 276,
+      "equal": true
+    },
+    {
+      "name": "dispFillRect",
+      "sha256": "c9613b676e50e760ffa701994319522c6055df2c16dcbbf7bf35bed988f079fa",
+      "bytes": 529,
+      "equal": true
+    },
+    {
+      "name": "dispFillScreen",
+      "sha256": "bf34c6b332b815951268b9489f52336733e80c99e890f68a18d4825b844a550e",
+      "bytes": 168,
+      "equal": true
+    },
+    {
+      "name": "dispFlush",
+      "sha256": "e142b2bc0fd35d455153d062a351d535c995d5a1808e337e641cc3f5eb0338b2",
+      "bytes": 80,
+      "equal": true
+    },
+    {
+      "name": "dispFlushSource",
+      "sha256": "a1017cf081277c9452bbc9a0d7bf84d1ed3f93874cab8adca862dca3c4392899",
+      "bytes": 2398,
+      "equal": true
+    },
+    {
+      "name": "dispHeight",
+      "sha256": "48cf3cd5351281502900eaf46e72d1d6e70f6b307344a66e909bd917b7a26fa7",
+      "bytes": 58,
+      "equal": true
+    },
+    {
+      "name": "dispRotateChunk",
+      "sha256": "5b915d518e4a231f1cd564a5b280de07498c2b306629013e610c6ca662bc9d4b",
+      "bytes": 642,
+      "equal": true
+    },
+    {
+      "name": "dispWidth",
+      "sha256": "663f5c1d0928846f7936668e96913d50772dcec3312ce517843bfcd098cbf1b4",
+      "bytes": 57,
+      "equal": true
+    },
+    {
+      "name": "handleCarouselSwipe",
+      "sha256": "c54c4cb2ff7c93c235d29f60f8419695ffc06b0a057f2f44432f0911b884a355",
+      "bytes": 1051,
+      "equal": true
+    },
+    {
+      "name": "handlePageDragRelease",
+      "sha256": "81dcd3b4afefbece651ab5b610244ddcea836f2b311e125f3793200580c37c36",
+      "bytes": 1138,
+      "equal": true
+    },
+    {
+      "name": "handleTouchSwipeInput",
+      "sha256": "c55a7d4f485d4fd8fbb29ecc19a1ea2b54efeb17b2ca418ace7a70e858d541e7",
+      "bytes": 6835,
+      "equal": true
+    },
+    {
+      "name": "initTouchInput",
+      "sha256": "b8f6e6002c9eb2e03681c53c82ead626a2f3f1289bd7a2460a8750c6517298cc",
+      "bytes": 947,
+      "equal": true
+    },
+    {
+      "name": "isAnyTouchPresentRaw",
+      "sha256": "5ff5574bcdc8a808b120f93c992063d520dc7ba4b91ab9bc77d0f18b524bba7e",
+      "bytes": 888,
+      "equal": true
+    },
+    {
+      "name": "lvglApplyPageDrag",
+      "sha256": "58cf25c981d2966e0fdfad3a7c48be02ea49a9dfa0bba62c23aebd15f83ca128",
+      "bytes": 2048,
+      "equal": true
+    },
+    {
+      "name": "lvglApplyPageVisibility",
+      "sha256": "40da16aabaf5e38aea7d2ee62d2a91c37453258181d879bc883821b48afb64d9",
+      "bytes": 4178,
+      "equal": true
+    },
+    {
+      "name": "lvglDisplayFlushCb",
+      "sha256": "11ef6cb54e9eace75254af16f0353b12b8c393dcca7b7056c4e9e6a4e92341dd",
+      "bytes": 1083,
+      "equal": true
+    },
+    {
+      "name": "lvglStartSlideAnim",
+      "sha256": "1db927316e123a8f6252e77a2d8a219d9cc364478fa9fc069c7744b96444e326",
+      "bytes": 413,
+      "equal": true
+    },
+    {
+      "name": "onDisplayFlushDone",
+      "sha256": "c3c2282e11ff95a5da719865c551b5e34c540ae5515e985031d348721882387e",
+      "bytes": 598,
+      "equal": true
+    },
+    {
+      "name": "pageTransitionAbort",
+      "sha256": "fadae29198b07bce9b2280d1cc25d7367f1ead4e531d09a97381227ad64e3e93",
+      "bytes": 3584,
+      "equal": true
+    },
+    {
+      "name": "pageTransitionDrag",
+      "sha256": "37101ddf1d6519d8da8e6db415c946de4c44e7faa7fba48065df9aca7b29b133",
+      "bytes": 960,
+      "equal": true
+    },
+    {
+      "name": "pageTransitionHasTopLayer",
+      "sha256": "dee6508abfa2be3fd812e0c460a0e75d1f669294cf01952de44ad7f9f322473a",
+      "bytes": 237,
+      "equal": true
+    },
+    {
+      "name": "pageTransitionPrepare",
+      "sha256": "3116795a3d3e9f3ebf737df9250475f46b01b31be4cd385aa0c789f59d3a095d",
+      "bytes": 5518,
+      "equal": true
+    },
+    {
+      "name": "pageTransitionPresent",
+      "sha256": "b6b76616982aceea67016e5d9156b86ec7ba0e15da9992e2ccc84d55b1f72290",
+      "bytes": 1860,
+      "equal": true
+    },
+    {
+      "name": "pageTransitionRelease",
+      "sha256": "35277d1bf0e088cc01cbcefdaf6c7ecd126a9524e11c716b532b8ea30cfdb394",
+      "bytes": 884,
+      "equal": true
+    },
+    {
+      "name": "pageTransitionRequest",
+      "sha256": "83f33165c8f22fe190b7e20adc5c60185aa621639edf70ca8242f0e9313f8efb",
+      "bytes": 3357,
+      "equal": true
+    },
+    {
+      "name": "pageTransitionRoot",
+      "sha256": "49c6f75b20adbfcb6345e907c45ee4b4abd68d1d3e30bb9f322e5945ee503d68",
+      "bytes": 598,
+      "equal": true
+    },
+    {
+      "name": "pageTransitionStateValid",
+      "sha256": "5a92d0de4ccd4e97cbd2476e4fc957288ab9395d57d0a48df06b026ca0db3f66",
+      "bytes": 860,
+      "equal": true
+    },
+    {
+      "name": "readTouchLogicalPoint",
+      "sha256": "f1990b5f595ae7ebd9da2f53f1790bf08297488ff7cf365938c5017564140f03",
+      "bytes": 1781,
+      "equal": true
+    },
+    {
+      "name": "runLvglLoop",
+      "sha256": "d9e5df56d328677398554fe94ea85ba48202752d7e17bf04dcf8d07c848f73f7",
+      "bytes": 2514,
+      "equal": true
+    },
+    {
+      "name": "setUiPage",
+      "sha256": "86d36e38456e63757bf5029bcf4ab2203a834cd052088336ab0e569543709ab5",
+      "bytes": 2047,
+      "equal": true
+    },
+    {
+      "name": "updateLvglUi",
+      "sha256": "82b31e6620d8159012000091f71c6c0bee64f3de1f33a8b9ac1d293dd226aa39",
+      "bytes": 5663,
+      "equal": true
+    },
+    {
+      "name": "loop",
+      "sha256": "39f4a05101ebcc8170fc7fc9a4c8f9b923ac9efffc48e27711c07efbbace04d8",
+      "bytes": 5172,
+      "equal": true
+    },
+    {
+      "name": "setup",
+      "sha256": "cabb8c526aaea61e2d78e9da808cdbb1b124753bb703bbfc32bcd0e1120b75c4",
+      "bytes": 3265,
+      "equal": true
+    }
+  ],
+  "unchanged_dependencies": [
+    {
+      "path": "assets/img_test/cover-test-150-rgb565.h",
+      "bytes": 277574,
+      "sha256": "a30f644cb192ab13e72f9889830c9208e09828f765481cdbb90ef0b0b805ce6c",
+      "equal": true
+    },
+    {
+      "path": "assets/meteocons/generated/meteocons_lvgl.h",
+      "bytes": 24966821,
+      "sha256": "5b41ee72282f516842333b2e8a02cc210946c6eeb549856f629553988c956c77",
+      "equal": true
+    },
+    {
+      "path": "lv_conf.h",
+      "bytes": 1424,
+      "sha256": "65114bdd334eda14e66f4f1ce2afbf2425d3dd217beaaf2fb3eac57ea21fd2da",
+      "equal": true
+    },
+    {
+      "path": "src/bambu_camera_controls.h",
+      "bytes": 987,
+      "sha256": "db9edfc6922714504475d8940c590f02f5f5419d8fe365ec9bb7d5e712589950",
+      "equal": true
+    },
+    {
+      "path": "src/display_idle.h",
+      "bytes": 747,
+      "sha256": "5279359adf7613a28963664b6928a1a0565713bd883ab29418cf28d95d69f24f",
+      "equal": true
+    },
+    {
+      "path": "src/display_performance.h",
+      "bytes": 7096,
+      "sha256": "9158b9a86b4e9cacd06df4bb6c3337f6e9186ff574195b042c60782e6f4146fd",
+      "equal": true
+    },
+    {
+      "path": "src/doom/doom_titlepic.h",
+      "bytes": 397128,
+      "sha256": "7a07416b01af5c536b2025749faf386a063a21ad68a6955959f46bf1fe98e2a5",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_12.c",
+      "bytes": 130310,
+      "sha256": "53ec8c877ecf352260a8d31e3b97f5c379fb83485bbfe48ad6c546b9cec364de",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_14.c",
+      "bytes": 145552,
+      "sha256": "0f0c4c8a2ba582817802f3d7fd4075b6fcb228ede91ef14c8e501fbae0bbbb45",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_16.c",
+      "bytes": 162521,
+      "sha256": "d2e766db54e273cc416bf9633805a40525f6f2652e3b00261776c81e39129acf",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_18.c",
+      "bytes": 181897,
+      "sha256": "99c65c6540279cd34036b7ea07ac828ff5fa02339aa7cac0737f76f3662074d3",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_20.c",
+      "bytes": 204166,
+      "sha256": "bae23897f813f4f41c8d39925b60c30308a8114b7275d8c76079f7a941387fcf",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_22.c",
+      "bytes": 231486,
+      "sha256": "62d54c60253af5ac26f3bc07656e262a2ef7075d60105f29de4b487f3cfe7ec1",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_23.c",
+      "bytes": 238830,
+      "sha256": "d5f8ff4cc06e10baf3332ba5d0f6188ba9e0d779169afb74c9f43f954f00b6b4",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_24.c",
+      "bytes": 257459,
+      "sha256": "0436fc6ffb001cc1742adfb2f1d6f6771631b8f6692fe47b45c8153b95011707",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_25.c",
+      "bytes": 265376,
+      "sha256": "524154fb8143314e1f258b761ccbb80d670f3f8b2e3e05f2ffd363f7c2c35b74",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_30.c",
+      "bytes": 346830,
+      "sha256": "9ca20e59fc05c4f079757b554c494dd1e5150cad6fca38eebd470b2266a3c147",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_32.c",
+      "bytes": 364457,
+      "sha256": "1d3c6f7fc87fb8ce838b3169cc53f2ee17e5238f0a3d39e66b8abf5991d72cc8",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_38.c",
+      "bytes": 479340,
+      "sha256": "83ebbf96eddbd500b0d263ff02e5671dd7fde168935d46dbfbff3aead093070f",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_countdown_60.c",
+      "bytes": 51605,
+      "sha256": "4c965a3923a9aa1a4c337179d125aede6dace8ec756c919125e76024e88929cf",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_semibold_18.c",
+      "bytes": 193734,
+      "sha256": "cbab3b34411f4172873361cb5d1d2554e1a6b988a9b0152e8150832a203e176c",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_semibold_20.c",
+      "bytes": 216504,
+      "sha256": "eb8aaa3570c77aba4ad4dfa3469862e7fb31572bb4036dd215be3caf77bda370",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_semibold_25.c",
+      "bytes": 280615,
+      "sha256": "cbd82811dba66d903032b65f92bb8fdcf4334da7189c7364b99749dd17eb06e4",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_semibold_32.c",
+      "bytes": 392362,
+      "sha256": "ecd379f766efdf52df5d89180f075e11d092a082d9af6b02e136b5d25a96ad22",
+      "equal": true
+    },
+    {
+      "path": "src/fonts/scry_font_dosis_semibold_38.c",
+      "bytes": 515331,
+      "sha256": "1998bc5efe2b6a87885da609abd8e369bf3b2e6ee3a4c2f39d6fb29d3bf25a0c",
+      "equal": true
+    },
+    {
+      "path": "src/lang_types.h",
+      "bytes": 1273,
+      "sha256": "123b93bae05ba5de3a1ea273ebce433e773e265278767960c305b49e5fe89426",
+      "equal": true
+    },
+    {
+      "path": "src/lvgl_updates.h",
+      "bytes": 1392,
+      "sha256": "d2ef966153baceba7085412df6c349d055e6b0542ae648a15f6e07960a591bbb",
+      "equal": true
+    },
+    {
+      "path": "src/mac_stats_format.h",
+      "bytes": 740,
+      "sha256": "4a94ed61d57c01e59d9a8b795da75f71ebf27e063416d186011bc087a38332a5",
+      "equal": true
+    },
+    {
+      "path": "src/mac_stats_history.h",
+      "bytes": 3153,
+      "sha256": "233a1981f2ee61feb74a37f6c815082cadaae49b020b805258753d55e385b0f5",
+      "equal": true
+    },
+    {
+      "path": "src/page_transition_frame.h",
+      "bytes": 5169,
+      "sha256": "d72c8b63fb57a33242529eb94a201f9323156c40410e5e313d889e791821fb7f",
+      "equal": true
+    },
+    {
+      "path": "src/page_transition_motion.h",
+      "bytes": 746,
+      "sha256": "6a017b5ac2a3db3e9bdc385dfb2a6ed98cd8ade8e75ab8be8bb6f746f47b17a7",
+      "equal": true
+    },
+    {
+      "path": "src/touch_timing.h",
+      "bytes": 365,
+      "sha256": "8abafc9fd6e00d2998e002e111474d18e789d10a8b847c6fdb3500920944272f",
+      "equal": true
+    },
+    {
+      "path": "src/ui_strings.h",
+      "bytes": 15315,
+      "sha256": "617580010ac22f5f87021a467a8f4ad7098495754f287379bea255d5da7a548a",
+      "equal": true
+    }
+  ],
+  "themes": [
+    "scrybar-default",
+    "cyberpunk-2077",
+    "toxic-candy",
+    "tokyo-transit",
+    "minimal-brutalist-mono",
+    "mint-protocol",
+    "cathode-ray"
+  ],
+  "fonts": [
+    "scry_font_dosis_12",
+    "scry_font_dosis_14",
+    "scry_font_dosis_16",
+    "scry_font_dosis_18",
+    "scry_font_dosis_20",
+    "scry_font_dosis_22",
+    "scry_font_dosis_23",
+    "scry_font_dosis_24",
+    "scry_font_dosis_25",
+    "scry_font_dosis_30",
+    "scry_font_dosis_32",
+    "scry_font_dosis_38",
+    "scry_font_dosis_countdown_60",
+    "scry_font_dosis_semibold_18",
+    "scry_font_dosis_semibold_20",
+    "scry_font_dosis_semibold_25",
+    "scry_font_dosis_semibold_32",
+    "scry_font_dosis_semibold_38"
+  ],
+  "retained_r321_build": {
+    "path": "/var/folders/48/00rryty17dzb6g7877yxqym00000gn/T/scrybar-display-quality-native/display-quality.cpp",
+    "sha256": "cd6729edabb78aeedbd6e812ce2dcc37be1ef0733fe06ae82272d0bb78191316",
+    "exact_r321_unit_plus_current_fixture": true,
+    "fixture_sha256": "6788880c2975d6c4b7725ad791ebce0e4c1062808e08c22cffa02fe51345296b"
+  },
+  "evidence_reused": [
+    {
+      "path": "screenshots/display-quality-r321/native/manifest.json",
+      "sha256": "7089bb032208a0687db74418abe42ca4d67fa61dbeabaf8a3db0fc40b64ca07e",
+      "records": 70,
+      "source_sha256": "76cd1d728e86ba8a78807e9a77fb9eee8705cc028fe50b4365a28219c3fc84de"
+    },
+    {
+      "path": "screenshots/display-quality-r321/stress/manifest.json",
+      "sha256": "66bcf904f7d781d69b9e45b99d70a9398238d22de7580edc0407e000105d3ec7",
+      "records": 70,
+      "source_sha256": "76cd1d728e86ba8a78807e9a77fb9eee8705cc028fe50b4365a28219c3fc84de"
+    },
+    {
+      "path": "screenshots/display-quality-r321/stats-states/manifest.json",
+      "sha256": "5665fe28f21b6ed13376c247f2b2b87cf8943e40ae9f7be93adaf84402ad5659",
+      "records": 28,
+      "source_sha256": "76cd1d728e86ba8a78807e9a77fb9eee8705cc028fe50b4365a28219c3fc84de"
+    },
+    {
+      "path": "screenshots/display-quality-r321/qr/manifest.json",
+      "sha256": "c8037da180f47b2924e0be0171569872f433daa2db2278eff508d63904c64cec",
+      "records": 196,
+      "source_sha256": "76cd1d728e86ba8a78807e9a77fb9eee8705cc028fe50b4365a28219c3fc84de"
+    },
+    {
+      "path": "docs/design/2026-10-23-display-quality/wordclock.json",
+      "sha256": "aebae8cd7f51e82a312818581750f92e11c1e8ca260b6179381e834f6481ee6c",
+      "records": 910,
+      "source_sha256": "76cd1d728e86ba8a78807e9a77fb9eee8705cc028fe50b4365a28219c3fc84de"
+    }
+  ],
+  "finite_tests": [
+    {
+      "command": "python3 tests/render_display_quality_native_test.py",
+      "tests": 4,
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tests/audit_wordclock_native_test.py",
+      "tests": 2,
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tests/backlight_persistence_native_test.py",
+      "tests": 1,
+      "result": "PASS",
+      "includes": "Actual extracted C++ NVS/accessor helpers; AddressSanitizer and UndefinedBehaviorSanitizer."
+    }
+  ],
+  "intentional_changes": [
+    "Two separate persisted brightness snapshot values; actual load/save helpers and accessors.",
+    "Control saved-value attributes and JS dirty-state baseline for brightness previews.",
+    "Control view-order hint says Save changes.",
+    "FW_BUILD_TAG r321 -> r322."
+  ],
+  "limits": [
+    "These are existing r321 software renders linked by source equivalence, not new r322 renders or physical photos.",
+    "The INFO firmware version label intentionally changes; anonymous INFO fixture overrides it with Example.",
+    "Brightness persistence intentionally changes Control/NVS state; equal widget source does not assert equal brightness for different stored settings.",
+    "No new claim about physical FPS, memory, live feeds, touch lifecycle or active DOOM; those require separate hardware evidence.",
+    "The finite tests validate the retained matrices and extracted helpers without replaying the 70/196-image or 910-sample generation."
+  ]
+}

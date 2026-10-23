@@ -28,5 +28,12 @@
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_scrybar._tcp</string>
+		<string>_meguru._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Connect to your ScryBar and Meguru displays and Bambu printer on the local network.</string>
 </dict>
 </plist>

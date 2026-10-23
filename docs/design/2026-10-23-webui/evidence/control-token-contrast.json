@@ -1,0 +1,58 @@
+{
+  "scrybar-default": {
+    "--txt/--bg-deepest": 19.01,
+    "--txt/--bg-deep": 17.96,
+    "--txt/--bg-surface": 16.49,
+    "--txt2/--bg-deepest": 8.62,
+    "--txt2/--bg-deep": 8.14,
+    "--txt2/--bg-surface": 7.48
+  },
+  "cyberpunk-2077": {
+    "--txt/--bg-deepest": 18.87,
+    "--txt/--bg-deep": 17.2,
+    "--txt/--bg-surface": 15.32,
+    "--txt2/--bg-deepest": 12.48,
+    "--txt2/--bg-deep": 11.38,
+    "--txt2/--bg-surface": 10.13
+  },
+  "toxic-candy": {
+    "--txt/--bg-deepest": 18.4,
+    "--txt/--bg-deep": 17.68,
+    "--txt/--bg-surface": 15.57,
+    "--txt2/--bg-deepest": 12.68,
+    "--txt2/--bg-deep": 12.18,
+    "--txt2/--bg-surface": 10.73
+  },
+  "tokyo-transit": {
+    "--txt/--bg-deepest": 17.37,
+    "--txt/--bg-deep": 15.91,
+    "--txt/--bg-surface": 13.46,
+    "--txt2/--bg-deepest": 10.77,
+    "--txt2/--bg-deep": 9.87,
+    "--txt2/--bg-surface": 8.35
+  },
+  "minimal-brutalist-mono": {
+    "--txt/--bg-deepest": 18.16,
+    "--txt/--bg-deep": 17.32,
+    "--txt/--bg-surface": 15.96,
+    "--txt2/--bg-deepest": 12.71,
+    "--txt2/--bg-deep": 12.12,
+    "--txt2/--bg-surface": 11.17
+  },
+  "mint-protocol": {
+    "--txt/--bg-deepest": 11.15,
+    "--txt/--bg-deep": 12.12,
+    "--txt/--bg-surface": 13.18,
+    "--txt2/--bg-deepest": 8.59,
+    "--txt2/--bg-deep": 9.33,
+    "--txt2/--bg-surface": 10.15
+  },
+  "cathode-ray": {
+    "--txt/--bg-deepest": 14.62,
+    "--txt/--bg-deep": 13.98,
+    "--txt/--bg-surface": 12.87,
+    "--txt2/--bg-deepest": 6.45,
+    "--txt2/--bg-deep": 6.17,
+    "--txt2/--bg-surface": 5.69
+  }
+}

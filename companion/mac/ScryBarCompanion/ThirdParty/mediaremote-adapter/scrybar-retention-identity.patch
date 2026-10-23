@@ -1,0 +1,11 @@
+--- a/src/adapter/keys.m
++++ b/src/adapter/keys.m
+@@ -83,6 +83,7 @@
+ NSArray<NSString *> *identifyingPayloadKeys(void) {
+     return @[
+         kMRAProcessIdentifier, kMRABundleIdentifier,
+-        kMRAParentApplicationBundleIdentifier, kMRATitle, kMRAArtist, kMRAAlbum
++        kMRAParentApplicationBundleIdentifier, kMRATitle, kMRAArtist, kMRAAlbum,
++        kMRAUniqueIdentifier, kMRAContentItemIdentifier, @"artworkIdentifier"
+     ];
+ }

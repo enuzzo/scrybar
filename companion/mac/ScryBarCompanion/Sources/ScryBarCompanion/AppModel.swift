@@ -61,7 +61,12 @@ final class AppModel: ObservableObject {
     @Published var providerKind: ProviderKind = .system
     @Published var discoveryStatus = "Starting discovery…"
     @Published var discoveredEndpoints: [ScryBarEndpoint] = []
-    @Published var selectedDiscoveredEndpointID: UUID?
+    @Published private(set) var displayTargets: [DisplayTarget] = []
+    @Published private(set) var displayStates: [String: DisplayDeliveryState] = [:]
+    private var displayStore = DisplayTargetStore()
+    private let delivery = DisplayDelivery()
+    let yakamoz = YakamozPush()   // optional studio TV destination (off until configured)
+    @Published var yakamozStatus = "Off"
     @Published var manualHost = UserDefaults.standard.string(forKey: "manualHost") ?? ""
     @Published var manualPort = UserDefaults.standard.string(forKey: "manualPort") ?? "8080"
     @Published var currentPayload = NowPlayingPayload.placeholder(source: ProviderKind.system.rawValue)
@@ -72,6 +77,22 @@ final class AppModel: ObservableObject {
     @Published var showSettingsOnOpen = false
     @Published var lastSendStatus = "Idle"
     @Published var latestMacStats: MacStatsPayload? = nil
+    @Published var latestNetworkStats: NetworkStatsSnapshot? = nil
+    @Published var networkScope = NetworkScope.stored() {
+        didSet {
+            guard oldValue != networkScope else { return }
+            UserDefaults.standard.set(networkScope.rawValue, forKey: "network.scope")
+            latestNetworkStats = nil
+            // Immediately clear the previous scope locally and on displays.
+            if let stats = latestMacStats {
+                let cleared = stats.withNetwork(.init(downloadBytesPerSec: nil, uploadBytesPerSec: nil,
+                    apps: [], attributionAvailable: false, attributionMessage: "Changing network scope…",
+                    scope: networkScope), hostName: macStatsHostName)
+                latestMacStats = cleared
+                if autoSendEnabled { delivery.send(stats: cleared) }
+            }
+        }
+    }
     @Published var bambuHost = UserDefaults.standard.string(forKey: "bambuHost") ?? ""
     @Published var bambuSerial = UserDefaults.standard.string(forKey: "bambuSerial") ?? ""
     @Published var bambuPrinterName = UserDefaults.standard.string(forKey: "bambuPrinterName") ?? ""
@@ -87,19 +108,17 @@ final class AppModel: ObservableObject {
         if UserDefaults.standard.object(forKey: "bambuSoundsEnabled") == nil { return true }
         return UserDefaults.standard.bool(forKey: "bambuSoundsEnabled")
     }()
-    @Published private(set) var lastSuccessfulTarget: String?
-    @Published private(set) var lastSuccessfulSendAt: Date?
     let macmonAvailable: Bool = {
         FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/macmon") ||
         FileManager.default.isExecutableFile(atPath: "/usr/local/bin/macmon")
     }()
 
     var openCameraWindow: (() -> Void)?
+    var closePopover: (() -> Void)?
     let camera = BambuCameraModel()
     private var activeBambuConfiguration = BambuPrinterConfiguration(host: "", serial: "", accessCode: "")
 
     private let discovery = ScryBarDiscovery()
-    private let client = ScryBarClient()
     private let systemProvider: any NowPlayingProviding = FallbackNowPlayingProvider([
         SystemNowPlayingProvider(),
         TidalNowPlayingProvider(),
@@ -107,26 +126,31 @@ final class AppModel: ObservableObject {
     private let musicProvider = MusicNowPlayingProvider()
     private let mockProvider = MockNowPlayingProvider()
     private let macStatsProvider = MacStatsProvider()
+    private let networkStatsProvider = NetworkStatsProvider()
+    private let macStatsHostName = Host.current().localizedName
     private let bambuMonitor = BambuPrinterMonitor()
     private let bambuDiscovery = BambuPrinterDiscovery()
     private var pollTask: Task<Void, Never>?
     private var macStatsPollTask: Task<Void, Never>?
     private var bambuBaselineReceived = false
     private var lastBambuDiscoveryStartedAt: Date?
+    private var requestedKeychainSerial: String?
+    private var loadingBambuAccessCode = false
 
     init() {
-        bambuAccessCode = BambuKeychain.loadAccessCode(serial: bambuSerial, allowLegacyFallback: true)
         discovery.onStatus = { [weak self] status in
             Task { @MainActor in self?.discoveryStatus = status }
         }
+        displayTargets = displayStore.targets
+        delivery.onChange = { [weak self] states in self?.displayStates = states }
+        yakamoz.onStatus = { [weak self] status in self?.yakamozStatus = status }
+        syncDisplayTargets()
         discovery.onEndpoints = { [weak self] endpoints in
             Task { @MainActor in
-                self?.discoveredEndpoints = endpoints
-                if let current = self?.selectedDiscoveredEndpointID,
-                   endpoints.contains(where: { $0.id == current }) {
-                    return
-                }
-                self?.selectedDiscoveredEndpointID = endpoints.first?.id
+                guard let self else { return }
+                self.discoveredEndpoints = endpoints
+                self.displayStore.merge(endpoints)
+                self.syncDisplayTargets()
             }
         }
         discovery.start()
@@ -149,8 +173,18 @@ final class AppModel: ObservableObject {
         camera.configuration = { [weak self] in
             self?.activeBambuConfiguration ?? BambuPrinterConfiguration(host: "", serial: "", accessCode: "")
         }
-        camera.endpoint = { [weak self] in self?.selectedEndpoint }
-        camera.setLight = { [weak self] enabled, serial in self?.bambuMonitor.setCameraLight(enabled, serial: serial) }
+        camera.endpoints = { [weak self] in
+            guard let self else { return [] }
+            return self.enabledEndpoints.filter { self.displayStates[$0.stableKey]?.capabilities?.camera == true }.map {
+                var target = $0
+                target.product = self.displayStates[$0.stableKey]?.capabilities?.product ?? target.product
+                return target
+            }
+        }
+        camera.bodyLimit = { [weak self] endpoint in self?.displayStates[endpoint.stableKey]?.capabilities?.maxBodyBytes ?? 98304 }
+        camera.setLightWithDeadline = { [weak self] enabled, serial, deadline in
+            self?.bambuMonitor.setCameraLight(enabled, serial: serial, expiresAt: deadline)
+        }
         bambuMonitor.onLight = { [weak self] serial, on in
             Task { @MainActor in self?.camera.receiveLight(serial: serial, on: on) }
         }
@@ -158,25 +192,25 @@ final class AppModel: ObservableObject {
         startBambuMonitor()
         startPolling()
         startMacStatsPolling()
+        loadStoredBambuAccessCode(allowLegacyFallback: true)
     }
 
-    var selectedEndpoint: ScryBarEndpoint? {
-        if let selectedDiscoveredEndpointID,
-           let endpoint = discoveredEndpoints.first(where: { $0.id == selectedDiscoveredEndpointID }) {
-            return endpoint
-        }
-
-        let trimmedHost = manualHost.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedHost.isEmpty else { return nil }
-        let port = Int(manualPort) ?? 8080
-        return ScryBarEndpoint(name: "Manual Target", host: trimmedHost, port: port, source: .manual)
+    var enabledEndpoints: [ScryBarEndpoint] {
+        let endpoints = displayTargets.filter(\.enabled).map(\.endpoint)
+        var addresses = Set<String>()
+        return endpoints.filter { addresses.insert($0.addressKey).inserted }
     }
-
-    var selectedEndpointIsConnected: Bool {
-        guard let endpoint = selectedEndpoint,
-              let lastSuccessfulSendAt,
-              Date().timeIntervalSince(lastSuccessfulSendAt) < 8 else { return false }
-        return lastSuccessfulTarget == endpointKey(endpoint)
+    var selectedEndpoint: ScryBarEndpoint? { enabledEndpoints.first }
+    var selectedEndpointIsConnected: Bool { enabledEndpoints.contains { displayStates[$0.stableKey]?.connected() == true } }
+    var connectedDisplayCount: Int { enabledEndpoints.filter { displayStates[$0.stableKey]?.connected() == true }.count }
+    func setDisplayEnabled(_ enabled: Bool, id: String) {
+        displayStore.setEnabled(enabled, id: id)
+        syncDisplayTargets()
+    }
+    private func syncDisplayTargets() {
+        displayTargets = displayStore.targets
+        delivery.select(autoSendEnabled ? enabledEndpoints : [])
+        camera.targetsDidChange()
     }
 
     func rescan() {
@@ -206,16 +240,15 @@ final class AppModel: ObservableObject {
         } else if bambuPrinterName.isEmpty, printer.model != "Bambu Lab printer" {
             bambuPrinterName = printer.model
         }
-        // A discovery response can first arrive without a serial and then be
-        // enriched by a second SSDP announcement. Keep a code the user has
-        // already entered unless Keychain has a printer-specific value.
-        let storedAccessCode = BambuKeychain.loadAccessCode(serial: bambuSerial)
-        if !storedAccessCode.isEmpty {
-            bambuAccessCode = storedAccessCode
+        // A Keychain consent prompt must not block discovery or the main UI.
+        if activeBambuConfiguration.serial != bambuSerial && !activeBambuConfiguration.serial.isEmpty {
+            bambuAccessCode = ""
         }
+        loadStoredBambuAccessCode()
         UserDefaults.standard.set(bambuHost, forKey: "bambuHost")
         UserDefaults.standard.set(bambuSerial, forKey: "bambuSerial")
         UserDefaults.standard.set(bambuPrinterName, forKey: "bambuPrinterName")
+        if loadingBambuAccessCode { return }
         if bambuAccessCode.isEmpty || bambuSerial.isEmpty {
             bambuConnectionStatus = "Printer selected. Add its serial and LAN access code."
             bambuConnectionPhase = .notConfigured
@@ -238,10 +271,14 @@ final class AppModel: ObservableObject {
     /// Clean shutdown for app termination: stop polling and terminate the
     /// long-lived macmon subprocess so it can't be orphaned.
     func shutdown() {
+        NativeMediaRemote.shared.stopAndWait()
         camera.shutdown()
+        delivery.stop()
+        discovery.stop()
         pollTask?.cancel()
         macStatsPollTask?.cancel()
         macStatsProvider.stop()
+        networkStatsProvider.stop()
         bambuDiscovery.stop()
         bambuMonitor.stop()
     }
@@ -249,14 +286,18 @@ final class AppModel: ObservableObject {
     func setAutoSend(_ enabled: Bool) {
         autoSendEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: "autoSendEnabled")
+        syncDisplayTargets()
     }
 
     func saveManualTarget() {
         UserDefaults.standard.set(manualHost, forKey: "manualHost")
         UserDefaults.standard.set(manualPort, forKey: "manualPort")
+        displayStore.addManual(host: manualHost.trimmingCharacters(in: .whitespacesAndNewlines), port: Int(manualPort) ?? 8080)
+        syncDisplayTargets()
     }
 
     func saveBambuSettings() {
+        loadingBambuAccessCode = false
         let configuration = BambuPrinterConfiguration(
             host: bambuHost.trimmingCharacters(in: .whitespacesAndNewlines),
             serial: bambuSerial.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
@@ -290,7 +331,32 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func loadStoredBambuAccessCode(allowLegacyFallback: Bool = false) {
+        let serial = bambuSerial
+        guard !serial.isEmpty, bambuAccessCode.isEmpty, requestedKeychainSerial != serial else { return }
+        requestedKeychainSerial = serial
+        loadingBambuAccessCode = true
+        bambuConnectionStatus = "Reading saved printer access. Unlock your Mac if prompted."
+        bambuConnectionPhase = .connecting
+        Task { [weak self] in
+            let code = await Task.detached(priority: .userInitiated) {
+                BambuKeychain.loadAccessCode(serial: serial, allowLegacyFallback: allowLegacyFallback)
+            }.value
+            guard let self, self.bambuSerial == serial else { return }
+            self.loadingBambuAccessCode = false
+            guard self.bambuAccessCode.isEmpty else { return }
+            guard !code.isEmpty else {
+                self.bambuConnectionStatus = "Saved access unavailable. Enter the printer LAN access code to reconnect."
+                self.bambuConnectionPhase = .notConfigured
+                return
+            }
+            self.bambuAccessCode = code
+            self.startBambuMonitor()
+        }
+    }
+
     private func receiveBambuConnectionStatus(_ status: String) {
+        guard !loadingBambuAccessCode else { return }
         bambuConnectionStatus = status
         bambuConnectionPhase = BambuConnectionPhase(status: status)
         if BambuRecoveryScanPolicy.shouldStart(
@@ -372,10 +438,8 @@ final class AppModel: ObservableObject {
             }
         }
 
-        guard autoSendEnabled, let endpoint = selectedEndpoint else { return }
-        Task {
-            try? await client.sendBambu(payload, to: endpoint)
-        }
+        guard autoSendEnabled else { return }
+        delivery.send(bambu: payload)
     }
 
     private func playBambuSoundIfNeeded(from previous: BambuPrinterPayload, to current: BambuPrinterPayload) {
@@ -415,9 +479,14 @@ final class AppModel: ObservableObject {
             provider.snapshot()
         }.value
 
-        if let payload {
+        // Second check for every provider (Music.app, TIDAL, mock): nothing outside the policy reaches a display.
+        let allowed = payload.map { SourcePolicy.current.allows(bundleID: SourcePolicy.bundleID(of: $0)) } ?? false
+        if let payload, allowed {
             currentPayload = payload
             lastSendStatus = "Payload updated at \(DateFormatter.shortTime.string(from: payload.updatedAt))"
+        } else if payload != nil || SourcePolicyLog.shared.lastHidden != nil {
+            currentPayload = NowPlayingPayload.placeholder(source: kind.rawValue)
+            lastSendStatus = "Hidden for privacy: the playing app is not an allowed music source."
         } else {
             currentPayload = NowPlayingPayload.placeholder(source: kind.rawValue)
             switch kind {
@@ -431,39 +500,27 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private var lastSendSucceeded = false
-    private var sendInFlight = false
-
-    // MARK: Mac Stats polling
-
-    private var macStatsSendInFlight = false
-
     private func startMacStatsPolling() {
         macStatsPollTask?.cancel()
         macStatsPollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
                 // Sample on a detached thread (IOKit + syscalls may block)
-                let payload: MacStatsPayload = await Task.detached(priority: .background) {
-                    self.macStatsProvider.snapshot()
+                let scope = self.networkScope
+                let sample = await Task.detached(priority: .background) {
+                    let network = self.networkStatsProvider.snapshot(scope: scope)
+                    let stats = self.macStatsProvider.snapshot().withNetwork(
+                        network, hostName: self.macStatsHostName
+                    )
+                    return (stats, network)
                 }.value
+                guard !Task.isCancelled else { return }
+                guard self.networkScope == scope else { continue }
+                self.latestMacStats = sample.0
+                self.latestNetworkStats = sample.1
 
-                // Store locally for popover display
-                await MainActor.run { self.latestMacStats = payload }
-
-                if self.autoSendEnabled, !self.macStatsSendInFlight,
-                   let endpoint = self.selectedEndpoint {
-                    self.macStatsSendInFlight = true
-                    Task {
-                        do {
-                            try await self.client.sendMacStats(payload, to: endpoint)
-                        } catch {
-                            // Silently suppress — mac stats is best-effort
-                        }
-                        await MainActor.run { self.macStatsSendInFlight = false }
-                    }
-                }
-                try? await Task.sleep(for: .seconds(5))
+                if self.autoSendEnabled { self.delivery.send(stats: sample.0) }
+                try? await Task.sleep(for: .seconds(1))
             }
         }
     }
@@ -474,45 +531,19 @@ final class AppModel: ObservableObject {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.refreshPayload()
-                if self.autoSendEnabled, !self.sendInFlight {
+                if self.autoSendEnabled {
                     self.autoSend()
                 }
-                try? await Task.sleep(for: .seconds(lastSendSucceeded ? 1 : 5))
+                try? await Task.sleep(for: .seconds(1))
             }
         }
     }
 
     private func autoSend() {
-        guard let endpoint = selectedEndpoint else { return }
-        let target = endpointKey(endpoint)
-        let payload = currentPayload
-        sendInFlight = true
-
-        Task {
-            do {
-                try await client.send(payload, to: endpoint)
-                await MainActor.run {
-                    self.lastSendSucceeded = true
-                    self.lastSuccessfulTarget = target
-                    self.lastSuccessfulSendAt = .now
-                    self.sendInFlight = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.lastSendSucceeded = false
-                    if self.lastSuccessfulTarget == target {
-                        self.lastSuccessfulTarget = nil
-                        self.lastSuccessfulSendAt = nil
-                    }
-                    self.sendInFlight = false
-                }
-            }
-        }
+        delivery.send(nowPlaying: currentPayload, bambu: currentBambu)
+        yakamoz.send(currentPayload)
     }
 
-    private func endpointKey(_ endpoint: ScryBarEndpoint) -> String {
-        "\(endpoint.host):\(endpoint.port)"
-    }
 }
 
 private extension DateFormatter {

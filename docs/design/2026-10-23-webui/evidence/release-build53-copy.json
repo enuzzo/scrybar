@@ -1,0 +1,148 @@
+{
+  "at": "2026-10-23T13:31:04.008Z",
+  "checks": [
+    {
+      "name": "Companion0.3.15 link 127.0.0.1:5181/ 390",
+      "pass": true
+    },
+    {
+      "name": "Companion53 preview/ad-hoc label 127.0.0.1:5181/ 390",
+      "pass": true
+    },
+    {
+      "name": "Real firmware0.9.5 manifest 127.0.0.1:5181/ 390",
+      "pass": true,
+      "path": "/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "Native cover and conditional HD 127.0.0.1:5181/ 390",
+      "pass": true
+    },
+    {
+      "name": "Artwork disclosure fits 127.0.0.1:5181/ 390",
+      "pass": true
+    },
+    {
+      "name": "Release0.9.5/r322 and artwork fix 127.0.0.1:5181/ 390",
+      "pass": true
+    },
+    {
+      "name": "Release performance qualified 127.0.0.1:5181/ 390",
+      "pass": true
+    },
+    {
+      "name": "Expanded release fits 127.0.0.1:5181/ 390",
+      "pass": true
+    },
+    {
+      "name": "Companion0.3.15 link 127.0.0.1:5181/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Companion53 preview/ad-hoc label 127.0.0.1:5181/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Real firmware0.9.5 manifest 127.0.0.1:5181/ 1440",
+      "pass": true,
+      "path": "/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "Native cover and conditional HD 127.0.0.1:5181/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Artwork disclosure fits 127.0.0.1:5181/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Release0.9.5/r322 and artwork fix 127.0.0.1:5181/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Release performance qualified 127.0.0.1:5181/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Expanded release fits 127.0.0.1:5181/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Companion0.3.15 link 127.0.0.1:5184/scrybar/ 390",
+      "pass": true
+    },
+    {
+      "name": "Companion53 preview/ad-hoc label 127.0.0.1:5184/scrybar/ 390",
+      "pass": true
+    },
+    {
+      "name": "Real firmware0.9.5 manifest 127.0.0.1:5184/scrybar/ 390",
+      "pass": true,
+      "path": "/scrybar/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "Native cover and conditional HD 127.0.0.1:5184/scrybar/ 390",
+      "pass": true
+    },
+    {
+      "name": "Artwork disclosure fits 127.0.0.1:5184/scrybar/ 390",
+      "pass": true
+    },
+    {
+      "name": "Release0.9.5/r322 and artwork fix 127.0.0.1:5184/scrybar/ 390",
+      "pass": true
+    },
+    {
+      "name": "Release performance qualified 127.0.0.1:5184/scrybar/ 390",
+      "pass": true
+    },
+    {
+      "name": "Expanded release fits 127.0.0.1:5184/scrybar/ 390",
+      "pass": true
+    },
+    {
+      "name": "Companion0.3.15 link 127.0.0.1:5184/scrybar/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Companion53 preview/ad-hoc label 127.0.0.1:5184/scrybar/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Real firmware0.9.5 manifest 127.0.0.1:5184/scrybar/ 1440",
+      "pass": true,
+      "path": "/scrybar/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "Native cover and conditional HD 127.0.0.1:5184/scrybar/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Artwork disclosure fits 127.0.0.1:5184/scrybar/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Release0.9.5/r322 and artwork fix 127.0.0.1:5184/scrybar/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Release performance qualified 127.0.0.1:5184/scrybar/ 1440",
+      "pass": true
+    },
+    {
+      "name": "Expanded release fits 127.0.0.1:5184/scrybar/ 1440",
+      "pass": true
+    }
+  ],
+  "passed": 32,
+  "failed": 0,
+  "dmgDownload": {
+    "status": "pending publication",
+    "tested": false,
+    "note": "The target link is tested as markup only; no downloadable asset is claimed yet."
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "firmwareInoUnchanged": true,
+  "lockfileUnchanged": true,
+  "files": {
+    "web/src/components/CompanionApp.astro": "8ffddddb1f19c34fb00d4e48445dfa971c0139d8aa856ace1bad047af6f9ba68",
+    "web/src/components/ReleaseNotes.astro": "c850b32f83c545ae4ab0ac7f99783e5dfe27c8855343b2279c1a522678a2f43c",
+    "README.md": "4a31959b872eb69a15dd25afa72d84dcb1c73e4fd8232da626619226d0d7a4e1",
+    "CHANGELOG.md": "90bf3e27a1865d3ab200df0b6b929ac1fff9508bf73ed08fb79d5e18cd433e1b"
+  }
+}

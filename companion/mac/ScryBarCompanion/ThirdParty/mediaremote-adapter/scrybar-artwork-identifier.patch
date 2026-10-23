@@ -1,0 +1,10 @@
+--- a/src/adapter/now_playing.m
++++ b/src/adapter/now_playing.m
+@@ -82,6 +82,7 @@
+     };
+ 
+     setKey(kMRATitle, kMRMediaRemoteNowPlayingInfoTitle);
++    setKey(@"artworkIdentifier", @"kMRMediaRemoteNowPlayingInfoArtworkIdentifier");
+     setKey(kMRAArtist, kMRMediaRemoteNowPlayingInfoArtist);
+     setKey(kMRAAlbum, kMRMediaRemoteNowPlayingInfoAlbum);
+     if (!withoutArtwork) {

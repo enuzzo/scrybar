@@ -1,0 +1,39 @@
+---
+import {themes,views,statsImageFor} from '../data/product';
+---
+<div class="preview" id="views" data-ui>
+  <div class="preview-stage">
+    <div class="display-frame" id="preview-frame">
+      {views.map((v,i)=><img class:list={['preview-image',{active:i===6}]} src={v.image.src} width="640" height="172" alt={i===6?'ScryBar Mac Stats example':''} aria-hidden={i===6?'false':'true'} data-view={v.id} loading={i===6?'eager':'lazy'} decoding="async" />)}
+    </div>
+    <button type="button" class="enlarge" id="preview-enlarge" aria-label="Enlarge Mac Stats preview">Enlarge preview</button>
+  </div>
+  <div class="preview-caption"><div><h2 id="preview-title">{views[6].name}</h2><p id="preview-description">{views[6].description}</p></div><p id="preview-note" class="preview-note">{views[6].note}</p></div>
+  <div class="preview-controls">
+    <div class="field-control"><label for="view-select">Explore nine views</label><select id="view-select">{views.map(v=><option value={v.id} selected={v.id==='stats'}>{v.name}</option>)}</select></div>
+    <fieldset class="theme-control" aria-describedby="theme-help"><legend>Seven themes for Home + Mac Stats</legend><div class="theme-options">{themes.map((t,i)=><button type="button" class:list={['theme-pill',{active:i===0}]} data-theme-id={t.id} aria-label={`Preview ${t.name} theme`} aria-pressed={String(i===0)} title={t.name}><span class="theme-dot" style={`--swatch:${t.color};--i:${i}`}></span><span>{t.name}</span></button>)}</div><p id="theme-help">Other views keep the theme of their capture.</p></fieldset>
+  </div>
+</div>
+<dialog id="preview-dialog" class="preview-dialog" aria-labelledby="dialog-title"><div class="dialog-bar"><h2 id="dialog-title">Mac Stats</h2><button class="quiet-button" id="dialog-close" type="button">Close</button></div><div class="dialog-image-wrap"><img id="dialog-image" src={views[6].image.src} alt="ScryBar Mac Stats example" width="640" height="172" /></div><p class="dialog-zoom-help">Swipe across the preview to see every detail.</p><div class="dialog-footer"><button class="quiet-button" id="dialog-prev" type="button">Previous view</button><p id="dialog-note">{views[6].note}</p><button class="quiet-button" id="dialog-next" type="button">Next view</button></div></dialog>
+<script define:vars={{viewData:views.map(v=>({id:v.id,name:v.name,src:v.image.src,description:v.description,note:v.note})),themeData:themes.map(t=>({id:t.id,src:t.image.src,name:t.name,statsSrc:statsImageFor(t.id).src}))}}>
+ (()=>{
+ const select=document.getElementById('view-select');
+ const images=[...document.querySelectorAll('.preview-image')];
+ const dialog=document.getElementById('preview-dialog');
+ const image=document.getElementById('dialog-image');
+ const enlarge=document.getElementById('preview-enlarge');
+ let index=6,theme='scrybar-default';
+ const currentSource=()=>index===0?themeData.find(t=>t.id===theme).src:index===6?themeData.find(t=>t.id===theme).statsSrc:viewData[index].src;
+ function updateDialog(){const v=viewData[index];image.src=currentSource();image.alt=`ScryBar ${v.name} view`;document.getElementById('dialog-title').textContent=v.name;document.getElementById('dialog-note').textContent=v.note;}
+ function showView(next){index=(next+viewData.length)%viewData.length;const v=viewData[index];select.value=v.id;images.forEach(el=>{const active=el.dataset.view===v.id;el.classList.toggle('active',active);el.setAttribute('aria-hidden',String(!active));el.alt=active?`ScryBar ${v.name} view`:'';if(active)el.src=currentSource();});document.getElementById('preview-title').textContent=v.name;document.getElementById('preview-description').textContent=v.description;document.getElementById('preview-note').textContent=v.note;enlarge.setAttribute('aria-label',`Enlarge ${v.name} preview`);updateDialog();}
+ select.addEventListener('change',()=>showView(viewData.findIndex(v=>v.id===select.value)));
+ document.querySelectorAll('.theme-pill').forEach(button=>button.addEventListener('click',()=>{theme=button.dataset.themeId;document.documentElement.dataset.theme=theme;document.querySelectorAll('.theme-pill').forEach(b=>{const active=b===button;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});showView(index);}));
+ enlarge.addEventListener('click',()=>{updateDialog();dialog.showModal();document.body.classList.add('dialog-open');});
+ document.getElementById('dialog-close').addEventListener('click',()=>dialog.close());
+ document.getElementById('dialog-prev').addEventListener('click',()=>showView(index-1));
+ document.getElementById('dialog-next').addEventListener('click',()=>showView(index+1));
+ dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close();}});
+ dialog.addEventListener('close',()=>{document.body.classList.remove('dialog-open');enlarge.focus({preventScroll:true});});
+ dialog.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')showView(index-1);if(e.key==='ArrowRight')showView(index+1);});
+ })();
+</script>

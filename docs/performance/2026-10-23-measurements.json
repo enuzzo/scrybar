@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-23",
+  "firmware": "r313",
+  "workload": "PERFBENCH 30, HOME/INFO; warm device; no touch-owned transitions in the timed run",
+  "whole_window": {
+    "flush": 1355,
+    "flush_hz": 44.7,
+    "flush_avg_us": 12881,
+    "flush_max_us": 15966,
+    "render": 0,
+    "render_avg_us": 0,
+    "render_max_us": 0,
+    "copy": 913,
+    "copy_avg_us": 547,
+    "copied_px": 9136640,
+    "labels_set": 45,
+    "labels_skipped": 1266,
+    "styles_skipped": 4975,
+    "window_ms": 30316
+  },
+  "active_motion": {
+    "scope": "page_motion",
+    "intervals": 1272,
+    "fps": 59.1,
+    "interval_p95_upper_us": 25000,
+    "interval_max_us": 27051,
+    "within_16_7ms": 926,
+    "handler_calls": 1399,
+    "handler_max_us": 19510
+  },
+  "completed_cached_transitions": 83,
+  "preparation_median_us": 86242,
+  "preparation_max_us": 102134,
+  "runtime_errors_observed": false,
+  "scope": "Completed transfer/presentation intervals, not optical panel scanout. Preparation and idle are excluded from active FPS. Rapid interrupted navigation retains the ordinary-LVGL fallback limitation.",
+  "network_cadence_reproduction": {
+    "real_sample_intervals_ms": [
+      1042,
+      1265,
+      1016,
+      1036,
+      1042,
+      1004,
+      1008,
+      1071,
+      946,
+      986,
+      1032,
+      1141,
+      1067,
+      1057,
+      934,
+      951,
+      1277,
+      870,
+      1018,
+      1062
+    ],
+    "synthetic_interval_ms": 1100,
+    "real_samples": 55,
+    "artificial_internal_gaps_before": 5,
+    "artificial_internal_gaps_after": 0,
+    "maximum_continuous_receipt_interval_ms": 1750,
+    "explicit_unknown_and_long_gaps_preserved": true
+  },
+  "verification": {
+    "native_stats_frames": 105,
+    "label_overflows": 0,
+    "final_actual_lvgl_transition_comparisons": 98,
+    "matching_pixels": 10787840,
+    "independent_pixel_comparisons": 146406400
+  }
+}

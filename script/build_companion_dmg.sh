@@ -4,9 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_DIR="$ROOT_DIR/companion/mac/ScryBarCompanion"
 PROJECT="$PROJECT_DIR/ScryBarCompanion.xcodeproj"
-DERIVED_DATA="$ROOT_DIR/dist/companion-release-derived-data"
+DERIVED_DATA="${SCRYBAR_DERIVED_DATA:-${TMPDIR:-/tmp}/scrybar-companion-release-derived-data.noindex}"
 BUILT_APP="$DERIVED_DATA/Build/Products/Release/ScryBarCompanion.app"
-PUBLIC_APP="$ROOT_DIR/companion/mac/dist/ScryBarCompanion.app"
 
 VERSION="$(awk -F'"' '/MARKETING_VERSION:/ { print $2; exit }' "$PROJECT_DIR/project.yml")"
 if [[ -z "$VERSION" ]]; then
@@ -14,10 +13,13 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-DMG="$ROOT_DIR/companion/mac/ScryBarCompanion-$VERSION.dmg"
+DIST_DIR="$ROOT_DIR/dist"
+DMG="$DIST_DIR/ScryBarCompanion-$VERSION.dmg"
 WORK_DIR="$(mktemp -d /tmp/scrybar-companion-dmg.XXXXXX)"
 VOLUME_DIR="$WORK_DIR/ScryBar Companion"
 trap 'rm -rf "$WORK_DIR"' EXIT
+
+"$ROOT_DIR/script/embed_mediaremote_adapter.sh" --check-derived-data "$DERIVED_DATA"
 
 xcodegen generate --spec "$PROJECT_DIR/project.yml" --project "$PROJECT_DIR"
 
@@ -28,19 +30,20 @@ xcodebuild \
   -derivedDataPath "$DERIVED_DATA" \
   ARCHS="arm64 x86_64" \
   ONLY_ACTIVE_ARCH=NO \
-  CODE_SIGN_IDENTITY="-" \
+  SDK_STAT_CACHE_ENABLE="${SCRYBAR_SDK_STAT_CACHE_ENABLE:-YES}" \
+  CODE_SIGN_STYLE=Manual \
+  CODE_SIGNING_ALLOWED=NO \
   build
 
+"$ROOT_DIR/script/embed_mediaremote_adapter.sh" "$BUILT_APP" "$DERIVED_DATA"
+codesign --force --sign - --timestamp=none "$BUILT_APP"
 codesign --verify --deep --strict --verbose=2 "$BUILT_APP"
-
-rm -rf "$PUBLIC_APP"
-mkdir -p "$(dirname "$PUBLIC_APP")"
-ditto "$BUILT_APP" "$PUBLIC_APP"
 
 mkdir -p "$VOLUME_DIR"
 ditto "$BUILT_APP" "$VOLUME_DIR/ScryBarCompanion.app"
 ln -s /Applications "$VOLUME_DIR/Applications"
 
+mkdir -p "$DIST_DIR"
 rm -f "$DMG"
 hdiutil create \
   -volname "ScryBar Companion" \

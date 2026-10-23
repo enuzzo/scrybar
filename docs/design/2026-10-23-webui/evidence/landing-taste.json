@@ -1,0 +1,2957 @@
+{
+ "url": "http://127.0.0.1:5181/",
+ "at": "2026-10-23T12:11:29.135Z",
+ "allow": [
+  "palette-purple",
+  "eyebrow"
+ ],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 7,
+   "filled": [
+    0.91,
+    0.77,
+    0.51,
+    0.94,
+    0.77,
+    0.37,
+    0.93
+   ],
+   "motion": {
+    "elements": 8,
+    "css": 8,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 6171,
+     "screens": 6.9,
+     "words": 516,
+     "img": 15,
+     "video": 0,
+     "canvas": 0,
+     "svg": 1,
+     "sections": 10,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 1,
+     "uiAbuse": false,
+     "realPictures": 5,
+     "videoCount": 0,
+     "uiPictures": 1,
+     "pictureSamples": [
+      "home_weather_mint-protocol.G2M7C2H1_rR9hA.webp",
+      "now_playing.DVdMMIar_ZgjIsR.webp",
+      "bambu_lab.CujPWKjd_Z1KqV8a.webp",
+      "aux_rss.QToQrdu2_1jlCf.webp",
+      "companion-app.CYUc8up1_DXhHL.webp"
+     ],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Desk, meet ScryBar.",
+     "words": 3,
+     "chars": 19,
+     "lines": 2,
+     "size": 74.9,
+     "vw": 5.2,
+     "font": "Syne",
+     "weight": 800,
+     "tracking": -0.035,
+     "leading": 1.08,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "left",
+     "widthRatio": 0.49,
+     "top": 128,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Desk, meet ScryBar.",
+     "words": 3,
+     "lines": 2,
+     "size": 74.9,
+     "font": "Syne"
+    },
+    "headings": [
+     {
+      "text": "ScryBar",
+      "words": 1,
+      "chars": 7,
+      "lines": 1,
+      "size": 30,
+      "vw": 2.1,
+      "font": "Syne",
+      "weight": 800,
+      "tracking": -0.07,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.12,
+      "top": 29,
+      "tag": "a",
+      "kind": "heading"
+     },
+     {
+      "text": "Desk, meet ScryBar.",
+      "words": 3,
+      "chars": 19,
+      "lines": 2,
+      "size": 74.9,
+      "vw": 5.2,
+      "font": "Syne",
+      "weight": 800,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.49,
+      "top": 128,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "A small place for useful things",
+      "words": 6,
+      "chars": 31,
+      "lines": 2,
+      "size": 57.6,
+      "vw": 4,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.32,
+      "top": 1112,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Plug in. Make it yours.",
+      "words": 5,
+      "chars": 23,
+      "lines": 2,
+      "size": 57.6,
+      "vw": 4,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.4,
+      "top": 2180,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Your Mac, on the bar",
+      "words": 5,
+      "chars": 20,
+      "lines": 2,
+      "size": 57.6,
+      "vw": 4,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.43,
+      "top": 2891,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Start with this board",
+      "words": 4,
+      "chars": 21,
+      "lines": 2,
+      "size": 57.6,
+      "vw": 4,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.4,
+      "top": 3683,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Install ScryBar",
+      "words": 2,
+      "chars": 15,
+      "lines": 1,
+      "size": 57.6,
+      "vw": 4,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.4,
+      "top": 4264,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "A few good questions",
+      "words": 4,
+      "chars": 20,
+      "lines": 2,
+      "size": 57.6,
+      "vw": 4,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.4,
+      "top": 4926,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "For the curious",
+      "words": 3,
+      "chars": 15,
+      "lines": 1,
+      "size": 57.6,
+      "vw": 4,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.89,
+      "top": 5420,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "ScryBar",
+      "words": 1,
+      "chars": 7,
+      "lines": 1,
+      "size": 208,
+      "vw": 14.4,
+      "font": "Syne",
+      "weight": 800,
+      "tracking": -0.075,
+      "leading": 0.95,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.89,
+      "top": 5799,
+      "tag": "a",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 10,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 4,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Montserrat",
+       "share": 0.97,
+       "mono": false
+      },
+      {
+       "family": "Syne",
+       "share": 0.02,
+       "mono": false
+      },
+      {
+       "family": "Space Mono",
+       "share": 0,
+       "mono": true
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      13,
+      14,
+      15,
+      16,
+      18,
+      22,
+      24,
+      26,
+      30,
+      58,
+      75,
+      208
+     ],
+     "sizeCount": 12,
+     "notLoaded": [],
+     "body": {
+      "font": "Montserrat",
+      "size": 16,
+      "leading": 1.6,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 7.7
+     },
+     "measureChars": 69,
+     "max": {
+      "size": 208,
+      "vw": 14.4,
+      "font": "Syne",
+      "text": "ScryBar"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [
+      "Space Mono"
+     ],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.01,
+     "smallText": 0
+    },
+    "eyebrows": [
+     {
+      "text": "Controller",
+      "above": "ScryBar",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 16,
+      "top": 5750
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#040918",
+     "bodyBgHsl": {
+      "h": 225,
+      "s": 0.71,
+      "l": 0.05
+     },
+     "dark": true,
+     "sectionBgs": [
+      {
+       "color": "#070d2d",
+       "top": 88,
+       "hsl": {
+        "h": 231,
+        "s": 0.73,
+        "l": 0.1
+       }
+      },
+      {
+       "color": "#182b5a",
+       "top": 334,
+       "hsl": {
+        "h": 223,
+        "s": 0.58,
+        "l": 0.22
+       }
+      },
+      {
+       "color": "#0e1a3d",
+       "top": 1008,
+       "hsl": {
+        "h": 225,
+        "s": 0.63,
+        "l": 0.15
+       }
+      },
+      {
+       "color": "#7551ff",
+       "top": 3579,
+       "hsl": {
+        "h": 252,
+        "s": 1,
+        "l": 0.66
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#a3aed0",
+       "share": 0.87
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.13
+      },
+      {
+       "color": "#040918",
+       "share": 0
+      }
+     ],
+     "button": {
+      "bg": "#7551ff",
+      "hsl": {
+       "h": 252,
+       "s": 1,
+       "l": 0.66
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 5,
+     "inHero": 3,
+     "radius": 8,
+     "height": 48,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Skip to main content",
+      "Install firmware",
+      "Default"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 7,
+     "boxRadius": 10,
+     "squareMedia": 0,
+     "roundedMedia": 14,
+     "mediaRadius": 12,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [
+     {
+      "type": "img",
+      "ratio": 0.24
+     },
+     {
+      "type": "img",
+      "ratio": 0.24
+     },
+     {
+      "type": "img",
+      "ratio": 0.24
+     },
+     {
+      "type": "img",
+      "ratio": 0.24
+     }
+    ],
+    "nav": {
+     "links": 6,
+     "fixed": false,
+     "height": 88,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "montserrat",
+     "space mono",
+     "syne"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 6171,
+    "margins": {
+     "left": 80,
+     "right": 96
+    },
+    "sections": [
+     {
+      "sel": "section.hero",
+      "tag": "section",
+      "top": 88,
+      "height": 920,
+      "words": 77,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Desk, meet",
+       "size": 75,
+       "tag": "h1"
+      },
+      "left": 80,
+      "right": 80,
+      "textLeft": 80,
+      "textRight": 80,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#features.chapter.chapter-surface",
+      "tag": "section",
+      "top": 1008,
+      "height": 1068,
+      "words": 83,
+      "media": 4,
+      "middle": 64,
+      "heading": {
+       "text": "A small place",
+       "size": 58,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 80,
+      "textLeft": 80,
+      "textRight": 80,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#setup.chapter",
+      "tag": "section",
+      "top": 2076,
+      "height": 711,
+      "words": 101,
+      "media": 0,
+      "middle": 185,
+      "heading": {
+       "text": "Plug in.",
+       "size": 58,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 86,
+      "textLeft": 80,
+      "textRight": 86,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#companion.chapter.chapter-surface",
+      "tag": "section",
+      "top": 2787,
+      "height": 792,
+      "words": 135,
+      "media": 1,
+      "middle": 240,
+      "heading": {
+       "text": "Your Mac,",
+       "size": 58,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 158,
+      "textLeft": 80,
+      "textRight": 226,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#buy.chapter.hardware",
+      "tag": "section",
+      "top": 3579,
+      "height": 580,
+      "words": 68,
+      "media": 0,
+      "middle": 406,
+      "heading": {
+       "text": "Start with",
+       "size": 58,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 112,
+      "textLeft": 80,
+      "textRight": 112,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#flash.chapter.installer",
+      "tag": "section",
+      "top": 4160,
+      "height": 663,
+      "words": 106,
+      "media": 0,
+      "middle": 160,
+      "heading": {
+       "text": "Install ScryBar",
+       "size": 58,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 112,
+      "textLeft": 80,
+      "textRight": 140,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#questions.chapter",
+      "tag": "section",
+      "top": 4822,
+      "height": 494,
+      "words": 119,
+      "media": 0,
+      "middle": 391,
+      "heading": {
+       "text": "A few good",
+       "size": 58,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 114,
+      "textLeft": 80,
+      "textRight": 114,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.chapter.technical",
+      "tag": "section",
+      "top": 5316,
+      "height": 419,
+      "words": 34,
+      "media": 0,
+      "middle": 88,
+      "heading": {
+       "text": "For the curious",
+       "size": 58,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 102,
+      "textLeft": 80,
+      "textRight": 102,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "footer.site-footer",
+      "tag": "footer",
+      "top": 5735,
+      "height": 436,
+      "words": 22,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "ScryBar",
+       "size": 208,
+       "tag": "a"
+      },
+      "left": 80,
+      "right": 80,
+      "textLeft": 80,
+      "textRight": 80,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Desk, meet ScryBar.",
+      "size": 75,
+      "top": 128,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 80,
+      "n": 23
+     },
+     {
+      "x": 744,
+      "n": 16
+     },
+     {
+      "x": 806,
+      "n": 6
+     },
+     {
+      "x": 102,
+      "n": 3
+     },
+     {
+      "x": 784,
+      "n": 3
+     },
+     {
+      "x": 838,
+      "n": 1
+     },
+     {
+      "x": 853,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 53,
+    "bodySize": 16,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0.07,
+    "voidBox": {
+     "x": 0,
+     "y": 300,
+     "w": 1440,
+     "h": 60
+    }
+   },
+   "app": null,
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 6,
+   "filled": [
+    0.94,
+    0.76,
+    0.57,
+    0.93,
+    0.45,
+    0.82
+   ],
+   "motion": {
+    "elements": 8,
+    "css": 8,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 5764,
+     "screens": 5.6,
+     "words": 516,
+     "img": 15,
+     "video": 0,
+     "canvas": 0,
+     "svg": 1,
+     "sections": 10,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 1,
+     "uiAbuse": false,
+     "realPictures": 1,
+     "videoCount": 0,
+     "uiPictures": 1,
+     "pictureSamples": [
+      "companion-app.CYUc8up1_DXhHL.webp"
+     ],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Desk, meet ScryBar.",
+     "words": 3,
+     "chars": 19,
+     "lines": 2,
+     "size": 39.9,
+     "vw": 5.2,
+     "font": "Syne",
+     "weight": 800,
+     "tracking": -0.035,
+     "leading": 1.08,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "center",
+     "widthRatio": 0.94,
+     "top": 128,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Desk, meet ScryBar.",
+     "words": 3,
+     "lines": 2,
+     "size": 39.9,
+     "font": "Syne"
+    },
+    "headings": [
+     {
+      "text": "ScryBar",
+      "words": 1,
+      "chars": 7,
+      "lines": 1,
+      "size": 30,
+      "vw": 3.9,
+      "font": "Syne",
+      "weight": 800,
+      "tracking": -0.07,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.23,
+      "top": 29,
+      "tag": "a",
+      "kind": "heading"
+     },
+     {
+      "text": "Desk, meet ScryBar.",
+      "words": 3,
+      "chars": 19,
+      "lines": 2,
+      "size": 39.9,
+      "vw": 5.2,
+      "font": "Syne",
+      "weight": 800,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.94,
+      "top": 128,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "A small place for useful things",
+      "words": 6,
+      "chars": 31,
+      "lines": 2,
+      "size": 32,
+      "vw": 4.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.34,
+      "top": 1061,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Plug in. Make it yours.",
+      "words": 5,
+      "chars": 23,
+      "lines": 2,
+      "size": 32,
+      "vw": 4.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.42,
+      "top": 1911,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Your Mac, on the bar",
+      "words": 5,
+      "chars": 20,
+      "lines": 2,
+      "size": 32,
+      "vw": 4.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.48,
+      "top": 2737,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Start with this board",
+      "words": 4,
+      "chars": 21,
+      "lines": 2,
+      "size": 32,
+      "vw": 4.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.42,
+      "top": 3439,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Waveshare 3.49-inch board",
+      "words": 3,
+      "chars": 25,
+      "lines": 2,
+      "size": 26,
+      "vw": 3.4,
+      "font": "Montserrat",
+      "weight": 700,
+      "tracking": -0.02,
+      "leading": 1.4,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "right",
+      "widthRatio": 0.42,
+      "top": 3439,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Install ScryBar",
+      "words": 2,
+      "chars": 15,
+      "lines": 1,
+      "size": 32,
+      "vw": 4.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.42,
+      "top": 4087,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "A few good questions",
+      "words": 4,
+      "chars": 20,
+      "lines": 2,
+      "size": 32,
+      "vw": 4.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.42,
+      "top": 4734,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "For the curious",
+      "words": 3,
+      "chars": 15,
+      "lines": 1,
+      "size": 32,
+      "vw": 4.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.94,
+      "top": 5164,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "ScryBar",
+      "words": 1,
+      "chars": 7,
+      "lines": 1,
+      "size": 111.4,
+      "vw": 14.5,
+      "font": "Syne",
+      "weight": 800,
+      "tracking": -0.075,
+      "leading": 0.95,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.94,
+      "top": 5484,
+      "tag": "a",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 11,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 4,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Montserrat",
+       "share": 0.97,
+       "mono": false
+      },
+      {
+       "family": "Syne",
+       "share": 0.02,
+       "mono": false
+      },
+      {
+       "family": "Space Mono",
+       "share": 0,
+       "mono": true
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      13,
+      14,
+      15,
+      16,
+      18,
+      22,
+      24,
+      26,
+      30,
+      32,
+      40,
+      111
+     ],
+     "sizeCount": 12,
+     "notLoaded": [],
+     "body": {
+      "font": "Montserrat",
+      "size": 16,
+      "leading": 1.6,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 7.7
+     },
+     "measureChars": 36,
+     "max": {
+      "size": 111.4,
+      "vw": 14.5,
+      "font": "Syne",
+      "text": "ScryBar"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [
+      "Space Mono"
+     ],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.01,
+     "smallText": 0
+    },
+    "eyebrows": [
+     {
+      "text": "Camera setup",
+      "above": "Start with this board",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 16,
+      "top": 3416
+     },
+     {
+      "text": "ScryBar repository",
+      "above": "For the curious",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 16,
+      "top": 5049
+     },
+     {
+      "text": "Display",
+      "above": "ScryBar",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 16,
+      "top": 5417
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#040918",
+     "bodyBgHsl": {
+      "h": 225,
+      "s": 0.71,
+      "l": 0.05
+     },
+     "dark": true,
+     "sectionBgs": [
+      {
+       "color": "#070d2d",
+       "top": 88,
+       "hsl": {
+        "h": 231,
+        "s": 0.73,
+        "l": 0.1
+       }
+      },
+      {
+       "color": "#0e1a3d",
+       "top": 989,
+       "hsl": {
+        "h": 225,
+        "s": 0.63,
+        "l": 0.15
+       }
+      },
+      {
+       "color": "#7551ff",
+       "top": 3367,
+       "hsl": {
+        "h": 252,
+        "s": 1,
+        "l": 0.66
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#a3aed0",
+       "share": 0.87
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.13
+      },
+      {
+       "color": "#040918",
+       "share": 0
+      }
+     ],
+     "button": {
+      "bg": "#7551ff",
+      "hsl": {
+       "h": 252,
+       "s": 1,
+       "l": 0.66
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 5,
+     "inHero": 3,
+     "radius": 8,
+     "height": 48,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Skip to main content",
+      "Install firmware",
+      "Default"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 7,
+     "boxRadius": 10,
+     "squareMedia": 0,
+     "roundedMedia": 10,
+     "mediaRadius": 12,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [
+     {
+      "type": "img",
+      "ratio": 0.12
+     },
+     {
+      "type": "img",
+      "ratio": 0.12
+     },
+     {
+      "type": "img",
+      "ratio": 0.12
+     },
+     {
+      "type": "img",
+      "ratio": 0.12
+     }
+    ],
+    "nav": {
+     "links": 6,
+     "fixed": false,
+     "height": 88,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "montserrat",
+     "space mono",
+     "syne"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 5764,
+    "margins": {
+     "left": 24,
+     "right": 33
+    },
+    "sections": [
+     {
+      "sel": "section.hero",
+      "tag": "section",
+      "top": 88,
+      "height": 901,
+      "words": 77,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Desk, meet",
+       "size": 40,
+       "tag": "h1"
+      },
+      "left": 24,
+      "right": 44,
+      "textLeft": 24,
+      "textRight": 46,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#features.chapter.chapter-surface",
+      "tag": "section",
+      "top": 989,
+      "height": 850,
+      "words": 83,
+      "media": 4,
+      "middle": 51,
+      "heading": {
+       "text": "A small place",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 24,
+      "textLeft": 24,
+      "textRight": 24,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#setup.chapter",
+      "tag": "section",
+      "top": 1839,
+      "height": 826,
+      "words": 101,
+      "media": 0,
+      "middle": 94,
+      "heading": {
+       "text": "Plug in.",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 40,
+      "textLeft": 24,
+      "textRight": 40,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#companion.chapter.chapter-surface",
+      "tag": "section",
+      "top": 2665,
+      "height": 702,
+      "words": 107,
+      "media": 1,
+      "middle": 60,
+      "heading": {
+       "text": "Your Mac,",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 24,
+      "textLeft": 24,
+      "textRight": 68,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#buy.chapter.hardware",
+      "tag": "section",
+      "top": 3367,
+      "height": 649,
+      "words": 68,
+      "media": 0,
+      "middle": 230,
+      "heading": {
+       "text": "Start with",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 33,
+      "textLeft": 24,
+      "textRight": 33,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#flash.chapter.installer",
+      "tag": "section",
+      "top": 4015,
+      "height": 647,
+      "words": 96,
+      "media": 0,
+      "middle": 110,
+      "heading": {
+       "text": "Install ScryBar",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 56,
+      "textLeft": 24,
+      "textRight": 61,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#questions.chapter",
+      "tag": "section",
+      "top": 4662,
+      "height": 430,
+      "words": 106,
+      "media": 0,
+      "middle": 232,
+      "heading": {
+       "text": "A few good",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 50,
+      "textLeft": 24,
+      "textRight": 50,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.chapter.technical",
+      "tag": "section",
+      "top": 5092,
+      "height": 327,
+      "words": 21,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "For the curious",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 114,
+      "textLeft": 24,
+      "textRight": 114,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "footer.site-footer",
+      "tag": "footer",
+      "top": 5420,
+      "height": 344,
+      "words": 22,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "ScryBar",
+       "size": 111,
+       "tag": "a"
+      },
+      "left": 24,
+      "right": 24,
+      "textLeft": 24,
+      "textRight": 24,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Desk, meet ScryBar.",
+      "size": 40,
+      "top": 128,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 24,
+      "n": 24
+     },
+     {
+      "x": 408,
+      "n": 16
+     },
+     {
+      "x": 442,
+      "n": 6
+     },
+     {
+      "x": 46,
+      "n": 3
+     },
+     {
+      "x": 420,
+      "n": 3
+     },
+     {
+      "x": 474,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 53,
+    "bodySize": 16,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": null,
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 9,
+   "filled": [
+    0.98,
+    0.79,
+    0.68,
+    0.4,
+    0.86,
+    1,
+    0.75,
+    0.82,
+    0.98
+   ],
+   "motion": {
+    "elements": 8,
+    "css": 8,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 7159,
+     "screens": 8.5,
+     "words": 512,
+     "img": 15,
+     "video": 0,
+     "canvas": 0,
+     "svg": 1,
+     "sections": 10,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 1,
+     "uiAbuse": false,
+     "realPictures": 1,
+     "videoCount": 0,
+     "uiPictures": 1,
+     "pictureSamples": [
+      "companion-app.CYUc8up1_DXhHL.webp"
+     ],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Desk, meet ScryBar.",
+     "words": 3,
+     "chars": 19,
+     "lines": 2,
+     "size": 31.8,
+     "vw": 8.2,
+     "font": "Syne",
+     "weight": 800,
+     "tracking": -0.035,
+     "leading": 1.08,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "center",
+     "widthRatio": 0.92,
+     "top": 96,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Desk, meet ScryBar.",
+     "words": 3,
+     "lines": 2,
+     "size": 31.8,
+     "font": "Syne"
+    },
+    "headings": [
+     {
+      "text": "ScryBar",
+      "words": 1,
+      "chars": 7,
+      "lines": 1,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Syne",
+      "weight": 800,
+      "tracking": -0.07,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.45,
+      "top": 21,
+      "tag": "a",
+      "kind": "heading"
+     },
+     {
+      "text": "Desk, meet ScryBar.",
+      "words": 3,
+      "chars": 19,
+      "lines": 2,
+      "size": 31.8,
+      "vw": 8.2,
+      "font": "Syne",
+      "weight": 800,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 96,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Mac Stats",
+      "words": 2,
+      "chars": 9,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 574,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "A small place for useful things",
+      "words": 6,
+      "chars": 31,
+      "lines": 2,
+      "size": 32,
+      "vw": 8.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 1136,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Everyday",
+      "words": 1,
+      "chars": 8,
+      "lines": 1,
+      "size": 23,
+      "vw": 5.9,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 1458,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "From your Mac",
+      "words": 3,
+      "chars": 13,
+      "lines": 1,
+      "size": 23,
+      "vw": 5.9,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 1756,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "At the printer",
+      "words": 3,
+      "chars": 14,
+      "lines": 1,
+      "size": 23,
+      "vw": 5.9,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 2027,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Make it yours",
+      "words": 3,
+      "chars": 13,
+      "lines": 1,
+      "size": 23,
+      "vw": 5.9,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 2299,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Plug in. Make it yours.",
+      "words": 5,
+      "chars": 23,
+      "lines": 2,
+      "size": 32,
+      "vw": 8.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 2523,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Connect",
+      "words": 1,
+      "chars": 7,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "right",
+      "widthRatio": 0.75,
+      "top": 2777,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Install",
+      "words": 1,
+      "chars": 7,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "right",
+      "widthRatio": 0.75,
+      "top": 2891,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Join",
+      "words": 1,
+      "chars": 4,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "right",
+      "widthRatio": 0.75,
+      "top": 3029,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Choose",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "right",
+      "widthRatio": 0.75,
+      "top": 3168,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Time speaks your language",
+      "words": 4,
+      "chars": 25,
+      "lines": 1,
+      "size": 23,
+      "vw": 5.9,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 3301,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Your Mac, on the bar",
+      "words": 5,
+      "chars": 20,
+      "lines": 2,
+      "size": 32,
+      "vw": 8.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 3890,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Start with this board",
+      "words": 4,
+      "chars": 21,
+      "lines": 2,
+      "size": 32,
+      "vw": 8.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 4551,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Waveshare 3.49-inch board",
+      "words": 3,
+      "chars": 25,
+      "lines": 2,
+      "size": 26,
+      "vw": 6.7,
+      "font": "Montserrat",
+      "weight": 700,
+      "tracking": -0.02,
+      "leading": 1.4,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 4656,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Install ScryBar",
+      "words": 2,
+      "chars": 15,
+      "lines": 1,
+      "size": 32,
+      "vw": 8.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 5203,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Ready for your board",
+      "words": 4,
+      "chars": 20,
+      "lines": 1,
+      "size": 23,
+      "vw": 5.9,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.82,
+      "top": 5433,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "A few good questions",
+      "words": 4,
+      "chars": 20,
+      "lines": 2,
+      "size": 32,
+      "vw": 8.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 5977,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "For the curious",
+      "words": 3,
+      "chars": 15,
+      "lines": 1,
+      "size": 32,
+      "vw": 8.2,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 6480,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.9.4",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.18,
+      "top": 6801,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "ScryBar",
+      "words": 1,
+      "chars": 7,
+      "lines": 1,
+      "size": 56.6,
+      "vw": 14.5,
+      "font": "Syne",
+      "weight": 800,
+      "tracking": -0.075,
+      "leading": 0.95,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 6877,
+      "tag": "a",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.9.3",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.17,
+      "top": 7280,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.9.2",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.17,
+      "top": 7912,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.9.1",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.16,
+      "top": 8345,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.9.0",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.18,
+      "top": 8916,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.8.2",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.17,
+      "top": 11991,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.8.1",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.15,
+      "top": 13078,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.8.0",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.18,
+      "top": 14284,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.7.0",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.17,
+      "top": 15310,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.6.0",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.18,
+      "top": 16156,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "v0.5.0",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "Syne",
+      "weight": 700,
+      "tracking": -0.035,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.18,
+      "top": 16814,
+      "tag": "h3",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 33,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 1,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Montserrat",
+       "share": 0.97,
+       "mono": false
+      },
+      {
+       "family": "Syne",
+       "share": 0.02,
+       "mono": false
+      },
+      {
+       "family": "Space Mono",
+       "share": 0,
+       "mono": true
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      22,
+      23,
+      24,
+      26,
+      30,
+      32,
+      57
+     ],
+     "sizeCount": 13,
+     "notLoaded": [],
+     "body": {
+      "font": "Montserrat",
+      "size": 16,
+      "leading": 1.6,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 7.7
+     },
+     "measureChars": 38,
+     "max": {
+      "size": 56.6,
+      "vw": 14.5,
+      "font": "Syne",
+      "text": "ScryBar"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [
+      "Space Mono"
+     ],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.01,
+     "smallText": 0
+    },
+    "eyebrows": [
+     {
+      "text": "Companion interface capture",
+      "above": "Your Mac, on the bar",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 14,
+      "top": 3832
+     },
+     {
+      "text": "brew install macmon",
+      "above": "Start with this board",
+      "upper": false,
+      "tracked": false,
+      "mono": true,
+      "pill": false,
+      "size": 14,
+      "top": 4500
+     },
+     {
+      "text": "ScryBar repository",
+      "above": "For the curious",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 16,
+      "top": 6396
+     },
+     {
+      "text": "Controller",
+      "above": "ScryBar",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 16,
+      "top": 6804
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#040918",
+     "bodyBgHsl": {
+      "h": 225,
+      "s": 0.71,
+      "l": 0.05
+     },
+     "dark": true,
+     "sectionBgs": [
+      {
+       "color": "#070d2d",
+       "top": 72,
+       "hsl": {
+        "h": 231,
+        "s": 0.73,
+        "l": 0.1
+       }
+      },
+      {
+       "color": "#0e1a3d",
+       "top": 1080,
+       "hsl": {
+        "h": 225,
+        "s": 0.63,
+        "l": 0.15
+       }
+      },
+      {
+       "color": "#7551ff",
+       "top": 4495,
+       "hsl": {
+        "h": 252,
+        "s": 1,
+        "l": 0.66
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#a3aed0",
+       "share": 0.87
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.13
+      },
+      {
+       "color": "#040918",
+       "share": 0
+      }
+     ],
+     "button": {
+      "bg": "#7551ff",
+      "hsl": {
+       "h": 252,
+       "s": 1,
+       "l": 0.66
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 6,
+     "inHero": 3,
+     "radius": 8,
+     "height": 48,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Skip to main content",
+      "Menu",
+      "Install firmware"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 7,
+     "boxRadius": 10,
+     "squareMedia": 0,
+     "roundedMedia": 1,
+     "mediaRadius": 10,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [
+     {
+      "type": "img",
+      "ratio": 0.09
+     },
+     {
+      "type": "img",
+      "ratio": 0.09
+     },
+     {
+      "type": "img",
+      "ratio": 0.09
+     },
+     {
+      "type": "img",
+      "ratio": 0.09
+     }
+    ],
+    "nav": {
+     "links": 1,
+     "fixed": false,
+     "height": 72,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "montserrat",
+     "space mono",
+     "syne"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 7159,
+    "margins": {
+     "left": 16,
+     "right": 20
+    },
+    "sections": [
+     {
+      "sel": "section.hero",
+      "tag": "section",
+      "top": 72,
+      "height": 1008,
+      "words": 77,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Desk, meet",
+       "size": 32,
+       "tag": "h1"
+      },
+      "left": 16,
+      "right": 16,
+      "textLeft": 16,
+      "textRight": 20,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#features.chapter.chapter-surface",
+      "tag": "section",
+      "top": 1080,
+      "height": 1387,
+      "words": 83,
+      "media": 4,
+      "middle": 0,
+      "heading": {
+       "text": "A small place",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 16,
+      "right": 28,
+      "textLeft": 16,
+      "textRight": 30,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#setup.chapter",
+      "tag": "section",
+      "top": 2467,
+      "height": 1068,
+      "words": 97,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Plug in.",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 16,
+      "right": 16,
+      "textLeft": 16,
+      "textRight": 16,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#companion.chapter.chapter-surface",
+      "tag": "section",
+      "top": 3535,
+      "height": 960,
+      "words": 107,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Your Mac,",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 16,
+      "right": 17,
+      "textLeft": 16,
+      "textRight": 17,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#buy.chapter.hardware",
+      "tag": "section",
+      "top": 4495,
+      "height": 651,
+      "words": 68,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Start with",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 16,
+      "right": 28,
+      "textLeft": 16,
+      "textRight": 28,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#flash.chapter.installer",
+      "tag": "section",
+      "top": 5147,
+      "height": 774,
+      "words": 106,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Install ScryBar",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 16,
+      "right": 18,
+      "textLeft": 16,
+      "textRight": 18,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#questions.chapter",
+      "tag": "section",
+      "top": 5921,
+      "height": 503,
+      "words": 106,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "A few good",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 16,
+      "right": 41,
+      "textLeft": 16,
+      "textRight": 41,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.chapter.technical",
+      "tag": "section",
+      "top": 6424,
+      "height": 405,
+      "words": 28,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "For the curious",
+       "size": 32,
+       "tag": "h2"
+      },
+      "left": 16,
+      "right": 32,
+      "textLeft": 16,
+      "textRight": 32,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "footer.site-footer",
+      "tag": "footer",
+      "top": 6829,
+      "height": 331,
+      "words": 22,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "ScryBar",
+       "size": 57,
+       "tag": "a"
+      },
+      "left": 16,
+      "right": 47,
+      "textLeft": 16,
+      "textRight": 47,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Desk, meet ScryBar.",
+      "size": 32,
+      "top": 96,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 16,
+      "n": 31
+     },
+     {
+      "x": 32,
+      "n": 21
+     },
+     {
+      "x": 52,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 53,
+    "bodySize": 16,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": null,
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "WARN",
+   "id": "size-count",
+   "width": 1440,
+   "message": "12 different font sizes (13, 14, 15, 16, 18, 22, 24, 26, 30, 58, 75, 208).",
+   "fix": "A page needs about five: display, heading, lead, body, small.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "no-footage",
+   "width": 1440,
+   "message": "No video anywhere on the page.",
+   "fix": "Look for one honest clip with scripts/assets.mjs --video (the place, the material, the process) and use it as a muted loop with a poster frame. Defend its absence only if no clip fits the subject."
+  },
+  {
+   "level": "WARN",
+   "id": "off-centre",
+   "width": 1440,
+   "message": "The margins differ: 80px on the left, 96px on the right, at 1440px.",
+   "fix": "Put the navigation and the content on one pair of margins; check for padding on one side only, a scrollbar gutter, or a header on another inset than the page."
+  },
+  {
+   "level": "WARN",
+   "id": "still-page",
+   "width": 1440,
+   "message": "Little motion: 8 element(s) moved while the page loaded and scrolled.",
+   "fix": "Give every section an entrance for its parts (not one fade of the whole block) and add one moving picture: a looping clip or a slow move on a photograph."
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "/Users/enuzzo/Documents/Codex/ScryBar/web-revamp-prep-2026-10-23/taste-production-final/desktop-fold.jpg",
+   "pages": [
+    "/Users/enuzzo/Documents/Codex/ScryBar/web-revamp-prep-2026-10-23/taste-production-final/desktop-page-01.jpg",
+    "/Users/enuzzo/Documents/Codex/ScryBar/web-revamp-prep-2026-10-23/taste-production-final/desktop-page-02.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "/Users/enuzzo/Documents/Codex/ScryBar/web-revamp-prep-2026-10-23/taste-production-final/tablet-fold.jpg",
+   "pages": [
+    "/Users/enuzzo/Documents/Codex/ScryBar/web-revamp-prep-2026-10-23/taste-production-final/tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "/Users/enuzzo/Documents/Codex/ScryBar/web-revamp-prep-2026-10-23/taste-production-final/mobile-fold.jpg",
+   "pages": [
+    "/Users/enuzzo/Documents/Codex/ScryBar/web-revamp-prep-2026-10-23/taste-production-final/mobile-page-01.jpg",
+    "/Users/enuzzo/Documents/Codex/ScryBar/web-revamp-prep-2026-10-23/taste-production-final/mobile-page-02.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

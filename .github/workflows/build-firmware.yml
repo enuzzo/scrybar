@@ -20,9 +20,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Verify native artwork bridge
+        run: |
+          python3 companion/mac/ScryBarCompanion/ThirdParty/mediaremote-adapter/scrybar_tests/run_tests.py
+          script/embed_mediaremote_adapter.sh --framework-only /tmp/scrybar-mediaremote-ci.noindex
       - name: Build Swift companion
         working-directory: companion/mac/ScryBarCompanion
-        run: swift build
+        run: swift test
 
   build:
     runs-on: ubuntu-latest
@@ -36,6 +40,28 @@ jobs:
           c++ -std=c++17 tests/bambu_camera_controls_test.cpp -o /tmp/camera-controls-test
           /tmp/camera-controls-test
 
+      - name: Test display pacing, network history and HTTP isolation
+        run: |
+          c++ -std=c++17 tests/display_performance_test.cpp -o /tmp/display-performance-test
+          /tmp/display-performance-test
+          c++ -std=c++17 tests/page_transition_frame_test.cpp -o /tmp/page-transition-frame-test
+          /tmp/page-transition-frame-test
+          c++ -std=c++17 tests/mac_stats_history_test.cpp -o /tmp/mac-stats-history-test
+          /tmp/mac-stats-history-test
+          c++ -std=c++17 -pthread -I tests/ui_web_server_stubs tests/ui_web_server_test.cpp -o /tmp/ui-web-server-test
+          /tmp/ui-web-server-test
+          python3 tools/check_frame_deadline_native.py
+          python3 tests/backlight_persistence_native_test.py
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=dev-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
       # ── Node.js / Astro landing page ─────────────────────────────────
       - uses: actions/setup-node@v4
         with:
@@ -46,7 +72,12 @@ jobs:
         env:
           PAGES_SITE: https://enuzzo.github.io
           PAGES_BASE: /scrybar
+          FIRMWARE_VERSION: ${{ steps.version.outputs.tag }}
         run: |
+          # The visible release label and installer manifest share one version.
+          jq --arg version "$FIRMWARE_VERSION" \
+            '.version = $version' public/manifest.json > public/manifest.tmp.json
+          mv public/manifest.tmp.json public/manifest.json
           npm ci
           npm run build
 
@@ -60,10 +91,11 @@ jobs:
           arduino-cli config add board_manager.additional_urls \
             https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
           arduino-cli core update-index
-          arduino-cli core install esp32:esp32@3.1.1
+          # Match the toolchain used for the physical r322 regression trials.
+          arduino-cli core install esp32:esp32@3.3.6
           arduino-cli lib install \
-            "ArduinoJson@7.3.0" \
-            "lvgl@8.4.0" \
+            "ArduinoJson@7.4.2" \
+            "lvgl@8.3.11" \
             "GFX Library for Arduino@1.6.4" \
             "pngle@1.1.0" \
             "SensorLib@0.3.1"
@@ -89,15 +121,6 @@ jobs:
         run: |
           BOOT_APP0=$(find ~/.arduino15/packages/esp32 -name boot_app0.bin | head -1)
           echo "path=$BOOT_APP0" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve version
-        id: version
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=dev-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          fi
 
       # ── Assemble site: Astro output + firmware binary ─────────────────
       - name: Assemble site

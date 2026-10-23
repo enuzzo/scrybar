@@ -1,6 +1,6 @@
 /* ============================================
    ScryBar Landing — Vibemilk DS Token Subset
-   5 product themes mapped from firmware
+   7 product themes mapped from firmware
    ============================================ */
 
 /* ========== SCRYBAR DEFAULT (deep navy / purple-cyan) ========== */
@@ -15,41 +15,21 @@
   --bg-surface: #0E1A3D;
   --bg-surface-hover: #142252;
   --bg-elevated: #182B5A;
-  --bg-card: rgba(14, 26, 61, 0.7);
 
   --text-primary: #FFFFFF;
   --text-secondary: #A3AED0;
-  --text-tertiary: #707EAE;
-  --text-muted: #707EAE;
 
   --accent-primary: #7551FF;
   --accent-primary-rgb: 117, 81, 255;
-  --accent-primary-glow: rgba(117, 81, 255, 0.4);
   --accent-secondary: #39B8FF;
   --accent-secondary-rgb: 57, 184, 255;
-  --accent-secondary-glow: rgba(57, 184, 255, 0.3);
 
   --text-on-primary: #FFFFFF;
   --focus-ring: #8E78FF;
-  --stroke-soft: rgba(255, 255, 255, 0.12);
-  --radius-card: 16px;
-  --radius-control: 10px;
-  --radius-pill: 999px;
-  --ambient-blob-opacity: 0.6;
 
-  --border-subtle: 1px solid rgba(255, 255, 255, 0.07);
-  --border-accent: 1px solid rgba(117, 81, 255, 0.3);
 
-  --shadow-glow-sm: 0 0 20px rgba(117, 81, 255, 0.15);
-  --shadow-glow-md: 0 0 40px rgba(117, 81, 255, 0.22);
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.35);
 
-  --device-body: #1a1d2e;
-  --device-bezel: #0d0f1a;
-  --device-screen-glow: rgba(117, 81, 255, 0.12);
 
-  --gradient-hero: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(117, 81, 255, 0.14) 0%, rgba(57, 184, 255, 0.04) 40%, transparent 70%);
-  --gradient-surface: linear-gradient(135deg, rgba(117, 81, 255, 0.04) 0%, rgba(57, 184, 255, 0.02) 100%);
 }
 
 /* ========== CYBERPUNK 2077 (yellow/cyan neon on dark) ========== */
@@ -59,35 +39,20 @@
   --bg-surface: #101822;
   --bg-surface-hover: #172030;
   --bg-elevated: #1A2538;
-  --bg-card: rgba(16, 24, 34, 0.8);
 
   --text-primary: #E6FCFF;
   --text-secondary: #8CBDC6;
-  --text-tertiary: #5A8A94;
-  --text-muted: #5A8A94;
 
   --accent-primary: #FCEE0A;
   --accent-primary-rgb: 252, 238, 10;
-  --accent-primary-glow: rgba(252, 238, 10, 0.3);
   --accent-secondary: #00E8FF;
   --accent-secondary-rgb: 0, 232, 255;
-  --accent-secondary-glow: rgba(0, 232, 255, 0.25);
   --text-on-primary: #080C15;
   --focus-ring: #FCEE0A;
 
-  --border-subtle: 1px solid rgba(252, 238, 10, 0.06);
-  --border-accent: 1px solid rgba(252, 238, 10, 0.22);
 
-  --shadow-glow-sm: 0 0 20px rgba(252, 238, 10, 0.1);
-  --shadow-glow-md: 0 0 40px rgba(252, 238, 10, 0.16);
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.45);
 
-  --device-body: #12161c;
-  --device-bezel: #08090d;
-  --device-screen-glow: rgba(252, 238, 10, 0.1);
 
-  --gradient-hero: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(252, 238, 10, 0.08) 0%, rgba(0, 232, 255, 0.04) 40%, transparent 65%);
-  --gradient-surface: linear-gradient(135deg, rgba(252, 238, 10, 0.03) 0%, rgba(0, 232, 255, 0.015) 100%);
 }
 
 /* ========== TOXIC CANDY (acid green / magenta on black) ========== */
@@ -97,35 +62,20 @@
   --bg-surface: #1D1131;
   --bg-surface-hover: #261841;
   --bg-elevated: #2B1A4A;
-  --bg-card: rgba(29, 17, 49, 0.82);
 
   --text-primary: #F9F4FF;
   --text-secondary: #D5C6F2;
-  --text-tertiary: #A98ED1;
-  --text-muted: #A98ED1;
 
   --accent-primary: #FF2BD6;
   --accent-primary-rgb: 255, 43, 214;
-  --accent-primary-glow: rgba(255, 43, 214, 0.3);
   --accent-secondary: #7CFF00;
   --accent-secondary-rgb: 124, 255, 0;
-  --accent-secondary-glow: rgba(124, 255, 0, 0.25);
   --text-on-primary: #0F0A16;
   --focus-ring: #FF64E5;
 
-  --border-subtle: 1px solid rgba(255, 43, 214, 0.1);
-  --border-accent: 1px solid rgba(255, 43, 214, 0.28);
 
-  --shadow-glow-sm: 0 0 20px rgba(255, 43, 214, 0.14);
-  --shadow-glow-md: 0 0 40px rgba(255, 43, 214, 0.2);
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.55);
 
-  --device-body: #20102A;
-  --device-bezel: #0F0716;
-  --device-screen-glow: rgba(255, 43, 214, 0.12);
 
-  --gradient-hero: radial-gradient(ellipse 70% 45% at 50% 0%, rgba(255, 43, 214, 0.1) 0%, rgba(124, 255, 0, 0.04) 38%, transparent 65%);
-  --gradient-surface: linear-gradient(135deg, rgba(255, 43, 214, 0.04) 0%, rgba(124, 255, 0, 0.02) 100%);
 }
 
 /* ========== TOKYO TRANSIT (night navy, rail cyan / magenta) ========== */
@@ -135,35 +85,20 @@
   --bg-surface: #132741;
   --bg-surface-hover: #1A3456;
   --bg-elevated: #1B3A62;
-  --bg-card: rgba(19, 39, 65, 0.82);
 
   --text-primary: #EAF3FF;
   --text-secondary: #A9C3E6;
-  --text-tertiary: #7598C4;
-  --text-muted: #7598C4;
 
   --accent-primary: #00D1FF;
   --accent-primary-rgb: 0, 209, 255;
-  --accent-primary-glow: rgba(0, 209, 255, 0.3);
   --accent-secondary: #FF3F81;
   --accent-secondary-rgb: 255, 63, 129;
-  --accent-secondary-glow: rgba(255, 63, 129, 0.25);
   --text-on-primary: #070E18;
   --focus-ring: #4EE2FF;
 
-  --border-subtle: 1px solid rgba(0, 209, 255, 0.08);
-  --border-accent: 1px solid rgba(0, 209, 255, 0.25);
 
-  --shadow-glow-sm: 0 0 20px rgba(0, 209, 255, 0.12);
-  --shadow-glow-md: 0 0 40px rgba(0, 209, 255, 0.18);
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.45);
 
-  --device-body: #12223B;
-  --device-bezel: #060D1A;
-  --device-screen-glow: rgba(0, 209, 255, 0.12);
 
-  --gradient-hero: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(0, 209, 255, 0.1) 0%, rgba(255, 63, 129, 0.04) 40%, transparent 65%);
-  --gradient-surface: linear-gradient(135deg, rgba(0, 209, 255, 0.035) 0%, rgba(255, 63, 129, 0.02) 100%);
 }
 
 /* ========== MINIMAL BRUTALIST MONO (pure black/white) ========== */
@@ -173,39 +108,20 @@
   --bg-surface: #0E0E0E;
   --bg-surface-hover: #161616;
   --bg-elevated: #1A1A1A;
-  --bg-card: rgba(14, 14, 14, 0.85);
 
   --text-primary: #FFFFFF;
   --text-secondary: #999999;
-  --text-tertiary: #8F8F8F;
-  --text-muted: #8F8F8F;
 
   --accent-primary: #FFFFFF;
   --accent-primary-rgb: 255, 255, 255;
-  --accent-primary-glow: rgba(255, 255, 255, 0.15);
   --accent-secondary: #777777;
   --accent-secondary-rgb: 119, 119, 119;
-  --accent-secondary-glow: rgba(119, 119, 119, 0.15);
   --text-on-primary: #111111;
   --focus-ring: #FFFFFF;
-  --radius-card: 0;
-  --radius-control: 0;
-  --radius-pill: 0;
-  --ambient-blob-opacity: 0;
 
-  --border-subtle: 1px solid rgba(255, 255, 255, 0.08);
-  --border-accent: 1px solid rgba(255, 255, 255, 0.25);
 
-  --shadow-glow-sm: 0 0 20px rgba(255, 255, 255, 0.04);
-  --shadow-glow-md: 0 0 40px rgba(255, 255, 255, 0.06);
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.55);
 
-  --device-body: #181818;
-  --device-bezel: #0a0a0a;
-  --device-screen-glow: rgba(255, 255, 255, 0.05);
 
-  --gradient-hero: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(255, 255, 255, 0.025) 0%, transparent 50%);
-  --gradient-surface: linear-gradient(135deg, rgba(255, 255, 255, 0.01) 0%, transparent 100%);
 }
 
 /* ========== MINT PROTOCOL (light sage green — Vibemilk DS v3) ========== */
@@ -215,35 +131,20 @@
   --bg-surface: #EEF4ED;
   --bg-surface-hover: #E7F0E7;
   --bg-elevated: #F5F8F3;
-  --bg-card: rgba(245, 248, 243, 0.8);
 
   --text-primary: #15311B;
   --text-secondary: #28432D;
-  --text-tertiary: #426A47;
-  --text-muted: #426A47;
 
   --accent-primary: #58855C;
   --accent-primary-rgb: 88, 133, 92;
-  --accent-primary-glow: rgba(88, 133, 92, 0.25);
   --accent-secondary: #ADEBB3;
   --accent-secondary-rgb: 173, 235, 179;
-  --accent-secondary-glow: rgba(173, 235, 179, 0.3);
   --text-on-primary: #060D08;
   --focus-ring: #28432D;
 
-  --border-subtle: 1px solid rgba(88, 133, 92, 0.08);
-  --border-accent: 1px solid rgba(88, 133, 92, 0.22);
 
-  --shadow-glow-sm: 0 0 18px rgba(173, 235, 179, 0.24);
-  --shadow-glow-md: 0 0 28px rgba(215, 163, 186, 0.18);
-  --shadow-card: 0 8px 32px rgba(21, 49, 27, 0.12);
 
-  --device-body: #C8D8C8;
-  --device-bezel: #A8B8A8;
-  --device-screen-glow: rgba(88, 133, 92, 0.12);
 
-  --gradient-hero: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(173, 235, 179, 0.2) 0%, rgba(169, 162, 217, 0.08) 40%, transparent 65%);
-  --gradient-surface: linear-gradient(135deg, rgba(88, 133, 92, 0.04) 0%, rgba(169, 162, 217, 0.02) 100%);
 }
 
 /* ========== CATHODE RAY (phosphor green/amber CRT — Vibemilk DS v3) ========== */
@@ -253,33 +154,18 @@
   --bg-surface: #141C10;
   --bg-surface-hover: #1A2416;
   --bg-elevated: #1E2A1A;
-  --bg-card: rgba(20, 28, 16, 0.85);
 
   --text-primary: #33FF33;
   --text-secondary: #22AA22;
-  --text-tertiary: #5AA85A;
-  --text-muted: #5AA85A;
 
   --accent-primary: #33FF33;
   --accent-primary-rgb: 51, 255, 51;
-  --accent-primary-glow: rgba(51, 255, 51, 0.35);
   --accent-secondary: #FFAA00;
   --accent-secondary-rgb: 255, 170, 0;
-  --accent-secondary-glow: rgba(255, 170, 0, 0.25);
   --text-on-primary: #060604;
   --focus-ring: #33FF33;
 
-  --border-subtle: 1px solid rgba(51, 255, 51, 0.08);
-  --border-accent: 1px solid rgba(51, 255, 51, 0.25);
 
-  --shadow-glow-sm: 0 0 16px rgba(51, 255, 51, 0.3);
-  --shadow-glow-md: 0 0 32px rgba(51, 255, 51, 0.4);
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.55);
 
-  --device-body: #111A0E;
-  --device-bezel: #080A06;
-  --device-screen-glow: rgba(51, 255, 51, 0.15);
 
-  --gradient-hero: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(51, 255, 51, 0.1) 0%, rgba(255, 170, 0, 0.04) 40%, transparent 65%);
-  --gradient-surface: linear-gradient(135deg, rgba(51, 255, 51, 0.02) 0%, rgba(255, 170, 0, 0.01) 100%);
 }

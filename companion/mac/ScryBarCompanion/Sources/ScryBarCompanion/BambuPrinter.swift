@@ -247,9 +247,11 @@ final class BambuPrinterMonitor: @unchecked Sendable {
         }
     }
 
-    func setCameraLight(_ enabled: Bool, serial: String) {
+    func setCameraLight(_ enabled: Bool, serial: String, expiresAt: Date? = nil) {
+        let enqueuedAt = Date()
         queue.async { [weak self] in
-            guard let self, self.configuration?.serial == serial, self.snapshot.connected else { return }
+            guard let self, self.configuration?.serial == serial, self.snapshot.connected,
+                  !enabled || (Date().timeIntervalSince(enqueuedAt) < 2 && (expiresAt == nil || Date() < expiresAt!)) else { return }
             let mode = enabled ? "on" : "off"
             self.publish(json: "{\"system\":{\"sequence_id\":\"9001\",\"command\":\"ledctrl\",\"led_node\":\"chamber_light\",\"led_mode\":\"\(mode)\",\"led_on_time\":500,\"led_off_time\":500,\"loop_times\":0,\"interval_time\":0}}")
             self.publish(json: #"{"pushing":{"sequence_id":"9002","command":"pushall"}}"#)

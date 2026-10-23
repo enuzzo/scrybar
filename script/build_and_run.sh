@@ -7,9 +7,11 @@ BUNDLE_ID="com.netmilk.ScryBarCompanion"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT_DIR/companion/mac/ScryBarCompanion/ScryBarCompanion.xcodeproj"
-DERIVED_DATA="$ROOT_DIR/dist/companion-derived-data"
+DERIVED_DATA="${SCRYBAR_DERIVED_DATA:-${TMPDIR:-/tmp}/scrybar-companion-debug-derived-data.noindex}"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+
+"$ROOT_DIR/script/embed_mediaremote_adapter.sh" --check-derived-data "$DERIVED_DATA"
 
 xcodebuild \
   -project "$PROJECT" \
@@ -17,6 +19,10 @@ xcodebuild \
   -configuration Debug \
   -derivedDataPath "$DERIVED_DATA" \
   build
+
+"$ROOT_DIR/script/embed_mediaremote_adapter.sh" "$APP_BUNDLE" "$DERIVED_DATA"
+codesign --force --sign - --timestamp=none "$APP_BUNDLE"
+codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 
 # Build-only checks must not interrupt a running companion or its camera cleanup.
 if [[ "$MODE" == "--build-only" ]]; then exit 0; fi

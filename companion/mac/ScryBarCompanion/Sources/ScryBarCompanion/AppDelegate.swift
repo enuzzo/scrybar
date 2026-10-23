@@ -6,12 +6,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let model = AppModel()
     private var cameraWindow: NSWindow?
     private var statusItem: NSStatusItem!
+    private var networkStatusItem: NSStatusItem!
     private let popover = NSPopover()
     private let popoverLayout = PopoverLayoutModel()
     private var observation: NSKeyValueObservation?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model.openCameraWindow = { [weak self] in self?.showCamera() }
+        model.closePopover = { [weak self] in self?.popover.performClose(nil) }
         let opensBambuSetup = ProcessInfo.processInfo.arguments.contains("--bambu-setup")
         let opensPopover = opensBambuSetup || ProcessInfo.processInfo.arguments.contains("--open")
         model.showSettingsOnOpen = opensBambuSetup
@@ -21,7 +23,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         startTitleUpdates()
 
         if opensPopover {
-            popover.behavior = .applicationDefined
             NSApp.activate(ignoringOtherApps: true)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self, let button = self.statusItem.button else { return }
@@ -116,12 +117,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         button.target = self
         button.action = #selector(statusItemClicked(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+
+        networkStatusItem = NSStatusBar.system.statusItem(withLength: 94)
+        if let networkButton = networkStatusItem.button {
+            networkButton.imagePosition = .imageOnly
+            networkButton.imageScaling = .scaleNone
+            networkButton.target = self
+            networkButton.action = #selector(statusItemClicked(_:))
+            networkButton.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            networkButton.setAccessibilityLabel("ScryBar network activity")
+        }
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
         guard let event = NSApp.currentEvent else { return }
         if event.type == .rightMouseUp {
-            showContextMenu()
+            showContextMenu(for: sender)
         } else {
             togglePopover(sender)
         }
@@ -139,16 +150,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: - Context Menu
 
-    private func showContextMenu() {
+    private func showContextMenu(for sender: NSStatusBarButton) {
         let menu = NSMenu()
         menu.addItem(withTitle: "Settings…", action: #selector(contextOpenSettings), keyEquivalent: ",")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit ScryBar Companion", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        statusItem.menu = menu
-        statusItem.button?.performClick(nil)
+        let item = sender === networkStatusItem.button ? networkStatusItem! : statusItem!
+        item.menu = menu
+        item.button?.performClick(nil)
         // Remove menu after display so left-click works again
-        DispatchQueue.main.async { [weak self] in
-            self?.statusItem.menu = nil
+        DispatchQueue.main.async {
+            item.menu = nil
         }
     }
 
@@ -211,6 +223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func updateTitle() {
+        updateNetworkTitle()
         let payload = model.currentPayload
         if payload.isPlaying, payload.title != "—" {
             let maxLen = 30
@@ -221,5 +234,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             statusItem.button?.title = ""
         }
+    }
+
+    private func updateNetworkTitle() {
+        guard let button = networkStatusItem.button else { return }
+        networkStatusItem.isVisible = UserDefaults.standard.object(forKey: "network.showInMenuBar") as? Bool ?? true
+        let stale = model.latestMacStats.map { Date.now.timeIntervalSince($0.updatedAt) > 15 } ?? true
+        let down = NetworkRateFormatter.string(stale ? nil : model.latestNetworkStats?.downloadBytesPerSec)
+        let up = NetworkRateFormatter.string(stale ? nil : model.latestNetworkStats?.uploadBytesPerSec)
+        button.image = NetworkStatusImage.make(download: down, upload: up)
+        let leader = model.latestMacStats?.networkApp
+        button.toolTip = "\(model.networkScope.title) · Download \(down) · Upload \(up)" + (stale ? " · Waiting for fresh data" : leader.map { " · \($0)" } ?? "")
+        button.setAccessibilityValue(button.toolTip)
     }
 }

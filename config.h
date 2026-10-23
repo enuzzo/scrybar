@@ -19,13 +19,14 @@
 #define ENERGY_SAVER_ENABLED 1
 #define ENERGY_BACKLIGHT_ON_BATTERY 72
 #define SCREENSAVER_ENABLED 1
-#define SCREENSAVER_IDLE_USB_MS 7200000UL
-#define SCREENSAVER_IDLE_BATTERY_MS 7200000UL
+#define SCREENSAVER_IDLE_USB_MS 300000UL
+#define SCREENSAVER_IDLE_BATTERY_MS 300000UL
+#define DISPLAY_OFF_IDLE_MS 900000UL
 #define SCREENSAVER_STEP_MS 55UL
 
 // Increment this tag at every firmware edit to confirm Arduino IDE is flashing latest code.
-#define FW_BUILD_TAG "r307"
-#define FW_RELEASE_DATE "2026-09-09"
+#define FW_BUILD_TAG "r322"
+#define FW_RELEASE_DATE "2026-10-23"
 
 // M5: Config diff result struct (here so Arduino auto-prototype sees it)
 typedef struct {

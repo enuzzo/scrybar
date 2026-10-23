@@ -11,6 +11,11 @@
 #define LV_COLOR_DEPTH 16
 #define LV_COLOR_16_SWAP 1
 
+/* Permit about 60 refreshes/s during transitions. The default 30 ms timer
+   limits rendering even when the application services LVGL more often.
+   Unchanged screens still remain idle through LVGL's invalidation tracking. */
+#define LV_DISP_DEF_REFR_PERIOD 16
+
 /* Enable anti-aliasing for better text/shape quality. */
 #define LV_ANTIALIAS 1
 

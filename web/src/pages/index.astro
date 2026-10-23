@@ -1,11 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Nav from '../components/Nav.astro';
-import DeviceMockup from '../components/DeviceMockup.astro';
-import ThemeSelector from '../components/ThemeSelector.astro';
-import LanguagePreview from '../components/LanguagePreview.astro';
+import ProductPreview from '../components/ProductPreview.astro';
 import Features from '../components/Features.astro';
-import ViewShowcase from '../components/ViewShowcase.astro';
 import HowItWorks from '../components/HowItWorks.astro';
 import CompanionApp from '../components/CompanionApp.astro';
 import WhereToBuy from '../components/WhereToBuy.astro';
@@ -14,116 +11,20 @@ import ReleaseNotes from '../components/ReleaseNotes.astro';
 import Specs from '../components/Specs.astro';
 import Footer from '../components/Footer.astro';
 ---
-<Layout
-  title="ScryBar — Your desk knows things now."
-  description="An open-source ESP32-S3 desk companion with a 14-language word clock, live weather, news, Now Playing, transit, launches, Mac stats, and Bambu Lab print telemetry."
->
-  <div class="page-glow" aria-hidden="true"></div>
-  <div class="page-noise" aria-hidden="true"></div>
-
-  <div class="content">
-    <main id="main-content">
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="container">
-        <Nav />
-
-        <div class="hero-content">
-          <div class="hero-badges entrance entrance--2">
-            <span class="vm-badge vm-badge--brand">ESP32-S3</span>
-            <span class="vm-badge vm-badge--info">Open Source</span>
-          </div>
-
-          <h1 id="hero-title" class="entrance entrance--3">
-            Your desk knows<br />
-            things now.
-          </h1>
-          <p class="hero-lede entrance entrance--4">
-            A mass of sensors, pixels, and unresolved ambition,
-            pretending to be furniture. Word clock in 14 languages,
-            weather, news, Wikipedia, Now Playing from macOS, live
-            public-transport timetable, rocket launch countdowns,
-            Mac stats, and live Bambu Lab prints &mdash; on a 3.49&quot; IPS touchscreen.
-          </p>
-
-          <div class="hero-ctas entrance entrance--5">
-            <a href="#flash" class="vm-btn vm-btn--primary vm-btn--lg">
-              Flash Firmware
-            </a>
-            <a href="#features" class="vm-btn vm-btn--secondary vm-btn--lg">
-              Explore Features
-            </a>
-          </div>
-        </div>
-
-        <div class="entrance entrance--6">
-          <DeviceMockup />
-        </div>
-
-        <div class="entrance entrance--7">
-          <ThemeSelector />
-        </div>
-
-        <div class="entrance entrance--8">
-          <LanguagePreview />
-        </div>
-      </div>
-    </section>
-
-    <div class="reveal">
-      <ViewShowcase />
-    </div>
-
-    <div class="reveal">
-      <Features />
-    </div>
-
-    <div class="reveal">
-      <HowItWorks />
-    </div>
-
-    <div class="reveal">
-      <CompanionApp />
-    </div>
-
-    <div class="reveal">
-      <WhereToBuy />
-    </div>
-
-    <div class="reveal">
-      <FlashSection />
-    </div>
-
-    <div class="reveal">
-      <ReleaseNotes />
-    </div>
-
-    <div class="reveal">
-      <Specs />
-    </div>
-
-    </main>
-    <Footer />
-  </div>
+<Layout title="ScryBar — Your desk knows things now." description="Your desk knows things now. An open-source desk companion for time, weather, music and the things you keep an eye on. Seven themes, fourteen clock languages, and your own swipe order.">
+  <Nav />
+  <main id="main-content">
+    <section class="hero" aria-labelledby="hero-title"><div class="container">
+      <div class="hero-copy"><h1 id="hero-title">Desk, meet<br />ScryBar.</h1><div class="hero-intro"><p>Your desk knows things now. An open-source desk companion for time, weather, music and the things you keep an eye on.</p><a class="button" href="#flash">Install firmware</a></div></div>
+      <ProductPreview />
+    </div></section>
+    <Features /><HowItWorks /><CompanionApp /><WhereToBuy /><FlashSection />
+    <section id="questions" class="chapter"><div class="container faq-layout"><h2>A few good<br />questions</h2><div class="disclosures">
+      <details><summary>Does it need a Mac?</summary><p>Clock, weather, RSS, Wikipedia, departures and launches run on ScryBar. Now Playing, Mac Stats and Bambu features use Companion on a Mac.</p></details>
+      <details><summary>Can I configure it from my phone?</summary><p>Yes. Join the setup network or open ScryBar’s configuration page on your LAN. Installing firmware needs a desktop browser with Web Serial support.</p></details>
+      <details><summary>Can I hide or reorder pages?</summary><p>Yes. Choose the views you want and set their swipe order in the Control Surface. The panel marks views that must stay available.</p></details>
+      <details><summary>Where is the source?</summary><p>The firmware, Companion and website are in the <a href="https://github.com/enuzzo/scrybar">ScryBar repository</a>. Read its license and third-party notices before reusing code or assets.</p></details>
+    </div></div></section>
+    <section class="chapter technical"><div class="container"><h2>For the curious</h2><p class="section-intro">Hardware details and the published release history.</p><div class="technical-grid"><details><summary>Hardware specifications</summary><Specs /></details><details><summary>Published firmware releases</summary><ReleaseNotes /></details></div></div></section>
+  </main><Footer />
 </Layout>
-
-<script>
-  const reveals = document.querySelectorAll('.reveal');
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  if (!('IntersectionObserver' in window) || reduceMotion) {
-    reveals.forEach((el) => el.classList.add('revealed'));
-  } else {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('revealed');
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
-    );
-    reveals.forEach((el) => observer.observe(el));
-  }
-</script>
