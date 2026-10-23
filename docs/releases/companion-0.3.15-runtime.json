@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-23",
+  "version": "0.3.15",
+  "build": 53,
+  "test": "Bounded paired read-only GETs against both selected displays; no manual POST, USB or playback control",
+  "final_summary": {
+    "scheduledPairs": 15,
+    "durationSeconds": 29.449,
+    "postUsbPlayback": false,
+    "scrybar": {
+      "http200": 15,
+      "failed": 0,
+      "maxRequestMs": 1210.942,
+      "activeTrue": 15,
+      "isPlayingTrue": 15,
+      "inSyncTrue": 15,
+      "displayInSyncTrue": 15,
+      "artworkIDPresentTrue": 15,
+      "ageMsMinMax": [
+        44,
+        1289
+      ],
+      "artworkDimensions": [
+        [
+          150,
+          150
+        ]
+      ]
+    },
+    "meguru": {
+      "http200": 15,
+      "failed": 0,
+      "maxRequestMs": 1443.208,
+      "receivedNowPlayingTrue": 15,
+      "artworkExpectedTrue": 15,
+      "artworkReadyTrue": 15,
+      "artworkSizes": [
+        150
+      ],
+      "revisions": [
+        28
+      ]
+    }
+  },
+  "physical_acceptance": {
+    "source": "owner response",
+    "text": "Sì, corretta su entrambi"
+  },
+  "earlier_diagnostic_observation": {
+    "meguru_samples_without_expected_or_ready_artwork": 3,
+    "subsequent_recovery": "Natural, without manual upload or code change",
+    "precise_cause_established": false
+  },
+  "limits": "A bounded final window and physical acceptance establish the observed result, not uninterrupted future availability or a diagnosed cause for the earlier transient."
+}

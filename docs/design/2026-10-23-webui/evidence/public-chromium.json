@@ -1,0 +1,728 @@
+{
+  "url": "https://enuzzo.github.io/scrybar/",
+  "engine": "chromium",
+  "at": "2026-10-23T13:45:06.435Z",
+  "notes": "Actual published website HTML, images, manifest and real installer loader. No loader mock, serial-port request, firmware installation or device/backend mutation. Responsive browser evidence, not a physical phone.",
+  "checks": [
+    {
+      "name": "real manifest path and release 320",
+      "pass": true,
+      "path": "/scrybar/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "published firmware exact v0.9.5 320",
+      "pass": true
+    },
+    {
+      "name": "Companion53 Preview label 320",
+      "pass": true
+    },
+    {
+      "name": "Companion DMG link 320",
+      "pass": true
+    },
+    {
+      "name": "real installer state chromium 320",
+      "pass": true,
+      "supportsSerial": true,
+      "status": "Installer ready. Connect ScryBar by USB-C.",
+      "ready": true,
+      "buttonDisabled": false,
+      "buttonHidden": false,
+      "secure": true
+    },
+    {
+      "name": "published same-origin resources200",
+      "pass": true,
+      "resources": [
+        {
+          "path": "/scrybar/",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/favicon.png",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/index.WWbnyDnr.css",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/home_weather_scrybar-default.eKNVaRCr.png",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/aux_rss.QToQrdu2.png",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/wiki_stream.CvNA7cVR.png",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/now_playing.DVdMMIar.png",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/timetable_board.DzXqCfwC.png",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/launch_countdown.FetvOnYT.png",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/mac_stats_scrybar-default--live.Cw9wqD4g.png",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/bambu_lab.CujPWKjd.png",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/diagnostics-example-native.wCDZGHpL.png",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/home_weather_mint-protocol.G2M7C2H1_pWI1L.webp",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/now_playing.DVdMMIar_Z2j811u.webp",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/bambu_lab.CujPWKjd_Z25fW5E.webp",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/aux_rss.QToQrdu2_1850vc.webp",
+          "status": 200
+        },
+        {
+          "path": "/scrybar/assets/companion-app.CYUc8up1_Zxt85J.webp",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "name": "published manifest firmware parts200",
+      "pass": true,
+      "parts": [
+        {
+          "path": "/scrybar/firmware/bootloader.bin",
+          "offset": 0,
+          "status": 200,
+          "httpContentLength": 13108
+        },
+        {
+          "path": "/scrybar/firmware/partitions.bin",
+          "offset": 32768,
+          "status": 200,
+          "httpContentLength": 130
+        },
+        {
+          "path": "/scrybar/firmware/boot_app0.bin",
+          "offset": 57344,
+          "status": 200,
+          "httpContentLength": 62
+        },
+        {
+          "path": "/scrybar/firmware/firmware.bin",
+          "offset": 65536,
+          "status": 200,
+          "httpContentLength": 1714169
+        }
+      ]
+    },
+    {
+      "name": "public Companion DMG HEAD200",
+      "pass": true,
+      "publicURL": "https://github.com/enuzzo/scrybar/releases/download/companion-v0.3.15/ScryBarCompanion-0.3.15.dmg",
+      "status": 200,
+      "bytes": 9028104,
+      "note": "HEAD only; the coordinator separately verified full downloads and SHA256."
+    },
+    {
+      "name": "320 no horizontal overflow",
+      "pass": true,
+      "viewport": 320,
+      "scroll": 320,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "320 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "320 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "320 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "real manifest path and release 375",
+      "pass": true,
+      "path": "/scrybar/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "published firmware exact v0.9.5 375",
+      "pass": true
+    },
+    {
+      "name": "Companion53 Preview label 375",
+      "pass": true
+    },
+    {
+      "name": "Companion DMG link 375",
+      "pass": true
+    },
+    {
+      "name": "real installer state chromium 375",
+      "pass": true,
+      "supportsSerial": true,
+      "status": "Installer ready. Connect ScryBar by USB-C.",
+      "ready": true,
+      "buttonDisabled": false,
+      "buttonHidden": false,
+      "secure": true
+    },
+    {
+      "name": "375 no horizontal overflow",
+      "pass": true,
+      "viewport": 375,
+      "scroll": 375,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "375 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "375 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "375 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "real manifest path and release 390",
+      "pass": true,
+      "path": "/scrybar/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "published firmware exact v0.9.5 390",
+      "pass": true
+    },
+    {
+      "name": "Companion53 Preview label 390",
+      "pass": true
+    },
+    {
+      "name": "Companion DMG link 390",
+      "pass": true
+    },
+    {
+      "name": "real installer state chromium 390",
+      "pass": true,
+      "supportsSerial": true,
+      "status": "Installer ready. Connect ScryBar by USB-C.",
+      "ready": true,
+      "buttonDisabled": false,
+      "buttonHidden": false,
+      "secure": true
+    },
+    {
+      "name": "390 no horizontal overflow",
+      "pass": true,
+      "viewport": 390,
+      "scroll": 390,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "390 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "390 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "390 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "all page pictures decode 390",
+      "pass": true,
+      "unloaded": []
+    },
+    {
+      "name": "keyboard opens mobile menu",
+      "pass": true
+    },
+    {
+      "name": "menu first link reachable with ArrowDown",
+      "pass": true
+    },
+    {
+      "name": "Escape closes menu and restores focus",
+      "pass": true
+    },
+    {
+      "name": "seven themes and nine views",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/home",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/music",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery scrybar-default/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/home",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/music",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery cyberpunk-2077/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/home",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/music",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery toxic-candy/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/home",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/music",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery tokyo-transit/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/home",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/music",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery minimal-brutalist-mono/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/home",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/music",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery mint-protocol/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/home",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/rss",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/wiki",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/music",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/transit",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/launch",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/stats",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/bambu",
+      "pass": true
+    },
+    {
+      "name": "gallery cathode-ray/diagnostics",
+      "pass": true
+    },
+    {
+      "name": "dialog opens with Close focus",
+      "pass": true
+    },
+    {
+      "name": "dialog advances view",
+      "pass": true
+    },
+    {
+      "name": "dialog closes and restores focus",
+      "pass": true
+    },
+    {
+      "name": "reduced motion disables nonessential motion",
+      "pass": true,
+      "smooth": "auto",
+      "active": 0
+    },
+    {
+      "name": "real manifest path and release 430",
+      "pass": true,
+      "path": "/scrybar/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "published firmware exact v0.9.5 430",
+      "pass": true
+    },
+    {
+      "name": "Companion53 Preview label 430",
+      "pass": true
+    },
+    {
+      "name": "Companion DMG link 430",
+      "pass": true
+    },
+    {
+      "name": "real installer state chromium 430",
+      "pass": true,
+      "supportsSerial": true,
+      "status": "Installer ready. Connect ScryBar by USB-C.",
+      "ready": true,
+      "buttonDisabled": false,
+      "buttonHidden": false,
+      "secure": true
+    },
+    {
+      "name": "430 no horizontal overflow",
+      "pass": true,
+      "viewport": 430,
+      "scroll": 430,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "430 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "430 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "430 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "real manifest path and release 768",
+      "pass": true,
+      "path": "/scrybar/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "published firmware exact v0.9.5 768",
+      "pass": true
+    },
+    {
+      "name": "Companion53 Preview label 768",
+      "pass": true
+    },
+    {
+      "name": "Companion DMG link 768",
+      "pass": true
+    },
+    {
+      "name": "real installer state chromium 768",
+      "pass": true,
+      "supportsSerial": true,
+      "status": "Installer ready. Connect ScryBar by USB-C.",
+      "ready": true,
+      "buttonDisabled": false,
+      "buttonHidden": false,
+      "secure": true
+    },
+    {
+      "name": "768 no horizontal overflow",
+      "pass": true,
+      "viewport": 768,
+      "scroll": 768,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "768 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "768 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "768 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "real manifest path and release 1440",
+      "pass": true,
+      "path": "/scrybar/manifest.json",
+      "status": 200
+    },
+    {
+      "name": "published firmware exact v0.9.5 1440",
+      "pass": true
+    },
+    {
+      "name": "Companion53 Preview label 1440",
+      "pass": true
+    },
+    {
+      "name": "Companion DMG link 1440",
+      "pass": true
+    },
+    {
+      "name": "real installer state chromium 1440",
+      "pass": true,
+      "supportsSerial": true,
+      "status": "Installer ready. Connect ScryBar by USB-C.",
+      "ready": true,
+      "buttonDisabled": false,
+      "buttonHidden": false,
+      "secure": true
+    },
+    {
+      "name": "1440 no horizontal overflow",
+      "pass": true,
+      "viewport": 1440,
+      "scroll": 1440,
+      "overflowTexts": [],
+      "titleLines": 2,
+      "longHeadings": []
+    },
+    {
+      "name": "1440 title fits two lines",
+      "pass": true
+    },
+    {
+      "name": "1440 section headings fit",
+      "pass": true,
+      "headings": []
+    },
+    {
+      "name": "1440 no JavaScript errors",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "all page pictures decode 1440",
+      "pass": true,
+      "unloaded": []
+    }
+  ],
+  "deployment": {
+    "commit": "8f38a739a4c72c4b90cd881910518a2998a1fccb",
+    "ciRun": "https://github.com/enuzzo/scrybar/actions/runs/39962874213",
+    "status": "success reported by coordinator before browser QA"
+  },
+  "binaryHeadNote": "HEAD Content-Length can be HTTP-compressed transfer length, not decompressed flash image size. Full binary integrity and Companion SHA256 are independently verified by the coordinator."
+}

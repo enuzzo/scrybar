@@ -154,11 +154,14 @@ worker counters; expensive idle callbacks are not active-animation stage timing.
 The lower whole-window rate includes cache preparation and handoffs, which remain
 outside the active-motion fps metric. No graphical quality setting changed.
 
-Separate read-only checks on the installed build53 found fresh, playing, in-sync
+Separate read-only checks on the installed build 53 found fresh, playing, in-sync
 metadata and a received 150 x 150 cover in all four samples. A private ScryBar
 framebuffer from build52 was visually inspected and showed the matching current
-cover; build53 changes only reader termination, not capture or image transport.
+cover; build 53 changes only reader termination, not capture or image transport.
 Meguru's production metadata and artwork endpoints acknowledged the current-track
-probe; visible physical Meguru pixels remain a separate owner observation.
+probe. The owner subsequently confirmed correct covers on both physical displays;
+a final paired 29.449-second read-only window found artwork available in 15/15
+samples on each. The [runtime receipt](../releases/companion-0.3.15-runtime.json)
+also retains an earlier diagnostic transient and its unresolved cause.
 Structured results are stored under `final_companion_hardware_regression` in the
 measurement file.

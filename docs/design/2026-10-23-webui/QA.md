@@ -115,3 +115,24 @@ La build finale diventa 53 per una correzione del ciclo di vita del reader. I ri
 Sono stati ricompilati soltanto ROOT con manifest locale `0.9.5` e Pages con il formato CI esatto `v0.9.5`. Il controllo mirato a 390/1440 px ha verificato versione 0.3.15 (53), link DMG, etichetta Preview/ad hoc/non notarizzato, testo HD condizionale, disclosure e assenza di overflow nelle release aperte: **32/32**, [evidenza](evidence/release-build53-copy.json). Asset e manifest reali rispondono **17/17 HTTP 200 per base**, con versione visibile esattamente coincidente con il JSON: [evidenza](evidence/release-build53-paths.json).
 
 La [cattura mobile finale](screenshots/release-build53-companion-390.png) è stata ispezionata. Il download reale del DMG e il browser QA sul sito pubblico restano in attesa della pubblicazione CI; non sono inclusi nei risultati locali. Nessun push o deploy eseguito dall’agente frontend.
+
+
+## Verifica del sito pubblicato
+
+Dopo il completamento della [CI 39962874213](https://github.com/enuzzo/scrybar/actions/runs/39962874213), la QA ha aperto il sito pubblico reale [enuzzo.github.io/scrybar](https://enuzzo.github.io/scrybar/), derivato dal commit `8f38a739a4c72c4b90cd881910518a2998a1fccb`. Questa sezione aggiorna lo stato “in attesa della pubblicazione” dei checkpoint precedenti. Nessun loader o contenuto della pagina è stato sostituito con mock durante questa verifica.
+
+| Prova pubblica | Risultato | Evidenza |
+| --- | --- | --- |
+| Chromium, 320/375/390/430/768/1440 px |130/130 | [JSON](evidence/public-chromium.json) |
+| WebKit, 320/390 px |92/92 | [JSON](evidence/public-webkit.json) |
+| Gallery |63 combinazioni tema/vista per motore; immagini decodificate 640×172, selezione singola | Nei report sopra |
+| Manifest | HTTP 200, versione esatta `v0.9.5`, testo della pagina coerente | Nei report sopra |
+| Asset same-origin |17/17 HTTP 200 per motore | Nei report sopra |
+| Quattro parti firmware dichiarate |HEAD HTTP 200, offset e percorsi letti dal manifest effettivo | Nei report sopra |
+| Companion | Etichetta 0.3.15 (53), Preview/ad hoc/non notarizzato; URL DMG dal DOM e HEAD 200, 9.028.104 byte | Nel report Chromium |
+
+Menu mobile da tastiera, ArrowDown, Escape e ritorno del focus sono riusciti; anche apertura/avanzamento/chiusura della preview e reduced motion. Non sono stati osservati errori JavaScript nei casi eseguiti. Il modulo ESP Web Tools reale carica in Chromium e mostra “Installer ready”; WebKit mostra correttamente il messaggio di browser non supportato e nasconde il pulsante di installazione. **Install non è stato premuto e nessuna porta seriale è stata richiesta.** [Stati e catture curate](evidence/public-curated-states.json).
+
+Sono state ispezionate le catture pubbliche [mobile](screenshots/public-landing-390.png), [desktop](screenshots/public-landing-1440.png), [Mint](screenshots/public-mint-390.png), [dialog](screenshots/public-dialog-chromium-390.png), [installer Chromium](screenshots/public-installer-chromium-390.png), [fallback WebKit](screenshots/public-installer-webkit-390.png) e [Companion 53](screenshots/public-companion-390.png). Gerarchia e lettura restano coerenti con il candidato locale; non emergono overflow dei testi verificati. L’immagine nella preview mobile ingrandita rimane esplorabile orizzontalmente, come dichiarato nell’interfaccia.
+
+Questa QA pubblica verifica il comportamento del sito in browser responsive, **non un iPhone fisico o un flash riuscito**. Il Content-Length delle risposte HEAD firmware può riferirsi al trasferimento HTTP compresso e non alla dimensione flash decompressa. L’integrità completa degli artefatti, i download DMG con SHA-256 e le prove sui display sono registrati separatamente dal coordinatore. Nessuna modifica ai sorgenti di produzione è stata necessaria.

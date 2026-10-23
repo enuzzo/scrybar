@@ -1,0 +1,46 @@
+{
+  "release": "companion-v0.3.15",
+  "build": 53,
+  "public_downloads": {
+    "ScryBarCompanion-0.3.15.dmg": {
+      "http": 200,
+      "bytes": 9028104,
+      "sha256": "25cb9876d8437da91e5f054078fb7218bb398f7d027431ca3b6bb6d02e9aca96",
+      "local_byte_parity": true
+    },
+    "ScryBarCompanion-0.3.15-source.zip": {
+      "http": 200,
+      "bytes": 6998393,
+      "sha256": "f2d9824101d535b201887e127a01eadafa67b3efe0cdc49b7397109c730940c3",
+      "local_byte_parity": true
+    },
+    "SHA256SUMS.txt": {
+      "http": 200,
+      "bytes": 283,
+      "sha256": "adeab6c561550270610d6614e607eeab608f47b0595db78423ec34aeaf47c824",
+      "local_byte_parity": true
+    },
+    "SOURCE_SHA256SUMS.txt": {
+      "http": 200,
+      "bytes": 13165,
+      "sha256": "8f17db4751a968c1486e9303acbf7984259143490f67baf183014b55bdfed317",
+      "local_byte_parity": true
+    }
+  },
+  "source_manifest_entries_verified": 92,
+  "source_zip_crc": "PASS",
+  "all_source_entries_inventoried": true,
+  "date": "2026-10-23",
+  "source_commit": "8f38a739a4c72c4b90cd881910518a2998a1fccb",
+  "release_url": "https://github.com/enuzzo/scrybar/releases/tag/companion-v0.3.15",
+  "source_archive_verification": {
+    "url": "https://github.com/enuzzo/scrybar/archive/refs/tags/v0.9.5.zip",
+    "http": 200,
+    "archive_bytes": 24467561,
+    "archive_sha256": "cc86480fea01a4e8a440f0cef47bdb5e3467d64ae4a4d8e5f1ffb998a78d6204",
+    "crc": "PASS",
+    "files": 982,
+    "selected_source_hashes_verified": 498,
+    "excluded_private_paths_and_binary_packages": "PASS"
+  }
+}

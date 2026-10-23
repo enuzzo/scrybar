@@ -1,0 +1,159 @@
+{
+  "date": "2026-10-23",
+  "firmware_version": "v0.9.5",
+  "source_commit": "8f38a739a4c72c4b90cd881910518a2998a1fccb",
+  "workflow_run": 39962874213,
+  "workflow_url": "https://github.com/enuzzo/scrybar/actions/runs/39962874213",
+  "manifest": {
+    "name": "ScryBar",
+    "version": "v0.9.5",
+    "new_install_prompt_erase": true,
+    "builds": [
+      {
+        "chipFamily": "ESP32-S3",
+        "parts": [
+          {
+            "path": "firmware/bootloader.bin",
+            "offset": 0
+          },
+          {
+            "path": "firmware/partitions.bin",
+            "offset": 32768
+          },
+          {
+            "path": "firmware/boot_app0.bin",
+            "offset": 57344
+          },
+          {
+            "path": "firmware/firmware.bin",
+            "offset": 65536
+          }
+        ]
+      }
+    ]
+  },
+  "downloads": [
+    {
+      "surface": "site",
+      "file": "bootloader.bin",
+      "http": 200,
+      "bytes": 20224,
+      "sha256": "d4de4a82b5bb75231586e500ab80a1037303117de73babc8bf62276ef307b6da",
+      "exact_ci_package_bytes": true
+    },
+    {
+      "surface": "site",
+      "file": "partitions.bin",
+      "http": 200,
+      "bytes": 3072,
+      "sha256": "c8ee39cf5f641dc3086f42c08ae45629682b4811255ba96d480c57098d3773f9",
+      "exact_ci_package_bytes": true
+    },
+    {
+      "surface": "site",
+      "file": "boot_app0.bin",
+      "http": 200,
+      "bytes": 8192,
+      "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+      "exact_ci_package_bytes": true
+    },
+    {
+      "surface": "site",
+      "file": "firmware.bin",
+      "http": 200,
+      "bytes": 6782176,
+      "sha256": "be02a84943934677b5238b1a791272975cc2f2cb0c1a2bd0458f7778383ac8d5",
+      "exact_ci_package_bytes": true
+    },
+    {
+      "surface": "release",
+      "file": "bootloader.bin",
+      "http": 200,
+      "bytes": 20224,
+      "sha256": "d4de4a82b5bb75231586e500ab80a1037303117de73babc8bf62276ef307b6da",
+      "exact_ci_package_bytes": true
+    },
+    {
+      "surface": "release",
+      "file": "partitions.bin",
+      "http": 200,
+      "bytes": 3072,
+      "sha256": "c8ee39cf5f641dc3086f42c08ae45629682b4811255ba96d480c57098d3773f9",
+      "exact_ci_package_bytes": true
+    },
+    {
+      "surface": "release",
+      "file": "boot_app0.bin",
+      "http": 200,
+      "bytes": 8192,
+      "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+      "exact_ci_package_bytes": true
+    },
+    {
+      "surface": "release",
+      "file": "firmware.bin",
+      "http": 200,
+      "bytes": 6782176,
+      "sha256": "be02a84943934677b5238b1a791272975cc2f2cb0c1a2bd0458f7778383ac8d5",
+      "exact_ci_package_bytes": true
+    },
+    {
+      "surface": "release",
+      "file": "ScryBar-v0.9.5-firmware.zip",
+      "http": 200,
+      "bytes": 1697620,
+      "sha256": "ca1e8c83d434d6eb0803ca59a1f5da4ad16068b1f6145d2a7555556be88bc6f6",
+      "exact_ci_package_bytes": true
+    },
+    {
+      "surface": "release",
+      "file": "firmware-manifest.json",
+      "http": 200,
+      "bytes": 929,
+      "sha256": "fa869fc2cfb519e01ad9ffda4546d58f45f77f64382839d9f494152cae4e888a",
+      "exact_ci_package_bytes": true
+    },
+    {
+      "surface": "release",
+      "file": "SHA256SUMS.txt",
+      "http": 200,
+      "bytes": 504,
+      "sha256": "7ac88fd0e37f63f246a8c6011e967f747edeb1cf5579648e890d5c3fe23951bd",
+      "exact_ci_package_bytes": true
+    }
+  ],
+  "firmware_zip_crc": "PASS",
+  "all_four_site_release_ci_parts_equal": true,
+  "workflow_conclusion": "success",
+  "jobs": {
+    "companion": "success",
+    "build": "success",
+    "deploy": "success"
+  },
+  "release_url": "https://github.com/enuzzo/scrybar/releases/tag/v0.9.5",
+  "site_url": "https://enuzzo.github.io/scrybar/",
+  "public_browser_qa": {
+    "chromium": {
+      "passed": 130,
+      "failed": 0,
+      "widths": [
+        320,
+        375,
+        390,
+        430,
+        768,
+        1440
+      ]
+    },
+    "webkit": {
+      "passed": 92,
+      "failed": 0,
+      "widths": [
+        320,
+        390
+      ]
+    },
+    "physical_iphone_tested": false,
+    "serial_flash_performed_by_browser_qa": false
+  }
+}

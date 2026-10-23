@@ -1,0 +1,14 @@
+[
+  {
+    "engine": "chromium",
+    "dialogFocusRestored": true,
+    "installer": "Installer ready. Connect ScryBar by USB-C.",
+    "note": "Actual loader; no Install click or serial-port request."
+  },
+  {
+    "engine": "webkit",
+    "dialogFocusRestored": true,
+    "installer": "This browser cannot install firmware. Use a desktop browser with Web Serial support. You can configure ScryBar from your phone after installation.",
+    "note": "Actual loader; no Install click or serial-port request."
+  }
+]
