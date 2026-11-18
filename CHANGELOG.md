@@ -2,6 +2,22 @@
 
 ## 2026-11-18
 
+### v0.9.8 (firmware r326) — incomplete settings responses
+
+- Reproduce an incomplete settings-page response on r325. Instrument the sender
+  and match a truncated preview on the client to the old two-second TCP write
+  deadline on the physical ScryBar. The final 72 bytes were still pending.
+- Give a response that has already started up to five seconds without progress
+  to resume sending. Keep the initial two-second limit and immediate handling
+  of permanent socket errors.
+- Halve the size of the two LCD transfer buffers to free 22,016 bytes of
+  DMA-capable RAM while feed requests and the settings server are active.
+  Five startup sessions delivered 135 complete responses and logged zero AES
+  allocation failures. A further 160 reads on the connected board all completed.
+- Add recovered-stall counters to `PERF` and a failure-only serial trace.
+  Add regression cases for a paused receiver, a disconnected peer and the end
+  of the allowed wait. [Hardware investigation and test results](docs/performance/2026-11-18-http-writes.md).
+
 ### v0.9.7 (firmware r325) — Wi-Fi scanning and settings load performance
 
 - Move Wi-Fi scanning to the HTTP worker. During two twelve-second Home/Info

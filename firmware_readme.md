@@ -116,6 +116,9 @@ Current scope:
   - `BOOT` (left): single click -> `HOME`
   - `PWR` (center): short press screensaver toggle; hold `3s` -> soft-off / wake to `HOME`
   - `RST` (right): hardware reset
+- The serial `PERF` command reports `recovered_stalls` and `longest_recovery_ms`
+  for HTTP writes. On failure, `[HTTP][WRITE]` records the transfer phase, byte
+  counts, socket error and time without progress. Route labels use a fixed list.
 - Wi-Fi scans in the settings panel run on the HTTP worker. You can continue using
   the display while the radio searches. The panel reports a failed scan, a timeout,
   or an empty result separately. Its main CSS and JavaScript support local browser

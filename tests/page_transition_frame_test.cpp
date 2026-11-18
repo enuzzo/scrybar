@@ -89,14 +89,14 @@ int main() {
   const Frame::NativeFrame in{inNative, Frame::framePixels};
   std::vector<uint16_t> nativeFrame(Frame::framePixels);
   std::vector<uint16_t> logicalSnapshot(Frame::framePixels + 2 * guard, 0xB44B);
-  const unsigned stripHeights[] = {1, 17, 64, 172, 640};
+  const unsigned stripHeights[] = {1, 17, 32, 64, 172, 640};
   size_t checked = 0;
   for (Frame::Direction direction : {Frame::Direction::next, Frame::Direction::previous}) {
     for (unsigned progress = 0; progress <= Frame::landscapeWidth; ++progress) {
-      // Exhaust every seam position with the production 64-row DMA chunks;
+      // Exhaust every seam position with the production 32-row DMA chunks;
       // also exercise different clipping sizes on endpoint/odd/seam fixtures.
       for (unsigned stripHeight : stripHeights) {
-        if (stripHeight != 64 && progress != 0 && progress != 1 && progress != 319 &&
+        if (stripHeight != 32 && progress != 0 && progress != 1 && progress != 319 &&
             progress != 320 && progress != 639 && progress != 640) continue;
         for (unsigned row = 0; row < Frame::nativeHeight; row += stripHeight) {
           const unsigned count = std::min(stripHeight, unsigned(Frame::nativeHeight) - row);

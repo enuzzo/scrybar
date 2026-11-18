@@ -1653,7 +1653,7 @@ static constexpr int16_t DB_CANVAS_H = LCD_WIDTH;   // 172
 static constexpr int16_t DB_NATIVE_W = LCD_WIDTH;   // 172
 static constexpr int16_t DB_NATIVE_H = LCD_HEIGHT;  // 640
 // Keep DMA chunks small enough to leave internal heap available for TLS handshakes.
-static constexpr int16_t DB_CHUNK_ROWS = 64;  // was 32 — halves semaphore overhead per frame
+static constexpr int16_t DB_CHUNK_ROWS = 32;  // Two 11,008-byte DMA buffers leave headroom for Wi-Fi and TLS.
 
 // --- Frame performance counters (lightweight, no per-frame logging) ---
 struct PerfCounters {
@@ -1796,12 +1796,13 @@ static void printDisplayPerformance(uint32_t nowMs, bool reset) {
 #if TEST_WIFI && WEB_CONFIG_ENABLED
   const auto http = g_webCfg.server.diagnostics();
   Serial.printf("[PERF][HTTP] worker=%u queued=%lu completed=%lu busy=%lu alloc_fail=%lu response_fail=%lu "
-                "write_fail=%lu response_max_bytes=%lu callback_max_us=%lu slow_callbacks=%lu stack_free_bytes=%lu\n",
+                "write_fail=%lu response_max_bytes=%lu callback_max_us=%lu slow_callbacks=%lu stack_free_bytes=%lu recovered_stalls=%lu longest_recovery_ms=%lu\n",
       (unsigned)g_webCfg.server.uiWorkerReady(), (unsigned long)http.queued,
       (unsigned long)http.completed, (unsigned long)http.busy, (unsigned long)http.allocationFailures,
       (unsigned long)http.responseFailures, (unsigned long)http.writeFailures,
       (unsigned long)http.responseBytesMax, (unsigned long)http.callbackMaxUs,
-      (unsigned long)http.slowCallbacks, (unsigned long)http.workerStackFreeBytes);
+      (unsigned long)http.slowCallbacks, (unsigned long)http.workerStackFreeBytes,
+      (unsigned long)http.recoveredStalls, (unsigned long)http.longestRecoveryMs);
 #endif
   if (reset) {
     g_perf = PerfCounters{};
@@ -6228,6 +6229,16 @@ static void ensureWebConfigServerStarted() {
 
   if (!g_webCfg.routesRegistered) {
     static const char *headers[] = {"Accept-Encoding"};
+    g_webCfg.server.onWriteFailure([](const UiWebServer::WriteFailure &failure) {
+      const String &uri = g_webCfg.server.uri();
+      const char *route = "other";
+      for (const char *known : {"/", "/api/config", "/ui/settings.js", "/ui/settings.css", "/ui/theme.webp"}) {
+        if (uri == known) { route = known; break; }
+      }
+      Serial.printf("[HTTP][WRITE] route=%s phase=%s reason=%s sent=%u expected=%u errno=%d elapsed_ms=%u stalled_ms=%u\n",
+                    route, failure.phase, failure.reason, unsigned(failure.sent), unsigned(failure.expected),
+                    failure.socketError, unsigned(failure.elapsedMs), unsigned(failure.stalledMs));
+    });
     g_webCfg.server.collectHeaders(headers, 1);
     g_webCfg.server.onHttp("/ui/settings.css", HTTP_GET, [] { sendSettingsAsset(SettingsAssets::css); });
     g_webCfg.server.onHttp("/ui/settings.js", HTTP_GET, [] { sendSettingsAsset(SettingsAssets::js); });

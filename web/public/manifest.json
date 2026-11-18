@@ -1,6 +1,6 @@
 {
   "name": "ScryBar",
-  "version": "v0.9.7",
+  "version": "v0.9.8",
   "new_install_prompt_erase": true,
   "builds": [
     {

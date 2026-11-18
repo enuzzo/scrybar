@@ -39,6 +39,7 @@ class TestServer : public UiWebServer {
 
 static TestServer *server;
 static unsigned calls=0;
+static UiWebServer::WriteFailure lastFailure{};
 static void echo() {
   assert(std::this_thread::get_id()==server->uiThread);
   ++calls;
@@ -91,6 +92,9 @@ int main() {
     server->onHttp("/network",HTTP_GET,[] {
       assert(std::this_thread::get_id()!=server->uiThread);
       server->send(200,"text/plain",server->arg("plain"));
+    });
+    server->onHttp("/sample",HTTP_GET,[] {
+      server->send_P(200,"text/plain","preview",7);
     });
     server->onUi("/flash",HTTP_GET,flashResponse);
     server->onUi("/overflow",HTTP_GET,overflow);
@@ -158,18 +162,49 @@ int main() {
     waitFor([&] {return queued.back()->complete.load();},true);
     for(unsigned i=0;i<queued.size();++i)assert(body(bytes(queued[i]))==std::to_string(i));
 
+    server->onWriteFailure([](const UiWebServer::WriteFailure &failure) { lastFailure = failure; });
+    // A direct flash response sends the HTTP header and the body in separate calls.
+    server->writes=0;
+    uint32_t headerTime=0;
+    server->policy=[&](size_t length,size_t call) {
+      if (call==0) headerTime=millis();
+      else if (millis()-headerTime<UiWebServer::writeStallTimeoutMs+120) return -1;
+      return int(length);
+    };
+    assert(body(bytes(request("/sample")))=="preview");
+    assert(server->diagnostics().recoveredStalls==1);
+    assert(server->diagnostics().longestRecoveryMs>=UiWebServer::writeStallTimeoutMs);
     const auto failures=server->diagnostics().writeFailures;
     server->policy=[](size_t,size_t) {return -1;};
     auto stalled=request("/fast","never claims transport success",true);
     assert(bytes(stalled).empty()); assert(stalled->stopped);
     assert(server->diagnostics().writeFailures==failures+1);
-    server->policy=[](size_t,size_t) {return -2;};
-    auto disconnected=request("/fast","closed",true);
-    assert(bytes(disconnected).empty()); assert(disconnected->stopped);
+    assert(String(lastFailure.reason)=="stall" && lastFailure.socketError==EAGAIN);
+    assert(lastFailure.stalledMs>=UiWebServer::writeStallTimeoutMs);
+    server->writes=0;
+    server->policy=[](size_t length,size_t call) {return call==0?int(length):-2;};
+    auto disconnected=request("/fast",String(3000,'a'),true);
+    assert(bytes(disconnected).size()==1460); assert(disconnected->stopped);
+    assert(String(lastFailure.reason)=="socket" && String(lastFailure.phase)=="buffered");
+    assert(lastFailure.sent==1460 && lastFailure.expected>3000);
+    assert(lastFailure.socketError==ECONNRESET);
     assert(server->diagnostics().writeFailures==failures+2);
     assert(server->uiSocketWrites==0);
     assert(server->diagnostics().busy==1);
     assert(server->diagnostics().responseFailures==5);
+    server->writes=0;
+    server->policy=[](size_t length,size_t call) {return call==0?int(length):-1;};
+    auto timedOut=server->enqueue("/sample");
+    waitFor([&] {return timedOut->complete.load();},false,false,UiWebServer::committedStallTimeoutMs+1500);
+    assert(timedOut->stopped && String(lastFailure.reason)=="stall");
+    assert(String(lastFailure.phase)=="flash" && lastFailure.sent==0 && lastFailure.expected==7);
+    assert(lastFailure.stalledMs>=UiWebServer::committedStallTimeoutMs);
+    const auto beforeHeaderFailure=server->diagnostics().writeFailures;
+    server->policy=[](size_t,size_t) {return -2;};
+    auto failedHeader=request("/sample");
+    assert(failedHeader->stopped && bytes(failedHeader).empty());
+    assert(server->diagnostics().writeFailures==beforeHeaderFailure+1);
+    assert(String(lastFailure.phase)=="direct" && lastFailure.socketError==ECONNRESET);
     server->stopUiWorker();assert(!server->uiWorkerReady());
   }
   UiWebTest::joinTasks();

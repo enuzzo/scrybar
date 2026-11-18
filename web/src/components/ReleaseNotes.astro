@@ -1,6 +1,17 @@
 ---
 const releases = [
   {
+    version: 'v0.9.8',
+    tag: 'r326',
+    date: '2026-11-18',
+    headline: 'Complete settings transfers through short Wi-Fi stalls',
+    items: [
+      { label: 'Fix', text: 'A full TCP send buffer could cut a settings page or preview short. After a response starts, ScryBar now gives the connection up to five seconds to resume when the socket temporarily cannot accept more data.' },
+      { label: 'Fix', text: 'Smaller LCD transfer buffers leave 22,016 more bytes of internal RAM available while the board serves settings and fetches feeds.' },
+      { label: 'Perf', text: 'Serial diagnostics report recovered stalls and the longest recovery. A failed write records the route category, bytes sent, error and wait time.', href: 'https://github.com/enuzzo/scrybar/blob/v0.9.8/docs/performance/2026-11-18-http-writes.md' },
+    ],
+  },
+  {
     version: 'v0.9.7',
     tag: 'r325',
     date: '2026-11-18',

@@ -29,12 +29,24 @@ class UiWebServer : public WebServer {
   static constexpr size_t responseCapacityLimit = 256U * 1024U;
   static constexpr uint32_t pendingTimeoutMs = 1200;
   static constexpr uint32_t writeStallTimeoutMs = 2000;
+  static constexpr uint32_t committedStallTimeoutMs = 5000;
   struct Diagnostics {
     uint32_t queued = 0, completed = 0, busy = 0;
     uint32_t allocationFailures = 0, responseFailures = 0, writeFailures = 0;
     uint32_t responseBytesMax = 0, callbackMaxUs = 0, slowCallbacks = 0;
-    uint32_t workerStackFreeBytes = 0;
+    uint32_t workerStackFreeBytes = 0, recoveredStalls = 0, longestRecoveryMs = 0;
   };
+
+  struct WriteFailure {
+    const char *phase;
+    const char *reason;
+    size_t sent, expected;
+    int socketError;
+    uint32_t elapsedMs, stalledMs;
+  };
+  using FailureReporter = void (*)(const WriteFailure &);
+  // Register before starting the worker. The callback runs on its HTTP owner.
+  void onWriteFailure(FailureReporter reporter) { failureReporter_ = reporter; }
 
   explicit UiWebServer(uint16_t port = 80) : WebServer(port) {}
   ~UiWebServer() override {
@@ -131,7 +143,8 @@ class UiWebServer : public WebServer {
   Diagnostics diagnostics() const {
     return {queued_.load(), completed_.load(), busy_.load(), allocationFailures_.load(),
             responseFailures_.load(), writeFailures_.load(), responseBytesMax_.load(),
-            callbackMaxUs_.load(), slowCallbacks_.load(), workerStackHighWater()};
+            callbackMaxUs_.load(), slowCallbacks_.load(), workerStackHighWater(),
+            recoveredStalls_.load(), longestRecoveryMs_.load()};
   }
   NetworkClient &client() override {
     if (capturing_) responseFailed_ = true;  // raw access is outside the contract
@@ -142,12 +155,12 @@ class UiWebServer : public WebServer {
   size_t _currentClientWrite(const char *bytes, size_t length) override {
     if (capturing_) return capture(bytes, length);
     if (!uiWorkerReady()) return WebServer::_currentClientWrite(bytes, length);
-    return writeAll(reinterpret_cast<const uint8_t *>(bytes), length);
+    return writeAll(reinterpret_cast<const uint8_t *>(bytes), length, "direct");
   }
   size_t _currentClientWrite_P(PGM_P bytes, size_t length) override {
     if (capturing_) return capture(bytes, length);  // ESP32 flash is memory mapped
     if (!uiWorkerReady()) return WebServer::_currentClientWrite_P(bytes, length);
-    return writeAll(reinterpret_cast<const uint8_t *>(bytes), length);
+    return writeAll(reinterpret_cast<const uint8_t *>(bytes), length, "flash");
   }
   // Narrow test seam, and a deliberate bypass of NetworkClient::write(): its
   // ten 1-second select retries can otherwise stall this server for ten seconds.
@@ -164,6 +177,10 @@ class UiWebServer : public WebServer {
   std::atomic<bool> workerReady_{false}, stopping_{false};
   TaskHandle_t workerTask_ = nullptr;
   SemaphoreHandle_t callbackDone_ = nullptr, workerExited_ = nullptr;
+  // Worker-only, including across the header and body of a direct send_P().
+  bool responseStarted_ = false, socketClosedAfterFailure_ = false;
+  std::atomic<uint32_t> recoveredStalls_{0}, longestRecoveryMs_{0};
+  FailureReporter failureReporter_ = nullptr;
   UiCallback callback_ = nullptr;
   bool fastDuringMotion_ = false, capturing_ = false, responseFailed_ = false;
   uint8_t *response_ = nullptr;
@@ -184,6 +201,8 @@ class UiWebServer : public WebServer {
   static void workerEntry(void *argument) {
     auto *self = static_cast<UiWebServer *>(argument);
     while (!self->stopping_.load(std::memory_order_acquire)) {
+      self->responseStarted_ = false;
+      self->socketClosedAfterFailure_ = false;
       self->WebServer::handleClient();
       vTaskDelay(pdMS_TO_TICKS(1));
     }
@@ -219,7 +238,7 @@ class UiWebServer : public WebServer {
       responseFailures_.fetch_add(1, std::memory_order_relaxed);
       unavailable();
     } else {
-      (void)writeAll(response_, responseSize_);
+      (void)writeAll(response_, responseSize_, "buffered");
     }
     state_.store(State::idle, std::memory_order_release);
   }
@@ -280,24 +299,50 @@ class UiWebServer : public WebServer {
     return foundLength && contentLength == responseSize_ - end - 4;
   }
 
-  size_t writeAll(const uint8_t *bytes, size_t length) {
+  size_t writeAll(const uint8_t *bytes, size_t length, const char *phase) {
+    // Arduino may call sendContent_P even after its header write failed.
+    if (socketClosedAfterFailure_) return 0;
     size_t sent = 0;
-    uint32_t lastProgress = millis();
+    const uint32_t start = millis();
+    uint32_t lastProgress = start;
+    const char *reason = "shutdown";
+    int socketError = 0;
     while (sent < length && !stopping_.load(std::memory_order_acquire)) {
       const size_t chunk = length - sent > 1460 ? 1460 : length - sent;
       const int result = writeSocketSome(bytes + sent, chunk);
+      socketError = result < 0 ? errno : 0;
       if (result > 0 && static_cast<size_t>(result) <= chunk) {
+        const uint32_t now = millis();
+        const uint32_t gap = now - lastProgress;
+        if (responseStarted_ && gap >= writeStallTimeoutMs) {
+          recoveredStalls_.fetch_add(1, std::memory_order_relaxed);
+          recordMax(longestRecoveryMs_, gap);
+        }
+        responseStarted_ = true;
         sent += static_cast<size_t>(result);
-        lastProgress = millis();
+        lastProgress = now;
         continue;
       }
-      if ((result < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) ||
-          result > static_cast<int>(chunk) || millis() - lastProgress >= writeStallTimeoutMs) break;
+      if (result > static_cast<int>(chunk) ||
+          (result < 0 && socketError != EAGAIN && socketError != EWOULDBLOCK && socketError != EINTR)) {
+        reason = "socket";
+        break;
+      }
+      const uint32_t limit = responseStarted_ ? committedStallTimeoutMs : writeStallTimeoutMs;
+      if (millis() - lastProgress >= limit) {
+        reason = "stall";
+        break;
+      }
       vTaskDelay(pdMS_TO_TICKS(1));
     }
     if (sent != length) {
       writeFailures_.fetch_add(1, std::memory_order_relaxed);
+      const uint32_t end = millis();
+      socketClosedAfterFailure_ = true;
       _currentClient.stop();
+      if (failureReporter_) {
+        failureReporter_({phase, reason, sent, length, socketError, end - start, end - lastProgress});
+      }
     }
     return sent;
   }
@@ -309,6 +354,6 @@ class UiWebServer : public WebServer {
         "HTTP/1.1 503 Service Unavailable\r\n"
         "Content-Type: text/plain\r\nConnection: close\r\n"
         "Retry-After: 1\r\nContent-Length: 20\r\n\r\nService unavailable\n";
-    (void)writeAll(reinterpret_cast<const uint8_t *>(response), sizeof(response) - 1);
+    (void)writeAll(reinterpret_cast<const uint8_t *>(response), sizeof(response) - 1, "busy");
   }
 };
