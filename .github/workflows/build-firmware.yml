@@ -52,6 +52,9 @@ jobs:
           /tmp/ui-web-server-test
           python3 tools/check_frame_deadline_native.py
           python3 tests/backlight_persistence_native_test.py
+          python3 tests/config_persistence_native_test.py
+          c++ -std=c++17 tests/display_idle_test.cpp -o /tmp/display-idle-test
+          /tmp/display-idle-test
 
       - name: Resolve version
         id: version

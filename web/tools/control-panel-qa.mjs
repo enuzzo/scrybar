@@ -21,7 +21,7 @@ async function open(width,options={}){
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  if(options.fontBlocked)await page.route(/fonts\.(googleapis|gstatic)\.com/,route=>route.abort());
  await page.route('https://geocoding-api.open-meteo.com/**',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({results:[{name:'Example City',admin1:'Example Region',country:'Example Country',latitude:-33.8688,longitude:151.2093}]})}));
- await page.route('https://api.transitous.org/**',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{type:'STOP',id:'example:stop:24',name:'Example Station',country:'XX',modes:['RAIL']}])}));
+ await page.route('https://api.transitous.org/**',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{type:'STOP',id:'example:stop:12',name:'Example Station',country:'XX',modes:['RAIL']},{type:'STOP',id:'example:stop:24',name:'Example Station',country:'XX',modes:['RAIL']}])}));
  await page.goto(url,{waitUntil:'networkidle'});if(options.js!==false)await page.evaluate(()=>document.fonts.ready);
  return {page,errors};
 }
@@ -38,10 +38,15 @@ try{
   const {page,errors}=await open(width);
   check(`clean save disabled ${width}`,await page.locator(saveSelector).isDisabled());
   const themes=await page.locator('[name=ui_theme] option').evaluateAll(options=>options.map(o=>o.value));
-  check(`seven actual themes ${width}`,themes.length===7);
+  check(`nine actual themes ${width}`,themes.length===9);
   for(const theme of themes){
    await page.getByRole('tab',{name:'Display',exact:true}).click();
    await page.locator('[name=ui_theme]').selectOption(theme);
+   const preview=await page.locator('#theme_sample').evaluate(async img=>{
+    await img.decode();
+    return {theme:new URL(img.src).searchParams.get('theme'),width:img.naturalWidth,height:img.naturalHeight};
+   });
+   check(`native Home preview ${width} ${theme}`,preview.theme===theme&&preview.width===640&&preview.height===172);
    for(const section of ['Display','Wi-Fi','Content']){
     await page.getByRole('tab',{name:section,exact:true}).click();const g=await geometry(page);
     check(`fits ${width} ${theme} ${section}`,g.scroll<=width+1&&g.bad.length===0,g);
@@ -75,10 +80,27 @@ try{
  await page.locator('#weather_lat').fill('-33.8688');await page.locator('#weather_lon').fill('-151.2093');
  check('manual negative coordinates accepted',await page.locator('#weather_lat').inputValue()==='-33.8688'&&await page.locator('#weather_lon').inputValue()==='-151.2093');
  check('coordinates allow minus keyboard',await page.locator('#weather_lat').getAttribute('inputmode')!=='numeric'&&await page.locator('#weather_lon').getAttribute('inputmode')!=='numeric');
- await page.locator('#geo_query').fill('Example');await page.waitForFunction(()=>document.getElementById('weather_city').value==='Example City');
+ await page.locator('#geo_query').fill('Example');
+ const cityOption=page.locator('#geo_hits option').first();await cityOption.waitFor({state:'attached'});
+ await page.locator('#geo_query').fill(await cityOption.getAttribute('value'));
  check('weather search applies selected fixture coordinates',await page.locator('#weather_lat').inputValue()==='-33.8688');
- await page.locator('#transit_from_q').fill('Example');await page.waitForFunction(()=>document.getElementById('transit_from_id').value==='example:stop:24');
+ const departure=page.locator('#transit_from_q');
+ await departure.fill('Example');
+ const station=page.locator('#transit_from_hits option').nth(1);await station.waitFor({state:'attached'});
+ await departure.fill(await station.getAttribute('value'));
+ check('same-name stop keeps the chosen ID',await page.locator('#transit_from_id').inputValue()==='example:stop:24');
  check('departure search retains selected stop ID',await page.locator('#transit_from_val').inputValue()==='Example Station');
+ await departure.fill('Unselected revision');
+ check('unselected departure clears old ID and blocks save',await page.locator('#transit_from_id').inputValue()===''&&await departure.evaluate(el=>!el.validity.valid));
+ await departure.fill('');
+ await page.getByRole('tab',{name:'Wi-Fi',exact:true}).click();
+ await page.route('**/api/wifi/scan',route=>route.fulfill({json:{networks:[{ssid:'Fixture wireless',secure:true,channel:6,rssi:-42}]}}));
+ await page.locator('#wifi_scan_btn').click();await page.locator('#wifi_scan_results option[value="Fixture wireless"]').waitFor({state:'attached'});
+ check('Wi-Fi scan preserves empty provisioning field',await page.locator('#wifi_new_ssid').inputValue()==='');
+ await page.locator('#wifi_scan_results').selectOption('Fixture wireless');
+ check('Wi-Fi selection fills explicit SSID',await page.locator('#wifi_new_ssid').inputValue()==='Fixture wireless');
+ await page.locator('#wifi_new_ssid').fill('');
+ await page.getByRole('tab',{name:'Content',exact:true}).click();
  // Preserve even an invalid, unadded feed draft on refresh.
  await page.locator('#rss_url').fill('invalid pending draft');
  const snapshot=()=>page.evaluate(()=>({url:location.href,fields:Array.from(document.querySelectorAll('input:not([type=hidden]),select')).map(el=>[el.id||el.name,el.value,el.checked]),rows:Array.from(document.querySelectorAll('#view_list [data-view]')).map(el=>el.dataset.view)}));
@@ -112,6 +134,16 @@ try{
  await page.locator(saveSelector).click();await page.waitForURL('**/config');
  check('Save serializes view order and all five RSS slots',savedFields.includes('view_order')&&savedFields.includes('rss_feed_url_5')&&savedFields.includes('rss_feed_items_5')&&savedFields.includes('weather_lat')&&savedFields.includes('ui_theme'),{fieldNames:savedFields});
  check('interaction JS errors absent',errors.length===0,{errors});await page.close();
+ // Fresh GET after a partial storage write. The device reports its live RAM values.
+ const retry=await open(390);
+ await retry.page.route(url,async route=>{
+  const response=await route.fetch();
+  const body=(await response.text()).replace(/<form(?=[^>]*\bid=['"]cfg_form['"])/,"<form data-save-pending='1'");
+  await route.fulfill({response,body});
+ });
+ await retry.page.reload();
+ check('failed storage write keeps Save available without additional edits',await retry.page.locator(saveSelector).isEnabled()&&(await retry.page.locator('#cp-save-state').innerText()).includes('retry'));
+ await retry.page.close();
  // Keyboard and fallback states have their own clean pages.
  const keys=await open(390);await keys.page.getByRole('tab',{name:'Display',exact:true}).focus();await keys.page.keyboard.press('ArrowRight');
  check('tabs support arrow keys and selected focus',await keys.page.getByRole('tab',{name:'Wi-Fi',exact:true}).evaluate(el=>el===document.activeElement&&el.getAttribute('aria-selected')==='true'));

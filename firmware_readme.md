@@ -116,6 +116,9 @@ Current scope:
   - `BOOT` (left): single click -> `HOME`
   - `PWR` (center): short press screensaver toggle; hold `3s` -> soft-off / wake to `HOME`
   - `RST` (right): hardware reset
+- The device settings page previews all nine palettes using native Home samples
+  stored in flash. Select a palette and save to apply it on the display.
+  Letterpress is a warm light palette. Tide Table is dark blue-green.
 - Display inactivity defaults to a 15-minute screensaver and a 25-minute backlight
   shutoff on USB and battery. Both times count from the last interaction. The
   web panel saves them under **Display → Display inactivity**. Enter `0` to disable

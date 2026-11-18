@@ -2,6 +2,38 @@
 
 ## 2026-11-18
 
+### v0.9.6 (firmware r324) — mobile settings and nine display palettes
+
+- Rebuild Display, Wi-Fi and Content around a twelve-column grid that stacks on
+  phones. The save bar reports pending edits, and field labels work without
+  JavaScript. Device settings use local fonts. Each palette previews a native
+  Home render served from flash, including on the setup network.
+- Add Letterpress (warm paper and brick red) and Tide Table (deep blue-green
+  and sea glass) to the device, the settings panel and the public Home and Mac
+  Stats gallery. Update the website release history and installer manifest.
+- Require an explicit selection for weather, departures and Wi-Fi scans. Ignore
+  late search responses and retain the selected ID for stops with identical
+  names. Editing a departure clears its old ID until a new stop is selected.
+- Check every settings write, including commits of empty strings. Report an
+  incomplete save in the form and API. Keep Save available after reloading
+  so users can retry. Native tests inject failures for each stored field.
+- This public installer also includes the independent inactivity timers from
+  r323. The screensaver defaults to 15 minutes and the backlight to 25.
+
+**Device verification.** Installed the application over USB and verified its flash
+hash. The partition table, NVS and OTA metadata matched before and after the
+write. All nine preview images from the board matched the reference assets.
+Saved Letterpress and Tide Table and captured each from the 640 × 172 framebuffer.
+Tide Table survived a hardware reset. Restored the original Toxic Candy palette
+and confirmed the saved settings. Using diagnostic idle aging followed by the
+real device clock, the screensaver started at 900,002 ms and the backlight
+reached 0% by 1,500,012 ms. The display was left awake at 15/25 minutes.
+
+**Browser verification.** The device-generated settings page passed 278 Chromium
+and 114 WebKit checks on a loopback fixture, covering all nine previews, layout,
+keyboard, drafts, save retries and the search and Wi-Fi selection flows.
+Chromium covered 320–1440 px. WebKit covered 320 and 390 px.
+
 ### Firmware r323 — configurable display inactivity
 
 - Add separate screensaver and backlight shutoff timers under **Display → Display

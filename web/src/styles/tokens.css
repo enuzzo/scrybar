@@ -1,6 +1,6 @@
 /* ============================================
    ScryBar Landing — Vibemilk DS Token Subset
-   7 product themes mapped from firmware
+   9 product themes mapped from firmware
    ============================================ */
 
 /* ========== SCRYBAR DEFAULT (deep navy / purple-cyan) ========== */
@@ -168,4 +168,36 @@
 
 
 
+}
+
+[data-theme="letterpress"] {
+  --bg-deepest: #EAE4D6;
+  --bg-deep: #F4EFE4;
+  --bg-surface: #FFFCF3;
+  --bg-surface-hover: #E7DFD0;
+  --bg-elevated: #E5D9C5;
+  --text-primary: #281F17;
+  --text-secondary: #594B3D;
+  --accent-primary: #953C22;
+  --accent-primary-rgb: 149, 60, 34;
+  --accent-secondary: #65392A;
+  --accent-secondary-rgb: 101, 57, 42;
+  --text-on-primary: #FFFCF3;
+  --focus-ring: #773623;
+}
+
+[data-theme="tide-table"] {
+  --bg-deepest: #0A1C25;
+  --bg-deep: #102832;
+  --bg-surface: #16353E;
+  --bg-surface-hover: #20464D;
+  --bg-elevated: #285359;
+  --text-primary: #E9F4EF;
+  --text-secondary: #B5CDC8;
+  --accent-primary: #77D9C7;
+  --accent-primary-rgb: 119, 217, 199;
+  --accent-secondary: #F1BC79;
+  --accent-secondary-rgb: 241, 188, 121;
+  --text-on-primary: #0A1C25;
+  --focus-ring: #A4E6DA;
 }

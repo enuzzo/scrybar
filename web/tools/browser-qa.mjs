@@ -36,6 +36,19 @@ async function pageAt(width,mode='success'){
 try{
  for(const width of widths){
   const {page,errors}=await pageAt(width);
+  const settingsPreview=page.locator('.setup-preview');
+  await settingsPreview.locator('summary').click();
+  await settingsPreview.locator('img').scrollIntoViewIfNeeded();
+  await page.waitForFunction(()=>{
+   const img=document.querySelector('.setup-preview img');
+   return img.complete&&img.naturalWidth>0;
+  });
+  const validPreview=await settingsPreview.locator('img').evaluate(async img=>{
+   await img.decode();return img.naturalWidth===390&&img.naturalHeight===844;
+  });
+  check(`phone settings disclosure ${width}`,validPreview);
+  await settingsPreview.locator('summary').click();
+  await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
   const manifestPath=await page.locator('esp-web-install-button').getAttribute('manifest');
   const manifestResponse=await page.request.get(new URL(manifestPath,url).href);
   let manifest;try{manifest=await manifestResponse.json();}catch{}
@@ -71,7 +84,7 @@ try{
    await page.keyboard.press('Escape');check('Escape closes menu and restores focus',await menu.getAttribute('aria-expanded')==='false'&&await menu.evaluate(e=>document.activeElement===e));
    const themes=await page.locator('.theme-pill').evaluateAll(es=>es.map(e=>e.dataset.themeId));
    const viewIds=await page.locator('#view-select option').evaluateAll(es=>es.map(e=>e.value));
-   check('seven themes and nine views',themes.length===7&&viewIds.length===9);
+   check('nine themes and nine views',themes.length===9&&viewIds.length===9);
    for(const theme of themes){
     await page.locator(`.theme-pill[data-theme-id="${theme}"]`).click();
     for(const view of viewIds){

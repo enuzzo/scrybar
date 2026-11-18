@@ -5,6 +5,8 @@ import homeTokyo from '../assets/screenshots/home_weather_tokyo-transit.png';
 import homeMono from '../assets/screenshots/home_weather_minimal-brutalist-mono.png';
 import homeMint from '../assets/screenshots/home_weather_mint-protocol.png';
 import homeCrt from '../assets/screenshots/home_weather_cathode-ray.png';
+import homeLetterpress from '../../../src/theme_previews/letterpress.webp';
+import homeTide from '../../../src/theme_previews/tide-table.webp';
 import rss from '../assets/screenshots/aux_rss.png';
 import wiki from '../assets/screenshots/wiki_stream.png';
 import music from '../assets/screenshots/now_playing.png';
@@ -22,12 +24,14 @@ export const themes = [
   {id:'minimal-brutalist-mono',name:'Mono',color:'#ffffff',image:homeMono},
   {id:'mint-protocol',name:'Mint Protocol',color:'#58855c',image:homeMint},
   {id:'cathode-ray',name:'Cathode Ray',color:'#33ff33',image:homeCrt},
+  {id:'letterpress',name:'Letterpress',color:'#953c22',image:homeLetterpress},
+  {id:'tide-table',name:'Tide Table',color:'#77d9c7',image:homeTide},
 ];
 export const languages = ['English','Italiano','Français','Deutsch','Español','Português','Latina','Esperanto','Klingon','1337 Speak','Shakespearean','Valley Girl','Bellazio','Pirate'];
 
 // Public view gallery. Doom is an optional extra, not a tenth gallery capture.
 export const views = [
-  {id:'home',name:'Clock + Weather',image:homeDefault,description:'The time in words, current conditions and a three-hour outlook. Fourteen clock languages, including a few less sensible ones.',note:'Device capture. Home preview follows the selected theme.'},
+  {id:'home',name:'Clock + Weather',image:homeDefault,description:'The time in words, current conditions and a three-hour outlook. Fourteen clock languages, including a few less sensible ones.',note:'Home preview follows the selected theme. Letterpress and Tide Table use sample weather.'},
   {id:'rss',name:'RSS',image:rss,description:'Your own feeds in one place. Scan the QR code to finish an article on your phone.',note:'Device capture. Up to five feeds, one to eight articles each.'},
   {id:'wiki',name:'Wikipedia',image:wiki,description:'Featured stories, On This Day and random discoveries. A small detour for a curious desk.',note:'Device capture. Wikipedia has eight language options.'},
   {id:'music',name:'Now Playing',image:music,description:'Track, album art and progress from your Mac, without opening another window.',note:'Device capture. Requires ScryBar Companion on your LAN.'},

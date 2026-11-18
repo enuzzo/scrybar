@@ -207,6 +207,17 @@
 .setup-layout>.section-intro {
   max-width:36ch
 }
+.setup-preview {
+  margin-top:12px
+}
+.setup-preview img {
+  display:block;
+  width:min(100%,320px);
+  height:auto;
+  margin:12px 0;
+  border:1px solid var(--text-secondary);
+  border-radius:8px
+}
 .setup-steps {
   list-style:none;
   counter-reset:setup;

@@ -1,6 +1,7 @@
 #include "src/bambu_camera_controls.h"
 #include "src/touch_timing.h"
 #include "src/display_idle.h"
+#include "src/theme_previews/images.h"
 #include "src/display_performance.h"
 #include "src/page_transition_frame.h"
 #include "src/mac_stats_format.h"
@@ -65,7 +66,7 @@
 #define DB_HAS_MBEDTLS_BASE64 0
 #endif
 #define DB_HAS_MDNS 1
-#include <Preferences.h>
+#include "src/config_preferences.h"
 #include <FFat.h>
 #if __has_include(<qrcodegen.h>)
 #include <qrcodegen.h>
@@ -290,27 +291,6 @@ struct UiThemeWebTokens {
   const char *txt3;
   const char *acc1;
   const char *acc2;
-  const char *okbg;
-  const char *secBg;
-  const char *border;
-  const char *heroBorder;
-  const char *heroCopyBorder;
-  const char *heroCopyBg;
-  const char *releaseBorder;
-  const char *releaseBg;
-  const char *releaseKey;
-  const char *releaseValue;
-  const char *gridLineA;
-  const char *gridLineB;
-  const char *gridGlowA;
-  const char *gridGlowB;
-  const char *gridHorizonA;
-  const char *gridHorizonB;
-  const char *scanline;
-  const char *vlineA;
-  const char *vlineB;
-  const char *btnGhostBg;
-  const char *btnGhostText;
 };
 
 struct UiThemeLvglTokens {
@@ -377,39 +357,10 @@ static const UiThemeDefinition kUiThemes[] = {
     "scrybar-default",
     "ScryBar Default",
     {
-      "'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
-      "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace",
-      "#070D2D",
-      "#0B1437",
-      "#111C44",
-      "rgba(255,255,255,.11)",
-      "rgba(255,255,255,.07)",
-      "#FFFFFF",
-      "#A3AED0",
-      "#707EAE",
-      "#7551FF",
-      "#39B8FF",
-      "rgba(1,181,116,.14)",
-      "rgba(11,20,55,0.72)",
-      "rgba(57,184,255,0.18)",
-      "rgba(117,81,255,.34)",
-      "rgba(57,184,255,.22)",
-      "rgba(9,16,44,.36)",
-      "rgba(117,81,255,.42)",
-      "rgba(7,13,38,.72)",
-      "#79d8ff",
-      "#e9f0ff",
-      "rgba(117,81,255,0.20)",
-      "rgba(57,184,255,0.18)",
-      "rgba(117,81,255,0.18)",
-      "rgba(57,184,255,0.08)",
-      "rgba(117,81,255,0.40)",
-      "rgba(57,184,255,0.34)",
-      "rgba(57,184,255,0.32)",
-      "rgba(117,81,255,0.20)",
-      "rgba(57,184,255,0.18)",
-      "#1A2558",
-      "#d9e4ff",
+      "'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace", "#070D2D",
+      "#0B1437", "#111C44", "rgba(255,255,255,.11)",
+      "rgba(255,255,255,.07)", "#FFFFFF", "#A3AED0",
+      "#707EAE", "#7551FF", "#39B8FF",
     },
     {
       0x000000, 0x101B44, 0x2D3F82, 0xFFFFFF, 0xAFC2F5, 0xC6DBFF, 0x1B2D63, 0x2C4784,
@@ -424,39 +375,10 @@ static const UiThemeDefinition kUiThemes[] = {
     "cyberpunk-2077",
     "Cyberpunk 2077",
     {
-      "'Space Mono','Monaco','Menlo',Consolas,monospace",
-      "'Space Mono','Monaco','Menlo',Consolas,monospace",
-      "#04070F",
-      "#091523",
-      "#0E2133",
-      "rgba(255,237,77,.16)",
-      "rgba(73,232,255,.11)",
-      "#F5F9EE",
-      "#9ED6D3",
-      "#5FA1A8",
-      "#FFE600",
-      "#27E1FF",
-      "rgba(39,225,255,.14)",
-      "rgba(7,18,29,0.78)",
-      "rgba(39,225,255,0.28)",
-      "rgba(255,230,0,.35)",
-      "rgba(39,225,255,.34)",
-      "rgba(7,18,29,.52)",
-      "rgba(255,230,0,.48)",
-      "rgba(4,12,21,.86)",
-      "#4ee7ff",
-      "#f7f3a0",
-      "rgba(255,230,0,0.20)",
-      "rgba(39,225,255,0.20)",
-      "rgba(255,230,0,0.18)",
-      "rgba(39,225,255,0.10)",
-      "rgba(255,230,0,0.45)",
-      "rgba(39,225,255,0.36)",
-      "rgba(39,225,255,0.32)",
-      "rgba(255,230,0,0.20)",
-      "rgba(39,225,255,0.20)",
-      "#10253A",
-      "#D6FFF6",
+      "'Space Mono','Monaco','Menlo',Consolas,monospace", "'Space Mono','Monaco','Menlo',Consolas,monospace", "#04070F",
+      "#091523", "#0E2133", "rgba(255,237,77,.16)",
+      "rgba(73,232,255,.11)", "#F5F9EE", "#9ED6D3",
+      "#5FA1A8", "#FFE600", "#27E1FF",
     },
     {
       0x04070F, 0x0B1A2A, 0x103048, 0xFFF59A, 0x7FE7FF, 0x122A3F, 0xFFF19A, 0x82EFFF,
@@ -471,39 +393,10 @@ static const UiThemeDefinition kUiThemes[] = {
     "toxic-candy",
     "Toxic Candy",
     {
-      "'Delius Unicase','Chakra Petch','Montserrat','Segoe UI',sans-serif",
-      "'Space Mono','Monaco','Menlo',Consolas,monospace",
-      "#130816",
-      "#1D0A21",
-      "#301238",
-      "rgba(211,0,255,.18)",
-      "rgba(168,255,77,.10)",
-      "#FFF5FF",
-      "#E3C6F1",
-      "#AB85BD",
-      "#FF37D5",
-      "#9BFF2F",
-      "rgba(155,255,47,.18)",
-      "rgba(32,11,42,0.76)",
-      "rgba(155,255,47,0.26)",
-      "rgba(255,55,213,.40)",
-      "rgba(155,255,47,.35)",
-      "rgba(32,11,42,.58)",
-      "rgba(155,255,47,.50)",
-      "rgba(24,7,31,.84)",
-      "#9BFF2F",
-      "#FFD7FB",
-      "rgba(255,55,213,0.22)",
-      "rgba(155,255,47,0.17)",
-      "rgba(255,55,213,0.20)",
-      "rgba(155,255,47,0.11)",
-      "rgba(255,55,213,0.50)",
-      "rgba(155,255,47,0.42)",
-      "rgba(155,255,47,0.35)",
-      "rgba(255,55,213,0.22)",
-      "rgba(155,255,47,0.22)",
-      "#3A1446",
-      "#F7E6FF",
+      "'Delius Unicase','Chakra Petch','Montserrat','Segoe UI',sans-serif", "'Space Mono','Monaco','Menlo',Consolas,monospace", "#130816",
+      "#1D0A21", "#301238", "rgba(211,0,255,.18)",
+      "rgba(168,255,77,.10)", "#FFF5FF", "#E3C6F1",
+      "#AB85BD", "#FF37D5", "#9BFF2F",
     },
     {
       0x130816, 0x2A1034, 0x4A1558, 0xFFD9FB, 0xC5FF63, 0x3A1846, 0xF8F1FF, 0xB8FF65,
@@ -518,39 +411,10 @@ static const UiThemeDefinition kUiThemes[] = {
     "tokyo-transit",
     "Tokyo Transit",
     {
-      "'Chakra Petch','Space Mono','Montserrat','Segoe UI',sans-serif",
-      "'Space Mono','Monaco','Menlo',Consolas,monospace",
-      "#060D1A",
-      "#0B1730",
-      "#132741",
-      "rgba(0,209,255,.18)",
-      "rgba(255,63,129,.11)",
-      "#EAF3FF",
-      "#A9C3E6",
-      "#7598C4",
-      "#00D1FF",
-      "#FF3F81",
-      "rgba(52,227,154,.14)",
-      "rgba(12,24,43,0.78)",
-      "rgba(0,209,255,.28)",
-      "rgba(255,63,129,.36)",
-      "rgba(0,209,255,.32)",
-      "rgba(10,21,36,.54)",
-      "rgba(0,209,255,.42)",
-      "rgba(7,14,24,.82)",
-      "#7BE8FF",
-      "#F4FAFF",
-      "rgba(0,209,255,0.20)",
-      "rgba(255,63,129,0.16)",
-      "rgba(0,209,255,0.20)",
-      "rgba(255,63,129,0.10)",
-      "rgba(0,209,255,0.45)",
-      "rgba(255,63,129,0.36)",
-      "rgba(0,209,255,0.32)",
-      "rgba(0,209,255,0.22)",
-      "rgba(255,63,129,0.20)",
-      "#17355A",
-      "#EAF3FF",
+      "'Chakra Petch','Space Mono','Montserrat','Segoe UI',sans-serif", "'Space Mono','Monaco','Menlo',Consolas,monospace", "#060D1A",
+      "#0B1730", "#132741", "rgba(0,209,255,.18)",
+      "rgba(255,63,129,.11)", "#EAF3FF", "#A9C3E6",
+      "#7598C4", "#00D1FF", "#FF3F81",
     },
     {
       0x060D1A, 0x132741, 0x00D1FF, 0x081624, 0x1A4B66, 0xF3F8FF, 0x162A3F, 0x355572,
@@ -565,39 +429,10 @@ static const UiThemeDefinition kUiThemes[] = {
     "minimal-brutalist-mono",
     "Minimal Brutalist Mono",
     {
-      "'IBM Plex Mono','Space Mono','Montserrat','Segoe UI',monospace",
-      "'IBM Plex Mono','Space Mono','Monaco','Menlo',monospace",
-      "#0A0A0A",
-      "#111111",
-      "#1A1A1A",
-      "rgba(255,255,255,.16)",
-      "rgba(255,255,255,.08)",
-      "#F5F5F5",
-      "#CFCFCF",
-      "#8F8F8F",
-      "#F1F1F1",
-      "#FF3B30",
-      "rgba(22,22,22,.90)",
-      "rgba(20,20,20,0.82)",
-      "rgba(255,255,255,.22)",
-      "rgba(255,255,255,.28)",
-      "rgba(255,255,255,.18)",
-      "rgba(15,15,15,.66)",
-      "rgba(255,255,255,.24)",
-      "rgba(10,10,10,.88)",
-      "#BDBDBD",
-      "#F5F5F5",
-      "rgba(255,255,255,0.18)",
-      "rgba(255,59,48,0.18)",
-      "rgba(255,255,255,0.10)",
-      "rgba(255,59,48,0.10)",
-      "rgba(255,255,255,0.36)",
-      "rgba(255,59,48,0.30)",
-      "rgba(255,255,255,0.28)",
-      "rgba(255,255,255,0.14)",
-      "rgba(255,59,48,0.14)",
-      "#1E1E1E",
-      "#F1F1F1",
+      "'IBM Plex Mono','Space Mono','Montserrat','Segoe UI',monospace", "'IBM Plex Mono','Space Mono','Monaco','Menlo',monospace", "#0A0A0A",
+      "#111111", "#1A1A1A", "rgba(255,255,255,.16)",
+      "rgba(255,255,255,.08)", "#F5F5F5", "#CFCFCF",
+      "#8F8F8F", "#F1F1F1", "#FF3B30",
     },
     {
       0x0A0A0A, 0x171717, 0xEFEFEF, 0x111111, 0x5C5C5C, 0xF4F4F4, 0x111111, 0x444444,
@@ -613,22 +448,10 @@ static const UiThemeDefinition kUiThemes[] = {
     "mint-protocol",
     "Mint Protocol",
     {
-      "'Encode Sans Semi Expanded','Montserrat',-apple-system,BlinkMacSystemFont,sans-serif",
-      "'IBM Plex Mono','Space Mono','SF Mono','Fira Code',monospace",
-      "#DBE8DB", "#E7F0E7", "#F5F8F3",
-      "rgba(88,133,92,.12)", "rgba(88,133,92,.06)",
-      "#15311B", "#28432D", "#58855C", "#58855C", "#ADEBB3",
-      "rgba(93,190,106,.16)", "rgba(219,232,219,0.72)",
-      "rgba(88,133,92,0.16)", "rgba(88,133,92,.22)",
-      "rgba(169,162,217,.28)", "rgba(245,248,243,.68)",
-      "rgba(88,133,92,.30)", "rgba(219,232,219,.82)",
-      "#58855C", "#15311B",
-      "rgba(88,133,92,0.10)", "rgba(169,162,217,0.10)",
-      "rgba(173,235,179,0.18)", "rgba(215,163,186,0.08)",
-      "rgba(88,133,92,0.20)", "rgba(169,162,217,0.18)",
-      "rgba(215,163,186,0.16)",
-      "rgba(88,133,92,0.12)", "rgba(169,162,217,0.12)",
-      "#EEF4ED", "#28432D",
+      "'Encode Sans Semi Expanded','Montserrat',-apple-system,BlinkMacSystemFont,sans-serif", "'IBM Plex Mono','Space Mono','SF Mono','Fira Code',monospace", "#DBE8DB",
+      "#E7F0E7", "#F5F8F3", "rgba(88,133,92,.12)",
+      "rgba(88,133,92,.06)", "#15311B", "#28432D",
+      "#58855C", "#58855C", "#ADEBB3",
     },
     {
       // LIGHT: screenBg darker mint → white cards float on top
@@ -645,22 +468,10 @@ static const UiThemeDefinition kUiThemes[] = {
     "cathode-ray",
     "Cathode Ray",
     {
-      "'Space Mono','Monaco','Menlo','Consolas','Liberation Mono',monospace",
-      "'Space Mono','Monaco','Menlo','Consolas','Liberation Mono',monospace",
-      "#0A0A08", "#0D120A", "#141C10",
-      "rgba(51,255,51,.18)", "rgba(255,170,0,.10)",
-      "#33FF33", "#22AA22", "#447744", "#33FF33", "#FFAA00",
-      "rgba(51,255,51,.14)", "rgba(10,10,8,0.92)",
-      "rgba(51,255,51,0.22)", "rgba(51,255,51,.30)",
-      "rgba(255,170,0,.22)", "rgba(10,10,8,.52)",
-      "rgba(51,255,51,.38)", "rgba(10,10,8,.82)",
-      "#FFAA00", "#33FF33",
-      "rgba(51,255,51,0.22)", "rgba(255,170,0,0.14)",
-      "rgba(51,255,51,0.20)", "rgba(255,170,0,0.10)",
-      "rgba(255,170,0,0.45)", "rgba(51,255,51,0.35)",
-      "rgba(51,255,51,0.40)",
-      "rgba(51,255,51,0.20)", "rgba(255,170,0,0.14)",
-      "#141C10", "#33FF33",
+      "'Space Mono','Monaco','Menlo','Consolas','Liberation Mono',monospace", "'Space Mono','Monaco','Menlo','Consolas','Liberation Mono',monospace", "#0A0A08",
+      "#0D120A", "#141C10", "rgba(51,255,51,.18)",
+      "rgba(255,170,0,.10)", "#33FF33", "#22AA22",
+      "#447744", "#33FF33", "#FFAA00",
     },
     {
       // DARK CRT: phosphor green #33FF33 + amber #FFAA00 on near-black
@@ -670,6 +481,42 @@ static const UiThemeDefinition kUiThemes[] = {
       0x0A0A08, 0x0A0A08, 0xFFAA00, 0xFFCC44, 0x0A0A08, 0x1E2A1A, 0x243220, 0x33FF33,
       0x0A0A08, 0x33FF33, 0x5C995C, 0x141C10, 0x33FF33, 0xFFAA00, 0x0A0A08, 0x0D120A,
       0x33FF33, 0xFFAA00, 0x33FF33, 0x22AA22, 0x2D5A2D, 0x447744, 0xFFAA00,
+    },
+  },
+  {
+    "letterpress",
+    "Letterpress",
+    {
+      "system-ui,sans-serif", "ui-monospace,monospace", "#EAE4D6",
+      "#F4EFE4", "#FFFCF3", "#A79C8C",
+      "#C7BEAE", "#281F17", "#594B3D",
+      "#65584C", "#953C22", "#65392A",
+    },
+    {
+      0xDED5C5, 0xFFF9EA, 0x773623, 0xFFFAEE, 0xFFFAEE, 0xF7E9D2, 0x292016, 0x49392E,
+      0x49392E, 0x795B43, 0x853C27, 0x292016, 0xFFF9EA, 0x773623, 0x773623, 0x292016,
+      0x292016, 0xFFF9EF, 0x292016, 0x773623, 0x773623, 0x684432, 0x853C27, 0xFFFAEE, 0xDED5C5, 0xDCC6A9,
+      0x292016, 0x292016, 0xE4AA71, 0xF7D7AC, 0x292016, 0x853C27, 0x773623, 0xFFFAEE,
+      0x292016, 0xFFF9EF, 0x773623, 0xDED5C5, 0x853C27, 0xA14324, 0xEFE3CF, 0xDED5C5,
+      0x853C27, 0xE4AA71, 0x292016, 0x853C27, 0x795B43, 0x90745D, 0xC27647,
+    },
+  },
+  {
+    "tide-table",
+    "Tide Table",
+    {
+      "system-ui,sans-serif", "ui-monospace,monospace", "#0A1C25",
+      "#102832", "#16353E", "#537781",
+      "#34515B", "#E9F4EF", "#B5CDC8",
+      "#9BB7B2", "#77D9C7", "#F1BC79",
+    },
+    {
+      0x0A1C25, 0x16353E, 0x20464D, 0xD6F2E8, 0xA4C9C4, 0xD7EDE5, 0x0A1C25, 0x315E65,
+      0x16353E, 0x98BAB4, 0xD6F2E8, 0x0A1C25, 0x0A1C25, 0x20464D, 0xD6F2E8, 0xD6F2E8,
+      0xD6F2E8, 0x0A1C25, 0xD6F2E8, 0xA4C9C4, 0xF1BC79, 0x98BAB4, 0x20464D, 0xD6F2E8, 0xD6F2E8, 0xAFE5D4,
+      0x0A1C25, 0x0A1C25, 0xF1BC79, 0xFFDBA6, 0x0A1C25, 0x20464D, 0x285359, 0xD6F2E8,
+      0x0A1C25, 0xD6F2E8, 0x8AC6BA, 0x16353E, 0xD6F2E8, 0xF1BC79, 0x0A1C25, 0x102832,
+      0xD6F2E8, 0xF1BC79, 0xD6F2E8, 0xA4C9C4, 0x315E65, 0x98BAB4, 0xF1BC79,
     },
   },
 };
@@ -768,6 +615,7 @@ static RuntimeNetConfig g_runtimeNetConfig = {};
 static bool g_runtimeNetConfigNvsLoaded = false;
 // Live backlight previews change RuntimeNetConfig only. Keep the reboot values
 // separately so reopening Control can still identify an unpersisted preview.
+static bool g_configSavePending = false;
 static uint8_t g_savedBacklightUsbPct = 100;
 static uint8_t g_savedBacklightBatPct = ENERGY_BACKLIGHT_ON_BATTERY;
 static char g_wordClockLang[16] = WORD_CLOCK_LANG_DEFAULT;
@@ -4206,22 +4054,18 @@ static void loadRuntimeWiFiCredentialsFromPrefs(Preferences &prefs, bool &loaded
   }
 }
 
-static size_t saveRuntimeWiFiCredentialsToPrefs(Preferences &prefs) {
-  size_t bytes = prefs.putUChar("wifi_dyn_n", g_wifiSt.runtimeCredCount);
+static bool saveRuntimeWiFiCredentialsToPrefs(ConfigPreferences &prefs) {
+  bool ok = prefs.putUChar("wifi_dyn_n", g_wifiSt.runtimeCredCount) == sizeof(uint8_t);
   for (uint8_t i = 0; i < WIFI_RUNTIME_CREDENTIALS_MAX; ++i) {
     char keySsid[16];
     char keyPass[16];
     snprintf(keySsid, sizeof(keySsid), "wifi_ds%u", (unsigned)(i + 1));
     snprintf(keyPass, sizeof(keyPass), "wifi_dp%u", (unsigned)(i + 1));
-    if (i < g_wifiSt.runtimeCredCount) {
-      bytes += prefs.putString(keySsid, g_wifiSt.runtimeCreds[i].ssid);
-      bytes += prefs.putString(keyPass, g_wifiSt.runtimeCreds[i].password);
-    } else {
-      bytes += prefs.putString(keySsid, "");
-      bytes += prefs.putString(keyPass, "");
-    }
+    const bool active = i < g_wifiSt.runtimeCredCount;
+    ok &= prefs.writeString(keySsid, active ? g_wifiSt.runtimeCreds[i].ssid : "");
+    ok &= prefs.writeString(keyPass, active ? g_wifiSt.runtimeCreds[i].password : "");
   }
-  return bytes;
+  return ok;
 }
 
 static void ensureRuntimeNetConfig();
@@ -4622,49 +4466,43 @@ static void loadRuntimeNetConfigFromNvs() {
 }
 
 static bool saveRuntimeNetConfigToNvs() {
-  Preferences prefs;
+  ConfigPreferences prefs;
+  g_configSavePending = true;
   if (!prefs.begin("scrybar_cfg", false)) {
     Serial.println("[CFG][NVS] begin(rw) failed");
     return false;
   }
-  const size_t n1 = prefs.putString("w_city", g_runtimeNetConfig.weatherCity);
-  const size_t n2 = prefs.putFloat("w_lat", g_runtimeNetConfig.weatherLat);
-  const size_t n3 = prefs.putFloat("w_lon", g_runtimeNetConfig.weatherLon);
-  const size_t n4 = prefs.putString("rss_url", runtimeRssFeedUrl());
-  size_t nFeedUrl = 0;
-  size_t nFeedName = 0;
-  size_t nFeedMax = 0;
+  bool fieldsSaved = prefs.writeString("w_city", g_runtimeNetConfig.weatherCity);
+  fieldsSaved &= prefs.putFloat("w_lat", g_runtimeNetConfig.weatherLat) == sizeof(float);
+  fieldsSaved &= prefs.putFloat("w_lon", g_runtimeNetConfig.weatherLon) == sizeof(float);
+  fieldsSaved &= prefs.writeString("rss_url", runtimeRssFeedUrl());
   for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
     char key[16];
     buildRssNvsKey(key, sizeof(key), i, "name");
-    nFeedName += prefs.putString(key, g_runtimeNetConfig.rssFeeds[i].name);
+    fieldsSaved &= prefs.writeString(key, g_runtimeNetConfig.rssFeeds[i].name);
     buildRssNvsKey(key, sizeof(key), i, "url");
-    nFeedUrl += prefs.putString(key, g_runtimeNetConfig.rssFeeds[i].url);
+    fieldsSaved &= prefs.writeString(key, g_runtimeNetConfig.rssFeeds[i].url);
     buildRssNvsKey(key, sizeof(key), i, "max");
-    nFeedMax += prefs.putUChar(key, g_runtimeNetConfig.rssFeeds[i].maxItems);
+    fieldsSaved &= prefs.putUChar(key, g_runtimeNetConfig.rssFeeds[i].maxItems) == sizeof(uint8_t);
   }
-  const size_t n5 = prefs.putString("logo_url", g_runtimeNetConfig.logoUrl);
-  const size_t n6 = prefs.putString("wc_lang", g_wordClockLang);
-  const size_t n7 = prefs.putString("ui_theme", g_runtimeNetConfig.uiTheme);
-  const size_t nViewMask = prefs.putUChar("ui_views", normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask));
-  prefs.putUChar("ui_views_gen", UI_VIEW_MASK_DEFAULT);  // track known flags for future migrations
-  const size_t nViewOrder = prefs.putBytes("ui_order", g_runtimeNetConfig.viewOrder, UI_VIEW_ORDER_COUNT);
+  fieldsSaved &= prefs.writeString("logo_url", g_runtimeNetConfig.logoUrl);
+  fieldsSaved &= prefs.writeString("wc_lang", g_wordClockLang);
+  fieldsSaved &= prefs.writeString("ui_theme", g_runtimeNetConfig.uiTheme);
+  fieldsSaved &= prefs.putUChar("ui_views", normalizeRuntimeViewMask(g_runtimeNetConfig.enabledViewsMask)) == sizeof(uint8_t);
+  fieldsSaved &= prefs.putUChar("ui_views_gen", UI_VIEW_MASK_DEFAULT) == sizeof(uint8_t);
+  fieldsSaved &= prefs.putBytes("ui_order", g_runtimeNetConfig.viewOrder, UI_VIEW_ORDER_COUNT) == UI_VIEW_ORDER_COUNT;
   const bool backlightSaved = nvsSaveBacklightConfig(prefs);
-  const size_t nWikiLang = prefs.putString("wiki_lang", g_wikiLang);
-  const size_t n8 = prefs.putString("wifi_pref", g_wifiSt.preferredSsid);
-  const size_t n9 = prefs.putString("wifi_setup_mode", g_wifiSt.setupMode);
-  const size_t n10 = saveRuntimeWiFiCredentialsToPrefs(prefs);
-  prefs.putString("transit_stn", g_transitConfig.station);
-  prefs.putString("transit_arr", g_transitConfig.arrStation);
-  prefs.putString("transit_sid", g_transitConfig.stopId);
+  fieldsSaved &= prefs.writeString("wiki_lang", g_wikiLang);
+  fieldsSaved &= prefs.writeString("wifi_pref", g_wifiSt.preferredSsid);
+  fieldsSaved &= prefs.writeString("wifi_setup_mode", g_wifiSt.setupMode);
+  fieldsSaved &= saveRuntimeWiFiCredentialsToPrefs(prefs);
+  fieldsSaved &= prefs.writeString("transit_stn", g_transitConfig.station);
+  fieldsSaved &= prefs.writeString("transit_arr", g_transitConfig.arrStation);
+  fieldsSaved &= prefs.writeString("transit_sid", g_transitConfig.stopId);
   prefs.end();
-  const bool ok = (n1 > 0) && (n2 > 0) && (n3 > 0) && backlightSaved;
-  Serial.printf("[CFG][NVS] save %s (city=%u lat=%u lon=%u rss_legacy=%u feed_name=%u feed_url=%u feed_max=%u logo=%u lang=%u theme=%u views=%u view_order=%u wiki_lang=%u wifi_pref=%u wifi_setup=%u wifi_dyn=%u)\n",
-                ok ? "OK" : "ERR",
-                (unsigned)n1, (unsigned)n2, (unsigned)n3, (unsigned)n4,
-                (unsigned)nFeedName, (unsigned)nFeedUrl, (unsigned)nFeedMax, (unsigned)n5,
-                (unsigned)n6, (unsigned)n7, (unsigned)nViewMask, (unsigned)nViewOrder,
-                (unsigned)nWikiLang, (unsigned)n8, (unsigned)n9, (unsigned)n10);
+  const bool ok = fieldsSaved && backlightSaved;
+  g_configSavePending = !ok;
+  Serial.printf("[CFG][NVS] save %s\n", ok ? "OK" : "ERR");
   return ok;
 }
 
@@ -4835,28 +4673,6 @@ static void appendWebThemeCssVars(String &out, const UiThemeWebTokens &t) {
   out += F("--txt3:"); out += t.txt3; out += ';';
   out += F("--acc1:"); out += t.acc1; out += ';';
   out += F("--acc2:"); out += t.acc2; out += ';';
-  out += F("--okbg:"); out += t.okbg; out += ';';
-  out += F("--sec-bg:"); out += t.secBg; out += ';';
-  out += F("--border:"); out += t.border; out += ';';
-  out += F("--hero-border:"); out += t.heroBorder; out += ';';
-  out += F("--hero-copy-border:"); out += t.heroCopyBorder; out += ';';
-  out += F("--hero-copy-bg:"); out += t.heroCopyBg; out += ';';
-  out += F("--release-border:"); out += t.releaseBorder; out += ';';
-  out += F("--release-bg:"); out += t.releaseBg; out += ';';
-  out += F("--release-key:"); out += t.releaseKey; out += ';';
-  out += F("--release-value:"); out += t.releaseValue; out += ';';
-  out += F("--grid-line-a:"); out += t.gridLineA; out += ';';
-  out += F("--grid-line-b:"); out += t.gridLineB; out += ';';
-  out += F("--grid-glow-a:"); out += t.gridGlowA; out += ';';
-  out += F("--grid-glow-b:"); out += t.gridGlowB; out += ';';
-  out += F("--grid-horizon-a:"); out += t.gridHorizonA; out += ';';
-  out += F("--grid-horizon-b:"); out += t.gridHorizonB; out += ';';
-  out += F("--scanline:"); out += t.scanline; out += ';';
-  out += F("--vline-a:"); out += t.vlineA; out += ';';
-  out += F("--vline-b:"); out += t.vlineB; out += ';';
-  out += F("--btn-ghost-bg:"); out += t.btnGhostBg; out += ';';
-  out += F("--btn-ghost-text:"); out += t.btnGhostText; out += ';';
-  out += F("--radius:10px;--gap:1.5rem;");
   out += '}';
 }
 
@@ -4886,793 +4702,126 @@ static bool ensureWebQrBuffers() {
 // Responsive Control Surface styles; theme colors and fonts come from kUiThemes.
 static const char kWebCssCore[] PROGMEM = R"rawliteral(
 :root {
-  --font-body:var(--font-main);
-  --text-primary:var(--txt);
-  --text-secondary:var(--txt2);
-  --text-tertiary:var(--txt2);
-  --accent-primary:var(--acc1);
-  --accent-secondary:var(--acc2);
-}
-body {
-  background:var(--bg-deepest);
-  color:var(--text-primary);
-  font-family:var(--font-main);
-  font-size:15px;
-  line-height:1.6;
-}
-[hidden] {
-  display:none!important;
-}
-button,input,select {
-  font:inherit;
-}
-button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible {
-  outline:3px solid var(--accent-secondary);
-  outline-offset:4px;
-}
-.vm-wrap {
-  max-width:1120px;
-  padding:0 24px 140px;
-  margin:auto;
-}
-.hero {
-  padding:24px 0 20px;
-  margin:0;
-  border:0;
-  background:none;
-}
-.hero-top {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:24px;
-}
-.hero-left .logo {
-  height:36px;
-  max-width:150px;
-}
-.hero-right {
-  width:auto;
-  justify-items:end;
-}
-.release-box {
-  border:0;
-  background:none;
-  padding:0;
-  display:flex;
-  gap:16px;
-}
-.release-box .k {
-  font-size:13px;
-  letter-spacing:0;
-  text-transform:none;
-  color:var(--text-secondary);
-}
-.release-box .v {
-  font-size:13px;
-}
-.hero h1 {
-  font:600 28px/1.2 var(--font-main);
-  margin:24px 0 8px;
-  color:var(--text-primary);
-}
-.hero .lede {
-  font-size:15px;
-  line-height:1.6;
-  padding:0;
-  margin:0;
-  background:none;
-  border:0;
-  color:var(--text-secondary);
-}
-.panel {
-  padding:0;
-  border:0;
-  background:none;
-}
-.cp-save-state {
-  font-size:14px;
-  font-weight:500;
-  color:var(--text-secondary);
-  margin:0 0 16px;
-}
-.cp-dirty .cp-save-state {
-  color:var(--text-primary);
-}
-.cp-nav {
-  position:sticky;
-  top:0;
-  z-index:30;
-  background:var(--bg-deepest);
-  display:flex;
-  gap:8px;
-  padding:8px 0 16px;
-  margin:0 0 24px;
-  border-bottom:1px solid var(--line-soft);
-}
-.cp-nav button {
-  border:0;
-  min-height:48px;
-  padding:10px 24px;
-  border-radius:8px;
-  color:var(--text-secondary);
-  background:none;
-  font-size:15px;
-  font-weight:600;
-  cursor:pointer;
-}
-.cp-nav button[aria-selected=true] {
-  color:var(--text-primary);
-  background:var(--bg-surface);
-}
-.cp-page {
-  display:grid;
-  gap:28px;
-}
-.vm-card.cp-setting {
-  display:grid;
-  grid-template-columns:minmax(190px,.4fr) minmax(0,1fr);
-  gap:40px;
-  padding:24px 0;
-  border:0;
-  border-bottom:1px solid var(--line-soft);
-  border-radius:0;
-  background:none;
-  box-shadow:none;
-  margin:0;
-}
-.cp-setting>h2 {
-  font-size:18px;
-  align-self:start;
-}
-.cp-section-button {
-  background:none;
-  border:0;
-  padding:4px 0;
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:16px;
-  width:100%;
-  min-height:44px;
-  font-size:18px;
-  font-weight:600;
-  line-height:1.4;
-  text-align:left;
-  color:var(--text-primary);
-  cursor:pointer;
-}
-.cp-section-button .vm-collapse-arr {
-  font-size:22px;
-  font-weight:400;
-  line-height:1.3;
-  color:var(--text-secondary);
-  margin-left:auto;
-}
-.cp-setting-body {
-  background:var(--bg-deep);
-  border-radius:10px;
-  padding:22px;
-  min-width:0;
-}
-.vm-clp>*:not(h2) {
-  display:none!important;
-}
-.cp-setting.vm-clp {
-  padding-bottom:12px;
-}
-.vm-label {
-  display:block;
-  font-size:14px;
-  font-weight:500;
-  letter-spacing:0;
-  text-transform:none;
-  color:var(--text-primary);
-  margin:0 0 8px;
-}
-.vm-input,.vm-select {
-  font-family:var(--font-main);
-  font-size:16px;
-  min-height:46px;
-  border-radius:8px;
-  border:1px solid var(--line);
-  padding:10px 12px;
-  background:var(--bg-surface);
-  color:var(--text-primary);
-  width:100%;
-  margin:0 0 16px;
-  box-shadow:none;
-}
-.vm-input::placeholder {
-  color:var(--text-secondary);
-  opacity:1;
-}
-.vm-help,.vm-card small,.geo-status,.rss-status,.rss-meta,.vm-kv,.vm-api-note,.vm-footer {
-  font-size:14px!important;
-  line-height:1.6;
-  color:var(--text-secondary);
-  letter-spacing:0;
-}
-.vm-help {
-  margin:0 0 18px!important;
-}
-.vm-help:empty,.geo-status:empty,.rss-status:empty {
-  display:none;
-}
-.vm-grid {
-  gap:16px;
-}
-.vm-grid .vm-input {
-  margin-bottom:0;
-}
-.vm-btn {
-  min-height:44px;
-  padding:10px 16px;
-  font-size:14px;
-  font-weight:600;
-  letter-spacing:0;
-  border:0;
-  border-radius:8px;
-  box-shadow:none;
-  text-shadow:none;
-  background:var(--bg-surface);
-  color:var(--text-primary);
-}
-.vm-btn:hover {
-  filter:brightness(1.08);
-}
-.vm-btn--primary {
-  background:var(--text-primary);
-  color:var(--bg-deepest);
-}
-.vm-btn--secondary,.vm-btn--warn,.vm-btn--danger {
-  border:1px solid var(--line);
-  background:var(--bg-surface);
-  color:var(--text-primary);
-}
-.vm-actions-sticky {
-  position:fixed;
-  bottom:0;
-  left:0;
-  right:0;
-  z-index:80;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  gap:12px;
-  padding:14px 24px;
-  margin:0;
-  background:var(--bg-deepest);
-  border-top:1px solid var(--line);
-  width:auto;
-}
-.vm-actions-sticky .vm-btn {
-  min-width:170px;
-}
-.vm-bright {
-  gap:24px;
-}
-.vm-bright__row {
-  grid-template-columns:100px 1fr 54px;
-  gap:12px;
-}
-.vm-bright__label,.vm-bright__val {
-  font-size:14px;
-  color:var(--text-primary);
-}
-.vm-bright__row input[type=range] {
-  min-height:36px;
-  accent-color:var(--accent-primary);
-}
-.vm-views-head {
-  align-items:center;
-}
-.vm-views-head .vm-help {
-  margin:0!important;
-}
-.vm-views {
-  margin-top:20px;
-}
-.vm-view {
-  padding:16px 0;
-  gap:12px;
-}
-.vm-view__copy strong {
-  font-size:15px;
-  color:var(--text-primary);
-}
-.vm-view__copy small {
-  font-size:13px!important;
-  margin-top:4px;
-  color:var(--text-secondary);
-}
-.vm-view--off {
-  opacity:1;
-}
-.vm-view--off .vm-view__copy strong::after {
-  content:'Hidden';
-  font:400 12px var(--font-main);
-  color:var(--text-secondary);
-  margin-left:10px;
-}
-.vm-view__main {
-  align-items:flex-start;
-  gap:12px;
-}
-.vm-view__main input {
-  margin-top:5px;
-  width:18px;
-  height:18px;
-  accent-color:var(--accent-primary);
-  flex-shrink:0;
-}
-.vm-view--fixed .vm-view__main input {
-  opacity:1;
-}
-.vm-view__moves {
-  gap:6px;
-}
-.vm-move {
-  width:44px;
-  height:44px;
-  padding:12px;
-  min-width:44px;
-}
-.vm-move:disabled {
-  opacity:.35;
-}
-.vm-order-status {
-  font-size:14px;
-  margin-top:16px;
-  border-left:2px solid var(--accent-secondary);
-  background:none;
-  padding:10px 12px;
-  color:var(--text-secondary);
-}
-.vm-rss-composer {
-  grid-template-columns:1fr 1fr 80px;
-  gap:12px;
-}
-.vm-rss-composer>div:nth-child(2) {
-  grid-column:1/3;
-  grid-row:2;
-}
-.vm-rss-composer>div:nth-child(3) {
-  grid-column:3;
-  grid-row:1;
-}
-.vm-rss-composer>div:first-child {
-  grid-column:1/3;
-}
-.vm-rss-composer .vm-input {
-  margin:0;
-}
-.vm-rss-composer #rss_add {
-  grid-column:3;
-  grid-row:2;
-}
-.vm-rss-composer #rss_reset {
-  grid-column:1/4;
-  justify-self:start;
-}
-.rss-row {
-  display:block;
-  border:0;
-  border-bottom:1px solid var(--line-soft);
-  padding:18px 0;
-  background:none;
-}
-.rss-title {
-  font-size:15px;
-  margin-bottom:8px;
-  flex-wrap:wrap;
-}
-.rss-meta {
-  overflow-wrap:anywhere;
-}
-.rss-chip {
-  font-size:13px;
-  font-weight:400;
-  color:var(--text-secondary);
-  background:var(--bg-surface);
-  border-radius:4px;
-  padding:2px 8px;
-  margin:0;
-}
-.rss-actions {
-  justify-content:flex-start;
-  gap:8px;
-  margin-top:12px;
-}
-.rss-empty {
-  font-size:14px;
-  border:0;
-  background:var(--bg-surface);
-  padding:16px;
-  color:var(--text-secondary);
-}
-.vm-secret .vm-input {
-  min-width:0;
-}
-.vm-secret .vm-btn {
-  align-self:start;
-  flex-shrink:0;
-}
-.vm-setup-grid {
-  grid-template-columns:1fr;
-  gap:16px;
-}
-.vm-setup-url {
-  font-size:14px;
-  overflow-wrap:anywhere;
-}
-.vm-kv code {
-  font-size:14px;
-  overflow-wrap:anywhere;
-  color:var(--text-primary);
-}
-.vm-footer {
-  margin-top:40px;
-  border:0;
-}
-.vm-api-note {
-  margin-top:24px;
-  overflow-wrap:anywhere;
-}
-.vm-toast-fixed {
-  max-width:min(600px,calc(100% - 32px));
-  font-size:15px;
-  padding:16px 20px;
-  line-height:1.5;
-  background:var(--bg-surface);
-  color:var(--text-primary);
-  border:1px solid var(--line);
-}
-html[data-ui-theme=mint-protocol] .logo {
-  filter:brightness(.15);
-}
-@media(max-width:760px) {
-  .vm-wrap {
-    padding:0 16px 124px;
-  }
-  .hero-top {
-    flex-wrap:nowrap;
-  }
-  .hero-right {
-    width:auto;
-  }
-  .release-box {
-    display:block;
-  }
-  .release-box>span {
-    display:block;
-  }
-  .hero h1 {
-    font-size:26px;
-  }
-  .cp-nav {
-    margin-bottom:16px;
-    padding-bottom:12px;
-    display:grid;
-    grid-template-columns:1fr 1fr 1fr;
-    gap:4px;
-  }
-  .cp-nav button {
-    padding:10px 8px;
-    font-size:14px;
-  }
-  .vm-card.cp-setting {
-    grid-template-columns:1fr;
-    gap:12px;
-    padding:16px 0;
-  }
-  .cp-setting-body {
-    padding:18px;
-  }
-  .cp-section-button {
-    font-size:18px;
-  }
-  .cp-page {
-    gap:12px;
-  }
-  .vm-actions-sticky {
-    flex-direction:row;
-    padding:12px 16px;
-    gap:8px;
-  }
-  .vm-actions-sticky .vm-btn {
-    min-width:0;
-    flex:1;
-    max-width:260px;
-    padding-inline:10px;
-  }
-  .vm-bright__row {
-    grid-template-columns:1fr 54px;
-    gap:8px;
-  }
-  .vm-bright__label {
-    grid-column:1/-1;
-  }
-  .vm-rss-composer {
-    display:grid;
-    grid-template-columns:1fr 84px;
-    gap:16px 10px;
-  }
-  .vm-rss-composer>div:first-child {
-    grid-column:1/-1;
-    grid-row:auto;
-  }
-  .vm-rss-composer>div:nth-child(2) {
-    grid-column:1/-1;
-    grid-row:auto;
-  }
-  .vm-rss-composer>div:nth-child(3) {
-    grid-column:1;
-    grid-row:auto;
-  }
-  .vm-rss-composer #rss_add {
-    grid-column:2;
-    grid-row:auto;
-    align-self:end;
-  }
-  .vm-rss-composer #rss_reset {
-    grid-column:1/-1;
-  }
-  .vm-view__copy small {
-    font-size:13px!important;
-  }
-  .vm-views.is-reordering .vm-view {
-    flex-wrap:wrap;
-  }
-  .vm-views.is-reordering .vm-view__main {
-    width:100%;
-    min-width:0;
-  }
-  .vm-views.is-reordering .vm-view__moves {
-    margin-left:30px;
-  }
-  .vm-input,.vm-select {
-    font-size:16px;
-  }
-  .vm-footer {
-    font-size:13px!important;
-  }
-}
-@media(prefers-reduced-motion:reduce) {
-  *,*::before,*::after {
-    transition:none!important;
-    animation:none!important;
-  }
-  html {
-    scroll-behavior:auto;
-  }
-}
-/* Preserve each theme's typeface consistently, including legacy button rules. */
-button,input,select,.vm-btn {
-  font-family:var(--font-main);
-}
-code,.release-box,.vm-bright__val,.vm-setup-url {
-  font-family:var(--font-mono);
-}
-.hero-top {
-  display:grid;
-  grid-template-columns:1fr auto;
-}
-.hero-left {
-  min-width:0;
-}
-.hero-right {
-  display:block;
-  justify-self:end;
-}
-.release-box {
-  display:block;
-  white-space:nowrap;
-  font-size:13px;
-  line-height:1.7;
-}
-.release-box>span {
-  display:block;
-}
-.vm-actions-sticky {
-  flex-direction:row;
-}
-/* Structural styles: the candidate does not need the previous CSS bundle. */
-*,*::before,*::after {
-  box-sizing:border-box;
-}
-body,h1,h2,p,fieldset {
-  margin:0;
-}
-button {
-  cursor:pointer;
-}
-.logo {
-  display:block;
-  width:auto;
-  object-fit:contain;
-}
-.vm-grid {
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:16px;
-}
-.vm-bright {
-  display:flex;
-  flex-direction:column;
-}
-.vm-bright__row {
-  display:grid;
-  align-items:center;
-}
-.vm-bright__val {
-  text-align:right;
-  font-variant-numeric:tabular-nums;
-}
-.vm-views-head {
-  display:flex;
-  justify-content:space-between;
-  gap:16px;
-}
-.vm-view {
-  display:flex;
-  align-items:center;
-  border-bottom:1px solid var(--line-soft);
-}
-.vm-view:last-child {
-  border-bottom:0;
-}
-.vm-view__main {
-  display:flex;
-  flex:1;
-  min-width:0;
-  cursor:pointer;
-}
-.vm-view__copy {
-  display:flex;
-  flex-direction:column;
-  min-width:0;
-}
-.vm-view__moves {
-  display:none;
-  align-items:center;
-}
-.vm-views.is-reordering .vm-view__moves {
-  display:flex;
-}
-.vm-view--internal {
-  display:none!important;
-}
-.vm-move svg {
-  display:block;
-  width:18px;
-  height:18px;
-}
-.vm-order-status {
-  display:none;
-}
-.vm-order-status.is-visible {
-  display:block;
-}
-.vm-secret {
-  display:flex;
-  gap:8px;
-  align-items:stretch;
-  margin-bottom:16px;
-}
-.vm-secret .vm-input {
-  margin:0;
-}
-.vm-setup-grid {
-  display:grid;
-  align-items:center;
-  margin-top:16px;
-}
-.vm-setup-qr {
-  display:block;
-  width:138px;
-  height:138px;
-  background:white;
-  padding:6px;
-  border-radius:6px;
-}
-.vm-rss-composer {
-  display:grid;
-  align-items:end;
-}
-.rss-title {
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-.rss-actions {
-  display:flex;
-  flex-wrap:wrap;
-}
-.rss-status,.geo-status {
-  margin:10px 0;
-}
-.rss-empty {
-  margin-top:16px;
-}
-.hidden {
-  display:none!important;
-}
-.vm-footer {
-  padding-top:16px;
-}
-.vm-footer a,.vm-api-note a {
-  color:var(--text-primary);
-}
-.vm-toast-fixed {
-  position:fixed;
-  left:50%;
-  top:16px;
-  transform:translateX(-50%);
-  z-index:100;
-  border-radius:8px;
-}
-.cp-setting-body>small,.cp-setting-body>code {
-  font-size:14px;
-}
-.vm-help a {
-  color:var(--text-primary);
-}
-.vm-btn[disabled] {
-  cursor:default;
-}
-.vm-api-note code {
-  font-family:var(--font-mono);
-  font-size:13px;
-}
-@media(max-width:760px) {
-  .vm-grid {
-    grid-template-columns:1fr;
-  }
-  .vm-views-head {
-    align-items:flex-start;
-  }
-  .vm-view {
-    gap:10px;
-  }
-  .vm-rss-composer {
-    grid-template-columns:1fr 84px;
-  }
-  .vm-setup-qr {
-    width:138px;
-    height:138px;
-  }
-}
-.vm-btn:disabled {
-  opacity:.45;
-  cursor:default;
-}
-.cp-action-status {
-  max-width:1120px;
-  margin:0 0 16px;
-  font-size:14px;
-  color:var(--text-primary);
-}
-.cp-action-status:empty {
-  display:none;
-}
-.cp-action-status[data-state=error] {
-  border-left:2px solid var(--accent-secondary);
-  padding-left:12px;
-}
-.cp-section-button .vm-badge {
-  font-size:13px;
-  font-weight:400;
-  color:var(--text-secondary);
-  white-space:nowrap;
-  align-self:center;
-}
-.cp-section-button .vm-badge:empty {
-  display:none;
-}
-.vm-rss-composer #rss_add {
-  white-space:nowrap;
-  padding-inline:10px;
+  --gutter:clamp(16px,3vw,40px);
+  --measure:1120px;
+  --gap:24px;
+  --edge:color-mix(in srgb,var(--txt) 28%,var(--bg-deep));
+  --control-edge:color-mix(in srgb,var(--txt) 60%,var(--bg-deep));
+  --rule:color-mix(in srgb,var(--txt) 17%,var(--bg-deep));
+  --ink-accent:color-mix(in srgb,var(--acc1) 62%,var(--txt));
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
+  color-scheme:dark;
+}
+html[data-ui-theme="mint-protocol"],html[data-ui-theme="letterpress"] {color-scheme:light}
+*,*::before,*::after {box-sizing:border-box}
+[hidden],.hidden,.vm-view--internal {display:none!important}
+html {scroll-padding:70px 0 136px}
+body {margin:0;background:var(--bg-deepest);color:var(--txt);font:400 16px/1.5 var(--sans)}
+a {color:inherit;text-underline-offset:.2em}
+input,button,select {font:inherit;color:inherit}
+button,select {cursor:pointer}
+button:disabled {cursor:default}
+:focus-visible {outline:3px solid var(--ink-accent);outline-offset:3px}
+.vm-wrap {width:min(100% - 2 * var(--gutter),var(--measure));margin:auto;padding-bottom:128px}
+.hero {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:32px 0 24px;border-bottom:2px solid var(--txt)}
+.hero h1 {font-size:clamp(28px,4vw,44px);font-weight:650;line-height:1.05;letter-spacing:-.055em;margin:0}
+.hero h1 span {font-weight:400;color:var(--txt2)}
+.release-box {font:13px/1.45 var(--mono);text-align:right;color:var(--txt2)}
+.release-box span {display:block}
+.release-box span:first-child {color:var(--txt)}
+.hero .logo {max-width:90px;max-height:32px;object-fit:contain}
+#cfg_form {margin:0}
+.cp-nav {display:flex;gap:24px;position:sticky;top:0;z-index:5;background:var(--bg-deepest);border-bottom:1px solid var(--edge)}
+.cp-nav button {border:0;border-bottom:3px solid transparent;background:none;color:var(--txt2);padding:12px 4px;min-height:48px;font-weight:550}
+.cp-nav [aria-selected=true] {color:var(--txt);border-color:var(--ink-accent)}
+.cp-page {display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:var(--gap);align-items:stretch}
+.vm-card {min-width:0;padding:20px 0;border-bottom:1px solid var(--rule)}
+.cp-page>.vm-card {grid-column:span 6}
+#cp-display>.vm-card:first-child,#cp-connections>.vm-card,#cp-content>.vm-card:last-child {grid-column:1/-1}
+#cp-display>.vm-card:has(#view_list) {grid-column:1/-1}
+.vm-card h2 {margin:0 0 12px;font-size:20px;line-height:1.25}
+.cp-setting>h2 {margin:0}
+.cp-section-button {display:flex;align-items:center;gap:8px;text-align:left;width:100%;min-height:44px;border:0;padding:0;background:none;font-size:20px;font-weight:625;letter-spacing:-.025em}
+.vm-collapse-arr {margin-left:auto;color:var(--txt2);font:18px var(--mono)}
+.cp-setting-body {min-width:0;padding-top:8px}
+.cp-setting-body>:last-child,.vm-rss-composer input {margin-bottom:0}
+.vm-label {display:block;color:var(--txt);font-size:14px;font-weight:550;margin:0 0 5px}
+.vm-input,.vm-select {display:block;width:100%;min-width:0;min-height:44px;margin:0 0 12px;padding:8px 12px;border:1px solid var(--control-edge);border-radius:5px;color:var(--txt);background:var(--bg-surface);font-size:16px}
+.vm-input::placeholder {color:var(--txt2);opacity:.9}
+.vm-help,.geo-status,.rss-status,.rss-empty,.vm-order-status,.rss-meta,.vm-card small,.vm-footer {font-size:14px;line-height:1.5;color:var(--txt2)}
+.vm-help {margin:0 0 12px}
+.cp-setting-body>p:first-child {margin-top:0!important}
+p:empty {display:none}
+.vm-grid,.vm-setup-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+.vm-grid>div,.vm-view__copy {min-width:0}
+.theme-layout {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:center;gap:var(--gap);padding:0 0 8px}
+.theme-sample {display:block;width:100%;height:auto;aspect-ratio:640/172;border:1px solid var(--edge);border-radius:6px;background:var(--bg-deep)}
+.theme-layout p {margin:6px 0 0}
+.vm-bright__row {display:grid;grid-template-columns:78px minmax(0,1fr) 44px;align-items:center;gap:12px;min-height:44px;font-size:14px}
+.vm-bright__row input {min-width:0;width:100%;height:44px;accent-color:var(--ink-accent);margin:0}
+.vm-bright__val {text-align:right;font:14px var(--mono)}
+.vm-input[type=number] {font-variant-numeric:tabular-nums}
+.vm-btn,.rss-actions button {min-height:44px;border:1px solid var(--control-edge);border-radius:5px;background:var(--bg-surface);color:var(--txt);font-size:14px;font-weight:550;padding:9px 14px}
+.vm-btn--primary {background:var(--txt);color:var(--bg-deepest);border-color:transparent}
+.vm-btn:disabled {opacity:.5}
+.vm-btn:not(:disabled):hover,.cp-section-button:hover,.cp-nav button:hover {text-decoration:underline;text-underline-offset:3px}
+.vm-actions-sticky {position:fixed;bottom:0;left:0;right:0;z-index:7;background:var(--bg-deep);border-top:1px solid var(--edge);padding:10px max(var(--gutter),calc((100vw - var(--measure)) / 2)) max(10px,env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px}
+.vm-actions-sticky .vm-btn--primary {order:2}
+.cp-feedback {margin-right:auto;min-width:0}
+.cp-save-state,.cp-action-status {margin:0;font-size:13px;line-height:1.4;color:var(--txt2);overflow-wrap:anywhere}
+.cp-dirty .cp-save-state,.cp-action-status:not(:empty) {color:var(--txt)}
+.cp-action-status:empty {display:none}
+.vm-views-head,.vm-view,.vm-view__main,.vm-secret,.rss-title,.rss-actions {display:flex;align-items:center;gap:12px}
+.vm-views-head {justify-content:space-between}
+.vm-views-head .vm-help {margin:0}
+.vm-views {display:grid;grid-template-columns:1fr 1fr;column-gap:var(--gap)}
+.vm-view {padding:8px 0;border-bottom:1px solid var(--rule);min-width:0}
+.vm-view__main {flex:1;min-width:0;cursor:pointer;min-height:44px}
+.vm-view__main input {width:18px;height:18px;flex:none;accent-color:var(--ink-accent)}
+.vm-view__copy strong,.vm-view__copy small {display:block}
+.vm-view__copy strong {font-size:15px}
+.vm-view__moves,.vm-order-status {display:none}
+.is-reordering .vm-view__moves,.vm-order-status.is-visible {display:flex;gap:4px}
+.vm-move {width:44px;padding:10px}
+.vm-move svg {display:block;width:18px;margin:auto}
+.vm-secret {align-items:flex-start;gap:8px}
+.vm-secret .vm-btn {flex:none}
+.vm-setup-qr {width:138px;height:138px;background:white;padding:5px}
+.vm-setup-url,.rss-meta,.vm-card code {overflow-wrap:anywhere}
+.vm-card code {color:var(--txt);font:13px var(--mono)}
+.vm-rss-composer {display:grid;grid-template-columns:1fr 2fr 84px auto auto;gap:12px;align-items:end}
+.rss-row {padding:12px 0;border-bottom:1px solid var(--rule)}
+.rss-title {flex-wrap:wrap}
+.rss-actions {margin-top:8px}
+.rss-chip,.vm-badge {color:var(--txt2);font:13px var(--mono)}
+.vm-footer {margin:24px 0}
+.vm-alert {border-left:3px solid var(--ink-accent);padding:8px 12px;color:var(--txt);background:var(--bg-surface)}
+@media (max-width:800px) {
+  .cp-page>.vm-card {grid-column:1/-1}
+  .vm-rss-composer {grid-template-columns:1fr 1fr}
+  .vm-rss-composer>div:nth-child(2) {grid-column:1/-1;grid-row:2}
+}
+@media (max-width:600px) {
+  :root {--gap:16px}
+  .vm-wrap {padding-bottom:168px}
+  .hero {padding:20px 0 16px}
+  .release-box {font-size:11px}
+  .cp-nav {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+  .vm-card {padding:12px 0}
+  .cp-section-button {font-size:18px}
+  .theme-layout,.vm-views,.vm-grid {grid-template-columns:minmax(0,1fr)}
+  .theme-layout {gap:12px}
+  .vm-grid:has(#screensaver_minutes),.vm-grid:has(>div>#weather_lat) {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .vm-grid:has(>div>.vm-grid) {grid-template-columns:minmax(0,1fr)}
+  .vm-actions-sticky {display:grid;grid-template-columns:1fr 1fr;gap:5px 8px;padding-top:6px}
+  .cp-feedback {grid-column:1/-1}
+  .vm-views-head {align-items:center}
+}
+@media (max-width:360px) {
+  .hero h1 {font-size:26px}
+  .vm-view {flex-wrap:wrap}
+  .vm-view__moves {margin-left:auto}
 }
 )rawliteral";
 
@@ -5681,13 +4830,76 @@ static const char kWebJsCorePre[] PROGMEM = R"rawliteral(
 <script>(function(){
 (function(){const t=document.querySelector('.vm-toast-fixed');if(t){setTimeout(function(){t.style.transition='opacity .6s';t.style.opacity='0';setTimeout(function(){t.style.display='none';},650);},4200);}})();
 const q=document.getElementById('geo_query');const dl=document.getElementById('geo_hits');const st=document.getElementById('geo_status');const city=document.getElementById('weather_city');const lat=document.getElementById('weather_lat');const lon=document.getElementById('weather_lon');
-if(!q||!dl||!city||!lat||!lon)return;let t=0;let map={};function setStatus(msg){if(st)st.textContent=msg||'';}function clearHits(){dl.innerHTML='';map={};}
-function applyPick(key){const r=map[key];if(!r)return false;city.value=r.name||city.value;lat.value=Number(r.latitude).toFixed(4);lon.value=Number(r.longitude).toFixed(4);setStatus('Coordinates filled in automatically.');return true;}
-q.addEventListener('change',function(){applyPick(q.value);});q.addEventListener('blur',function(){applyPick(q.value);});
-q.addEventListener('input',function(){const term=q.value.trim();if(term.length<2){clearHits();setStatus('');return;}clearTimeout(t);t=setTimeout(async function(){try{setStatus('Searching...');const u='https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name='+encodeURIComponent(term);const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);const data=await r.json();const rows=(data&&data.results)?data.results:[];clearHits();if(!rows.length){setStatus('No results found.');return;}rows.forEach(function(it){const label=[it.name,it.admin1,it.country].filter(Boolean).join(', ');const opt=document.createElement('option');opt.value=label;opt.label=(Number(it.latitude).toFixed(4)+', '+Number(it.longitude).toFixed(4));dl.appendChild(opt);map[label]=it;});setStatus('Select a result to fill city / lat / lon.');if(rows.length===1){const one=[rows[0].name,rows[0].admin1,rows[0].country].filter(Boolean).join(', ');q.value=one;applyPick(one);}}catch(e){clearHits();setStatus('Search unavailable, try again later.');}} ,280);});
+if(!q||!dl||!city||!lat||!lon)return;
+let timer,revision=0;
+const cities=new Map();
+function setStatus(message){if(st)st.textContent=message;}
+function clearHits(){dl.replaceChildren();cities.clear();}
+function applyPick(){
+  const result=cities.get(q.value);
+  if(!result)return false;
+  clearTimeout(timer);revision++;
+  city.value=result.name;lat.value=Number(result.latitude).toFixed(4);lon.value=Number(result.longitude).toFixed(4);
+  clearHits();setStatus('Coordinates filled in automatically.');return true;
+}
+q.addEventListener('change',applyPick);
+q.addEventListener('input',function(){
+  clearTimeout(timer);const current=++revision;
+  if(applyPick())return;
+  clearHits();setStatus('');
+  const term=q.value.trim();if(term.length<2)return;
+  timer=setTimeout(async function(){
+    try{
+      setStatus('Searching...');
+      const url='https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name='+encodeURIComponent(term);
+      const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error();
+      const data=await response.json();if(current!==revision)return;
+      for(const result of data.results||[]){
+        const place=[result.name,result.admin1,result.country].filter(Boolean).join(', ');
+        const coordinates=Number(result.latitude).toFixed(4)+', '+Number(result.longitude).toFixed(4);
+        const label=cities.has(place)?place+' ('+coordinates+')':place;
+        const option=document.createElement('option');option.value=label;option.label=coordinates;
+        dl.appendChild(option);cities.set(label,result);
+      }
+      setStatus(cities.size?'Select a result to fill city and coordinates.':'No results found.');
+    }catch(error){if(current===revision)setStatus('Search unavailable, try again later.');}
+  },280);
+});
 const wifiScanBtn=document.getElementById('wifi_scan_btn');const wifiScanResults=document.getElementById('wifi_scan_results');const wifiScanStatus=document.getElementById('wifi_scan_status');const wifiNewSsid=document.getElementById('wifi_new_ssid');const wifiNewPassword=document.getElementById('wifi_new_password');const wifiPwdToggle=document.getElementById('wifi_pwd_toggle');
-function setWifiStatus(msg){if(wifiScanStatus)wifiScanStatus.textContent=msg||'';}function escHtml(s){return (s||'').replace(/[&<>]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;'})[c];});}
-async function scanWifiNow(){if(!wifiScanResults)return;const ctl=(window.AbortController?new AbortController():null);let tm=0;try{setWifiStatus('Scanning 2.4 GHz networks...');wifiScanResults.innerHTML="<option value=''>Scanning...</option>";if(ctl){tm=window.setTimeout(function(){ctl.abort();},9000);}const res=await fetch('/api/wifi/scan',{cache:'no-store',signal:ctl?ctl.signal:undefined});if(tm)window.clearTimeout(tm);if(!res.ok)throw new Error('http '+res.status);const data=await res.json();const rows=(data&&data.networks)?data.networks:[];wifiScanResults.innerHTML="";if(!rows.length){wifiScanResults.innerHTML="<option value=''>No 2.4 GHz network found</option>";setWifiStatus((data&&data.message==='scan_timeout')?'Scan timed out, retry in a few seconds.':'No 2.4 GHz networks found.');return;}rows.forEach(function(n){const opt=document.createElement('option');const lock=n.secure?'SEC':'OPEN';opt.value=n.ssid||'';opt.dataset.secure=n.secure?'1':'0';opt.dataset.channel=String(n.channel||0);opt.innerHTML=escHtml((n.ssid||'(hidden)')+'  '+lock+'  ch'+(n.channel||'?')+'  '+(n.rssi||0)+'dBm');wifiScanResults.appendChild(opt);});setWifiStatus('Scan complete. Pick an SSID and press Save changes.');if(rows[0]&&rows[0].ssid&&wifiNewSsid&&!wifiNewSsid.value){wifiNewSsid.value=rows[0].ssid;}}catch(e){if(tm)window.clearTimeout(tm);wifiScanResults.innerHTML="<option value=''>Scan failed</option>";setWifiStatus((e&&e.name==='AbortError')?'Scan timeout. Retry.':'Scan unavailable right now.');}}
+function setWifiStatus(msg){if(wifiScanStatus)wifiScanStatus.textContent=msg||'';}
+async function scanWifiNow(){
+  if(!wifiScanResults||wifiScanBtn.disabled)return;
+  wifiScanBtn.disabled=true;
+  const controller=window.AbortController?new AbortController():null;
+  const timeout=controller?window.setTimeout(()=>controller.abort(),9000):0;
+  try{
+    setWifiStatus('Scanning 2.4 GHz networks...');
+    wifiScanResults.replaceChildren(new Option('Scanning...',''));
+    const response=await fetch('/api/wifi/scan',{cache:'no-store',signal:controller?controller.signal:undefined});
+    if(!response.ok)throw new Error();
+    const data=await response.json(),networks=data.networks||[];
+    if(!networks.length){
+      wifiScanResults.replaceChildren(new Option('No network found',''));
+      setWifiStatus(data.message==='scan_timeout'?'Scan timed out, retry in a few seconds.':'No 2.4 GHz networks found.');
+      return;
+    }
+    wifiScanResults.replaceChildren(new Option('Choose a network',''));
+    for(const network of networks){
+      const label=(network.ssid||'(hidden)')+'  '+(network.secure?'SEC':'OPEN')+'  ch'+(network.channel||'?')+'  '+(network.rssi||0)+'dBm';
+      const option=new Option(label,network.ssid||'');
+      option.dataset.secure=network.secure?'1':'0';
+      option.disabled=!network.ssid;
+      wifiScanResults.add(option);
+    }
+    setWifiStatus('Scan complete. Pick an SSID and press Save changes.');
+  }catch(error){
+    wifiScanResults.replaceChildren(new Option('Scan failed',''));
+    setWifiStatus(error.name==='AbortError'?'Scan timeout. Retry.':'Scan unavailable right now.');
+  }finally{
+    window.clearTimeout(timeout);
+    wifiScanBtn.disabled=false;
+  }
+}
 function syncWifiPwdToggle(){if(!wifiPwdToggle||!wifiNewPassword)return;const visible=wifiNewPassword.type==='text';wifiPwdToggle.textContent=visible?'Hide':'Show';wifiPwdToggle.title=visible?'Hide password':'Show password';wifiPwdToggle.setAttribute('aria-label',wifiPwdToggle.title);}if(wifiPwdToggle&&wifiNewPassword){wifiPwdToggle.addEventListener('click',function(){wifiNewPassword.type=(wifiNewPassword.type==='password')?'text':'password';syncWifiPwdToggle();});syncWifiPwdToggle();}if(wifiScanBtn)wifiScanBtn.addEventListener('click',function(){scanWifiNow();});if(wifiScanResults)wifiScanResults.addEventListener('change',function(){const v=wifiScanResults.value||'';if(wifiNewSsid&&v)wifiNewSsid.value=v;const sel=wifiScanResults.options[wifiScanResults.selectedIndex];if(wifiNewPassword&&sel&&sel.dataset.secure==='0'){wifiNewPassword.value='';wifiNewPassword.placeholder='Open network (no password)';}else if(wifiNewPassword){wifiNewPassword.placeholder='Password (WPA/WPA2)';}});
 const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');const viewHidden=document.getElementById('view_hidden_inputs');const viewList=document.getElementById('view_list');const viewReorderBtn=document.getElementById('view_reorder_btn');const viewOrderStatus=document.getElementById('view_order_status');
 const maxSlots=5;const minPosts=1;const maxPosts=8;let editIndex=-1;
@@ -5726,22 +4938,6 @@ static const char kWebJsControl[] PROGMEM = R"rawliteral(
     {id:'connections',label:'Wi-Fi',items:[['[name="wifi_pref_ssid"]','Wi-Fi connections']]},
     {id:'content',label:'Content',items:[['#weather_city','Weather'],['[name="wiki_lang"]','Wikipedia'],['#transit_from_q','Departures'],['#rss_list','RSS feeds']]}
   ];
-  var hero=document.querySelector('.hero');
-  if(hero&&!hero.querySelector('h1')){
-    var title=document.createElement('h1');title.textContent='ScryBar settings';
-    var lede=hero.querySelector('.lede');
-    if(lede){lede.textContent='Choose what appears on your display.';lede.before(title);}
-    else hero.appendChild(title);
-  }
-  var release=document.querySelector('.release-box');
-  if(release&&release.querySelector('.v')){
-    var values=Array.from(release.querySelectorAll('.v')).map(function(v){return v.textContent.trim();});
-    release.textContent='';
-    var version=document.createElement('span');version.textContent='Firmware '+values[1];
-    var date=document.createElement('span');date.textContent=values[0];
-    release.append(version,date);
-  }
-  document.querySelectorAll('[name="wc_lang"] option,[name="wiki_lang"] option').forEach(function(option){option.textContent=option.textContent.replace(/[^\p{L}\p{N}\p{P}\p{Zs}]/gu,'').trim();});
   var nav=document.createElement('nav');nav.className='cp-nav';nav.setAttribute('aria-label','Settings sections');nav.setAttribute('role','tablist');
   var first=form.querySelector('.vm-card');
   if(first)form.insertBefore(nav,first);
@@ -5779,30 +4975,15 @@ static const char kWebJsControl[] PROGMEM = R"rawliteral(
   var system=document.querySelector('.vm-card--muted');
   if(system)wrapSetting(system,'Device details','cp-device',false);
   var state=document.createElement('p');state.id='cp-save-state';state.className='cp-save-state';state.setAttribute('role','status');state.setAttribute('aria-live','polite');state.textContent='All changes saved';
-  nav.before(state);
-  var actionStatus=document.createElement('p');actionStatus.id='cp-action-status';actionStatus.className='cp-action-status';actionStatus.setAttribute('role','status');actionStatus.setAttribute('aria-live','polite');nav.before(actionStatus);
+
+  var actionStatus=document.createElement('p');actionStatus.id='cp-action-status';actionStatus.className='cp-action-status';actionStatus.setAttribute('role','status');actionStatus.setAttribute('aria-live','polite');
   var actions=form.querySelector('.vm-actions-sticky');
   if(actions){
+    var feedback=document.createElement('div');feedback.className='cp-feedback';
+    feedback.append(state,actionStatus);actions.prepend(feedback);
     var save=actions.querySelector('button:not([formaction])');if(save)save.textContent='Save changes';
     var reload=actions.querySelector('[formaction="/reload"]');if(reload){reload.textContent='Reload content';reload.formNoValidate=true;}
   }
-  var copyChanges=[
-    ['#bl_usb','.vm-help','Preview brightness on ScryBar now. Save changes to keep both levels.'],
-    ['[name="ui_theme"]','.vm-help','Preview the theme in this browser. Save changes to apply it to ScryBar and keep it.'],
-    ['[name="wc_lang"]','.vm-help','Changes the word clock and supported display messages. This control panel stays in English.'],
-    ['#transit_from_q','.vm-help','Select a departure stop. The optional destination text filters this board; it does not plan a route.'],
-    ['#rss_list','.vm-help','Add up to five feeds, with one to eight articles each. Add a feed to the list, then Save changes.']
-  ];
-  copyChanges.forEach(function(change){var field=document.querySelector(change[0]);var card=field&&field.closest('.vm-card');var help=card&&card.querySelector(change[1]);if(help)help.textContent=change[2];});
-  var usb=document.querySelector('label[for="bl_usb"],#bl_usb')?.closest('label');if(usb){var label=usb.querySelector('.vm-bright__label');if(label)label.textContent='USB power';}
-  var batt=document.getElementById('bl_batt')?.closest('label');if(batt){var label=batt.querySelector('.vm-bright__label');if(label)label.textContent='Battery';}
-  document.querySelectorAll('.vm-label').forEach(function(old){
-    var next=old.nextElementSibling,field=next&&(next.matches('input,select')?next:next.querySelector('input,select'));
-    if(!field)return;
-    if(!field.id)field.id='cp-field-'+field.name;
-    var label=document.createElement('label');label.className=old.className;label.htmlFor=field.id;
-    var text=old.textContent.trim();label.textContent=text.charAt(0)+text.slice(1).toLowerCase();old.replaceWith(label);
-  });
   function refineLabels(){
     document.querySelectorAll('.vm-view').forEach(function(row){
       var name=row.querySelector('strong')?.textContent||'view';
@@ -5819,6 +5000,12 @@ static const char kWebJsControl[] PROGMEM = R"rawliteral(
     var theme=scrybarWebThemes.find(function(t){return t.id===id;});if(!theme)return;
     Object.keys(theme.vars).forEach(function(key){document.documentElement.style.setProperty(key,theme.vars[key]);});
     document.documentElement.dataset.uiTheme=id;
+    var preview=document.getElementById('theme_sample');
+    if(preview){
+      preview.alt=themeSelect.options[themeSelect.selectedIndex].text+' Home preview with example weather';
+      var url=new URL(preview.src);
+      if(url.searchParams.get('theme')!==id){url.searchParams.set('theme',id);preview.src=url.href;}
+    }
   }
   if(themeSelect){applyTheme(themeSelect.value);themeSelect.addEventListener('change',function(){applyTheme(themeSelect.value);});}
   function fingerprint(useSavedBrightness){
@@ -5832,7 +5019,7 @@ static const char kWebJsControl[] PROGMEM = R"rawliteral(
   // A fresh GET may contain a live RAM preview which has not been stored in NVS.
   var baseline=fingerprint(true);
   function hasFeedDraft(){return !!(document.getElementById('rss_name')?.value.trim()||document.getElementById('rss_url')?.value.trim());}
-  function updateDirty(){queued=false;refineLabels();dirty=fingerprint()!==baseline;state.textContent=hasFeedDraft()?'Feed draft: add it to the list before saving':dirty?'Unsaved changes':'All changes saved';document.documentElement.classList.toggle('cp-dirty',dirty||hasFeedDraft());if(save)save.disabled=!dirty&&!hasFeedDraft();}
+  function updateDirty(){queued=false;refineLabels();dirty=form.dataset.savePending==='1'||fingerprint()!==baseline;state.textContent=hasFeedDraft()?'Feed draft: add it to the list before saving':form.dataset.savePending==='1'?'Storage write failed. Save again to retry.':dirty?'Unsaved changes':'All changes saved';document.documentElement.classList.toggle('cp-dirty',dirty||hasFeedDraft());if(save)save.disabled=!dirty&&!hasFeedDraft();}
   updateDirty();
   function schedule(){if(queued)return;queued=true;queueMicrotask(updateDirty);}
   form.addEventListener('input',schedule);form.addEventListener('change',schedule);form.addEventListener('click',schedule);
@@ -5890,13 +5077,17 @@ static void buildWebCssBlock(String &html) {
 }
 
 static void buildWebHeroSection(String &html, const char *statusMsg) {
-  html += F("<section class='hero'><div class='hero-top'><div class='hero-left'><img class='logo' alt='Netmilk Studio' src='");
-  appendHtmlEscaped(html, runtimeLogoUrl());
-  html += F("'></div><div class='hero-right'><div class='release-box'><span>Firmware ");
+  html += F("<header class='hero'><h1>ScryBar <span>settings</span></h1>");
+  if (strcmp(runtimeLogoUrl(), kWebStudioLogoUrl) != 0) {
+    html += F("<img class='logo' alt='' src='");
+    appendHtmlEscaped(html, runtimeLogoUrl());
+    html += F("' onerror='this.hidden=true'>");
+  }
+  html += F("<div class='release-box'><span>Firmware ");
   appendHtmlEscaped(html, FW_BUILD_TAG);
   html += F("</span><span>");
   appendHtmlEscaped(html, FW_RELEASE_DATE);
-  html += F("</span></div></div></div><h1>ScryBar settings</h1><p class='lede'>Choose what appears on your display.</p></section><section class='panel'>");
+  html += F("</span></div></header><section class='panel'>");
   if (statusMsg && statusMsg[0]) {
     // The reload handler confirms that work was queued, not that remote feeds finished.
     const char *message = statusMsg;
@@ -5909,7 +5100,7 @@ static void buildWebHeroSection(String &html, const char *statusMsg) {
 }
 
 static void buildWebThemeSelector(String &html) {
-  html += F("<div class='vm-card'><h2>Theme</h2><div class='vm-label'>THEME</div><select class='vm-select' name='ui_theme'>");
+  html += F("<div class='vm-card'><h2>Theme</h2><div class='theme-layout'><div><label class='vm-label' for='ui_theme'>Display palette</label><select class='vm-select' id='ui_theme' name='ui_theme'>");
   for (size_t i = 0; i < UI_THEME_COUNT; ++i) {
     html += F("<option value='");
     html += kUiThemes[i].id;
@@ -5919,14 +5110,17 @@ static void buildWebThemeSelector(String &html) {
     html += kUiThemes[i].label;
     html += F("</option>");
   }
-  html += F("</select><p class='vm-help'>Preview the theme in this browser. Save changes to apply it to ScryBar and keep it.</p></div>");
+  html += F("</select><p class='vm-help'>Save to apply this palette to your display.</p></div>"
+            "<img class='theme-sample' id='theme_sample' width='640' height='172' alt='Home screen color preview with example weather' src='/ui/theme.webp?theme=");
+  appendHtmlEscaped(html, runtimeUiThemeId());
+  html += F("&amp;v=" FW_BUILD_TAG "'></div></div>");
 }
 
 static void buildWebBrightnessSection(String &html) {
   const uint8_t blUsb  = g_runtimeNetConfig.backlightUsbPct;
   const uint8_t blBatt = g_runtimeNetConfig.backlightBatPct;
   html += F("<div class='vm-card'><h2>Brightness</h2>"
-            "<p class='vm-help' style='margin-top:-4px'>Preview brightness on ScryBar now. Save changes to keep both levels.</p>"
+            "<p class='vm-help' style='margin-top:-4px'>Move a slider to preview on ScryBar. Save to keep both levels.</p>"
             "<div class='vm-bright'>"
               "<label class='vm-bright__row'>"
                 "<span class='vm-bright__label'>USB power</span>"
@@ -5977,8 +5171,8 @@ static void buildWebBrightnessSection(String &html) {
 
 static void buildWebDisplayIdleSection(String &html) {
   html += F("<div class='vm-card'><h2>Display inactivity</h2>"
-            "<p class='vm-help' id='display_idle_help'>Both timers count from the last touch or button press, on USB and battery. "
-            "Enter 0 to disable either timer. When both are on, set screen off later than the screensaver.</p><div class='vm-grid'>");
+            "<p class='vm-help' id='display_idle_help'>Both timers start at the last touch or button press. "
+            "Use 0 for off. When both are enabled, the backlight turns off last.</p><div class='vm-grid'>");
   const auto &timeouts = g_runtimeNetConfig.displayIdle;
   const auto addField = [&](const char *key, const char *label, uint16_t minutes) {
     html += F("<div><label class='vm-label' for='");
@@ -5995,14 +5189,14 @@ static void buildWebDisplayIdleSection(String &html) {
     html += (unsigned)minutes;
     html += F("'></div>");
   };
-  addField("screensaver_minutes", "Screensaver after (min)", timeouts.screensaverMinutes);
-  addField("screen_off_minutes", "Screen off after (min)", timeouts.screenOffMinutes);
+  addField("screensaver_minutes", "Screensaver (min)", timeouts.screensaverMinutes);
+  addField("screen_off_minutes", "Backlight off (min)", timeouts.screenOffMinutes);
   html += F("</div></div>");
 }
 
 static void buildWebViewToggles(String &html) {
   html += F("<div class='vm-card'><h2>Views and swipe order</h2>"
-            "<div class='vm-views-head'><p class='vm-help'>Enable pages and set their physical swipe sequence.</p>"
+            "<div class='vm-views-head'><p class='vm-help'>Choose which pages appear when you swipe.</p>"
             "<button id='view_reorder_btn' class='vm-btn vm-btn--sm vm-btn--secondary vm-reorder-btn' type='button' aria-pressed='false'>Reorder</button></div>"
             "<div id='view_list' class='vm-views'>");
 
@@ -6018,7 +5212,7 @@ static void buildWebViewToggles(String &html) {
         label = "Info"; description = "Network details, firmware and setup information.";
         checkboxId = "view_info_cb"; enabled = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) != 0; break;
       case UI_PAGE_HOME:
-        label = "Home"; description = "Always on. Safe fallback when other pages are disabled."; fixed = true; break;
+        label = "Home"; description = "Always available."; fixed = true; break;
       case UI_PAGE_AUX:
         label = "RSS"; description = "News feed deck, QR and refresh actions.";
         checkboxId = "view_aux_cb"; enabled = (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) != 0; break;
@@ -6075,7 +5269,7 @@ static void buildWebWifiSection(String &html) {
   const String activeSsid = wifiOk ? WiFi.SSID() : String("");
   char setupUrl[96] = "";
   wifiBuildSetupPortalUrl(setupUrl, sizeof(setupUrl));
-  html += F("<div class='vm-card'><h2>Wi-Fi connections</h2><div class='vm-label'>PREFERRED SSID</div><select class='vm-select' name='wifi_pref_ssid'>");
+  html += F("<div class='vm-card'><h2>Wi-Fi connections</h2><label class='vm-label' for='wifi_pref_ssid'>Preferred network</label><select class='vm-select' id='wifi_pref_ssid' name='wifi_pref_ssid'>");
   html += F("<option value=''");
   if (!g_wifiSt.preferredSsid[0]) html += F(" selected");
   html += F(">Auto (smart rotation)</option>");
@@ -6092,7 +5286,7 @@ static void buildWebWifiSection(String &html) {
     if (wifiOk && activeSsid.equals(ssid)) html += F(" (connected)");
     html += F("</option>");
   }
-  html += F("</select><div class='vm-label'>WIFI DIRECT MODE</div><select class='vm-select' name='wifi_setup_mode'>");
+  html += F("</select><label class='vm-label' for='wifi_setup_mode'>Setup network</label><select class='vm-select' id='wifi_setup_mode' name='wifi_setup_mode'>");
   html += F("<option value='off'");
   if (wifiSetupModeIsOff()) html += F(" selected");
   html += F(">Off</option>");
@@ -6104,7 +5298,7 @@ static void buildWebWifiSection(String &html) {
   html += F(">Always on</option>");
   html += F("</select>");
   html += F("<p class='vm-help'>Auto mode cycles known SSIDs first, then starts setup AP if disconnected too long. ScryBar supports <b>2.4 GHz only</b> (5 GHz is ignored).</p>");
-  html += F("<div class='vm-label' style='margin-top:14px'>PROVISION NEW NETWORK (2.4 GHZ)</div><div class='vm-grid'><div><button id='wifi_scan_btn' class='vm-btn vm-btn--sm vm-btn--secondary' type='button'>Scan networks</button><p id='wifi_scan_status' class='rss-status'></p><div class='vm-label'>SCAN RESULTS</div><select class='vm-select' id='wifi_scan_results'><option value=''>Press scan first...</option></select></div><div><div class='vm-label'>SSID</div><input class='vm-input' id='wifi_new_ssid' name='wifi_new_ssid' maxlength='32' placeholder='MyPhone Hotspot'><div class='vm-label'>PASSWORD</div><div class='vm-secret'><input class='vm-input' id='wifi_new_password' name='wifi_new_password' maxlength='64' type='password' placeholder='Leave empty if open network'><button id='wifi_pwd_toggle' class='vm-btn vm-btn--sm vm-btn--secondary' type='button' aria-label='Show password' title='Show password'>Show</button></div></div></div>");
+  html += F("<div class='vm-label' style='margin-top:14px'>Add a network</div><div class='vm-grid'><div><button id='wifi_scan_btn' class='vm-btn vm-btn--sm vm-btn--secondary' type='button'>Scan networks</button><p id='wifi_scan_status' class='rss-status' role='status'></p><label class='vm-label' for='wifi_scan_results'>Nearby networks</label><select class='vm-select' id='wifi_scan_results'><option value=''>Scan to list networks</option></select></div><div><label class='vm-label' for='wifi_new_ssid'>Network name</label><input class='vm-input' id='wifi_new_ssid' name='wifi_new_ssid' maxlength='32' placeholder='MyPhone Hotspot'><label class='vm-label' for='wifi_new_password'>Password</label><div class='vm-secret'><input class='vm-input' id='wifi_new_password' name='wifi_new_password' maxlength='64' type='password' placeholder='Leave empty if open network'><button id='wifi_pwd_toggle' class='vm-btn vm-btn--sm vm-btn--secondary' type='button' aria-label='Show password' title='Show password'>Show</button></div></div></div>");
   if (g_wifiSt.setupApActive) {
     html += F("<p class='vm-help'>Setup AP active: <code>");
     appendHtmlEscaped(html, g_wifiSt.setupApSsid);
@@ -6140,7 +5334,7 @@ static void buildWebLangSelectors(String &html) {
       {"de",  "Deutsch"},
       {"pt",  "Portugu\xC3\xAA" "s"},
     };
-    html += F("<div class='vm-card'><h2>Display language</h2><div class='vm-label'>LANGUAGE</div><select class='vm-select' name='wc_lang'>");
+    html += F("<div class='vm-card'><h2>Display language</h2><label class='vm-label' for='wc_lang'>Word clock language</label><select class='vm-select' id='wc_lang' name='wc_lang'>");
     html += F("<optgroup label='Creative &amp; Constructed'>");
     for (unsigned i = 0; i < sizeof(kLangsFun)/sizeof(kLangsFun[0]); ++i) {
       html += F("<option value='");
@@ -6172,7 +5366,7 @@ static void buildWebLangSelectors(String &html) {
       {"la", "Latina"}, {"eo", "Esperanto"},
     };
     html += F("<div class='vm-card'><h2>Wikipedia</h2>"
-              "<div class='vm-label'>WIKI LANGUAGE</div><select class='vm-select' name='wiki_lang'>");
+              "<label class='vm-label' for='wiki_lang'>Article language</label><select class='vm-select' id='wiki_lang' name='wiki_lang'>");
     for (unsigned i = 0; i < sizeof(kWikiLangs)/sizeof(kWikiLangs[0]); ++i) {
       html += F("<option value='");
       html += kWikiLangs[i].code;
@@ -6192,11 +5386,11 @@ static void buildWebWeatherSection(String &html) {
   char lonBuf[24];
   snprintf(latBuf, sizeof(latBuf), "%.4f", runtimeWeatherLat());
   snprintf(lonBuf, sizeof(lonBuf), "%.4f", runtimeWeatherLon());
-  html += F("<div class='vm-card'><h2>Weather</h2><div class='vm-grid'><div><div class='vm-label'>PLACE SEARCH</div><input class='vm-input' id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status'></p><div class='vm-label'>CITY LABEL</div><input class='vm-input' id='weather_city' name='weather_city' maxlength='31' value='");
+  html += F("<div class='vm-card'><h2>Weather</h2><div class='vm-grid'><div><label class='vm-label' for='geo_query'>Search for a place</label><input class='vm-input' id='geo_query' type='search' list='geo_hits' placeholder='Search city or place'><datalist id='geo_hits'></datalist><p id='geo_status' class='geo-status' role='status'></p><label class='vm-label' for='weather_city'>City on the display</label><input class='vm-input' id='weather_city' name='weather_city' maxlength='31' value='");
   appendHtmlEscaped(html, runtimeWeatherCityLabel());
-  html += F("'></div><div class='vm-grid'><div><div class='vm-label'>LATITUDE</div><input class='vm-input' id='weather_lat' name='weather_lat' value='");
+  html += F("'></div><div class='vm-grid'><div><label class='vm-label' for='weather_lat'>Latitude</label><input class='vm-input' id='weather_lat' name='weather_lat' value='");
   appendHtmlEscaped(html, latBuf);
-  html += F("'></div><div><div class='vm-label'>LONGITUDE</div><input class='vm-input' id='weather_lon' name='weather_lon' value='");
+  html += F("'></div><div><label class='vm-label' for='weather_lon'>Longitude</label><input class='vm-input' id='weather_lon' name='weather_lon' value='");
   appendHtmlEscaped(html, lonBuf);
   html += F("'></div></div></div></div>");
 }
@@ -6206,20 +5400,20 @@ static void buildWebRssBuilder(String &html) {
   html += F("<div class='vm-card'><h2>RSS feeds <span id='rss_count_pill' class='vm-badge vm-badge--info'>RSS feeds ");
   html += configuredFeeds;
   html += F("/5</span></h2><p class='vm-help'>Add up to five feeds, with one to eight articles each. Add a feed to the list, then Save changes.</p>");
-  html += F("<div class='vm-rss-composer'><div><div class='vm-label'>FRIENDLY NAME</div><input class='vm-input' id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><div class='vm-label'>FEED URL</div><input class='vm-input' id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><div class='vm-label'>MAX POSTS</div><input class='vm-input' id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='vm-btn vm-btn--primary' type='button'>Add feed</button><button id='rss_reset' class='vm-btn vm-btn--secondary' type='button'>Clear fields</button></div><p id='rss_status' class='rss-status'></p>");
+  html += F("<div class='vm-rss-composer'><div><label class='vm-label' for='rss_name'>Feed name</label><input class='vm-input' id='rss_name' maxlength='23' placeholder='Nintendo'></div><div><label class='vm-label' for='rss_url'>Feed URL</label><input class='vm-input' id='rss_url' type='url' placeholder='https://example.com/feed.xml'></div><div><label class='vm-label' for='rss_max'>Articles</label><input class='vm-input' id='rss_max' type='number' min='1' max='8' value='8'></div><button id='rss_add' class='vm-btn vm-btn--primary' type='button'>Add feed</button><button id='rss_reset' class='vm-btn vm-btn--secondary' type='button'>Clear fields</button></div><p id='rss_status' class='rss-status' role='status'></p>");
   html += F("<div id='rss_list' class='vm-rss-list'></div><p id='rss_empty' class='rss-empty'>No feeds configured.</p><div id='rss_hidden_inputs' class='hidden'></div></div>");
 }
 
 static void buildWebTransitSection(String &html) {
   html += F("<div class='vm-card'><h2>Departures</h2>");
-  html += F("<p class='vm-help'>Search for any stop worldwide. "
-            "Powered by <a href='https://transitous.org' target='_blank' rel='noopener noreferrer'>Transitous</a> "
-            "(global free GTFS data — trains, buses, trams). "
-            "Type at least 3 chars and pick from the list; destination filter is optional.</p>");
+  html += F("<p class='vm-help'>Find a stop with "
+            "<a href='https://transitous.org' target='_blank' rel='noopener noreferrer'>Transitous</a>. "
+            ""
+            "Type at least three characters, then select a result.</p>");
   html += F("<div class='vm-grid'>");
 
   // --- Departure station ---
-  html += F("<div><div class='vm-label'>DEPARTURE STATION</div>");
+  html += F("<div><label class='vm-label' for='transit_from_q'>Departure stop</label>");
   html += F("<input class='vm-input' type='search' id='transit_from_q' list='transit_from_hits' "
             "autocomplete='off' placeholder='e.g. Luino, Milano Centrale, Zurich HB'");
   if (g_transitConfig.station[0]) {
@@ -6235,10 +5429,10 @@ static void buildWebTransitSection(String &html) {
   // Hidden: Transitous stop ID submitted as transit_from_id
   html += F("<input type='hidden' id='transit_from_id' name='transit_from_id' value='");
   appendHtmlEscaped(html, g_transitConfig.stopId);
-  html += F("'><p id='transit_from_st' class='geo-status'></p></div>");
+  html += F("'><p id='transit_from_st' class='geo-status' role='status'></p></div>");
 
   // --- Destination filter (optional) ---
-  html += F("<div><div class='vm-label'>FILTER BY DESTINATION <small>(optional)</small></div>");
+  html += F("<div><label class='vm-label' for='transit_to_q'>Destination filter (optional)</label>");
   html += F("<input class='vm-input' type='text' id='transit_to_q' name='transit_to' "
             "autocomplete='off' placeholder='Leave empty to show all'");
   if (g_transitConfig.arrStation[0]) {
@@ -6265,76 +5459,43 @@ static void buildWebTransitSection(String &html) {
   }
   html += F("</div>"); // vm-card
 
-  // Inline autocomplete JS — Transitous geocode API
-  // Bug-fixes vs r240: filter type=STOP only (avoids city POI overwriting train stop in map);
-  // check map in 'input' handler before re-searching (iOS never fires 'change' until blur).
-  html += F("<script>(function(){"
-    "var q=document.getElementById('transit_from_q');"
-    "var v=document.getElementById('transit_from_val');"
-    "var idI=document.getElementById('transit_from_id');"
-    "var dl=document.getElementById('transit_from_hits');"
-    "var st=document.getElementById('transit_from_st');"
-    "if(!q||!dl)return;"
-    "var t=0,map={};"
-    "function setS(m){if(st)st.innerHTML=m||'';}"
-    "function clr(){dl.innerHTML='';map={};}"
-    // tryCapture: if current value is an exact map entry, store ID and return true
-    "function tryCapture(val){"
-      "var s=map[val];"
-      "if(s&&s.id){"
-        "if(v)v.value=s.name||val;"
-        "if(idI)idI.value=s.id;"
-        "var modes=(s.modes&&s.modes.length)?s.modes.slice(0,2).join('+'):'';"
-        "setS('&#x2713; <b>'+s.name+'</b>'+(modes?' ['+modes+']':'')+'<br><small style=\"opacity:.6\">'+s.id+'</small>');"
-        "return true;"
-      "}"
-      "return false;"
-    "}"
-    "q.addEventListener('input',function(){"
-      "var term=q.value.trim();"
-      // On datalist pick, 'input' fires before 'change' (esp. on iOS) — capture immediately
-      "if(tryCapture(term)){clearTimeout(t);return;}"
-      "if(term.length<3){clr();setS('');return;}"
-      "clearTimeout(t);"
-      "t=setTimeout(async function(){"
-        "try{"
-          "setS('Searching...');"
-          "var u='https://api.transitous.org/api/v1/geocode?text='+encodeURIComponent(term)+'&limit=12';"
-          "var r=await fetch(u,{cache:'no-store'});"
-          "if(!r.ok)throw new Error('HTTP '+r.status);"
-          "var d=await r.json();"
-          // API returns plain array
-          "var rows=Array.isArray(d)?d:[];"
-          "clr();"
-          // Filter to transit STOPs only (exclude type=PLACE city markers)
-          "var stops=rows.filter(function(s){return s.type==='STOP';});"
-          "if(!stops.length){setS('No transit stop found. Try a city or station name.');return;}"
-          "stops.forEach(function(s){"
-            "var n=s.name||'';"
-            "if(!n)return;"
-            "var modes=(s.modes&&s.modes.length)?s.modes.slice(0,2).join('+'):'';"
-            "var label=n+(modes?' ['+modes+']':'')+(s.country?' \u2022 '+s.country:'');"
-            "var o=document.createElement('option');"
-            "o.value=n;"
-            "o.label=label;"
-            "dl.appendChild(o);"
-            // Keep first occurrence on name collision (API sorts by relevance, best first)
-            "if(!map[n])map[n]=s;"
-          "});"
-          "setS(stops.length+' stop(s) found \u2014 pick from list.');"
-          // Auto-fill if single result
-          "if(stops.length===1){"
-            "q.value=stops[0].name||'';"
-            "tryCapture(q.value);"
-          "}"
-        "}catch(e){clr();setS('Search error: '+e.message);}"
-      "},400);"
-    "});"
-    // Fallback change handler (desktop: fires after blur when datalist selected)
-    "q.addEventListener('change',function(){"
-      "if(!tryCapture(q.value.trim())&&!q.value.trim()){if(v)v.value='';if(idI)idI.value='';setS('');}"
-    "});"
-  "})();</script>");
+  html += F(R"js(<script>(function(){
+    const q=document.getElementById('transit_from_q'),name=document.getElementById('transit_from_val');
+    const id=document.getElementById('transit_from_id'),list=document.getElementById('transit_from_hits');
+    const status=document.getElementById('transit_from_st'),stops=new Map();
+    let timer,revision=0;
+    function pick(){
+      const stop=stops.get(q.value);if(!stop)return false;
+      clearTimeout(timer);revision++;
+      name.value=stop.name;id.value=stop.id;q.value=stop.name;q.setCustomValidity('');
+      stops.clear();list.replaceChildren();status.textContent='Selected '+stop.name+' ('+stop.id+').';
+      return true;
+    }
+    q.addEventListener('change',pick);
+    q.addEventListener('input',function(){
+      clearTimeout(timer);const current=++revision;
+      if(pick())return;
+      const term=q.value.trim();name.value='';id.value='';stops.clear();list.replaceChildren();
+      status.textContent='';q.setCustomValidity(term?'Select a departure stop from the results.':'');
+      if(term.length<3)return;
+      timer=setTimeout(async function(){
+        try{
+          status.textContent='Searching...';
+          const url='https://api.transitous.org/api/v1/geocode?text='+encodeURIComponent(term)+'&limit=12';
+          const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error();
+          const rows=await response.json();if(current!==revision)return;
+          for(const stop of rows){
+            if(stop.type!=='STOP'||!stop.name||!stop.id)continue;
+            const label=[stop.name,(stop.modes||[]).slice(0,2).join('+'),stop.country,stop.id].filter(Boolean).join(' | ');
+            if(stops.has(label))continue;
+            const option=document.createElement('option');option.value=label;
+            list.appendChild(option);stops.set(label,stop);
+          }
+          status.textContent=stops.size?'Select a departure stop from the results.':'No transit stop found. Try a city or station name.';
+        }catch(error){if(current===revision)status.textContent='Search unavailable, try again later.';}
+      },400);
+    });
+  })();</script>)js");
 }
 
 static void buildWebSystemInfo(String &html) {
@@ -6457,19 +5618,19 @@ static String buildWebConfigPage(const char *statusMsg) {
   String html;
   html.reserve(64000);
   // ── Head: meta + fonts + CSS ──
-  html += F("<!doctype html><html lang='en'><head><meta charset='utf-8'>");
-  html += F("<meta name='viewport' content='width=device-width,initial-scale=1'>");
+  html += F("<!doctype html><html lang='en' data-ui-theme='");
+  appendHtmlEscaped(html, runtimeUiThemeId());
+  html += F("'><head><meta charset='utf-8'><link rel='icon' href='data:,'>");
+  html += F("<meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>");
   html += F("<title>ScryBar settings</title>");
-  html += F("<link rel='preconnect' href='https://fonts.googleapis.com'>");
-  html += F("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>");
-  html += F("<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&display=swap' media='print' onload=\"this.media='all'\">");
-  html += F("<noscript><link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Chakra+Petch:wght@400;500;600;700&family=Delius+Unicase:wght@400;700&display=swap' rel='stylesheet'></noscript>");
   html += F("<style>");
   buildWebCssBlock(html);
   html += F("</style></head><body><main class='vm-wrap'>");
   // ── Body: hero + form sections ──
   buildWebHeroSection(html, statusMsg);
-  html += F("<form id='cfg_form' method='post' action='/config'>");
+  html += F("<form id='cfg_form' method='post' action='/config'");
+  if (g_configSavePending) html += F(" data-save-pending='1'");
+  html += '>';
   buildWebThemeSelector(html);
   buildWebBrightnessSection(html);
   buildWebDisplayIdleSection(html);
@@ -6489,8 +5650,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("</form>");
   // ── System info + footer + JS ──
   buildWebSystemInfo(html);
-  html += F("<p class='vm-api-note'><small>API ready: <code>GET /api/config</code>, <code>POST /api/config</code>, <code>GET /api/wifi/scan</code>, <code>GET /api/wifi/setup-qr.svg</code>.</small></p>");
-  html += F("<footer class='vm-footer'><strong>A project by Netmilk Studio sagl</strong> | Copyright 2026<br>Open Source under the <a href='https://opensource.org/license/mit' target='_blank' rel='noopener noreferrer'>MIT License</a> | Feel free to steal, fork, remix, and ship.</footer>");
+  html += F("<footer class='vm-footer'>Netmilk Studio &middot; <a href='https://opensource.org/license/mit'>MIT License</a></footer>");
   buildWebJsBlock(html);
   html += F("</section></main></body></html>");
   return html;
@@ -6976,8 +6136,7 @@ static ConfigDiffResult commitConfigToNvs(RuntimeNetConfig &next) {
   normalizeRuntimeViewOrder(g_runtimeNetConfig);
   syncActiveUiThemeFromRuntimeConfig(g_runtimeNetConfig);
   g_runtimeNetConfig.ready = true;
-  const bool nvsSaved = saveRuntimeNetConfigToNvs();
-  if (!nvsSaved) Serial.println("[CFG][NVS] warning: config aggiornata in RAM ma non salvata su flash");
+  saveRuntimeNetConfigToNvs();
 
   return { weatherChanged, rssChanged, brandingChanged, themeChanged, viewsChanged, viewOrderChanged };
 }
@@ -7048,6 +6207,16 @@ static void applyConfigSideEffects(const ConfigDiffResult &diff, bool langChange
 
 static constexpr char kDisplayIdleSaveError[] = "Display inactivity times could not be saved. Try again.";
 
+static constexpr char kConfigSaveError[] = "Some settings could not be saved to storage. Save again to retry.";
+static constexpr char kBothSaveErrors[] = "Some settings could not be saved. Re-enter the display inactivity times and save again.";
+
+static const char *webSaveFailureCode(int status, const String &error) {
+  if (status != 500) return "invalid";
+  if (error == kDisplayIdleSaveError) return "idle_save_failed";
+  if (error == kBothSaveErrors) return "config_idle_save_failed";
+  return "config_save_failed";
+}
+
 static int applyRuntimeConfigFromRequest(String &errorOut) {
   ensureRuntimeNetConfig();
   RuntimeNetConfig next = g_runtimeNetConfig;
@@ -7094,8 +6263,8 @@ static int applyRuntimeConfigFromRequest(String &errorOut) {
 #endif
     if (g_transitConfig.configured) (void)updateTransitFromApi(true);
   }
-  if (!idleSaved) {
-    errorOut = kDisplayIdleSaveError;
+  if (!idleSaved || g_configSavePending) {
+    errorOut = !idleSaved ? (g_configSavePending ? kBothSaveErrors : kDisplayIdleSaveError) : kConfigSaveError;
     return 500;
   }
   return 200;
@@ -7106,6 +6275,8 @@ static const char *statusMessageFromCode(const String &status) {
   if (status == "reloaded") return "Weather / RSS / Wiki reload complete.";
   if (status == "invalid") return "Invalid request: please check the fields.";
   if (status == "idle_save_failed") return kDisplayIdleSaveError;
+  if (status == "config_save_failed") return kConfigSaveError;
+  if (status == "config_idle_save_failed") return kBothSaveErrors;
   return "";
 }
 
@@ -7149,6 +6320,18 @@ static void webConfigStopCaptiveDns() {
 
 static void handleWebConfigGet() {
   sendWebConfigJson(200, true);
+}
+
+static void handleThemePreview() {
+  const String id = g_webCfg.server.arg("theme");
+  for (const auto &image : ThemePreviews::images) {
+    if (id != image.id) continue;
+    g_webCfg.server.sendHeader("Cache-Control", "public, max-age=86400");
+    const size_t size = uintptr_t(image.end) - uintptr_t(image.start);
+    g_webCfg.server.send_P(200, "image/webp", reinterpret_cast<const char *>(image.start), size);
+    return;
+  }
+  g_webCfg.server.send(404, "text/plain", "Unknown theme");
 }
 
 static void handleWebWifiScanApi() {
@@ -7299,7 +6482,7 @@ static void handleWebConfigApplyApi() {
 static void handleWebConfigApplyForm() {
   String err;
   const int status = applyRuntimeConfigFromRequest(err);
-  webConfigRedirect(status == 200 ? "saved" : (status == 500 ? "idle_save_failed" : "invalid"));
+  webConfigRedirect(status == 200 ? "saved" : webSaveFailureCode(status, err));
 }
 
 static bool webRequestHasConfigParams() {
@@ -7339,7 +6522,7 @@ static void handleWebReloadForm() {
     String err;
     const int status = applyRuntimeConfigFromRequest(err);
     if (status != 200) {
-      webConfigRedirect(status == 500 ? "idle_save_failed" : "invalid");
+      webConfigRedirect(webSaveFailureCode(status, err));
       return;
     }
   }
@@ -7412,6 +6595,7 @@ static void ensureWebConfigServerStarted() {
   }
 
   if (!g_webCfg.routesRegistered) {
+    g_webCfg.server.onUi("/ui/theme.webp", HTTP_GET, handleThemePreview);
     g_webCfg.server.onUi("/", HTTP_GET, handleWebConfigRoot);
     g_webCfg.server.onUi("/generate_204", HTTP_GET, handleWebCaptivePortalProbe);
     g_webCfg.server.onUi("/gen_204", HTTP_GET, handleWebCaptivePortalProbe);

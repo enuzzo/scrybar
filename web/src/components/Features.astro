@@ -8,7 +8,7 @@ const families=[
  {name:'Everyday',image:weather,description:'Time, weather, departures and a little reading. Choose the pages that earn their place on your desk.'},
  {name:'From your Mac',image:music,description:'Music and system activity travel over your LAN through the menu bar Companion.'},
  {name:'At the printer',image:printer,description:'Keep print progress nearby. Open the A1/P1 camera when you want a closer look.'},
- {name:'Make it yours',image:news,description:'Seven themes, fourteen clock languages and your own swipe order. And yes, there is Doom.'},
+ {name:'Make it yours',image:news,description:'Nine display palettes, fourteen clock languages and independent timers for the screensaver and backlight.'},
 ];
 ---
 <section id="features" class="chapter chapter-surface"><div class="container"><div class="section-heading"><h2>A small place<br />for useful things</h2><p>Less window switching.<br />More of your desk being useful.</p></div><div class="family-grid">{families.map(f=><article class="family"><div class="family-image"><Image src={f.image} alt={`ScryBar ${f.name} display capture`} widths={[320,640]} sizes="(max-width: 600px) 100vw, 50vw" format="webp" quality={90} loading="lazy" /></div><h3>{f.name}</h3><p>{f.description}</p></article>)}</div></div></section>
