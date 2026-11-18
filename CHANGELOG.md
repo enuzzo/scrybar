@@ -2,6 +2,21 @@
 
 ## 2026-11-18
 
+### v0.9.7 (firmware r325) — Wi-Fi scanning and settings load performance
+
+- Move Wi-Fi scanning to the HTTP worker. During two twelve-second Home/Info
+  trials on the original ScryBar, the longest USB command round trip fell from
+  2.69–2.97 s to 0.19–0.32 s. The radio took 3.07–3.26 s to return its results.
+- Serve the main settings stylesheet, script and theme previews directly from
+  flash. Browsers can reuse versioned assets across visits. The device still
+  renders the current form values each time. The form, stylesheet and script
+  together used 37% fewer body bytes on first load and 53% fewer on a repeat visit.
+- Distinguish a driver error from a successful scan with zero results. A timeout
+  leaves the active scan available to a later request.
+- Verify the application flash hash, the preserved settings and all nine Home
+  previews on the board. See the [hardware measurements, browser checks and
+  limits](docs/performance/2026-11-18-settings-and-wifi.md).
+
 ### v0.9.6 (firmware r324) — mobile settings and nine display palettes
 
 - Rebuild Display, Wi-Fi and Content around a twelve-column grid that stacks on

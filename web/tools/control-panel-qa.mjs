@@ -99,6 +99,18 @@ try{
  check('Wi-Fi scan preserves empty provisioning field',await page.locator('#wifi_new_ssid').inputValue()==='');
  await page.locator('#wifi_scan_results').selectOption('Fixture wireless');
  check('Wi-Fi selection fills explicit SSID',await page.locator('#wifi_new_ssid').inputValue()==='Fixture wireless');
+ for(const [message,status,option] of [
+  [null,'No 2.4 GHz networks found.','No network found'],
+  ['scan_failed','Scan unavailable right now.','Scan failed'],
+  ['scan_timeout','Scan timed out, retry in a few seconds.','Scan timed out']
+ ]){
+  await page.unroute('**/api/wifi/scan');
+  await page.route('**/api/wifi/scan',route=>route.fulfill({json:{ok:true,networks:[],message}}));
+  await page.locator('#wifi_scan_btn').click();
+  await page.waitForFunction(text=>document.getElementById('wifi_scan_status').textContent===text,status);
+  check('Scan picker matches '+(message||'empty'),await page.locator('#wifi_scan_results option:checked').textContent()===option);
+  check('Scan status '+(message||'empty')+' preserves chosen network', await page.locator('#wifi_new_ssid').inputValue()==='Fixture wireless' && await page.locator('#wifi_scan_btn').isEnabled());
+ }
  await page.locator('#wifi_new_ssid').fill('');
  await page.getByRole('tab',{name:'Content',exact:true}).click();
  // Preserve even an invalid, unadded feed draft on refresh.

@@ -116,6 +116,10 @@ Current scope:
   - `BOOT` (left): single click -> `HOME`
   - `PWR` (center): short press screensaver toggle; hold `3s` -> soft-off / wake to `HOME`
   - `RST` (right): hardware reset
+- Wi-Fi scans in the settings panel run on the HTTP worker. You can continue using
+  the display while the radio searches. The panel reports a failed scan, a timeout,
+  or an empty result separately. Its main CSS and JavaScript support local browser
+  caching until the firmware build changes.
 - The device settings page previews all nine palettes using native Home samples
   stored in flash. Select a palette and save to apply it on the display.
   Letterpress is a warm light palette. Tide Table is dark blue-green.

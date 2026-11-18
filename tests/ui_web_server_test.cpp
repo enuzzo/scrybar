@@ -88,6 +88,10 @@ int main() {
     TestServer instance;server=&instance;
     server->onUi("/echo",HTTP_POST,echo);
     server->onUi("/fast",HTTP_POST,echo,true);
+    server->onHttp("/network",HTTP_GET,[] {
+      assert(std::this_thread::get_id()!=server->uiThread);
+      server->send(200,"text/plain",server->arg("plain"));
+    });
     server->onUi("/flash",HTTP_GET,flashResponse);
     server->onUi("/overflow",HTTP_GET,overflow);
     server->onUi("/chunked",HTTP_GET,chunked);
@@ -98,6 +102,11 @@ int main() {
     assert(server->startUiWorker());
     assert(server->startUiWorker()); // no duplicate task or semaphores
     assert(server->workerStackHighWater()==1732); // bytes, not StackType_t words
+
+    auto direct=server->enqueue("/network","worker response");
+    waitFor([&] {return direct->complete.load();},false,false);
+    assert(body(bytes(direct))=="worker response");
+    assert(direct->directWrites==0 && server->diagnostics().queued==0);
 
     auto pending=server->enqueue("/echo","kept request arguments");
     waitFor([] {return server->uiRequestPending();},false,false);

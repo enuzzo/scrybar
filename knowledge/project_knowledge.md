@@ -200,7 +200,7 @@ Wi-Fi direct/provisioning behavior:
 - Runtime credentials persist across reboot/reflash, and are cleared only when NVS is erased.
 - Setup URL in AP mode is canonical: `http://192.168.4.1:8080` (also exposed via QR endpoint `GET /api/wifi/setup-qr.svg`).
 - Captive portal probes are redirected, but popup behavior is OS-dependent; docs and operators should treat QR/direct URL as authoritative.
-- Wi-Fi scan API is timeout-bounded and returns quickly even in AP setup mode (`scan_timeout` / `scan_failed` message path), to avoid hanging UI.
+- The Wi-Fi scan API waits up to 6.5 seconds for the radio and reports a timeout or driver failure separately. The HTTP worker waits while the display continues to service input.
 
 ## UI Theming System (Unified)
 
@@ -710,35 +710,11 @@ Discard touch frames where:
 
 ## Web UI — Architecture & Rules
 
-**Design system:** Vibemilk DS v3 subset (Netmilk Studio's token-driven CSS). All CSS uses `vm-*` prefixed classes. No external CSS framework, no Font Awesome, no animations.
+The embedded panel uses a twelve-column layout on wide screens and one column on phones. Display, Wi-Fi and Content share the same form and save bar. The selected display palette supplies the initial CSS variables and a native Home preview. System fonts and all built-in previews work on the setup network.
 
-**Fixed theme:** Web config page is always rendered with scrybar-default styling. CSS `:root{}` block in `kWebCssCore` contains hardcoded token values (no bridge layer, no runtime injection). Component classes (`vm-card`, `vm-btn`, `vm-input`, `vm-select`, `vm-label`, `vm-badge`) reference final variable names directly. Theme selector dropdown still exists in the form (drives the ESP32 display theme), but does not change web page styling.
+`buildWebConfigPage()` renders the current settings. `appendWebThemeCssVars()` emits the active palette, and `buildWebJsBlock()` supplies palette and feed data before loading the controls. The main CSS and JavaScript sources live in `src/settings_assets/`. The device serves these from flash in plain or gzip form. Only asset URLs with the current firmware tag receive the immutable cache policy. The settings document is fetched afresh on each visit.
 
-**Layout rules (r198+):**
-- **One visible container per section.** Each config section is a single `vm-card`. No `vm-card--inner` wrappers — content sits directly inside the card.
-- **No box-in-box nesting.** View items use `border-bottom` separators, not individual bordered cards. RSS rows use left accent bar + bottom separator. System Info columns are plain `<div>` inside `vm-grid`, not inner cards.
-- **Flat hero.** Logo + release row + lede text flow directly in `section.hero` (no `hero-top-card` wrapper, no `hero-copy` wrapper). Hero has a subtle bottom border as separator.
-- Single responsive breakpoint at 768px. Mobile tightens padding: `vm-wrap` 12px/10px, `vm-card` 14px/12px, grid gap 8px.
-- `vm-actions` (Save/Reload buttons) have 40px bottom margin to visually separate from System Info.
-
-**Emoji in HTML:** Always use HTML numeric entities (`&#x1F3A8;`, `&#x1F310;`, etc.) — never raw UTF-8 emoji in `F()` strings. Raw multi-byte emoji risk double-encoding through the Arduino toolchain, producing mojibake/tofu on mobile browsers.
-
-**Font loading:** Google Fonts (Montserrat + Space Mono) loaded async with system-font fallback stack. Page must be fully functional offline (AP mode) with only system fonts.
-
-**Zero CDN dependencies** for functionality. Google Fonts is the only external resource and is loaded with `display=swap` for graceful degradation.
-
-**Key functions:**
-- `buildWebConfigPage()` — generates complete inline HTML page (hardcoded scrybar-default CSS, no runtime theme injection)
-- `buildWebCssBlock(String&)` — emits `kWebCssCore` PROGMEM (single call, no parameters)
-- `runtimeLogoUrl()` — returns user-configured or default logo URL for hero
-- `appendWebThemeCssVars(String&, const UiThemeWebTokens&)` — retained for design system use, not called by web config page
-
-**Output budget:** ~20KB target (was ~35KB pre-vibemilk). No keyframe animations, no backdrop-filter, no FX grid divs.
-
-**Responsiveness:**
-- Web control page keeps critical style inline and loads external font CSS asynchronously.
-- During long network I/O (RSS/WIKI fetch/download), firmware periodically pumps the web server loop to reduce UI stalls.
-- RSS HTTP timeout baseline is intentionally short (`RSS_HTTP_TIMEOUT_MS=3000`) for quicker recovery on bad links.
+The HTTP worker handles the Wi-Fi scan and static asset routes. Routes that read or change UI-owned models still go through `serviceUiRequest()`. A scan occupies the single HTTP worker until the radio responds or the request times out. Captive DNS and display servicing continue on the UI owner. If the worker cannot start, the synchronous fallback handles requests between transitions.
 
 ## Serial Command Reference (Operational)
 

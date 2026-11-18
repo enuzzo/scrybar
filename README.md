@@ -9,11 +9,11 @@
 
 **ScryBar** is an open-source ESP32-S3 desk companion. One 3.49" touchscreen, nine swipeable views, a word clock that composes real sentences in fourteen languages (from Italian and Latin to Klingon, 1337 Speak, Bellazio, and Pirate) — actual grammar, not uppercase tiles. Plus RSS, a Wikipedia deck, a `Now Playing` strip with cover art, a live public-transport timetable, a rocket launch countdown, Mac and Bambu Lab print monitors driven by a macOS companion, and a LAN web config UI.
 
-**Release v0.9.6 (firmware r324)** · [Install firmware](https://enuzzo.github.io/scrybar/#flash) · [Firmware release and binaries](https://github.com/enuzzo/scrybar/releases/tag/v0.9.6) · [Companion 0.3.15 (53) DMG](https://github.com/enuzzo/scrybar/releases/download/companion-v0.3.15/ScryBarCompanion-0.3.15.dmg)
+**Release v0.9.7 (firmware r325)** · [Install firmware](https://enuzzo.github.io/scrybar/#flash) · [Firmware release and binaries](https://github.com/enuzzo/scrybar/releases/tag/v0.9.7) · [Companion 0.3.15 (53) DMG](https://github.com/enuzzo/scrybar/releases/download/companion-v0.3.15/ScryBarCompanion-0.3.15.dmg)
 
-This release adds on-device Home palette previews, Letterpress and Tide Table themes, and independent screensaver and backlight timers. The mobile settings bar keeps the save state in view.
+Wi-Fi scans now run alongside screen updates. Reopening device settings reuses the stylesheet and controls from the browser cache. See the [on-device measurements](docs/performance/2026-11-18-settings-and-wifi.md).
 
-The previous release added smoother page motion, a raw-timestamp 60-second network chart, a seven-theme display quality pass and a rebuilt mobile web configuration flow. Final r322 hardware profiling measured approximately 60 fps **during active cached slides**, with zero missed periods in the stated 30-second trial, including delayed HTTP clients. Cache preparation and handoff are separate costs; this is not an optical scanout measurement or a guarantee of exactly 16.667 ms per frame. See the [measurements and limits](docs/performance/2026-10-23-frame-pacing.md), [display review](docs/design/2026-10-23-display-quality/native-pages.md) and [web QA](docs/design/2026-10-23-webui/QA.md).
+Firmware r322 added smoother page motion, a raw-timestamp 60-second network chart, a seven-theme display quality pass and a rebuilt mobile web configuration flow. Final r322 hardware profiling measured approximately 60 fps **during active cached slides**, with zero missed periods in the stated 30-second trial, including delayed HTTP clients. Cache preparation and handoff are separate costs; this is not an optical scanout measurement or a guarantee of exactly 16.667 ms per frame. See the [measurements and limits](docs/performance/2026-10-23-frame-pacing.md), [display review](docs/design/2026-10-23-display-quality/native-pages.md) and [web QA](docs/design/2026-10-23-webui/QA.md).
 
 Companion 0.3.15 is a **Preview**, signed ad hoc and **not notarized**. See its [installation instructions](companion/mac/ScryBarCompanion/README.md#installation) before first launch. The [Companion release record](docs/releases/companion-0.3.15.md) separates regression tests, live snapshots and installed checks.
 
@@ -125,7 +125,7 @@ Companion **0.3.15 (53)** reads the current player's own cover through a bundled
 
 **Camera support:** tap **CAM** for the A1/P1 live camera, or open Camera in Companion **v0.3.5 (40)**. The display separates the light state from its action; Back closes the view. Closing the last viewer stops the stream and requests light-off, with cleanup retries if the printer is temporarily unreachable.
 
-[Download Companion DMG](https://github.com/enuzzo/scrybar/releases/download/companion-v0.3.15/ScryBarCompanion-0.3.15.dmg) · [Install firmware](https://enuzzo.github.io/scrybar/#flash) · [Release binaries and changelog](https://github.com/enuzzo/scrybar/releases/tag/v0.9.6) · [Installation and camera instructions](companion/mac/ScryBarCompanion/README.md#installation)
+[Download Companion DMG](https://github.com/enuzzo/scrybar/releases/download/companion-v0.3.15/ScryBarCompanion-0.3.15.dmg) · [Install firmware](https://enuzzo.github.io/scrybar/#flash) · [Release binaries and changelog](https://github.com/enuzzo/scrybar/releases/tag/v0.9.7) · [Installation and camera instructions](companion/mac/ScryBarCompanion/README.md#installation)
 
 Setup and protocol notes live in [`docs/bambu-lan-integration.md`](docs/bambu-lan-integration.md).
 

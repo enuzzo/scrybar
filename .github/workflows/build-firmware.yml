@@ -50,6 +50,10 @@ jobs:
           /tmp/mac-stats-history-test
           c++ -std=c++17 -pthread -I tests/ui_web_server_stubs tests/ui_web_server_test.cpp -o /tmp/ui-web-server-test
           /tmp/ui-web-server-test
+          c++ -std=c++17 tests/settings_encoding_test.cpp -o /tmp/settings-encoding-test
+          /tmp/settings-encoding-test
+          python3 tools/pack_settings_assets.py --check
+          node --check src/settings_assets/settings.js
           python3 tools/check_frame_deadline_native.py
           python3 tests/backlight_persistence_native_test.py
           python3 tests/config_persistence_native_test.py

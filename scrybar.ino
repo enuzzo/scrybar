@@ -2,6 +2,7 @@
 #include "src/touch_timing.h"
 #include "src/display_idle.h"
 #include "src/theme_previews/images.h"
+#include "src/settings_assets/assets.h"
 #include "src/display_performance.h"
 #include "src/page_transition_frame.h"
 #include "src/mac_stats_format.h"
@@ -4699,383 +4700,6 @@ static bool ensureWebQrBuffers() {
 }
 #endif
 
-// Responsive Control Surface styles; theme colors and fonts come from kUiThemes.
-static const char kWebCssCore[] PROGMEM = R"rawliteral(
-:root {
-  --gutter:clamp(16px,3vw,40px);
-  --measure:1120px;
-  --gap:24px;
-  --edge:color-mix(in srgb,var(--txt) 28%,var(--bg-deep));
-  --control-edge:color-mix(in srgb,var(--txt) 60%,var(--bg-deep));
-  --rule:color-mix(in srgb,var(--txt) 17%,var(--bg-deep));
-  --ink-accent:color-mix(in srgb,var(--acc1) 62%,var(--txt));
-  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
-  --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
-  color-scheme:dark;
-}
-html[data-ui-theme="mint-protocol"],html[data-ui-theme="letterpress"] {color-scheme:light}
-*,*::before,*::after {box-sizing:border-box}
-[hidden],.hidden,.vm-view--internal {display:none!important}
-html {scroll-padding:70px 0 136px}
-body {margin:0;background:var(--bg-deepest);color:var(--txt);font:400 16px/1.5 var(--sans)}
-a {color:inherit;text-underline-offset:.2em}
-input,button,select {font:inherit;color:inherit}
-button,select {cursor:pointer}
-button:disabled {cursor:default}
-:focus-visible {outline:3px solid var(--ink-accent);outline-offset:3px}
-.vm-wrap {width:min(100% - 2 * var(--gutter),var(--measure));margin:auto;padding-bottom:128px}
-.hero {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:32px 0 24px;border-bottom:2px solid var(--txt)}
-.hero h1 {font-size:clamp(28px,4vw,44px);font-weight:650;line-height:1.05;letter-spacing:-.055em;margin:0}
-.hero h1 span {font-weight:400;color:var(--txt2)}
-.release-box {font:13px/1.45 var(--mono);text-align:right;color:var(--txt2)}
-.release-box span {display:block}
-.release-box span:first-child {color:var(--txt)}
-.hero .logo {max-width:90px;max-height:32px;object-fit:contain}
-#cfg_form {margin:0}
-.cp-nav {display:flex;gap:24px;position:sticky;top:0;z-index:5;background:var(--bg-deepest);border-bottom:1px solid var(--edge)}
-.cp-nav button {border:0;border-bottom:3px solid transparent;background:none;color:var(--txt2);padding:12px 4px;min-height:48px;font-weight:550}
-.cp-nav [aria-selected=true] {color:var(--txt);border-color:var(--ink-accent)}
-.cp-page {display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:var(--gap);align-items:stretch}
-.vm-card {min-width:0;padding:20px 0;border-bottom:1px solid var(--rule)}
-.cp-page>.vm-card {grid-column:span 6}
-#cp-display>.vm-card:first-child,#cp-connections>.vm-card,#cp-content>.vm-card:last-child {grid-column:1/-1}
-#cp-display>.vm-card:has(#view_list) {grid-column:1/-1}
-.vm-card h2 {margin:0 0 12px;font-size:20px;line-height:1.25}
-.cp-setting>h2 {margin:0}
-.cp-section-button {display:flex;align-items:center;gap:8px;text-align:left;width:100%;min-height:44px;border:0;padding:0;background:none;font-size:20px;font-weight:625;letter-spacing:-.025em}
-.vm-collapse-arr {margin-left:auto;color:var(--txt2);font:18px var(--mono)}
-.cp-setting-body {min-width:0;padding-top:8px}
-.cp-setting-body>:last-child,.vm-rss-composer input {margin-bottom:0}
-.vm-label {display:block;color:var(--txt);font-size:14px;font-weight:550;margin:0 0 5px}
-.vm-input,.vm-select {display:block;width:100%;min-width:0;min-height:44px;margin:0 0 12px;padding:8px 12px;border:1px solid var(--control-edge);border-radius:5px;color:var(--txt);background:var(--bg-surface);font-size:16px}
-.vm-input::placeholder {color:var(--txt2);opacity:.9}
-.vm-help,.geo-status,.rss-status,.rss-empty,.vm-order-status,.rss-meta,.vm-card small,.vm-footer {font-size:14px;line-height:1.5;color:var(--txt2)}
-.vm-help {margin:0 0 12px}
-.cp-setting-body>p:first-child {margin-top:0!important}
-p:empty {display:none}
-.vm-grid,.vm-setup-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
-.vm-grid>div,.vm-view__copy {min-width:0}
-.theme-layout {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:center;gap:var(--gap);padding:0 0 8px}
-.theme-sample {display:block;width:100%;height:auto;aspect-ratio:640/172;border:1px solid var(--edge);border-radius:6px;background:var(--bg-deep)}
-.theme-layout p {margin:6px 0 0}
-.vm-bright__row {display:grid;grid-template-columns:78px minmax(0,1fr) 44px;align-items:center;gap:12px;min-height:44px;font-size:14px}
-.vm-bright__row input {min-width:0;width:100%;height:44px;accent-color:var(--ink-accent);margin:0}
-.vm-bright__val {text-align:right;font:14px var(--mono)}
-.vm-input[type=number] {font-variant-numeric:tabular-nums}
-.vm-btn,.rss-actions button {min-height:44px;border:1px solid var(--control-edge);border-radius:5px;background:var(--bg-surface);color:var(--txt);font-size:14px;font-weight:550;padding:9px 14px}
-.vm-btn--primary {background:var(--txt);color:var(--bg-deepest);border-color:transparent}
-.vm-btn:disabled {opacity:.5}
-.vm-btn:not(:disabled):hover,.cp-section-button:hover,.cp-nav button:hover {text-decoration:underline;text-underline-offset:3px}
-.vm-actions-sticky {position:fixed;bottom:0;left:0;right:0;z-index:7;background:var(--bg-deep);border-top:1px solid var(--edge);padding:10px max(var(--gutter),calc((100vw - var(--measure)) / 2)) max(10px,env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px}
-.vm-actions-sticky .vm-btn--primary {order:2}
-.cp-feedback {margin-right:auto;min-width:0}
-.cp-save-state,.cp-action-status {margin:0;font-size:13px;line-height:1.4;color:var(--txt2);overflow-wrap:anywhere}
-.cp-dirty .cp-save-state,.cp-action-status:not(:empty) {color:var(--txt)}
-.cp-action-status:empty {display:none}
-.vm-views-head,.vm-view,.vm-view__main,.vm-secret,.rss-title,.rss-actions {display:flex;align-items:center;gap:12px}
-.vm-views-head {justify-content:space-between}
-.vm-views-head .vm-help {margin:0}
-.vm-views {display:grid;grid-template-columns:1fr 1fr;column-gap:var(--gap)}
-.vm-view {padding:8px 0;border-bottom:1px solid var(--rule);min-width:0}
-.vm-view__main {flex:1;min-width:0;cursor:pointer;min-height:44px}
-.vm-view__main input {width:18px;height:18px;flex:none;accent-color:var(--ink-accent)}
-.vm-view__copy strong,.vm-view__copy small {display:block}
-.vm-view__copy strong {font-size:15px}
-.vm-view__moves,.vm-order-status {display:none}
-.is-reordering .vm-view__moves,.vm-order-status.is-visible {display:flex;gap:4px}
-.vm-move {width:44px;padding:10px}
-.vm-move svg {display:block;width:18px;margin:auto}
-.vm-secret {align-items:flex-start;gap:8px}
-.vm-secret .vm-btn {flex:none}
-.vm-setup-qr {width:138px;height:138px;background:white;padding:5px}
-.vm-setup-url,.rss-meta,.vm-card code {overflow-wrap:anywhere}
-.vm-card code {color:var(--txt);font:13px var(--mono)}
-.vm-rss-composer {display:grid;grid-template-columns:1fr 2fr 84px auto auto;gap:12px;align-items:end}
-.rss-row {padding:12px 0;border-bottom:1px solid var(--rule)}
-.rss-title {flex-wrap:wrap}
-.rss-actions {margin-top:8px}
-.rss-chip,.vm-badge {color:var(--txt2);font:13px var(--mono)}
-.vm-footer {margin:24px 0}
-.vm-alert {border-left:3px solid var(--ink-accent);padding:8px 12px;color:var(--txt);background:var(--bg-surface)}
-@media (max-width:800px) {
-  .cp-page>.vm-card {grid-column:1/-1}
-  .vm-rss-composer {grid-template-columns:1fr 1fr}
-  .vm-rss-composer>div:nth-child(2) {grid-column:1/-1;grid-row:2}
-}
-@media (max-width:600px) {
-  :root {--gap:16px}
-  .vm-wrap {padding-bottom:168px}
-  .hero {padding:20px 0 16px}
-  .release-box {font-size:11px}
-  .cp-nav {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-  .vm-card {padding:12px 0}
-  .cp-section-button {font-size:18px}
-  .theme-layout,.vm-views,.vm-grid {grid-template-columns:minmax(0,1fr)}
-  .theme-layout {gap:12px}
-  .vm-grid:has(#screensaver_minutes),.vm-grid:has(>div>#weather_lat) {grid-template-columns:repeat(2,minmax(0,1fr))}
-  .vm-grid:has(>div>.vm-grid) {grid-template-columns:minmax(0,1fr)}
-  .vm-actions-sticky {display:grid;grid-template-columns:1fr 1fr;gap:5px 8px;padding-top:6px}
-  .cp-feedback {grid-column:1/-1}
-  .vm-views-head {align-items:center}
-}
-@media (max-width:360px) {
-  .hero h1 {font-size:26px}
-  .vm-view {flex-wrap:wrap}
-  .vm-view__moves {margin-left:auto}
-}
-)rawliteral";
-
-// ── M3 PROGMEM: static JS (before initialFeeds injection) ──
-static const char kWebJsCorePre[] PROGMEM = R"rawliteral(
-<script>(function(){
-(function(){const t=document.querySelector('.vm-toast-fixed');if(t){setTimeout(function(){t.style.transition='opacity .6s';t.style.opacity='0';setTimeout(function(){t.style.display='none';},650);},4200);}})();
-const q=document.getElementById('geo_query');const dl=document.getElementById('geo_hits');const st=document.getElementById('geo_status');const city=document.getElementById('weather_city');const lat=document.getElementById('weather_lat');const lon=document.getElementById('weather_lon');
-if(!q||!dl||!city||!lat||!lon)return;
-let timer,revision=0;
-const cities=new Map();
-function setStatus(message){if(st)st.textContent=message;}
-function clearHits(){dl.replaceChildren();cities.clear();}
-function applyPick(){
-  const result=cities.get(q.value);
-  if(!result)return false;
-  clearTimeout(timer);revision++;
-  city.value=result.name;lat.value=Number(result.latitude).toFixed(4);lon.value=Number(result.longitude).toFixed(4);
-  clearHits();setStatus('Coordinates filled in automatically.');return true;
-}
-q.addEventListener('change',applyPick);
-q.addEventListener('input',function(){
-  clearTimeout(timer);const current=++revision;
-  if(applyPick())return;
-  clearHits();setStatus('');
-  const term=q.value.trim();if(term.length<2)return;
-  timer=setTimeout(async function(){
-    try{
-      setStatus('Searching...');
-      const url='https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name='+encodeURIComponent(term);
-      const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error();
-      const data=await response.json();if(current!==revision)return;
-      for(const result of data.results||[]){
-        const place=[result.name,result.admin1,result.country].filter(Boolean).join(', ');
-        const coordinates=Number(result.latitude).toFixed(4)+', '+Number(result.longitude).toFixed(4);
-        const label=cities.has(place)?place+' ('+coordinates+')':place;
-        const option=document.createElement('option');option.value=label;option.label=coordinates;
-        dl.appendChild(option);cities.set(label,result);
-      }
-      setStatus(cities.size?'Select a result to fill city and coordinates.':'No results found.');
-    }catch(error){if(current===revision)setStatus('Search unavailable, try again later.');}
-  },280);
-});
-const wifiScanBtn=document.getElementById('wifi_scan_btn');const wifiScanResults=document.getElementById('wifi_scan_results');const wifiScanStatus=document.getElementById('wifi_scan_status');const wifiNewSsid=document.getElementById('wifi_new_ssid');const wifiNewPassword=document.getElementById('wifi_new_password');const wifiPwdToggle=document.getElementById('wifi_pwd_toggle');
-function setWifiStatus(msg){if(wifiScanStatus)wifiScanStatus.textContent=msg||'';}
-async function scanWifiNow(){
-  if(!wifiScanResults||wifiScanBtn.disabled)return;
-  wifiScanBtn.disabled=true;
-  const controller=window.AbortController?new AbortController():null;
-  const timeout=controller?window.setTimeout(()=>controller.abort(),9000):0;
-  try{
-    setWifiStatus('Scanning 2.4 GHz networks...');
-    wifiScanResults.replaceChildren(new Option('Scanning...',''));
-    const response=await fetch('/api/wifi/scan',{cache:'no-store',signal:controller?controller.signal:undefined});
-    if(!response.ok)throw new Error();
-    const data=await response.json(),networks=data.networks||[];
-    if(!networks.length){
-      wifiScanResults.replaceChildren(new Option('No network found',''));
-      setWifiStatus(data.message==='scan_timeout'?'Scan timed out, retry in a few seconds.':'No 2.4 GHz networks found.');
-      return;
-    }
-    wifiScanResults.replaceChildren(new Option('Choose a network',''));
-    for(const network of networks){
-      const label=(network.ssid||'(hidden)')+'  '+(network.secure?'SEC':'OPEN')+'  ch'+(network.channel||'?')+'  '+(network.rssi||0)+'dBm';
-      const option=new Option(label,network.ssid||'');
-      option.dataset.secure=network.secure?'1':'0';
-      option.disabled=!network.ssid;
-      wifiScanResults.add(option);
-    }
-    setWifiStatus('Scan complete. Pick an SSID and press Save changes.');
-  }catch(error){
-    wifiScanResults.replaceChildren(new Option('Scan failed',''));
-    setWifiStatus(error.name==='AbortError'?'Scan timeout. Retry.':'Scan unavailable right now.');
-  }finally{
-    window.clearTimeout(timeout);
-    wifiScanBtn.disabled=false;
-  }
-}
-function syncWifiPwdToggle(){if(!wifiPwdToggle||!wifiNewPassword)return;const visible=wifiNewPassword.type==='text';wifiPwdToggle.textContent=visible?'Hide':'Show';wifiPwdToggle.title=visible?'Hide password':'Show password';wifiPwdToggle.setAttribute('aria-label',wifiPwdToggle.title);}if(wifiPwdToggle&&wifiNewPassword){wifiPwdToggle.addEventListener('click',function(){wifiNewPassword.type=(wifiNewPassword.type==='password')?'text':'password';syncWifiPwdToggle();});syncWifiPwdToggle();}if(wifiScanBtn)wifiScanBtn.addEventListener('click',function(){scanWifiNow();});if(wifiScanResults)wifiScanResults.addEventListener('change',function(){const v=wifiScanResults.value||'';if(wifiNewSsid&&v)wifiNewSsid.value=v;const sel=wifiScanResults.options[wifiScanResults.selectedIndex];if(wifiNewPassword&&sel&&sel.dataset.secure==='0'){wifiNewPassword.value='';wifiNewPassword.placeholder='Open network (no password)';}else if(wifiNewPassword){wifiNewPassword.placeholder='Password (WPA/WPA2)';}});
-const form=document.getElementById('cfg_form');const rssName=document.getElementById('rss_name');const rssUrl=document.getElementById('rss_url');const rssMax=document.getElementById('rss_max');const rssAdd=document.getElementById('rss_add');const rssReset=document.getElementById('rss_reset');const rssList=document.getElementById('rss_list');const rssEmpty=document.getElementById('rss_empty');const rssStatus=document.getElementById('rss_status');const rssHidden=document.getElementById('rss_hidden_inputs');const rssPill=document.getElementById('rss_count_pill');const viewHidden=document.getElementById('view_hidden_inputs');const viewList=document.getElementById('view_list');const viewReorderBtn=document.getElementById('view_reorder_btn');const viewOrderStatus=document.getElementById('view_order_status');
-const maxSlots=5;const minPosts=1;const maxPosts=8;let editIndex=-1;
-const initialFeeds=[)rawliteral";
-
-// ── M3 PROGMEM: static JS (after initialFeeds injection) ──
-static const char kWebJsCorePost[] PROGMEM = R"rawliteral(];
-let feeds=initialFeeds.filter(f=>f&&f.url&&/^https?:\/\//i.test(f.url));
-function clampPosts(n){n=parseInt(n,10);if(isNaN(n))n=maxPosts;if(n<minPosts)n=minPosts;if(n>maxPosts)n=maxPosts;return n;}function startsHttp(v){return /^https?:\/\//i.test((v||'').trim());}
-function defName(i){return 'Feed '+(i+1);}function setRssStatus(m){if(rssStatus)rssStatus.textContent=m||'';}
-function clearComposer(){editIndex=-1;rssName.value='';rssUrl.value='';rssMax.value='8';rssAdd.innerHTML="+ Add";setRssStatus('');}
-function renderFeeds(){if(!rssList)return;rssList.innerHTML='';if(rssPill)rssPill.innerHTML="RSS feeds "+feeds.length+'/5';if(rssEmpty)rssEmpty.style.display=feeds.length?'none':'block';feeds.forEach(function(f,idx){const row=document.createElement('div');row.className='rss-row';const left=document.createElement('div');const t=document.createElement('p');t.className='rss-title';t.textContent='';t.appendChild(document.createTextNode(f.name||defName(idx)));const chip=document.createElement('span');chip.className='rss-chip';chip.textContent='max '+clampPosts(f.max);t.appendChild(chip);const m=document.createElement('p');m.className='rss-meta';m.textContent=f.url||'';left.appendChild(t);left.appendChild(m);const act=document.createElement('div');act.className='rss-actions';const bEdit=document.createElement('button');bEdit.type='button';bEdit.className='vm-btn vm-btn--sm vm-btn--warn';bEdit.textContent='Edit';bEdit.addEventListener('click',function(){editIndex=idx;rssName.value=f.name||'';rssUrl.value=f.url||'';rssMax.value=String(clampPosts(f.max));rssAdd.textContent='Update';setRssStatus('Editing feed '+(idx+1));});const bDel=document.createElement('button');bDel.type='button';bDel.className='vm-btn vm-btn--sm vm-btn--danger';bDel.textContent='Delete';bDel.addEventListener('click',function(){feeds.splice(idx,1);if(editIndex===idx)clearComposer();else if(editIndex>idx)editIndex-=1;renderFeeds();setRssStatus('Feed removed.');});act.appendChild(bEdit);act.appendChild(bDel);row.appendChild(left);row.appendChild(act);rssList.appendChild(row);});}
-function pushOrUpdate(){const name=(rssName.value||'').trim();const url=(rssUrl.value||'').trim();const max=clampPosts(rssMax.value);if(!url){setRssStatus('Please enter a feed URL.');return;}if(!startsHttp(url)){setRssStatus('URL must start with http:// or https://');return;}const item={name:name||defName(editIndex>=0?editIndex:feeds.length),url:url,max:max};if(editIndex>=0){feeds[editIndex]=item;clearComposer();setRssStatus('Feed updated.');renderFeeds();return;}if(feeds.length>=maxSlots){setRssStatus('Maximum limit: 5 feeds.');return;}feeds.push(item);clearComposer();renderFeeds();setRssStatus('Feed added.');}
-function addHidden(k,v){const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;rssHidden.appendChild(i);}function buildHiddenInputs(){if(!rssHidden)return;rssHidden.innerHTML='';for(let i=0;i<maxSlots;i+=1){const f=feeds[i]||{name:defName(i),url:'',max:maxPosts};addHidden('rss_feed_name_'+(i+1),f.name||defName(i));addHidden('rss_feed_url_'+(i+1),f.url||'');addHidden('rss_feed_items_'+(i+1),String(clampPosts(f.max)));}const f0=feeds[0]||{name:defName(0),url:'',max:maxPosts};addHidden('rss_feed_name',f0.name||defName(0));addHidden('rss_feed_url',f0.url||'');addHidden('rss_feed_items',String(clampPosts(f0.max)));}
-function addViewHidden(k,v){if(!viewHidden)return;const i=document.createElement('input');i.type='hidden';i.name=k;i.value=v;viewHidden.appendChild(i);}function buildViewHiddenInputs(){if(!viewHidden)return;viewHidden.innerHTML='';[['view_info','view_info_cb'],['view_aux','view_aux_cb'],['view_wiki','view_wiki_cb'],['view_now_playing','view_now_playing_cb'],['view_doom','view_doom_cb'],['view_transit','view_transit_cb'],['view_launch','view_launch_cb'],['view_mac_stats','view_mac_stats_cb']].forEach(function(pair){const el=document.getElementById(pair[1]);addViewHidden(pair[0],(el&&el.checked)?'1':'0');});if(viewList){const order=Array.from(viewList.querySelectorAll('[data-view]')).map(function(row){return row.dataset.view;}).join(',');addViewHidden('view_order',order);}}
-function updateViewMoveButtons(){if(!viewList)return;const rows=Array.from(viewList.querySelectorAll('[data-view]:not(.vm-view--internal)'));rows.forEach(function(row,idx){const buttons=row.querySelectorAll('.vm-move');if(buttons[0])buttons[0].disabled=(idx===0);if(buttons[1])buttons[1].disabled=(idx===rows.length-1);});}
-function setViewReorderMode(on){if(!viewList||!viewReorderBtn)return;viewList.classList.toggle('is-reordering',on);viewReorderBtn.setAttribute('aria-pressed',on?'true':'false');viewReorderBtn.textContent=on?'Done':'Reorder';if(viewOrderStatus)viewOrderStatus.classList.toggle('is-visible',on);if(on){const card=viewList.closest('.vm-card');if(card){card.classList.remove('vm-clp');const arrow=card.querySelector('.vm-collapse-arr');if(arrow)arrow.textContent='\u25BC';}}updateViewMoveButtons();}
-if(viewReorderBtn)viewReorderBtn.addEventListener('click',function(){setViewReorderMode(!viewList.classList.contains('is-reordering'));});
-if(viewList)viewList.addEventListener('click',function(e){const button=e.target.closest&&e.target.closest('.vm-move');if(!button)return;const row=button.closest('[data-view]');if(!row)return;const rows=Array.from(viewList.querySelectorAll('[data-view]:not(.vm-view--internal)'));const idx=rows.indexOf(row);const dir=parseInt(button.dataset.dir||'0',10);const target=rows[idx+dir];if(!target)return;if(dir<0)viewList.insertBefore(row,target);else viewList.insertBefore(target,row);updateViewMoveButtons();const name=row.querySelector('strong');if(viewOrderStatus)viewOrderStatus.textContent=(name?name.textContent:'View')+' moved to position '+(idx+dir+1)+'. Save changes to keep this order.';});
-if(viewList)viewList.addEventListener('change',function(e){if(!e.target.matches('input[type=checkbox]'))return;const row=e.target.closest('[data-view]');if(row)row.classList.toggle('vm-view--off',!e.target.checked);});
-if(rssAdd)rssAdd.addEventListener('click',function(){pushOrUpdate();});if(rssReset)rssReset.addEventListener('click',function(){clearComposer();setRssStatus('Composer cleared.');});if(form)form.addEventListener('submit',function(){buildHiddenInputs();buildViewHiddenInputs();});renderFeeds();updateViewMoveButtons();
-})();</script>)rawliteral";
-
-// Progressive enhancement: task tabs, accessible disclosures, browser theme preview,
-// explicit unsaved state, and a refresh action that preserves pending edits.
-static const char kWebJsControl[] PROGMEM = R"rawliteral(
-<script>
-(function(){
-  'use strict';
-  var form=document.getElementById('cfg_form');
-  if(!form)return;
-  var themeSelect=form.querySelector('[name="ui_theme"]');
-  var dirty=false,submitting=false,queued=false;
-  var sections=[
-    {id:'display',label:'Display',items:[['[name="ui_theme"]','Theme'],['#bl_usb','Brightness'],['#screensaver_minutes','Display inactivity'],['#view_list','Views and swipe order'],['[name="wc_lang"]','Display language']]},
-    {id:'connections',label:'Wi-Fi',items:[['[name="wifi_pref_ssid"]','Wi-Fi connections']]},
-    {id:'content',label:'Content',items:[['#weather_city','Weather'],['[name="wiki_lang"]','Wikipedia'],['#transit_from_q','Departures'],['#rss_list','RSS feeds']]}
-  ];
-  var nav=document.createElement('nav');nav.className='cp-nav';nav.setAttribute('aria-label','Settings sections');nav.setAttribute('role','tablist');
-  var first=form.querySelector('.vm-card');
-  if(first)form.insertBefore(nav,first);
-  var tabs=[],panels=[];
-  function showSection(id,focus){
-    tabs.forEach(function(tab,i){var active=sections[i].id===id;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;panels[i].hidden=!active;});
-    if(focus){var selected=tabs.find(function(t){return t.getAttribute('aria-selected')==='true';});if(selected)selected.focus();}
-  }
-  function wrapSetting(card,title,id,open){
-    if(!card)return;
-    var old=card.querySelector('h2');if(!old)return;
-    var heading=document.createElement('h2');
-    var button=document.createElement('button');button.type='button';button.className='cp-section-button';button.id=id+'-heading';
-    var text=document.createElement('span');text.textContent=title;
-    var arrow=document.createElement('span');arrow.className='vm-collapse-arr';arrow.setAttribute('aria-hidden','true');
-    button.appendChild(text);var badge=old.querySelector('.vm-badge');if(badge)button.appendChild(badge);button.appendChild(arrow);heading.appendChild(button);card.replaceChild(heading,old);
-    var content=document.createElement('div');content.className='cp-setting-body';content.id=id+'-body';
-    Array.from(card.childNodes).forEach(function(node){if(node!==heading)content.appendChild(node);});
-    card.appendChild(content);card.classList.add('cp-setting');
-    button.setAttribute('aria-controls',content.id);
-    function setOpen(on){content.hidden=!on;card.classList.toggle('vm-clp',!on);button.setAttribute('aria-expanded',String(on));arrow.textContent=on?'−':'+';}
-    button.addEventListener('click',function(){setOpen(content.hidden);});
-    setOpen(open);return {card:card,content:content,open:function(){setOpen(true);}};
-  }
-  var settings=[];
-  sections.forEach(function(section,i){
-    var tab=document.createElement('button');tab.type='button';tab.id='cp-tab-'+section.id;tab.textContent=section.label;tab.setAttribute('role','tab');tab.setAttribute('aria-controls','cp-'+section.id);
-    nav.appendChild(tab);tabs.push(tab);
-    var panel=document.createElement('section');panel.id='cp-'+section.id;panel.className='cp-page';panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',tab.id);form.insertBefore(panel,nav.nextSibling);panels.push(panel);
-    section.items.forEach(function(item,j){var field=document.querySelector(item[0]);var card=field&&field.closest('.vm-card');if(!card)return;panel.appendChild(card);var wrapped=wrapSetting(card,item[1],'cp-'+section.id+'-'+j,true);if(wrapped)settings.push(wrapped);});
-    tab.addEventListener('click',function(){showSection(section.id,false);});
-    tab.addEventListener('keydown',function(e){var next=i;if(e.key==='ArrowRight')next=(i+1)%tabs.length;else if(e.key==='ArrowLeft')next=(i+tabs.length-1)%tabs.length;else if(e.key==='Home')next=0;else if(e.key==='End')next=tabs.length-1;else return;e.preventDefault();showSection(sections[next].id,true);});
-  });
-  showSection('display',false);
-  var system=document.querySelector('.vm-card--muted');
-  if(system)wrapSetting(system,'Device details','cp-device',false);
-  var state=document.createElement('p');state.id='cp-save-state';state.className='cp-save-state';state.setAttribute('role','status');state.setAttribute('aria-live','polite');state.textContent='All changes saved';
-
-  var actionStatus=document.createElement('p');actionStatus.id='cp-action-status';actionStatus.className='cp-action-status';actionStatus.setAttribute('role','status');actionStatus.setAttribute('aria-live','polite');
-  var actions=form.querySelector('.vm-actions-sticky');
-  if(actions){
-    var feedback=document.createElement('div');feedback.className='cp-feedback';
-    feedback.append(state,actionStatus);actions.prepend(feedback);
-    var save=actions.querySelector('button:not([formaction])');if(save)save.textContent='Save changes';
-    var reload=actions.querySelector('[formaction="/reload"]');if(reload){reload.textContent='Reload content';reload.formNoValidate=true;}
-  }
-  function refineLabels(){
-    document.querySelectorAll('.vm-view').forEach(function(row){
-      var name=row.querySelector('strong')?.textContent||'view';
-      row.querySelectorAll('.vm-move').forEach(function(button){button.setAttribute('aria-label','Move '+name+(button.dataset.dir==='-1'?' up':' down'));});
-    });
-    var add=document.getElementById('rss_add');if(add){var text=add.textContent.trim();var value=text==='Update'||text==='Update feed'?'Update feed':'Add feed';if(add.textContent!==value)add.textContent=value;}
-    var clear=document.getElementById('rss_reset');if(clear)clear.textContent='Clear fields';
-    document.querySelectorAll('.rss-row').forEach(function(row){
-      var name=row.querySelector('.rss-title')?.firstChild?.textContent||'feed';
-      row.querySelectorAll('.rss-actions button').forEach(function(button,i){button.textContent=i?'Remove':'Edit';button.setAttribute('aria-label',(i?'Remove ':'Edit ')+name.trim());});
-    });
-  }
-  function applyTheme(id){
-    var theme=scrybarWebThemes.find(function(t){return t.id===id;});if(!theme)return;
-    Object.keys(theme.vars).forEach(function(key){document.documentElement.style.setProperty(key,theme.vars[key]);});
-    document.documentElement.dataset.uiTheme=id;
-    var preview=document.getElementById('theme_sample');
-    if(preview){
-      preview.alt=themeSelect.options[themeSelect.selectedIndex].text+' Home preview with example weather';
-      var url=new URL(preview.src);
-      if(url.searchParams.get('theme')!==id){url.searchParams.set('theme',id);preview.src=url.href;}
-    }
-  }
-  if(themeSelect){applyTheme(themeSelect.value);themeSelect.addEventListener('change',function(){applyTheme(themeSelect.value);});}
-  function fingerprint(useSavedBrightness){
-    var values=Array.from(new FormData(form).entries()).filter(function(pair){return !pair[0].startsWith('rss_feed_')&&!pair[0].startsWith('view_');});
-    if(useSavedBrightness)values=values.map(function(pair){var field=(pair[0]==='bl_usb'||pair[0]==='bl_batt')&&document.getElementById(pair[0]);return field&&field.dataset.savedValue!==undefined?[pair[0],field.dataset.savedValue]:pair;});
-    var views=Array.from(document.querySelectorAll('#view_list .vm-view')).map(function(row){return [row.dataset.view,!!row.querySelector('input')?.checked];});
-    var feeds=Array.from(document.querySelectorAll('.rss-row')).map(function(row){return [row.querySelector('.rss-title')?.textContent,row.querySelector('.rss-meta')?.textContent];});
-    return JSON.stringify([values,views,feeds]);
-  }
-  refineLabels();
-  // A fresh GET may contain a live RAM preview which has not been stored in NVS.
-  var baseline=fingerprint(true);
-  function hasFeedDraft(){return !!(document.getElementById('rss_name')?.value.trim()||document.getElementById('rss_url')?.value.trim());}
-  function updateDirty(){queued=false;refineLabels();dirty=form.dataset.savePending==='1'||fingerprint()!==baseline;state.textContent=hasFeedDraft()?'Feed draft: add it to the list before saving':form.dataset.savePending==='1'?'Storage write failed. Save again to retry.':dirty?'Unsaved changes':'All changes saved';document.documentElement.classList.toggle('cp-dirty',dirty||hasFeedDraft());if(save)save.disabled=!dirty&&!hasFeedDraft();}
-  updateDirty();
-  function schedule(){if(queued)return;queued=true;queueMicrotask(updateDirty);}
-  form.addEventListener('input',schedule);form.addEventListener('change',schedule);form.addEventListener('click',schedule);
-  var rssList=document.getElementById('rss_list'),viewList=document.getElementById('view_list');
-  if(rssList)new MutationObserver(schedule).observe(rssList,{childList:true,subtree:false});
-  if(viewList)new MutationObserver(schedule).observe(viewList,{childList:true});
-  var saverDelay=document.getElementById('screensaver_minutes'),offDelay=document.getElementById('screen_off_minutes');
-  if(saverDelay&&offDelay){
-    function validateIdleDelays(){
-      var wholeMinutes=/^[0-9]+$/;
-      var wholeMinutesMessage='Enter a whole number of minutes.';
-      saverDelay.setCustomValidity(saverDelay.value&&!wholeMinutes.test(saverDelay.value)?wholeMinutesMessage:'');
-      offDelay.setCustomValidity(offDelay.value&&!wholeMinutes.test(offDelay.value)?wholeMinutesMessage:'');
-      if(saverDelay.validity.valid&&offDelay.validity.valid&&saverDelay.valueAsNumber>0&&offDelay.valueAsNumber>0&&offDelay.valueAsNumber<=saverDelay.valueAsNumber)
-        offDelay.setCustomValidity('Screen off must be later than the screensaver.');
-    }
-    saverDelay.addEventListener('input',validateIdleDelays);
-    offDelay.addEventListener('input',validateIdleDelays);
-    validateIdleDelays();
-  }
-  // Autocomplete and scan responses fill fields programmatically after their input event.
-  ['geo_status','wifi_scan_status','transit_from_st'].forEach(function(id){var status=document.getElementById(id);if(status)new MutationObserver(schedule).observe(status,{childList:true,characterData:true,subtree:true});});
-  form.addEventListener('invalid',function(e){var panel=e.target.closest('.cp-page');if(panel)showSection(panel.id.replace('cp-',''),false);var setting=settings.find(function(s){return s.card.contains(e.target);});if(setting)setting.open();},true);
-  form.addEventListener('submit',async function(e){
-    if(e.submitter&&e.submitter.getAttribute('formaction')==='/reload'){
-      e.preventDefault();
-      var button=e.submitter;button.disabled=true;button.setAttribute('aria-busy','true');
-      actionStatus.dataset.state='pending';actionStatus.textContent='Requesting a content refresh…';
-      try{
-        // Empty POST intentionally queues a refresh without applying unsaved fields.
-        var response=await fetch('/reload',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'',credentials:'same-origin',cache:'no-store'});
-        if(!response.ok)throw new Error('Refresh request failed');
-        actionStatus.dataset.state='success';actionStatus.textContent='Content refresh requested.'+((dirty||hasFeedDraft())?' Your unsaved changes are still pending.':'');
-      }catch(error){actionStatus.dataset.state='error';actionStatus.textContent='The refresh request could not be confirmed. Your choices are still here; try again.';}
-      finally{button.disabled=false;button.removeAttribute('aria-busy');}
-      return;
-    }
-    if(hasFeedDraft()){
-      e.preventDefault();showSection('content',false);
-      var setting=settings.find(function(s){return s.card.contains(document.getElementById('rss_add'));});if(setting)setting.open();
-      var status=document.getElementById('rss_status');if(status)status.textContent='Add or update the feed in the list, or clear the fields, before saving.';
-      document.getElementById('rss_add').focus();updateDirty();return;
-    }
-    submitting=true;state.textContent='Saving changes…';});
-  window.addEventListener('beforeunload',function(e){if((dirty||hasFeedDraft())&&!submitting){e.preventDefault();e.returnValue='';}});
-})();
-</script>
-)rawliteral";
-
-// ── M3: sub-functions for buildWebConfigPage decomposition ──
-
-static void buildWebCssBlock(String &html) {
-  appendWebThemeCssVars(html, activeUiTheme().web);
-  html += FPSTR(kWebCssCore);
-}
-
 static void buildWebHeroSection(String &html, const char *statusMsg) {
   html += F("<header class='hero'><h1>ScryBar <span>settings</span></h1>");
   if (strcmp(runtimeLogoUrl(), kWebStudioLogoUrl) != 0) {
@@ -5595,7 +5219,7 @@ static void buildWebControlThemeData(String &html) {
 }
 
 static void buildWebJsBlock(String &html) {
-  html += FPSTR(kWebJsCorePre);
+  html += F("<script>const scrybarInitialFeeds=[");
   for (uint8_t i = 0; i < RSS_FEED_SLOT_COUNT; ++i) {
     const RuntimeRssFeedConfig *feed = runtimeRssFeedBySlot(i);
     if (i) html += F(",");
@@ -5607,16 +5231,16 @@ static void buildWebJsBlock(String &html) {
     html += (unsigned)(feed ? clampRssFeedMaxItems(feed->maxItems) : RSS_DEFAULT_FEED_ITEMS);
     html += F("}");
   }
-  html += FPSTR(kWebJsCorePost);
+  html += F("];</script>");
   buildWebControlThemeData(html);
-  html += FPSTR(kWebJsControl);
+  html += F("<script src='/ui/settings.js?v=" FW_BUILD_TAG "'></script>");
 }
 
 static String buildWebConfigPage(const char *statusMsg) {
   ensureRuntimeNetConfig();
 
   String html;
-  html.reserve(64000);
+  html.reserve(32768);
   // ── Head: meta + fonts + CSS ──
   html += F("<!doctype html><html lang='en' data-ui-theme='");
   appendHtmlEscaped(html, runtimeUiThemeId());
@@ -5624,8 +5248,8 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("<meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>");
   html += F("<title>ScryBar settings</title>");
   html += F("<style>");
-  buildWebCssBlock(html);
-  html += F("</style></head><body><main class='vm-wrap'>");
+  appendWebThemeCssVars(html, activeUiTheme().web);
+  html += F("</style><link rel='stylesheet' href='/ui/settings.css?v=" FW_BUILD_TAG "'></head><body><main class='vm-wrap'>");
   // ── Body: hero + form sections ──
   buildWebHeroSection(html, statusMsg);
   html += F("<form id='cfg_form' method='post' action='/config'");
@@ -6284,6 +5908,7 @@ static void handleWebConfigRoot() {
   String msg;
   if (g_webCfg.server.hasArg("status")) msg = g_webCfg.server.arg("status");
   const String html = buildWebConfigPage(statusMessageFromCode(msg));
+  g_webCfg.server.sendHeader("Cache-Control", "no-store");
   g_webCfg.server.send(200, "text/html; charset=utf-8", html);
 }
 
@@ -6322,6 +5947,23 @@ static void handleWebConfigGet() {
   sendWebConfigJson(200, true);
 }
 
+static void sendSettingsAsset(const SettingsAssets::Asset &asset) {
+  auto &server = g_webCfg.server;
+  const auto encoding = SettingsAssets::chooseEncoding(server.header("Accept-Encoding").c_str());
+  server.sendHeader("Vary", "Accept-Encoding");
+  if (encoding == SettingsAssets::Encoding::unavailable) {
+    server.send(406, "text/plain", "Unsupported encoding");
+    return;
+  }
+  server.sendHeader("Cache-Control", server.arg("v") == FW_BUILD_TAG
+                    ? "public, max-age=31536000, immutable" : "no-cache");
+  const bool compressed = encoding == SettingsAssets::Encoding::gzip;
+  if (compressed) server.sendHeader("Content-Encoding", "gzip");
+  const auto &bytes = compressed ? asset.gzip : asset.plain;
+  server.send_P(200, asset.contentType, reinterpret_cast<const char *>(bytes.begin),
+                uintptr_t(bytes.end) - uintptr_t(bytes.begin));
+}
+
 static void handleThemePreview() {
   const String id = g_webCfg.server.arg("theme");
   for (const auto &image : ThemePreviews::images) {
@@ -6342,14 +5984,6 @@ static void handleWebWifiScanApi() {
   const uint32_t scanStartMs = millis();
   constexpr uint32_t WIFI_SCAN_API_TIMEOUT_MS = 6500UL;
 
-  const int prior = WiFi.scanComplete();
-  if (prior == WIFI_SCAN_RUNNING) {
-    WiFi.scanDelete();
-    delay(20);
-  } else if (prior >= 0 || prior == WIFI_SCAN_FAILED) {
-    WiFi.scanDelete();
-  }
-
   int found = WIFI_SCAN_FAILED;
   int startRc = WiFi.scanNetworks(true, true, false, 160);
   if (startRc == WIFI_SCAN_RUNNING) {
@@ -6361,7 +5995,8 @@ static void handleWebWifiScanApi() {
         break;
       }
 #if WEB_CONFIG_ENABLED
-      if (g_webCfg.dnsStarted) g_webCfg.dnsServer.processNextRequest();
+      // With a worker the display loop continues to own captive DNS.
+      if (!g_webCfg.server.uiWorkerReady() && g_webCfg.dnsStarted) g_webCfg.dnsServer.processNextRequest();
 #endif
       delay(35);
     }
@@ -6372,17 +6007,13 @@ static void handleWebWifiScanApi() {
   }
 
   const bool scanTimedOut = (found == WIFI_SCAN_FAILED) && ((millis() - scanStartMs) > WIFI_SCAN_API_TIMEOUT_MS);
-  Serial.printf("[WEB][WIFI] scan rc=%d elapsed=%lums mode=%d ap=%d sta=%d timeout=%d\n",
-                found,
-                (unsigned long)(millis() - scanStartMs),
-                (int)WiFi.getMode(),
-                g_wifiSt.setupApActive ? 1 : 0,
-                wifiIsConnectedNow() ? 1 : 0,
-                scanTimedOut ? 1 : 0);
+  Serial.printf("[WEB][WIFI] scan rc=%d elapsed=%lums timeout=%d\n",
+                found, (unsigned long)(millis() - scanStartMs), scanTimedOut ? 1 : 0);
 
   bool first = true;
   if (found > 0) {
-    for (int i = 0; i < found; ++i) {
+    // Arduino identifies each result with an 8-bit index.
+    for (int i = 0; i < found && i <= UINT8_MAX; ++i) {
       const int ch = WiFi.channel(i);
       const String ssid = WiFi.SSID(i);
       if (ch < 1 || ch > 14) continue;
@@ -6400,7 +6031,8 @@ static void handleWebWifiScanApi() {
       out += '}';
     }
   }
-  WiFi.scanDelete();
+  // A late driver callback still owns an in-flight scan. The next request can join it.
+  if (found >= 0) WiFi.scanDelete();
   if (scanTimedOut) out += F("],\"message\":\"scan_timeout\"}");
   else if (found == WIFI_SCAN_FAILED) out += F("],\"message\":\"scan_failed\"}");
   else out += F("]}");
@@ -6595,7 +6227,11 @@ static void ensureWebConfigServerStarted() {
   }
 
   if (!g_webCfg.routesRegistered) {
-    g_webCfg.server.onUi("/ui/theme.webp", HTTP_GET, handleThemePreview);
+    static const char *headers[] = {"Accept-Encoding"};
+    g_webCfg.server.collectHeaders(headers, 1);
+    g_webCfg.server.onHttp("/ui/settings.css", HTTP_GET, [] { sendSettingsAsset(SettingsAssets::css); });
+    g_webCfg.server.onHttp("/ui/settings.js", HTTP_GET, [] { sendSettingsAsset(SettingsAssets::js); });
+    g_webCfg.server.onHttp("/ui/theme.webp", HTTP_GET, handleThemePreview);
     g_webCfg.server.onUi("/", HTTP_GET, handleWebConfigRoot);
     g_webCfg.server.onUi("/generate_204", HTTP_GET, handleWebCaptivePortalProbe);
     g_webCfg.server.onUi("/gen_204", HTTP_GET, handleWebCaptivePortalProbe);
@@ -6610,7 +6246,7 @@ static void ensureWebConfigServerStarted() {
     g_webCfg.server.onUi("/api/config", HTTP_POST, handleWebConfigApplyApi);
     g_webCfg.server.onUi("/api/now-playing", HTTP_GET, handleWebNowPlayingGetApi);
     g_webCfg.server.onUi("/api/now-playing", HTTP_POST, handleWebNowPlayingPostApi);
-    g_webCfg.server.onUi("/api/wifi/scan", HTTP_GET, handleWebWifiScanApi);
+    g_webCfg.server.onHttp("/api/wifi/scan", HTTP_GET, handleWebWifiScanApi);
     g_webCfg.server.onUi("/api/wifi/setup-qr.svg", HTTP_GET, handleWebWifiSetupQrSvgApi);
     g_webCfg.server.onUi("/api/reload", HTTP_POST, handleWebReloadApi);
     g_webCfg.server.onUi("/api/brightness", HTTP_POST, handleWebBrightnessApi);
@@ -6661,7 +6297,7 @@ static void handleWebConfigServerLoop() {
   if (g_webCfg.server.uiWorkerReady()) {
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && DISPLAY_BACKEND_ESP_LCD
     // Fast model-only callbacks fit between frames. Full page generation,
-    // artwork decoding, flash writes and user scans wait for the handoff.
+    // artwork decoding and flash writes wait for the handoff.
     if (motion && (!g_pageTransition.active ||
         g_pageTransition.pacer.timeUntilUs(micros()) < 3000)) return;
 #endif

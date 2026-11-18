@@ -18,9 +18,9 @@
 //
 // Supported responses: exactly one known-length send()/send_P() response with
 // optional sendHeader(). Chunking, streaming, raw client access, upload/raw
-// callbacks and SSE are unsupported. Register every route through onUi(),
-// including the not-found handler. Register routes and begin() before starting
-// the worker; do not mutate routes/listener concurrently with worker parsing.
+// callbacks and SSE are unsupported on UI routes. Use onHttp() only for
+// handlers that need no UI-owned state, such as immutable assets and Wi-Fi scans.
+// Register routes and begin() before starting the worker.
 // DNS/AP lifecycle stays on the UI thread. Never recursively service a request
 // from a UI callback. Callback code must itself avoid blocking I/O during motion.
 class UiWebServer : public WebServer {
@@ -49,6 +49,11 @@ class UiWebServer : public WebServer {
     WebServer::on(uri, method, [this, callback, fastDuringMotion]() {
       dispatch(callback, fastDuringMotion);
     });
+  }
+  // Runs on the parser's owner. The synchronous fallback also uses this route.
+  // Never read UI-owned models, touch LVGL, or service captive DNS on the worker.
+  void onHttp(const Uri &uri, HTTPMethod method, UiCallback callback) {
+    WebServer::on(uri, method, callback);
   }
   void onUiNotFound(UiCallback callback) {
     WebServer::onNotFound([this, callback]() { dispatch(callback, false); });

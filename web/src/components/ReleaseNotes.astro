@@ -1,6 +1,17 @@
 ---
 const releases = [
   {
+    version: 'v0.9.7',
+    tag: 'r325',
+    date: '2026-11-18',
+    headline: 'Responsive controls during Wi-Fi scans and a lighter settings page',
+    items: [
+      { label: 'Perf', text: 'Wi-Fi searches run alongside display updates. In two hardware trials, the longest USB command reply during the test fell from 2.69–2.97 seconds to 0.19–0.32 seconds.', href: 'https://github.com/enuzzo/scrybar/blob/v0.9.7/docs/performance/2026-11-18-settings-and-wifi.md' },
+      { label: 'Perf', text: 'The settings form, script and stylesheet used 37% fewer body bytes on first load. On a repeat visit the browser reused both assets and downloaded 53% less. Your current settings are fetched each time.' },
+      { label: 'Fix', text: 'The network picker now distinguishes a failed scan, a timeout and a successful search that found no networks. The network name you entered stays in place.' },
+    ],
+  },
+  {
     version: 'v0.9.6',
     tag: 'r324',
     date: '2026-11-18',
