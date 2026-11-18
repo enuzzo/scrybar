@@ -1,6 +1,17 @@
 ---
 const releases = [
   {
+    version: 'v0.9.9',
+    tag: 'r327',
+    date: '2026-11-18',
+    headline: 'Faster first connection to settings',
+    items: [
+      { label: 'Fix', text: 'If association with a known Wi-Fi network expires, ScryBar lets the driver retry that network within the original connection deadline. It still tries other saved networks when the network is absent or the attempt expires.', href: 'https://github.com/enuzzo/scrybar/blob/v0.9.9/docs/performance/2026-11-18-wifi-startup.md' },
+      { label: 'Perf', text: 'The initial settings request completed on all six test resets, compared with six timeouts on r326. Median time to service readiness fell from 13.92 to 9.43 seconds on the same board.' },
+      { label: 'Fix', text: 'ScryBar advertises its settings service after the TCP port is listening. A failed listener start is retried after one second.' },
+    ],
+  },
+  {
     version: 'v0.9.8',
     tag: 'r326',
     date: '2026-11-18',

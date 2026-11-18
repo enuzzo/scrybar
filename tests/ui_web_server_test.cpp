@@ -15,6 +15,15 @@ class TestServer : public UiWebServer {
   size_t writes = 0;
   std::atomic<unsigned> uiSocketWrites{0};
   std::thread::id uiThread = std::this_thread::get_id();
+  void verifyListenRetry() {
+    _server.canListen = false;
+    assert(!beginListening());
+    assert(!_server.descriptorOpen);
+    assert(!uiWorkerReady());
+    _server.canListen = true;
+    assert(beginListening());
+    assert(_server.descriptorOpen && _server.listening);
+  }
   void headerOnly() {
     static constexpr char header[] = "HTTP/1.1 200 OK\r\nContent-Length: 999\r\n\r\n";
     _currentClientWrite(header, sizeof(header)-1);
@@ -87,6 +96,7 @@ static std::shared_ptr<UiWebTest::Reply> request(const char *path,const String &
 int main() {
   {
     TestServer instance;server=&instance;
+    server->verifyListenRetry();
     server->onUi("/echo",HTTP_POST,echo);
     server->onUi("/fast",HTTP_POST,echo,true);
     server->onHttp("/network",HTTP_GET,[] {
@@ -209,7 +219,8 @@ int main() {
   }
   UiWebTest::joinTasks();
   {
-    TestServer instance;server=&instance;server->onUi("/echo",HTTP_POST,echo);
+    TestServer instance;server=&instance;
+    server->verifyListenRetry();server->onUi("/echo",HTTP_POST,echo);
     UiWebTest::failTaskCreation=true;assert(!server->startUiWorker());
     UiWebTest::failTaskCreation=false;
     auto legacy=server->enqueue("/echo","legacy fallback");server->handleClient();

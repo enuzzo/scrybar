@@ -638,6 +638,8 @@ static void syncImuActiveForUi();
 struct WebConfigState {
   UiWebServer server{WEB_CONFIG_PORT};
   bool serverStarted = false;
+  uint32_t listenRetryAtMs = 0;
+  bool listenRetryPending = false;
   bool routesRegistered = false;
   DNSServer dnsServer;
   bool dnsStarted = false;
@@ -3546,7 +3548,9 @@ static void wifiHandleFailure(uint32_t nowMs, const char *cause) {
 }
 
 static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
-  if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+  if (event == ARDUINO_EVENT_WIFI_STA_CONNECTED) {
+    Serial.println("[WIFI][ASSOCIATED] waiting for IP");
+  } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
     g_wifiSt.connected = true;
     g_wifiSt.everConnected = true;
     g_wifiSt.lastConnectMs = millis();
@@ -3567,18 +3571,12 @@ static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
                   WiFi.dnsIP(1).toString().c_str(),
                   dnsOk ? "OK" : "ERR");
     wifiScheduleNextAttempt(millis(), 0UL);
-#if WEB_CONFIG_ENABLED
-    ensureScryBarMdnsStarted();
-#endif
   } else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
     const bool attemptWasActive = g_wifiSt.reconnectAttemptActive;
     g_wifiSt.connected = false;
     g_wifiSt.lastDisconnectMs = millis();
     if (g_wifiSt.noLinkSinceMs == 0) g_wifiSt.noLinkSinceMs = g_wifiSt.lastDisconnectMs;
     g_wifiSt.lastDiscReason = (int)info.wifi_sta_disconnected.reason;
-#if WEB_CONFIG_ENABLED
-    stopScryBarMdns();
-#endif
     Serial.printf("[WIFI][DISC] reason=%d (%s)\n",
                   g_wifiSt.lastDiscReason,
                   WiFi.disconnectReasonName((wifi_err_reason_t)g_wifiSt.lastDiscReason));
@@ -3588,6 +3586,11 @@ static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
       return;
     }
     if (attemptWasActive) {
+      // Arduino-ESP32 retries an expired association on the same station.
+      // Its voluntary leave can also arrive during that retry. The original
+      // attempt deadline still rotates credentials if the driver cannot join.
+      if (g_wifiSt.lastDiscReason == WIFI_REASON_ASSOC_EXPIRE ||
+          g_wifiSt.lastDiscReason == WIFI_REASON_ASSOC_LEAVE) return;
       wifiHandleFailure(millis(), "event-disconnect");
       return;
     }
@@ -6275,7 +6278,15 @@ static void ensureWebConfigServerStarted() {
     g_webCfg.routesRegistered = true;
   }
 
-  g_webCfg.server.begin();
+  const uint32_t now = millis();
+  if (g_webCfg.listenRetryPending && int32_t(now - g_webCfg.listenRetryAtMs) < 0) return;
+  if (!g_webCfg.server.beginListening()) {
+    g_webCfg.listenRetryPending = true;
+    g_webCfg.listenRetryAtMs = now + 1000;
+    Serial.println("[WEB][WARN] listen failed; retry in one second");
+    return;
+  }
+  g_webCfg.listenRetryPending = false;
   g_webCfg.serverStarted = true;
   if (!g_webCfg.server.startUiWorker(0)) {
     Serial.println("[WEB][WARN] HTTP worker unavailable; using idle-only synchronous fallback");

@@ -2,6 +2,19 @@
 
 ## 2026-11-18
 
+### v0.9.9 (firmware r327) — first settings connection during Wi-Fi startup
+
+- Let the Wi-Fi driver finish retrying an expired association with the preferred
+  network. An absent access point or the original ten-second deadline still
+  moves the station to its next saved network.
+- On the same ScryBar, the initial settings request timed out during TCP connect
+  on all six r326 resets and returned a complete page on all six r327 resets.
+  Median time from reopening USB to service readiness fell from 13.92 s to 9.43 s.
+- Start advertising the settings service after its port is listening. Release
+  the socket and retry after one second if starting the listener fails.
+- Verify settings preservation across the firmware update and 160 consecutive
+  reads on the connected board. [Hardware traces and test method](docs/performance/2026-11-18-wifi-startup.md).
+
 ### v0.9.8 (firmware r326) — incomplete settings responses
 
 - Reproduce an incomplete settings-page response on r325. Instrument the sender

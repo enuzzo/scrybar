@@ -56,6 +56,13 @@ class UiWebServer : public WebServer {
   UiWebServer(const UiWebServer &) = delete;
   UiWebServer &operator=(const UiWebServer &) = delete;
 
+  bool beginListening() {
+    WebServer::begin();
+    if (_server) return true;
+    _server.end();  // Release the descriptor on bind/listen failure.
+    return false;
+  }
+
   void onUi(const Uri &uri, HTTPMethod method, UiCallback callback,
             bool fastDuringMotion = false) {
     WebServer::on(uri, method, [this, callback, fastDuringMotion]() {

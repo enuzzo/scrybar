@@ -39,11 +39,21 @@ class NetworkClient {
   }
   size_t write_P(const char *bytes, size_t length) { return write(bytes,length); }
 };
+class NetworkServer {
+ public:
+  bool canListen = true;
+  bool descriptorOpen = false;
+  bool listening = false;
+  void begin() { descriptorOpen = true; listening = canListen; }
+  void end() { listening = false; descriptorOpen = false; }
+  explicit operator bool() const { return listening; }
+};
 class WebServer {
  public:
   using THandlerFunction = std::function<void()>;
   explicit WebServer(int) {}
   virtual ~WebServer() = default;
+  void begin() { _server.end(); _server.begin(); }
   virtual NetworkClient &client() { return _currentClient; }
   virtual void handleClient() {
     Request request;
@@ -78,6 +88,7 @@ class WebServer {
  protected:
   virtual size_t _currentClientWrite(const char *bytes,size_t length) { return _currentClient.write(bytes,length); }
   virtual size_t _currentClientWrite_P(PGM_P bytes,size_t length) { return _currentClient.write_P(bytes,length); }
+  NetworkServer _server;
   NetworkClient _currentClient;
   bool _chunked=false;
  private:
