@@ -671,7 +671,7 @@ Discard touch frames where:
 - Serial `PWROFFHARD` remains available for diagnostics
 - Boot always re-asserts `SYS_EN` via TCA9554
 - Battery monitor: ADC1 CH3, 12dB attenuation, ×3 divider
-- Screensaver idle target: `2h` on USB and `2h` on battery
+- Display inactivity: the screensaver defaults to 15 minutes and backlight shutoff to 25 minutes total on USB and battery. The web panel saves both timers in one NVS key. A value of 0 disables its timer. When both are enabled, the screensaver must start before shutoff. QR overlays and telemetry do not reset the timers. Touch must persist for 40 ms, and a stuck contact counts for at most 30 s. Touch and physical buttons can wake the display. Brightness updates respect idle-off. `SAVERSTAT` reports both timeouts, idle age, off state and applied backlight. `SAVERIDLE <seconds>` lets diagnostics simulate time since the last interaction.
 - Power short-press hardening:
   - press debounce window: `45ms`
   - minimum short-press duration: `70ms`
@@ -761,6 +761,8 @@ Discard touch frames where:
 | `SNAP` | Emit framebuffer snapshot protocol |
 | `BATSTAT` | Print battery status |
 | `SAVERON` / `SAVEROFF` | Toggle screensaver |
+| `SAVERSTAT` | Report firmware, inactivity timeouts, idle age, display-off and applied backlight |
+| `SAVERIDLE <seconds>` | Diagnostic inactivity aging (0–3600 s); thresholds stay unchanged |
 | `PWRSTAT` | Print power button status |
 | `PWROFFHARD` | Hard power-off |
 | `WEBCFG` | Print active web config summary |

@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-11-18
+
+### Firmware r323 — configurable display inactivity
+
+- Add separate screensaver and backlight shutoff timers under **Display → Display
+  inactivity**. Defaults are 15 and 25 minutes from the last interaction, on USB
+  and battery. A value of `0` disables its timer. The web panel and config API
+  store both values together in nonvolatile storage.
+- Install r323 on the original ScryBar via USB. Verify the application write
+  hash and compare the partition table, settings and OTA data against the
+  rollback backup before the first r323 boot.
+- On the device, advance the inactivity counter to just before each default
+  deadline. The screensaver started at 900,001 ms and the backlight was at 0%
+  by 1,500,002 ms.
+- Save and reboot with each timer disabled in turn. Both settings were
+  confirmed in the web panel and over serial after each reboot. With the
+  other timer disabled, the screensaver started at 60,000 ms of actual
+  inactivity and the backlight was at 0% by 60,002 ms of actual inactivity.
+  Restore the 15- and 25-minute settings and leave the display awake.
+
 ## 2026-10-23
 
 ### v0.9.5 (firmware r322) — active frame pacing, live Stats and WebUI redesign

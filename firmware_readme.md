@@ -116,7 +116,11 @@ Current scope:
   - `BOOT` (left): single click -> `HOME`
   - `PWR` (center): short press screensaver toggle; hold `3s` -> soft-off / wake to `HOME`
   - `RST` (right): hardware reset
-- Screensaver auto-idle target is `2h` on both USB and battery.
+- Display inactivity defaults to a 15-minute screensaver and a 25-minute backlight
+  shutoff on USB and battery. Both times count from the last interaction. The
+  web panel saves them under **Display → Display inactivity**. Enter `0` to disable
+  a timer. `POST /api/config` accepts `screensaver_minutes` and
+  `screen_off_minutes` as form fields. `GET /api/config` returns them under `ui`.
 
 Serial page shortcuts:
 

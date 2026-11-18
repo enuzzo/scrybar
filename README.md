@@ -207,7 +207,10 @@ Physical buttons:
 - `BOOT` (left): single click jumps to `HOME`.
 - `RST` (right): hardware reset. The nuclear option.
 
-Auto-idle screensaver: `2h` on both USB and battery.
+By default, ScryBar starts the screensaver after 15 minutes of inactivity and turns
+off the backlight after 25 minutes of inactivity, on USB and battery. Set either timer
+under **Display → Display inactivity** in the device's web settings. Use `0` to
+disable that timer and select **Save changes**.
 
 ## Word Clock Languages
 
@@ -405,7 +408,7 @@ preparation time; neither measures physical panel scanout. See the
 | Command | Effect |
 |---|---|
 | `SAVERON` / `SAVEROFF` | Force screensaver on / off |
-| `SAVERSTAT` | Print screensaver state + active idle target |
+| `SAVERSTAT` | Print screensaver state and both inactivity timers (0 = disabled) |
 | `PWROFF` | Soft power-off (recoverable via power button) |
 | `PWROFFHARD` | Hard power-off. **Requires hardware power cycle. Handle with care.** |
 

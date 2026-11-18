@@ -4,6 +4,28 @@
 namespace DisplayIdle {
 inline uint32_t elapsed(uint32_t now, uint32_t last) { return now - last; }
 
+constexpr uint16_t kMaxMinutes = 24 * 60;
+
+struct Timeouts {
+  uint16_t screensaverMinutes = 15;
+  uint16_t screenOffMinutes = 25;
+
+  bool valid() const {
+    return screensaverMinutes <= kMaxMinutes && screenOffMinutes <= kMaxMinutes &&
+           (screensaverMinutes == 0 || screenOffMinutes == 0 || screensaverMinutes < screenOffMinutes);
+  }
+
+  bool operator==(const Timeouts &other) const {
+    return screensaverMinutes == other.screensaverMinutes &&
+           screenOffMinutes == other.screenOffMinutes;
+  }
+};
+
+inline uint32_t milliseconds(uint16_t minutes) { return minutes * 60000UL; }
+inline bool expired(uint32_t idleMs, uint16_t minutes) {
+  return minutes != 0 && idleMs >= milliseconds(minutes);
+}
+
 // Ignore isolated ghost frames and cap a continuously asserted contact. A
 // fresh contact requires a real release, including across millis() rollover.
 struct TouchActivity {

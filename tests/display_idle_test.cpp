@@ -1,6 +1,24 @@
 #include "../src/display_idle.h"
 #include <cassert>
 int main() {
+  const DisplayIdle::Timeouts defaults;
+  assert(defaults.valid());
+  assert(!DisplayIdle::expired(899999, defaults.screensaverMinutes));
+  assert(DisplayIdle::expired(900000, defaults.screensaverMinutes));
+  assert(!DisplayIdle::expired(1499999, defaults.screenOffMinutes));
+  assert(DisplayIdle::expired(1500000, defaults.screenOffMinutes));
+  assert(!DisplayIdle::expired(UINT32_MAX, 0));
+
+  assert((DisplayIdle::Timeouts{0, 25}.valid()));
+  assert((DisplayIdle::Timeouts{15, 0}.valid()));
+  assert((DisplayIdle::Timeouts{0, 0}.valid()));
+  assert((DisplayIdle::Timeouts{1439, 1440}.valid()));
+  assert((DisplayIdle::Timeouts{1440, 0}.valid()));
+  assert(!(DisplayIdle::Timeouts{25, 15}.valid()));
+  assert(!(DisplayIdle::Timeouts{15, 15}.valid()));
+  assert(!(DisplayIdle::Timeouts{0, 1441}.valid()));
+  assert(!(DisplayIdle::Timeouts{1441, 0}.valid()));
+
   assert(DisplayIdle::elapsed(20, UINT32_MAX - 20) == 41);
   DisplayIdle::TouchActivity t;
   assert(!t.update(true, 100));

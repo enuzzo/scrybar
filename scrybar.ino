@@ -761,6 +761,7 @@ struct RuntimeNetConfig {
   // behavior so existing devices see no visible change until moved.
   uint8_t backlightUsbPct = 100;
   uint8_t backlightBatPct = ENERGY_BACKLIGHT_ON_BATTERY;
+  DisplayIdle::Timeouts displayIdle;
   bool ready = false;
 };
 static RuntimeNetConfig g_runtimeNetConfig = {};
@@ -2539,8 +2540,8 @@ static void onPowerButtonShortPress(uint32_t nowMs) {
     Serial.println("[PWR] Short press: screensaver unavailable (LVGL not ready).");
     return;
   }
+  const bool nextSaverState = !g_saver.active && !g_displayIdleOff;
   markUserInteraction(nowMs);
-  const bool nextSaverState = !g_saver.active;
   Serial.printf("[SCRNSVR] %s reason=pwr_short_press\n", nextSaverState ? "ON" : "OFF");
   lvglSetScreenSaverActive(nextSaverState);
   Serial.printf("[PWR] Short press: screensaver %s.\n", nextSaverState ? "ON" : "OFF");
@@ -4434,6 +4435,28 @@ static bool nvsSaveBacklightConfig(Preferences &prefs) {
   return usbWritten == sizeof(uint8_t) && batWritten == sizeof(uint8_t);
 }
 
+static constexpr char kDisplayIdleNvsKey[] = "display_idle";
+
+static void nvsLoadDisplayIdleConfig(Preferences &prefs, bool &loadedAny) {
+  if (!prefs.isKey(kDisplayIdleNvsKey)) return;
+  const uint32_t packed = prefs.getUInt(kDisplayIdleNvsKey, UINT32_MAX);
+  const DisplayIdle::Timeouts timeouts{(uint16_t)(packed >> 16), (uint16_t)packed};
+  if (timeouts.valid()) {
+    g_runtimeNetConfig.displayIdle = timeouts;
+    loadedAny = true;
+  }
+}
+
+static bool nvsSaveDisplayIdleConfig(const DisplayIdle::Timeouts &timeouts) {
+  Preferences prefs;
+  if (!prefs.begin("scrybar_cfg", false)) return false;
+  // Store both deadlines in one key so reboot can never load a partial pair.
+  const uint32_t packed = (uint32_t(timeouts.screensaverMinutes) << 16) | timeouts.screenOffMinutes;
+  const bool saved = prefs.putUInt(kDisplayIdleNvsKey, packed) == sizeof(packed);
+  prefs.end();
+  return saved;
+}
+
 static void loadRuntimeNetConfigFromNvs() {
   if (g_runtimeNetConfigNvsLoaded) return;
   g_runtimeNetConfigNvsLoaded = true;
@@ -4504,6 +4527,7 @@ static void loadRuntimeNetConfigFromNvs() {
     }
   }
   nvsLoadBacklightConfig(prefs, loadedAny);
+  nvsLoadDisplayIdleConfig(prefs, loadedAny);
   if (prefs.isKey("ui_views")) {
     uint8_t stored = prefs.getUChar("ui_views", UI_VIEW_MASK_DEFAULT);
     // Which flags were known when this value was last saved?
@@ -5698,7 +5722,7 @@ static const char kWebJsControl[] PROGMEM = R"rawliteral(
   var themeSelect=form.querySelector('[name="ui_theme"]');
   var dirty=false,submitting=false,queued=false;
   var sections=[
-    {id:'display',label:'Display',items:[['[name="ui_theme"]','Theme'],['#bl_usb','Brightness'],['#view_list','Views and swipe order'],['[name="wc_lang"]','Display language']]},
+    {id:'display',label:'Display',items:[['[name="ui_theme"]','Theme'],['#bl_usb','Brightness'],['#screensaver_minutes','Display inactivity'],['#view_list','Views and swipe order'],['[name="wc_lang"]','Display language']]},
     {id:'connections',label:'Wi-Fi',items:[['[name="wifi_pref_ssid"]','Wi-Fi connections']]},
     {id:'content',label:'Content',items:[['#weather_city','Weather'],['[name="wiki_lang"]','Wikipedia'],['#transit_from_q','Departures'],['#rss_list','RSS feeds']]}
   ];
@@ -5815,6 +5839,20 @@ static const char kWebJsControl[] PROGMEM = R"rawliteral(
   var rssList=document.getElementById('rss_list'),viewList=document.getElementById('view_list');
   if(rssList)new MutationObserver(schedule).observe(rssList,{childList:true,subtree:false});
   if(viewList)new MutationObserver(schedule).observe(viewList,{childList:true});
+  var saverDelay=document.getElementById('screensaver_minutes'),offDelay=document.getElementById('screen_off_minutes');
+  if(saverDelay&&offDelay){
+    function validateIdleDelays(){
+      var wholeMinutes=/^[0-9]+$/;
+      var wholeMinutesMessage='Enter a whole number of minutes.';
+      saverDelay.setCustomValidity(saverDelay.value&&!wholeMinutes.test(saverDelay.value)?wholeMinutesMessage:'');
+      offDelay.setCustomValidity(offDelay.value&&!wholeMinutes.test(offDelay.value)?wholeMinutesMessage:'');
+      if(saverDelay.validity.valid&&offDelay.validity.valid&&saverDelay.valueAsNumber>0&&offDelay.valueAsNumber>0&&offDelay.valueAsNumber<=saverDelay.valueAsNumber)
+        offDelay.setCustomValidity('Screen off must be later than the screensaver.');
+    }
+    saverDelay.addEventListener('input',validateIdleDelays);
+    offDelay.addEventListener('input',validateIdleDelays);
+    validateIdleDelays();
+  }
   // Autocomplete and scan responses fill fields programmatically after their input event.
   ['geo_status','wifi_scan_status','transit_from_st'].forEach(function(id){var status=document.getElementById(id);if(status)new MutationObserver(schedule).observe(status,{childList:true,characterData:true,subtree:true});});
   form.addEventListener('invalid',function(e){var panel=e.target.closest('.cp-page');if(panel)showSection(panel.id.replace('cp-',''),false);var setting=settings.find(function(s){return s.card.contains(e.target);});if(setting)setting.open();},true);
@@ -5935,6 +5973,31 @@ static void buildWebBrightnessSection(String &html) {
               "}"
               "bind(u,uo);bind(b,bo);"
             "})();</script>");
+}
+
+static void buildWebDisplayIdleSection(String &html) {
+  html += F("<div class='vm-card'><h2>Display inactivity</h2>"
+            "<p class='vm-help' id='display_idle_help'>Both timers count from the last touch or button press, on USB and battery. "
+            "Enter 0 to disable either timer. When both are on, set screen off later than the screensaver.</p><div class='vm-grid'>");
+  const auto &timeouts = g_runtimeNetConfig.displayIdle;
+  const auto addField = [&](const char *key, const char *label, uint16_t minutes) {
+    html += F("<div><label class='vm-label' for='");
+    html += key;
+    html += F("'>");
+    html += label;
+    html += F("</label><input class='vm-input' type='number' inputmode='numeric' min='0' max='");
+    html += (unsigned)DisplayIdle::kMaxMinutes;
+    html += F("' required aria-describedby='display_idle_help' id='");
+    html += key;
+    html += F("' name='");
+    html += key;
+    html += F("' value='");
+    html += (unsigned)minutes;
+    html += F("'></div>");
+  };
+  addField("screensaver_minutes", "Screensaver after (min)", timeouts.screensaverMinutes);
+  addField("screen_off_minutes", "Screen off after (min)", timeouts.screenOffMinutes);
+  html += F("</div></div>");
 }
 
 static void buildWebViewToggles(String &html) {
@@ -6409,6 +6472,7 @@ static String buildWebConfigPage(const char *statusMsg) {
   html += F("<form id='cfg_form' method='post' action='/config'>");
   buildWebThemeSelector(html);
   buildWebBrightnessSection(html);
+  buildWebDisplayIdleSection(html);
   buildWebViewToggles(html);
 #if TEST_WIFI
   buildWebWifiSection(html);
@@ -6505,7 +6569,11 @@ static void sendWebConfigJson(int code, bool ok, const char *message = nullptr) 
   appendJsonEscaped(out, runtimeUiThemeId());
   out += F("\",\"theme_label\":\"");
   appendJsonEscaped(out, runtimeUiThemeLabel());
-  out += F("\",\"views\":{\"info\":");
+  out += F("\",\"screensaver_minutes\":");
+  out += (unsigned)g_runtimeNetConfig.displayIdle.screensaverMinutes;
+  out += F(",\"screen_off_minutes\":");
+  out += (unsigned)g_runtimeNetConfig.displayIdle.screenOffMinutes;
+  out += F(",\"views\":{\"info\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_INFO) ? F("true") : F("false");
   out += F(",\"home\":true,\"aux\":");
   out += (g_runtimeNetConfig.enabledViewsMask & UI_VIEW_FLAG_AUX) ? F("true") : F("false");
@@ -6662,6 +6730,37 @@ static bool parseBrightnessConfig(RuntimeNetConfig &next, String &errorOut, bool
   };
   if (!parseOne("bl_usb",  next.backlightUsbPct))  return false;
   if (!parseOne("bl_batt", next.backlightBatPct))  return false;
+  return true;
+}
+
+static bool parseDisplayIdleConfig(RuntimeNetConfig &next, String &errorOut, bool &hasInput) {
+  const bool hasSaver = g_webCfg.server.hasArg("screensaver_minutes");
+  const bool hasOff = g_webCfg.server.hasArg("screen_off_minutes");
+  if (!hasSaver && !hasOff) return true;
+
+  const auto parseMinutes = [](const String &raw, uint16_t &minutes) {
+    if (raw.isEmpty()) return false;
+    unsigned value = 0;
+    for (size_t i = 0; i < raw.length(); ++i) {
+      const char digit = raw[i];
+      if (digit < '0' || digit > '9') return false;
+      value = value * 10 + (digit - '0');
+      if (value > DisplayIdle::kMaxMinutes) return false;
+    }
+    minutes = (uint16_t)value;
+    return true;
+  };
+  auto &timeouts = next.displayIdle;
+  if ((hasSaver && !parseMinutes(g_webCfg.server.arg("screensaver_minutes"), timeouts.screensaverMinutes)) ||
+      (hasOff && !parseMinutes(g_webCfg.server.arg("screen_off_minutes"), timeouts.screenOffMinutes))) {
+    errorOut = String("Display inactivity requires whole minutes between 0 and ") + DisplayIdle::kMaxMinutes + ".";
+    return false;
+  }
+  if (!timeouts.valid()) {
+    errorOut = "Screen off must be later than the screensaver.";
+    return false;
+  }
+  hasInput = true;
   return true;
 }
 
@@ -6947,7 +7046,9 @@ static void applyConfigSideEffects(const ConfigDiffResult &diff, bool langChange
 
 // ── M5: Orchestrator ──
 
-static bool applyRuntimeConfigFromRequest(String &errorOut) {
+static constexpr char kDisplayIdleSaveError[] = "Display inactivity times could not be saved. Try again.";
+
+static int applyRuntimeConfigFromRequest(String &errorOut) {
   ensureRuntimeNetConfig();
   RuntimeNetConfig next = g_runtimeNetConfig;
   bool hasInput = false, langChanged = false, wikiLangChanged = false;
@@ -6955,20 +7056,25 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
   bool transitChanged = false;
   int8_t wifiPrefIdx = -1;
 
-  if (!parseWeatherConfig(next, errorOut, hasInput)) return false;
-  if (!parseRssFeedConfig(next, errorOut, hasInput)) return false;
-  if (!parseLogoConfig(next, errorOut, hasInput)) return false;
-  if (!parseThemeConfig(next, errorOut, hasInput)) return false;
-  if (!parseBrightnessConfig(next, errorOut, hasInput)) return false;
-  if (!parseViewsConfig(next, errorOut, hasInput)) return false;
-  if (!parseWifiSetupModeConfig(errorOut, hasInput, wifiSetupModeChanged)) return false;
-  if (!parseWifiCredentialConfig(errorOut, hasInput, wifiPrefChanged, wifiProvisioned, wifiPrefIdx)) return false;
-  if (!parseWifiPreferredConfig(errorOut, hasInput, wifiProvisioned, wifiPrefChanged, wifiPrefIdx)) return false;
-  if (!parseLangConfig(errorOut, hasInput, langChanged)) return false;
-  if (!parseWikiLangConfig(errorOut, hasInput, wikiLangChanged)) return false;
-  if (!parseTransitConfig(errorOut, hasInput, transitChanged)) return false;
+  if (!parseWeatherConfig(next, errorOut, hasInput)) return 400;
+  if (!parseRssFeedConfig(next, errorOut, hasInput)) return 400;
+  if (!parseLogoConfig(next, errorOut, hasInput)) return 400;
+  if (!parseThemeConfig(next, errorOut, hasInput)) return 400;
+  if (!parseBrightnessConfig(next, errorOut, hasInput)) return 400;
+  if (!parseDisplayIdleConfig(next, errorOut, hasInput)) return 400;
+  if (!parseViewsConfig(next, errorOut, hasInput)) return 400;
+  if (!parseWifiSetupModeConfig(errorOut, hasInput, wifiSetupModeChanged)) return 400;
+  if (!parseWifiCredentialConfig(errorOut, hasInput, wifiPrefChanged, wifiProvisioned, wifiPrefIdx)) return 400;
+  if (!parseWifiPreferredConfig(errorOut, hasInput, wifiProvisioned, wifiPrefChanged, wifiPrefIdx)) return 400;
+  if (!parseLangConfig(errorOut, hasInput, langChanged)) return 400;
+  if (!parseWikiLangConfig(errorOut, hasInput, wikiLangChanged)) return 400;
+  if (!parseTransitConfig(errorOut, hasInput, transitChanged)) return 400;
 
-  if (!hasInput) { errorOut = "nessun parametro"; return false; }
+  if (!hasInput) { errorOut = "nessun parametro"; return 400; }
+
+  const bool idleSaved = next.displayIdle == g_runtimeNetConfig.displayIdle ||
+                         nvsSaveDisplayIdleConfig(next.displayIdle);
+  if (!idleSaved) next.displayIdle = g_runtimeNetConfig.displayIdle;
 
   const ConfigDiffResult diff = commitConfigToNvs(next);
   applyConfigSideEffects(diff, langChanged, wikiLangChanged, wifiPrefChanged, wifiSetupModeChanged, wifiPrefIdx);
@@ -6988,13 +7094,18 @@ static bool applyRuntimeConfigFromRequest(String &errorOut) {
 #endif
     if (g_transitConfig.configured) (void)updateTransitFromApi(true);
   }
-  return true;
+  if (!idleSaved) {
+    errorOut = kDisplayIdleSaveError;
+    return 500;
+  }
+  return 200;
 }
 
 static const char *statusMessageFromCode(const String &status) {
   if (status == "saved") return "Configuration saved to NVS.";
   if (status == "reloaded") return "Weather / RSS / Wiki reload complete.";
   if (status == "invalid") return "Invalid request: please check the fields.";
+  if (status == "idle_save_failed") return kDisplayIdleSaveError;
   return "";
 }
 
@@ -7181,20 +7292,14 @@ static void handleWebWifiSetupQrSvgApi() {
 
 static void handleWebConfigApplyApi() {
   String err;
-  if (!applyRuntimeConfigFromRequest(err)) {
-    sendWebConfigJson(400, false, err.c_str());
-    return;
-  }
-  sendWebConfigJson(200, true, "updated");
+  const int status = applyRuntimeConfigFromRequest(err);
+  sendWebConfigJson(status, status == 200, status == 200 ? "updated" : err.c_str());
 }
 
 static void handleWebConfigApplyForm() {
   String err;
-  if (!applyRuntimeConfigFromRequest(err)) {
-    webConfigRedirect("invalid");
-    return;
-  }
-  webConfigRedirect("saved");
+  const int status = applyRuntimeConfigFromRequest(err);
+  webConfigRedirect(status == 200 ? "saved" : (status == 500 ? "idle_save_failed" : "invalid"));
 }
 
 static bool webRequestHasConfigParams() {
@@ -7208,6 +7313,8 @@ static bool webRequestHasConfigParams() {
   if (g_webCfg.server.hasArg("wifi_new_ssid")) return true;
   if (g_webCfg.server.hasArg("wifi_new_password")) return true;
   if (g_webCfg.server.hasArg("ui_theme")) return true;
+  if (g_webCfg.server.hasArg("screensaver_minutes")) return true;
+  if (g_webCfg.server.hasArg("screen_off_minutes")) return true;
   if (g_webCfg.server.hasArg("view_info")) return true;
   if (g_webCfg.server.hasArg("view_aux")) return true;
   if (g_webCfg.server.hasArg("view_wiki")) return true;
@@ -7230,8 +7337,9 @@ static bool webRequestHasConfigParams() {
 static void handleWebReloadForm() {
   if (webRequestHasConfigParams()) {
     String err;
-    if (!applyRuntimeConfigFromRequest(err)) {
-      webConfigRedirect("invalid");
+    const int status = applyRuntimeConfigFromRequest(err);
+    if (status != 200) {
+      webConfigRedirect(status == 500 ? "idle_save_failed" : "invalid");
       return;
     }
   }
@@ -7275,8 +7383,9 @@ static void handleWebBrightnessApi() {
 static void handleWebReloadApi() {
   if (webRequestHasConfigParams()) {
     String err;
-    if (!applyRuntimeConfigFromRequest(err)) {
-      sendWebConfigJson(400, false, err.c_str());
+    const int status = applyRuntimeConfigFromRequest(err);
+    if (status != 200) {
+      sendWebConfigJson(status, false, err.c_str());
       return;
     }
   }
@@ -12681,18 +12790,6 @@ static void lvglScreenSaverUpdateFooter(uint32_t nowMs) {
                kJitterXY[g_saver.footerJitterIdx][1]);
 }
 
-static uint32_t lvglScreenSaverIdleTargetMs(uint32_t nowMs) {
-#if TEST_BATTERY
-  if (g_batt.hasSample && !batteryExternalPowerLikelyNow(nowMs)) {
-    return SCREENSAVER_IDLE_BATTERY_MS;
-  }
-  return SCREENSAVER_IDLE_USB_MS;
-#else
-  (void)nowMs;
-  return SCREENSAVER_IDLE_USB_MS;
-#endif
-}
-
 static void lvglScreenSaverInitStars() {
   const uint32_t nowMs = millis();
   for (uint8_t r = 0; r < kSaverSkyRowsMax; ++r) {
@@ -13477,7 +13574,7 @@ static void lvglSetScreenSaverActive(bool on) {
 }
 
 static void handleScreenSaverLoop(uint32_t nowMs) {
-  if (!g_lvglReady || !g_saver.root) return;
+  if (!g_lvglReady || !g_saver.root || g_displayIdleOff) return;
   // Always use a fresh millis() here. loop() captures `now` once at the top,
   // but earlier handlers (handleTouchSwipeInput, runImuLoop) may stamp
   // timestamp fields with a newer millis(), making the stale snapshot UNDERFLOW
@@ -13485,21 +13582,25 @@ static void handleScreenSaverLoop(uint32_t nowMs) {
   // project_knowledge.md "uint32_t millis() underflow gotcha".
   nowMs = millis();
   const uint32_t idleMs = DisplayIdle::elapsed(nowMs, g_saver.lastUserInteractionMs);
+  const auto &timeouts = g_runtimeNetConfig.displayIdle;
   // Protection also applies to QR overlays, active telemetry, and stuck touch.
-  if (idleMs >= DISPLAY_OFF_IDLE_MS) {
-    if (!g_saver.active) lvglSetScreenSaverActive(true);
-    if (!g_displayIdleOff) {
-      g_displayIdleOff = true;
-      setBacklightPercent(0);
-      Serial.println("[DISPLAY] OFF reason=idle backlight=0%");
+  if (DisplayIdle::expired(idleMs, timeouts.screenOffMinutes)) {
+    if (timeouts.screensaverMinutes != 0) lvglSetScreenSaverActive(true);
+    else if (!g_saver.active) {
+#if DISPLAY_BACKEND_ESP_LCD
+      pageTransitionAbort("display idle off");
+#endif
+      bambuCameraClose();
     }
+    g_displayIdleOff = true;
+    setBacklightPercent(0);
+    Serial.println("[DISPLAY] OFF reason=idle backlight=0%");
     return;
   }
   if (!g_saver.active) {
-    const uint32_t idleTargetMs = lvglScreenSaverIdleTargetMs(nowMs);
-    if (idleMs >= idleTargetMs) {
+    if (DisplayIdle::expired(idleMs, timeouts.screensaverMinutes)) {
       Serial.printf("[SCRNSVR] ON reason=idle idleMs=%lu targetMs=%lu\n",
-                    (unsigned long)idleMs, (unsigned long)idleTargetMs);
+                    (unsigned long)idleMs, (unsigned long)DisplayIdle::milliseconds(timeouts.screensaverMinutes));
       lvglSetScreenSaverActive(true);
     }
     return;
@@ -13903,12 +14004,13 @@ static void handleTouchSwipeInput() {
   const bool touched = readTouchLogicalPoint(x, y);
   const uint32_t now = millis();
 
-  // ── Phase 1: Screensaver wake + release gate ──
+  // ── Phase 1: Display wake + release gate ──
 #if TEST_DISPLAY && TEST_NTP && TEST_LVGL_UI && SCREENSAVER_ENABLED
   const bool idleTouchActivity = g_idleTouch.update(touched, now);
   if (idleTouchActivity) {
+    const bool wakingDisplay = g_saver.active || g_displayIdleOff;
     markUserInteraction(now);
-    if (g_saver.active) {
+    if (wakingDisplay) {
       lvglSetScreenSaverActive(false);
       g_touch.down = false; g_touch.pageDragging = false;
       g_touch.auxBtnDown = TOUCH_AUX_BTN_NONE;
@@ -13919,7 +14021,7 @@ static void handleTouchSwipeInput() {
     }
   }
 #endif
-  if (g_saver.active) return;
+  if (g_saver.active || g_displayIdleOff) return;
   if (g_touch.awaitRelease) {
     if (touched) { g_touch.releaseStartMs = 0; return; }
     if (g_touch.releaseStartMs == 0) { g_touch.releaseStartMs = now; return; }
@@ -20820,12 +20922,13 @@ static void cmdSaverIdle(const String &args) {
 
 static void cmdSaverStat(const String &args) {
   const uint32_t now = millis();
-  const uint32_t idleTargetMs = lvglScreenSaverIdleTargetMs(now);
-  Serial.printf("[SCRNSVR] active=%d idle_ms=%lu last_input_ago=%lu display_off=%d backlight=%u fw=%s\n",
+  const auto &timeouts = g_runtimeNetConfig.displayIdle;
+  Serial.printf("[SCRNSVR] active=%d idle_ms=%lu last_input_ago=%lu display_off=%d backlight=%u fw=%s off_idle_ms=%lu\n",
                 g_saver.active ? 1 : 0,
-                (unsigned long)idleTargetMs,
+                (unsigned long)DisplayIdle::milliseconds(timeouts.screensaverMinutes),
                 (unsigned long)(now - g_saver.lastUserInteractionMs),
-                g_displayIdleOff ? 1 : 0, g_backlightAppliedPct, FW_BUILD_TAG);
+                g_displayIdleOff ? 1 : 0, g_backlightAppliedPct, FW_BUILD_TAG,
+                (unsigned long)DisplayIdle::milliseconds(timeouts.screenOffMinutes));
 }
 #endif
 
